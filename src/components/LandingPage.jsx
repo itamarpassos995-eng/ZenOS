@@ -1,116 +1,211 @@
-import React, { useState } from 'react';
+import React from 'react';
 
-export default function LandingPage({ aoIrParaLogin }) {
-  const [emailInteresse, setEmailInteresse] = useState('');
-  const [enviado, setEnviado] = useState(false);
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (emailInteresse.trim()) {
-      setEnviado(true);
-      setEmailInteresse('');
-    }
-  };
-
+const LandingPage = () => {
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#020617', color: '#f8fafc', fontFamily: 'system-ui, -apple-system, sans-serif', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflowX: 'hidden' }}>
-      
-      {/* Background Gradients de Alta Performance */}
-      <div style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', width: '1000px', height: '400px', background: 'radial-gradient(circle at 50% 0%, rgba(79, 70, 229, 0.12) 0%, rgba(2, 6, 23, 0) 70%)', zIndex: 0, pointerEvents: 'none' }}></div>
-
-      {/* Header Corporativo */}
-      <header style={{ padding: '24px 60px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(30, 41, 59, 0.4)', zIndex: 10, backdropFilter: 'blur(12px)', backgroundColor: 'rgba(2, 6, 23, 0.8)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{ backgroundColor: '#ffffff', padding: '4px 10px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '38px', boxShadow: '0 4px 20px rgba(0,0,0,0.6)' }}>
-            <img src="/Logo.png.jpeg" alt="ZenOS" style={{ height: '28px', width: 'auto', objectFit: 'contain' }} onError={(e) => e.target.src = '/logo.png'} />
-          </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
-            <span style={{ color: '#f8fafc', fontWeight: 900, fontSize: '20px', letterSpacing: '4px' }}>ZenOS</span>
-            <span style={{ color: '#6366f1', fontWeight: 800, fontSize: '9px', letterSpacing: '2px' }}>ENTERPRISE</span>
-          </div>
+    <div style={styles.pageContainer}>
+      {/* CABEÇALHO */}
+      <header style={styles.header}>
+        <div style={styles.logoContainer}>
+          <div style={styles.logoIcon}>Z</div>
+          <h1 style={styles.logoText}>ZenOS</h1>
         </div>
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-          <button onClick={aoIrParaLogin} style={{ backgroundColor: '#0f172a', border: '1px solid #334155', color: '#cbd5e1', padding: '10px 20px', borderRadius: '8px', fontSize: '12px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' }}>
-            Entrar no Sistema
-          </button>
-          <button onClick={aoIrParaLogin} style={{ background: 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#fff', padding: '10px 24px', borderRadius: '8px', fontSize: '12px', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 20px rgba(79, 70, 229, 0.4)' }}>
-            Solicitar Acesso
-          </button>
-        </div>
+        <button style={styles.loginButtonOutline}>Acessar Sistema</button>
       </header>
 
-      {/* Hero Section de Alto Impacto */}
-      <main style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '80px 20px 60px 20px', zIndex: 1, maxWidth: '1000px', margin: '0 auto' }}>
-        
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', backgroundColor: 'rgba(99, 102, 241, 0.08)', border: '1px solid rgba(99, 102, 241, 0.25)', padding: '8px 18px', borderRadius: '999px', marginBottom: '32px' }}>
-          <div style={{ width: '6px', height: '6px', backgroundColor: '#6366f1', borderRadius: '50%', boxShadow: '0 0 10px #6366f1' }}></div>
-          <span style={{ color: '#a5b4fc', fontSize: '11px', fontWeight: 900, letterSpacing: '2px', textTransform: 'uppercase' }}>Sistema Operacional de Gestão Multiloja</span>
-        </div>
-
-        <h1 style={{ fontSize: 'clamp(40px, 6vw, 72px)', fontWeight: 900, lineHeight: 1.05, margin: '0 0 28px 0', letterSpacing: '-1.5px', color: '#ffffff' }}>
-          Controle absoluto da sua operação. <br/>
-          <span style={{ background: 'linear-gradient(135deg, #818cf8 0%, #c084fc 50%, #f472b6 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Sem margem para erros.</span>
-        </h1>
-
-        <p style={{ color: '#94a3b8', fontSize: '18px', lineHeight: 1.7, maxWidth: '740px', margin: '0 0 48px 0', fontWeight: 400 }}>
-          O ZenOS unifica PDV de alta velocidade, dados isolados por tenant (Multi-Tenant), gestão financeira em tempo real, câmbio multi-moeda e inteligência executiva numa única plataforma em nuvem.
-        </p>
-
-        {/* Call to Action Box Corporativa */}
-        <div style={{ width: '100%', maxWidth: '520px', backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', padding: '36px', boxShadow: '0 25px 60px rgba(0,0,0,0.7)' }}>
-          {enviado ? (
-            <div style={{ padding: '24px', backgroundColor: 'rgba(16, 185, 129, 0.08)', border: '1px solid #10b981', borderRadius: '10px' }}>
-              <h3 style={{ color: '#34d399', margin: '0 0 8px 0', fontSize: '16px', fontWeight: 900 }}>Solicitação Registada</h3>
-              <p style={{ color: '#94a3b8', fontSize: '13px', margin: 0 }}>Nossa equipe comercial entrará em contacto para homologação do seu ambiente.</p>
+      {/* SECÇÃO HERO (PRINCIPAL) */}
+      <main style={styles.mainContent}>
+        <section style={styles.heroSection}>
+          <div style={styles.heroTextContainer}>
+            <h2 style={styles.heroTitle}>
+              O Sistema de Gestão Definitivo para o seu Negócio
+            </h2>
+            <p style={styles.heroSubtitle}>
+              Esqueça os sistemas antigos. O ZenOS é a plataforma de gestão e PDV que cabe no seu bolso e tem a potência de um software corporativo.
+            </p>
+            <div style={styles.buttonGroup}>
+              <button style={styles.primaryButton}>Começar Agora</button>
+              <button style={styles.secondaryButton}>Conhecer Recursos</button>
             </div>
-          ) : (
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px', textAlign: 'left' }}>
-              <label style={{ fontSize: '11px', fontWeight: 900, color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '1.5px' }}>Acelere a digitalização da sua empresa</label>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <input 
-                  type="email" 
-                  required
-                  placeholder="Insira o seu e-mail corporativo..." 
-                  value={emailInteresse}
-                  onChange={(e) => setEmailInteresse(e.target.value)}
-                  style={{ flex: 1, backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', padding: '14px 18px', color: '#fff', fontSize: '14px', outline: 'none' }}
-                />
-                <button type="submit" style={{ background: 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#fff', padding: '0 24px', borderRadius: '10px', fontSize: '13px', fontWeight: 900, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 4px 15px rgba(79, 70, 229, 0.4)' }}>
-                  Solicitar Demo
-                </button>
-              </div>
-              <span style={{ fontSize: '11px', color: '#64748b', textAlign: 'center' }}>Atendimento direcionado a empresas, atacadões e comércio corporativo.</span>
-            </form>
-          )}
-        </div>
+          </div>
+        </section>
 
-        {/* Pilares Estratégicos (Bento Grid Style) */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', width: '100%', marginTop: '90px', textAlign: 'left' }}>
-          <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '14px', padding: '30px' }}>
-            <div style={{ fontSize: '20px', fontWeight: 900, color: '#818cf8', marginBottom: '12px' }}>01 / ISOLAMENTO</div>
-            <h3 style={{ fontSize: '16px', fontWeight: 900, color: '#fff', margin: '0 0 10px 0' }}>Segurança Multi-Tenant</h3>
-            <p style={{ color: '#94a3b8', fontSize: '13px', margin: 0, lineHeight: 1.6 }}>Ambiente operacional 100% privado por loja no Firestore, garantindo sigilo financeiro e estabilidade intransigível.</p>
+        {/* SECÇÃO DE DESTAQUES (CARDS) */}
+        <section style={styles.featuresSection}>
+          <div style={styles.featureCard}>
+            <h3 style={styles.featureTitle}>📱 PDV Mobile-First</h3>
+            <p style={styles.featureText}>
+              Venda de qualquer lugar com um ponto de venda desenhado perfeitamente para a tela do seu celular.
+            </p>
           </div>
-          <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '14px', padding: '30px' }}>
-            <div style={{ fontSize: '20px', fontWeight: 900, color: '#38bdf8', marginBottom: '12px' }}>02 / VELOCIDADE</div>
-            <h3 style={{ fontSize: '16px', fontWeight: 900, color: '#fff', margin: '0 0 10px 0' }}>PDV & Retaguarda Integrados</h3>
-            <p style={{ color: '#94a3b8', fontSize: '13px', margin: 0, lineHeight: 1.6 }}>Emissão rápida de vendas, controlo de fiados, gaveta de caixa blindada e gestão de comissões sem atritos.</p>
+          <div style={styles.featureCard}>
+            <h3 style={styles.featureTitle}>🏢 Multi-Lojas</h3>
+            <p style={styles.featureText}>
+              Faça a gestão de todas as suas filiais de forma centralizada e com isolamento total de dados.
+            </p>
           </div>
-          <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '14px', padding: '30px' }}>
-            <div style={{ fontSize: '20px', fontWeight: 900, color: '#c084fc', marginBottom: '12px' }}>03 / INTELIGÊNCIA</div>
-            <h3 style={{ fontSize: '16px', fontWeight: 900, color: '#fff', margin: '0 0 10px 0' }}>Visão Executiva (CEO)</h3>
-            <p style={{ color: '#94a3b8', fontSize: '13px', margin: 0, lineHeight: 1.6 }}>Cálculo real de lucro líquido, Curva ABC de produtos e acompanhamento financeiro em tempo real na palma da mão.</p>
+          <div style={styles.featureCard}>
+            <h3 style={styles.featureTitle}>⚡ Alta Performance</h3>
+            <p style={styles.featureText}>
+              Hospedado na nuvem com tecnologia de ponta. Os seus dados em tempo real, sem travamentos.
+            </p>
           </div>
-        </div>
-
+        </section>
       </main>
-
-      {/* Footer Corporativo */}
-      <footer style={{ padding: '30px 60px', borderTop: '1px solid rgba(30, 41, 59, 0.4)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#64748b' }}>
-        <span>© 2026 ZenOS Enterprise. Todos os direitos reservados.</span>
-        <span>Infraestrutura em Nuvem de Alta Performance</span>
-      </footer>
-
     </div>
   );
-}
+};
+
+// ==========================================
+// ESTILOS RESPONSIVOS DE ALTO PADRÃO (MOBILE-FIRST)
+// ==========================================
+const styles = {
+  pageContainer: {
+    width: '100%',
+    minHeight: '100vh',
+    backgroundColor: '#f8fafc', // Fundo corporativo super clean
+    fontFamily: '"Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+    overflowX: 'hidden',
+  },
+  header: {
+    width: '100%',
+    height: '80px',
+    backgroundColor: '#ffffff',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '0 clamp(16px, 5vw, 40px)', // Adapta as margens laterais
+    boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
+  },
+  logoContainer: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+  },
+  logoIcon: {
+    width: '40px',
+    height: '40px',
+    backgroundColor: '#0ea5e9',
+    color: '#fff',
+    borderRadius: '8px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '24px',
+    fontWeight: 'bold',
+  },
+  logoText: {
+    fontSize: '24px',
+    fontWeight: '800',
+    color: '#0f172a',
+    margin: 0,
+    letterSpacing: '-0.5px',
+  },
+  loginButtonOutline: {
+    padding: '10px 20px',
+    border: '2px solid #0ea5e9',
+    backgroundColor: 'transparent',
+    color: '#0ea5e9',
+    borderRadius: '8px',
+    fontWeight: '600',
+    fontSize: '14px',
+    cursor: 'pointer',
+    minHeight: '44px', // Altura mínima para toque no celular (Apple UI Guidelines)
+  },
+  mainContent: {
+    width: '100%',
+    maxWidth: '1200px',
+    margin: '0 auto',
+    padding: 'clamp(20px, 5vw, 60px)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '60px',
+  },
+  heroSection: {
+    width: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    textAlign: 'center',
+    marginTop: 'clamp(20px, 5vw, 60px)',
+  },
+  heroTextContainer: {
+    width: '100%',
+    maxWidth: '800px',
+  },
+  heroTitle: {
+    fontSize: 'clamp(32px, 8vw, 56px)', // Texto gigante no PC, ajustado no Celular
+    fontWeight: '800',
+    color: '#0f172a',
+    lineHeight: '1.1',
+    margin: '0 0 20px 0',
+    letterSpacing: '-1px',
+  },
+  heroSubtitle: {
+    fontSize: 'clamp(16px, 4vw, 20px)',
+    color: '#64748b',
+    lineHeight: '1.6',
+    margin: '0 0 40px 0',
+  },
+  buttonGroup: {
+    display: 'flex',
+    gap: '16px',
+    justifyContent: 'center',
+    flexWrap: 'wrap', // Permite que os botões fiquem um debaixo do outro em telas muito pequenas
+  },
+  primaryButton: {
+    padding: '14px 32px',
+    backgroundColor: '#0ea5e9',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '16px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    minHeight: '50px',
+    minWidth: '200px',
+    boxShadow: '0 4px 14px rgba(14, 165, 233, 0.4)',
+  },
+  secondaryButton: {
+    padding: '14px 32px',
+    backgroundColor: '#ffffff',
+    color: '#0f172a',
+    border: '1px solid #e2e8f0',
+    borderRadius: '8px',
+    fontSize: '16px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    minHeight: '50px',
+    minWidth: '200px',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+  },
+  featuresSection: {
+    display: 'flex',
+    flexWrap: 'wrap', // A MÁGICA ACONTECE AQUI: Lado a lado no PC, empilhado no celular
+    gap: '24px',
+    justifyContent: 'center',
+    width: '100%',
+  },
+  featureCard: {
+    flex: '1 1 300px', // O card tenta ocupar 1 parte, com no mínimo 300px. Se a tela for menor que 300px, ele empilha!
+    backgroundColor: '#ffffff',
+    padding: '30px',
+    borderRadius: '16px',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.03)',
+    border: '1px solid #f1f5f9',
+    textAlign: 'left',
+  },
+  featureTitle: {
+    fontSize: '20px',
+    fontWeight: '700',
+    color: '#0f172a',
+    margin: '0 0 12px 0',
+  },
+  featureText: {
+    fontSize: '15px',
+    color: '#64748b',
+    lineHeight: '1.6',
+    margin: 0,
+  }
+};
+
+export default LandingPage;
