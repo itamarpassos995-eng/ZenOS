@@ -1,174 +1,163 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { auth, db } from '../firebase';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
+import LandingPage from './LandingPage';
 
 export default function Login() {
-  const [isRegistering, setIsRegistering] = useState(false);
+  const [modo, setModo] = useState('landing'); // 'landing', 'login' ou 'cadastro'
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [senha, setSenha] = useState('');
+  const [confirmarSenha, setConfirmarSenha] = useState('');
+  const [erro, setErro] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    // Validação extra de segurança para a confirmação de senha
-    if (isRegistering && password !== confirmPassword) {
-      alert("As senhas não coincidem. Por favor, verifique.");
-      return;
-    }
-
-    if (isRegistering && password.length < 6) {
-      alert("A senha deve ter pelo menos 6 caracteres.");
-      return;
-    }
-
+    setErro('');
     setLoading(true);
-    
-    try {
-      if (isRegistering) {
-        // 1. Cria a conta no Firebase Auth
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
 
-        // 2. Regista a loja no Firestore com status bloqueado/pendente
-        await setDoc(doc(db, "lojas", user.uid), {
+    try {
+      if (modo === 'cadastro') {
+        if (senha !== confirmarSenha) {
+          throw new Error('As senhas não coincidem.');
+        }
+        if (senha.length < 6) {
+          throw new Error('A senha deve ter pelo menos 6 caracteres.');
+        }
+        
+        // 1. Cria a conta no Auth do Firebase
+        const cred = await createUserWithEmailAndPassword(auth, email, senha);
+        
+        // 2. Inicializa o documento da nova loja com licença pendente (modelo SaaS)
+        await setDoc(doc(db, "lojas", cred.user.uid), {
           email: email,
-          status: "aguardando_pagamento",
-          dataCadastro: new Date().toISOString()
+          status: 'aguardando_pagamento',
+          criadoEm: new Date().toISOString()
         });
+        
       } else {
-        // 3. Efetua o login normal
-        await signInWithEmailAndPassword(auth, email, password);
+        // Login normal
+        await signInWithEmailAndPassword(auth, email, senha);
       }
-    } catch (error) {
-      console.error("Erro do Firebase:", error);
-      let mensagemErro = error.message;
-      if (error.code === 'auth/invalid-credential') {
-        mensagemErro = 'E-mail ou senha incorretos.';
-      } else if (error.code === 'auth/email-already-in-use') {
-        mensagemErro = 'Este e-mail já está associado a outra loja.';
-      } else if (error.code === 'auth/api-key-not-valid.') {
-        mensagemErro = 'Chave de API inválida. Certifique-se de reiniciar o terminal (npm.cmd run dev) após configurar o .env.local.';
-      }
-      alert("Atenção: " + mensagemErro);
+    } catch (err) {
+      console.error(err);
+      let msg = 'Ocorreu um erro no acesso.';
+      if (err.code === 'auth/invalid-email') msg = 'E-mail inválido.';
+      if (err.code === 'auth/user-not-found') msg = 'Loja/utilizador não encontrado.';
+      if (err.code === 'auth/wrong-password') msg = 'Senha incorreta.';
+      if (err.code === 'auth/email-already-in-use') msg = 'Este e-mail já está registado.';
+      setErro(err.message || msg);
     } finally {
       setLoading(false);
     }
   };
 
+  // Se o utilizador estiver na página de apresentação (Landing Page)
+  if (modo === 'landing') {
+    return <LandingPage aoIrParaLogin={() => setModo('login')} />;
+  }
+
+  // Ecrã de Login ou Cadastro
   return (
-    <div className="min-h-screen flex flex-col justify-center items-center p-4 font-sans relative overflow-hidden">
+    <div style={{ minHeight: '100vh', backgroundColor: '#020617', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: 'system-ui, sans-serif', position: 'relative', overflow: 'hidden' }}>
       
-      {/* Banner de Fundo Profissional com Overlay Escuro */}
-      <div 
-        className="absolute inset-0 z-0 bg-cover bg-center filter brightness-[0.35] scale-105 transition-transform duration-1000"
-        style={{ backgroundImage: `url('https://images.unsplash.com/photo-1513694203232-719a280e022f?q=80&w=2000&auto=format&fit=crop')` }}
-      ></div>
+      {/* Background Glows */}
+      <div style={{ position: 'absolute', top: '10%', left: '20%', width: '400px', height: '400px', background: 'radial-gradient(circle, rgba(79,70,229,0.1) 0%, rgba(2,6,23,0) 70%)', pointerEvents: 'none' }}></div>
 
-      {/* Camada de Gradiente para dar profundidade e sofisticação */}
-      <div className="absolute inset-0 z-0 bg-gradient-to-tr from-[#020617] via-[#020617]/80 to-indigo-950/40"></div>
-
-      {/* Conteúdo Principal (Cartão Central) */}
-      <div className="w-full max-w-md relative z-10">
+      <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '24px', padding: '40px', width: '100%', maxWidth: '420px', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px rgba(0,0,0,0.8)', zIndex: 1 }}>
         
-        {/* Logotipo Zênite OS */}
-        <div className="flex justify-center mb-8">
-          <div className="flex items-center gap-3 select-none">
-            <div className="bg-white/90 backdrop-blur-md p-2.5 rounded-2xl flex items-center justify-center h-14 min-w-[56px] shadow-[0_0_30px_rgba(255,255,255,0.15)]">
-              <img src="/Logo.png.jpeg" alt="Zênite" className="h-9 w-auto object-contain" onError={(e) => e.target.src = '/logo.png'} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ backgroundColor: '#ffffff', padding: '3px 8px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '36px' }}>
+              <img src="/Logo.png.jpeg" alt="ZenOS" style={{ height: '28px', width: 'auto', objectFit: 'contain' }} onError={(e) => e.target.src = '/logo.png'} />
             </div>
-            <div className="flex flex-col">
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-white font-black text-2xl tracking-[3px] drop-shadow-lg">ZÊNITE</span>
-                <span className="text-indigo-400 font-extrabold text-sm tracking-widest">OS</span>
-              </div>
-              <span className="text-slate-300 text-[10px] font-bold tracking-[2px] uppercase mt-0.5 drop-shadow">
-                Atacadão de Tintas & SaaS
-              </span>
-            </div>
+            <span style={{ color: '#fff', fontWeight: 900, fontSize: '18px', letterSpacing: '2px' }}>ZenOS</span>
           </div>
+          <button onClick={() => setModo('landing')} style={{ background: 'none', border: 'none', color: '#818cf8', fontSize: '12px', fontWeight: 800, cursor: 'pointer' }}>
+            ← Voltar ao Início
+          </button>
         </div>
 
-        {/* Caixa de Vidro (Glassmorphism) */}
-        <div className="bg-[#0b1120]/85 backdrop-blur-2xl border border-slate-700/60 rounded-3xl p-8 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.7)]">
-          <div className="text-center mb-6">
-            <h2 className="text-2xl font-black text-white mb-2">
-              {isRegistering ? 'Criar Conta da Loja' : 'Acesso ao Sistema'}
-            </h2>
-            <p className="text-slate-400 text-xs font-medium">
-              {isRegistering ? 'Insira os dados corporativos para iniciar' : 'Entre com as credenciais da sua licença'}
-            </p>
+        <h2 style={{ color: '#f8fafc', fontSize: '22px', fontWeight: 900, margin: '0 0 8px 0' }}>
+          {modo === 'login' ? 'Aceder ao Terminal' : 'Criar Nova Loja'}
+        </h2>
+        <p style={{ color: '#94a3b8', fontSize: '13px', margin: '0 0 24px 0' }}>
+          {modo === 'login' ? 'Entre com as credenciais da sua distribuidora.' : 'Registe o seu atacadão para iniciar a operação.'}
+        </p>
+
+        {erro && (
+          <div style={{ backgroundColor: 'rgba(244, 63, 94, 0.1)', border: '1px solid #f43f5e', color: '#fb7185', padding: '12px', borderRadius: '10px', fontSize: '13px', marginBottom: '20px', fontWeight: 700 }}>
+            {erro}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div>
+            <label style={{ fontSize: '11px', fontWeight: 800, color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>E-mail Corporativo</label>
+            <input 
+              type="email" 
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="loja@zenos.app.br"
+              style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '12px', padding: '14px', color: '#fff', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}
+            />
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label style={{ fontSize: '11px', fontWeight: 800, color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Palavra-passe</label>
+            <input 
+              type="password" 
+              required
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
+              placeholder="••••••••"
+              style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '12px', padding: '14px', color: '#fff', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}
+            />
+          </div>
+
+          {modo === 'cadastro' && (
             <div>
-              <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1.5">
-                E-mail Corporativo
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+              <label style={{ fontSize: '11px', fontWeight: 800, color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Confirmar Palavra-passe</label>
+              <input 
+                type="password" 
                 required
-                className="w-full bg-[#020617]/90 border border-slate-700/80 rounded-xl px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium text-sm"
-                placeholder="loja@exemplo.com"
+                value={confirmarSenha}
+                onChange={(e) => setConfirmarSenha(e.target.value)}
+                placeholder="••••••••"
+                style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '12px', padding: '14px', color: '#fff', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}
               />
             </div>
+          )}
 
-            <div>
-              <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1.5">
-                Senha de Acesso
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="w-full bg-[#020617]/90 border border-slate-700/80 rounded-xl px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium text-sm"
-                placeholder="Mínimo de 6 caracteres"
-              />
-            </div>
+          <button 
+            type="submit" 
+            disabled={loading}
+            style={{ width: '100%', background: 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#fff', padding: '14px', borderRadius: '12px', fontSize: '14px', fontWeight: 900, cursor: 'pointer', marginTop: '8px', boxShadow: '0 4px 15px rgba(79, 70, 229, 0.4)', opacity: loading ? 0.7 : 1 }}
+          >
+            {loading ? 'A processar...' : (modo === 'login' ? 'Entrar no Sistema' : 'Registar Nova Loja')}
+          </button>
+        </form>
 
-            {/* Campo Extra: Confirmar Senha (Aparece apenas no registo) */}
-            {isRegistering && (
-              <div className="animate-fadeIn">
-                <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1.5">
-                  Confirmar Senha
-                </label>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  className="w-full bg-[#020617]/90 border border-slate-700/80 rounded-xl px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium text-sm"
-                  placeholder="Repita a senha escolhida"
-                />
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-bold py-3.5 px-4 rounded-xl shadow-[0_4px_20px_rgba(79,70,229,0.4)] transition-all transform hover:scale-[1.01] active:scale-[0.99] mt-2 flex justify-center tracking-wide text-sm"
-            >
-              {loading ? 'A processar segurança...' : (isRegistering ? 'Concluir Cadastro da Loja' : 'Entrar no Painel')}
-            </button>
-          </form>
-
-          <div className="mt-6 pt-5 border-t border-slate-800/80 text-center">
-            <p className="text-slate-400 text-xs">
-              {isRegistering ? 'Já tem uma licença ativa?' : 'Quer expandir o seu negócio?'}
-              <button
-                onClick={() => setIsRegistering(!isRegistering)}
-                className="ml-2 text-indigo-400 hover:text-indigo-300 font-bold underline decoration-indigo-400/30 underline-offset-4 transition-colors"
-              >
-                {isRegistering ? 'Fazer login' : 'Cadastre sua loja'}
+        <div style={{ marginTop: '24px', textAlign: 'center', borderTop: '1px solid #1e293b', paddingTop: '20px' }}>
+          {modo === 'login' ? (
+            <span style={{ fontSize: '13px', color: '#94a3b8' }}>
+              A sua loja ainda não tem acesso?{' '}
+              <button onClick={() => setModo('cadastro')} style={{ background: 'none', border: 'none', color: '#38bdf8', fontWeight: 800, cursor: 'pointer', padding: 0 }}>
+                Criar Conta SaaS
               </button>
-            </p>
-          </div>
+            </span>
+          ) : (
+            <span style={{ fontSize: '13px', color: '#94a3b8' }}>
+              Já possui uma conta ativa?{' '}
+              <button onClick={() => setModo('login')} style={{ background: 'none', border: 'none', color: '#38bdf8', fontWeight: 800, cursor: 'pointer', padding: 0 }}>
+                Fazer Login
+              </button>
+            </span>
+          )}
         </div>
+
       </div>
     </div>
   );
