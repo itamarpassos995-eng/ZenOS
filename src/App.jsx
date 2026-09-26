@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { traducoes, moedasConfig, normalizarProduto, normalizarCliente, produtosIniciais, clientesIniciais } from './data';
-import { db } from './firebase';
-import { collection, getDocs, setDoc, doc } from 'firebase/firestore';
+import { auth, db } from './firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import Login from './components/Login';
+
 import Produtos from './components/Produtos';
 import Clientes from './components/Clientes';
 import PDV from './components/PDV';
@@ -11,7 +14,7 @@ import Despesas from './components/Despesas';
 import EstoqueInteligente from './components/EstoqueInteligente';
 import Comissoes from './components/Comissoes';
 import Mesas from './components/Mesas';
-import DashboardMobile from './components/DashboardMobile'; // <-- APP CEO IMPORTADA
+import DashboardMobile from './components/DashboardMobile';
 
 function ZeniteLogo({ aoClicar }) {
   return (
@@ -29,30 +32,10 @@ function ZeniteLogo({ aoClicar }) {
 
 export default function App() {
   const [usuarioAutenticado, setUsuarioAutenticado] = useState(null);
-  const [patenteUsuario, setPatenteUsuario] = useState('vendedor'); 
-  const [pinDigitado, setPinDigitado] = useState('');
-  const [erroLogin, setErroLogin] = useState('');
-
-  const usuariosDoSistema = [
-    { id: 1, nome: 'Itamar (Gerência)', pin: '9999', perfil: 'gerencia' },
-    { id: 2, nome: 'Vendedor Balcão', pin: '1234', perfil: 'vendedor' }
-  ];
-
-  const processarLogin = () => {
-    const user = usuariosDoSistema.find(u => u.pin === pinDigitado);
-    if (user) {
-      setUsuarioAutenticado(user.nome); setPatenteUsuario(user.perfil);
-      setEcraAtual('hub'); setErroLogin(''); setPinDigitado('');
-    } else {
-      setErroLogin('PIN incorreto. Acesso Negado.'); setPinDigitado('');
-    }
-  };
-
-  const fazerLogout = () => {
-    if(window.confirm('Bloquear o terminal?')) {
-      setUsuarioAutenticado(null); setMostrarPainelExecutivo(false); setValoresTopoVisiveis(true);
-    }
-  };
+  const [userId, setUserId] = useState(null);
+  const [statusLoja, setStatusLoja] = useState(null);
+  const [carregandoAuth, setCarregandoAuth] = useState(true);
+  const [patenteUsuario, setPatenteUsuario] = useState('gerencia'); 
 
   const [ecraAtual, setEcraAtual] = useState('hub');
   const [menuNavAberto, setMenuNavAberto] = useState(false);
@@ -66,33 +49,104 @@ export default function App() {
   const [taxasInput, setTaxasInput] = useState({ USD: '5.40', EUR: '6.05', PYG: '1380' });
   const [modalCambioAberto, setModalCambioAberto] = useState(false);
 
-  // ESTADOS COM SUPORTE HÍBRIDO (LOCAL + NUVEM)
+  // ESTADOS HÍBRIDOS (LOCAL + NUVEM ISOLADA POR LOJA)
   const [produtos, setProdutos] = useState(() => { try { const salvo = localStorage.getItem('zenos_produtos'); return salvo ? JSON.parse(salvo).map(p => normalizarProduto(p)) : produtosIniciais; } catch { return produtosIniciais; } });
   const [clientes, setClientes] = useState(() => { try { const salvo = localStorage.getItem('zenos_clientes'); return salvo ? JSON.parse(salvo).map(c => normalizarCliente(c)) : clientesIniciais; } catch { return clientesIniciais; } });
   const [historicoVendas, setHistoricoVendas] = useState(() => { try { const salvo = localStorage.getItem('zenos_historico_vendas'); return salvo ? JSON.parse(salvo) : []; } catch { return []; } });
   const [caixaMovimentos, setCaixaMovimentos] = useState(() => { try { const salvo = localStorage.getItem('zenos_caixa_movs'); return salvo ? JSON.parse(salvo) : []; } catch { return []; } });
   const [despesas, setDespesas] = useState(() => { try { const salvo = localStorage.getItem('zenos_despesas'); return salvo ? JSON.parse(salvo) : []; } catch { return []; } });
 
+  // OBSERVADOR DE AUTENTICAÇÃO E CARREGAMENTO DE DADOS ISOLADOS
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        setUserId(user.uid);
+        setUsuarioAutenticado(user.email);
+        
+        try {
+          // Verifica status da licença
+          const docSnap = await getDoc(doc(db, "lojas", user.uid));
+          if (docSnap.exists()) {
+            setStatusLoja(docSnap.data().status);
+          }
+
+          // Carrega dados específicos desta loja do Firestore se existirem
+          const dadosLojaSnap = await getDoc(doc(db, "lojas", user.uid, "dados", "operacao"));
+          if (dadosLojaSnap.exists()) {
+            const d = dadosLojaSnap.data();
+            if (d.produtos) setProdutos(d.produtos.map(p => normalizarProduto(p)));
+            if (d.clientes) setClientes(d.clientes.map(c => normalizarCliente(c)));
+            if (d.historicoVendas) setHistoricoVendas(d.historicoVendas);
+            if (d.caixaMovimentos) setCaixaMovimentos(d.caixaMovimentos);
+            if (d.despesas) setDespesas(d.despesas);
+          }
+        } catch (err) {
+          console.error("Erro ao carregar dados da nuvem:", err);
+        }
+      } else {
+        setUsuarioAutenticado(null);
+        setUserId(null);
+        setStatusLoja(null);
+      }
+      setCarregandoAuth(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const fazerLogout = async () => {
+    if(window.confirm(tx('Encerrar a sessão desta loja?', '¿Cerrar la sesión de esta tienda?', 'End session for this store?'))) {
+      await signOut(auth);
+      setMostrarPainelExecutivo(false); 
+      setValoresTopoVisiveis(true);
+      setEcraAtual('hub');
+    }
+  };
+
+  // SINCRONIZAÇÃO AUTOMÁTICA ISOLADA NO FIRESTORE E LOCALSTORAGE
   useEffect(() => { 
     localStorage.setItem('zenos_produtos', JSON.stringify(produtos)); 
-    setDoc(doc(db, "zenite_loja", "produtos"), { dados: produtos }).catch(() => {});
-  }, [produtos]);
+    if (userId) {
+      setDoc(doc(db, "lojas", userId, "dados", "operacao"), { 
+        produtos, clientes, historicoVendas, caixaMovimentos, despesas 
+      }, { merge: true }).catch(() => {});
+    }
+  }, [produtos, userId]);
+
   useEffect(() => { 
     localStorage.setItem('zenos_clientes', JSON.stringify(clientes)); 
-    setDoc(doc(db, "zenite_loja", "clientes"), { dados: clientes }).catch(() => {});
-  }, [clientes]);
+    if (userId) {
+      setDoc(doc(db, "lojas", userId, "dados", "operacao"), { 
+        produtos, clientes, historicoVendas, caixaMovimentos, despesas 
+      }, { merge: true }).catch(() => {});
+    }
+  }, [clientes, userId]);
+
   useEffect(() => { 
     localStorage.setItem('zenos_historico_vendas', JSON.stringify(historicoVendas)); 
-    setDoc(doc(db, "zenite_loja", "vendas"), { dados: historicoVendas }).catch(() => {});
-  }, [historicoVendas]);
+    if (userId) {
+      setDoc(doc(db, "lojas", userId, "dados", "operacao"), { 
+        produtos, clientes, historicoVendas, caixaMovimentos, despesas 
+      }, { merge: true }).catch(() => {});
+    }
+  }, [historicoVendas, userId]);
+
   useEffect(() => { 
     localStorage.setItem('zenos_caixa_movs', JSON.stringify(caixaMovimentos)); 
-    setDoc(doc(db, "zenite_loja", "caixa"), { dados: caixaMovimentos }).catch(() => {});
-  }, [caixaMovimentos]);
+    if (userId) {
+      setDoc(doc(db, "lojas", userId, "dados", "operacao"), { 
+        produtos, clientes, historicoVendas, caixaMovimentos, despesas 
+      }, { merge: true }).catch(() => {});
+    }
+  }, [caixaMovimentos, userId]);
+
   useEffect(() => { 
     localStorage.setItem('zenos_despesas', JSON.stringify(despesas)); 
-    setDoc(doc(db, "zenite_loja", "despesas"), { dados: despesas }).catch(() => {});
-  }, [despesas]);
+    if (userId) {
+      setDoc(doc(db, "lojas", userId, "dados", "operacao"), { 
+        produtos, clientes, historicoVendas, caixaMovimentos, despesas 
+      }, { merge: true }).catch(() => {});
+    }
+  }, [despesas, userId]);
 
   const t = (chave) => traducoes[idioma]?.[chave] || traducoes.pt[chave] || chave;
   const tx = (pt, es, en) => { if (idioma === 'es') return es || pt; if (idioma === 'en') return en || pt; return pt; };
@@ -188,17 +242,36 @@ export default function App() {
     );
   };
 
+  if (carregandoAuth) {
+    return (
+      <div style={{ minHeight: '100vh', backgroundColor: '#020617', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+          <ZeniteLogo aoClicar={() => {}} />
+          <span style={{ color: '#64748b', fontSize: '14px', fontWeight: 700, letterSpacing: '2px' }}>A INICIAR SISTEMA...</span>
+        </div>
+      </div>
+    );
+  }
+
   if (!usuarioAutenticado) {
+    return <Login />;
+  }
+
+  if (statusLoja === 'aguardando_pagamento') {
     return (
       <div style={{ minHeight: '100vh', backgroundColor: '#020617', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif' }}>
-        <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '24px', padding: '40px', width: '100%', maxWidth: '400px', display: 'flex', flexDirection: 'column', alignItems: 'center', boxShadow: '0 25px 50px rgba(0,0,0,0.5)' }}>
-          <div style={{ marginBottom: '30px' }}><ZeniteLogo aoClicar={() => {}} /></div>
-          <h2 style={{ color: '#fff', fontSize: '20px', fontWeight: 900, marginBottom: '8px' }}>Acesso Restrito (Cloud)</h2>
-          <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '24px', textAlign: 'center' }}>Insira o PIN para ligar ao Firestore.</p>
-          <input type="password" placeholder="****" value={pinDigitado} onChange={(e) => setPinDigitado(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && processarLogin()} style={{ width: '100%', padding: '16px', backgroundColor: '#020617', border: `2px solid ${erroLogin ? '#f43f5e' : '#334155'}`, borderRadius: '12px', color: '#fff', fontSize: '24px', textAlign: 'center', fontWeight: 900, letterSpacing: '8px', outline: 'none', marginBottom: '12px', boxSizing: 'border-box' }} autoFocus />
-          {erroLogin && <div style={{ color: '#fb7185', fontSize: '12px', fontWeight: 800, marginBottom: '16px' }}>{erroLogin}</div>}
-          <button onClick={processarLogin} style={{ width: '100%', background: 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#fff', padding: '16px', borderRadius: '12px', fontSize: '15px', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 15px rgba(79, 70, 229, 0.3)' }}>Desbloquear Terminal</button>
-          <div style={{ marginTop: '24px', padding: '12px', backgroundColor: '#1e293b', borderRadius: '8px', fontSize: '11px', color: '#cbd5e1', width: '100%', textAlign: 'center' }}>Gerência: <strong>9999</strong> | Vendedor: <strong>1234</strong></div>
+        <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '24px', padding: '40px', width: '100%', maxWidth: '450px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', boxShadow: '0 25px 50px rgba(0,0,0,0.5)' }}>
+          <ZeniteLogo aoClicar={() => {}} />
+          <h2 style={{ color: '#fbbf24', fontSize: '22px', fontWeight: 900, marginTop: '30px', marginBottom: '10px' }}>Licença Pendente</h2>
+          <p style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '24px', lineHeight: '1.6' }}>
+            A conta da sua loja foi criada com sucesso, mas o acesso ao terminal Zênite OS encontra-se temporariamente bloqueado a aguardar a confirmação da licença.
+          </p>
+          <div style={{ backgroundColor: '#1e293b', padding: '20px', borderRadius: '12px', width: '100%', marginBottom: '24px', border: '1px solid #334155' }}>
+            <p style={{ color: '#fff', fontSize: '14px', margin: '0 0 10px 0', fontWeight: 700 }}>Para ativar o seu sistema agora:</p>
+            <p style={{ color: '#38bdf8', fontSize: '16px', fontWeight: 900, margin: '0 0 10px 0' }}>Contacte o Suporte Zênite OS</p>
+            <p style={{ color: '#64748b', fontSize: '12px', margin: 0, lineHeight: '1.5' }}>Assim que o Itamar confirmar a ativação do seu plano, o painel será desbloqueado de imediato e de forma automática no seu ecrã.</p>
+          </div>
+          <button onClick={fazerLogout} style={{ backgroundColor: 'transparent', border: '1px solid #f43f5e', color: '#fb7185', padding: '12px 24px', borderRadius: '8px', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}>Sair e Voltar mais tarde</button>
         </div>
       </div>
     );
@@ -261,8 +334,8 @@ export default function App() {
             
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '20px', padding: '24px 32px' }}>
               <div>
-                <span style={{ fontSize: '12px', color: '#818cf8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1.5px' }}>Zenos Zenite OS (Cloud)</span>
-                <h1 style={{ fontSize: '26px', fontWeight: 900, color: '#ffffff', margin: '4px 0 0 0' }}>{tx(`Olá, ${usuarioAutenticado}!`, `¡Hola, ${usuarioAutenticado}!`, `Hello, ${usuarioAutenticado}!`)}</h1>
+                <span style={{ fontSize: '12px', color: '#818cf8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1.5px' }}>Zenos Zenite OS (Cloud Multi-Tenant)</span>
+                <h1 style={{ fontSize: '26px', fontWeight: 900, color: '#ffffff', margin: '4px 0 0 0' }}>{tx(`Olá!`, `¡Hola!`, `Hello!`)}</h1>
                 <span style={{ fontSize: '13px', color: '#64748b' }}>{tx('O que vamos fazer hoje?', '¿Qué vamos a hacer hoy?', 'What are we doing today?')}</span>
               </div>
               <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
@@ -282,7 +355,7 @@ export default function App() {
 
             {patenteUsuario === 'gerencia' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div onClick={() => setMostrarPainelExecutivo(!mostrarPainelExecutivo)} style={{ backgroundColor: mostrarPainelExecutivo ? '#070d19' : '#1e1b4b', border: `1px solid ${mostrarPainelExecutivo ? '#1e293b' : '#6366f1'}`, borderRadius: '16px', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', transition: 'all 0.2s', boxShadow: mostrarPainelExecutivo ? 'none' : '0 4px 15px rgba(99, 102, 241, 0.2)' }}>
+                <div onClick={() => setMostrarPainelExecutivo(!mostrarPainelExecutivo)} style={{ backgroundColor: mostrarPainelExecutivo ? '#070d19' : '#1e1b4b', border: `1px solid ${mostrarPainelExecutivo ? '#1e293b' : '#6366f1'}`, borderRadius: '16px', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', transition: 'all 0.2s' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                     <span style={{ fontSize: '24px' }}>{mostrarPainelExecutivo ? '🙈' : '👁️'}</span>
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -296,8 +369,7 @@ export default function App() {
                 </div>
 
                 {mostrarPainelExecutivo && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', animation: 'fadeIn 0.3s ease-in-out' }}>
-                    
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px' }}>
                       <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span style={{ fontSize: '18px' }}>💰</span><span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Faturamento</span></div>
@@ -311,7 +383,7 @@ export default function App() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span style={{ fontSize: '18px' }}>💸</span><span style={{ fontSize: '11px', fontWeight: 800, color: '#fbbf24', textTransform: 'uppercase' }}>Despesas Pagas</span></div>
                         <span style={{ fontSize: '24px', fontWeight: 900, color: '#fef3c7', marginTop: '8px' }}>{fmt(despesasPagasBRL)}</span>
                       </div>
-                      <div style={{ backgroundColor: '#064e3b', border: '1px solid #10b981', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 25px rgba(16, 185, 129, 0.1)' }}>
+                      <div style={{ backgroundColor: '#064e3b', border: '1px solid #10b981', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span style={{ fontSize: '18px' }}>🏆</span><span style={{ fontSize: '11px', fontWeight: 800, color: '#a7f3d0', textTransform: 'uppercase' }}>Lucro Líquido Real</span></div>
                         <span style={{ fontSize: '24px', fontWeight: 900, color: '#fff', marginTop: '8px' }}>{fmt(lucroLiquidoRealBRL)}</span>
                       </div>
@@ -330,7 +402,7 @@ export default function App() {
                         <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
                           <button onClick={() => { setTipoMovCaixa('suprimento'); setModalCaixaAberto(true); }} style={{ flex: 1, padding: '12px', backgroundColor: '#020617', border: '1px solid #10b981', color: '#34d399', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', fontSize: '13px' }}>{tx('+ Suprimento', '+ Suplemento', '+ Cash In')}</button>
                           <button onClick={() => { setTipoMovCaixa('sangria'); setModalCaixaAberto(true); }} style={{ flex: 1, padding: '12px', backgroundColor: '#020617', border: '1px solid #f43f5e', color: '#fb7185', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', fontSize: '13px' }}>{tx('- Sangria', '- Sangría', '- Cash Out')}</button>
-                          <button onClick={() => { setTipoMovCaixa('fechamento'); setModalCaixaAberto(true); }} style={{ flex: 1, padding: '12px', background: 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#fff', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', fontSize: '13px', boxShadow: '0 4px 15px rgba(79, 70, 229, 0.3)' }}>{tx('🔒 Fechar', '🔒 Cerrar', '🔒 Close')}</button>
+                          <button onClick={() => { setTipoMovCaixa('fechamento'); setModalCaixaAberto(true); }} style={{ flex: 1, padding: '12px', background: 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#fff', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', fontSize: '13px' }}>{tx('🔒 Fechar', '🔒 Cerrar', '🔒 Close')}</button>
                         </div>
                         <div style={{ flex: 1, backgroundColor: '#020617', borderRadius: '12px', border: '1px solid #1e293b', padding: '12px', overflowY: 'auto', maxHeight: '200px' }}>
                           <span style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '10px', display: 'block' }}>{tx('Movimentações Internas', 'Movimientos Internos', 'Internal Movements')}</span>
@@ -366,7 +438,6 @@ export default function App() {
                         </table>
                       </div>
                     </div>
-
                   </div>
                 )}
               </div>
@@ -378,53 +449,50 @@ export default function App() {
               <div style={{ height: '1px', flex: 1, backgroundColor: '#1e293b' }}></div>
             </div>
             
-            {/* GRID PRINCIPAL DE MÓDULOS */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
-              
-              <div onClick={() => setEcraAtual('pdv')} style={{ background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(6, 78, 59, 0.4))', border: '2px solid #10b981', borderRadius: '16px', padding: '24px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px' }}>
+              <div onClick={() => setEcraAtual('pdv')} style={{ background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(6, 78, 59, 0.4))', border: '2px solid #10b981', borderRadius: '16px', padding: '24px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px' }}>
                 <div style={{ width: '50px', height: '50px', borderRadius: '14px', backgroundColor: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>🛒</div>
                 <div><h2 style={{ fontSize: '16px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>PDV Balcão</h2></div>
               </div>
               
-              <div onClick={() => setEcraAtual('mesas')} style={{ background: 'linear-gradient(135deg, rgba(225, 29, 72, 0.15), rgba(136, 19, 55, 0.4))', border: '2px solid #e11d48', borderRadius: '16px', padding: '24px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px' }}>
+              <div onClick={() => setEcraAtual('mesas')} style={{ background: 'linear-gradient(135deg, rgba(225, 29, 72, 0.15), rgba(136, 19, 55, 0.4))', border: '2px solid #e11d48', borderRadius: '16px', padding: '24px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px' }}>
                 <div style={{ width: '50px', height: '50px', borderRadius: '14px', backgroundColor: '#e11d48', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>🍽️</div>
                 <div><h2 style={{ fontSize: '16px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>Mesas/Comandas</h2></div>
               </div>
 
-              <div onClick={() => setEcraAtual('produtos')} style={{ background: 'linear-gradient(135deg, rgba(2, 132, 199, 0.15), rgba(8, 47, 73, 0.4))', border: '2px solid #0284c7', borderRadius: '16px', padding: '24px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px' }}>
+              <div onClick={() => setEcraAtual('produtos')} style={{ background: 'linear-gradient(135deg, rgba(2, 132, 199, 0.15), rgba(8, 47, 73, 0.4))', border: '2px solid #0284c7', borderRadius: '16px', padding: '24px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px' }}>
                 <div style={{ width: '50px', height: '50px', borderRadius: '14px', backgroundColor: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>📦</div>
                 <div><h2 style={{ fontSize: '16px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>Catálogo</h2></div>
               </div>
               
-              <div onClick={() => setEcraAtual('clientes')} style={{ background: 'linear-gradient(135deg, rgba(217, 119, 6, 0.15), rgba(69, 26, 3, 0.4))', border: '2px solid #d97706', borderRadius: '16px', padding: '24px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px' }}>
+              <div onClick={() => setEcraAtual('clientes')} style={{ background: 'linear-gradient(135deg, rgba(217, 119, 6, 0.15), rgba(69, 26, 3, 0.4))', border: '2px solid #d97706', borderRadius: '16px', padding: '24px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px' }}>
                 <div style={{ width: '50px', height: '50px', borderRadius: '14px', backgroundColor: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>👥</div>
                 <div><h2 style={{ fontSize: '16px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>Clientes (CRM)</h2></div>
               </div>
               
-              <div onClick={() => setEcraAtual('vendas')} style={{ backgroundColor: '#0b1120', border: '2px solid #4f46e5', borderRadius: '16px', padding: '24px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px' }}>
+              <div onClick={() => setEcraAtual('vendas')} style={{ backgroundColor: '#0b1120', border: '2px solid #4f46e5', borderRadius: '16px', padding: '24px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px' }}>
                 <div style={{ width: '50px', height: '50px', borderRadius: '14px', backgroundColor: '#4f46e5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>📑</div>
                 <div><h2 style={{ fontSize: '16px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>{tx('Histórico', 'Historial', 'History')}</h2></div>
               </div>
 
               {patenteUsuario === 'gerencia' && (
                 <>
-                  <div onClick={() => setEcraAtual('inteligencia')} style={{ background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.15), rgba(88, 28, 135, 0.4))', border: '2px solid #a855f7', borderRadius: '16px', padding: '24px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px' }}>
+                  <div onClick={() => setEcraAtual('inteligencia')} style={{ background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.15), rgba(88, 28, 135, 0.4))', border: '2px solid #a855f7', borderRadius: '16px', padding: '24px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px' }}>
                     <div style={{ width: '50px', height: '50px', borderRadius: '14px', backgroundColor: '#a855f7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>📊</div>
                     <div><h2 style={{ fontSize: '16px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>{tx('Inteligência', 'Inteligencia', 'Intelligence')}</h2></div>
                   </div>
                   
-                  <div onClick={() => setEcraAtual('comissoes')} style={{ background: 'linear-gradient(135deg, rgba(219, 39, 119, 0.15), rgba(131, 24, 67, 0.4))', border: '2px solid #db2777', borderRadius: '16px', padding: '24px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px' }}>
+                  <div onClick={() => setEcraAtual('comissoes')} style={{ background: 'linear-gradient(135deg, rgba(219, 39, 119, 0.15), rgba(131, 24, 67, 0.4))', border: '2px solid #db2777', borderRadius: '16px', padding: '24px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px' }}>
                     <div style={{ width: '50px', height: '50px', borderRadius: '14px', backgroundColor: '#db2777', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>🤝</div>
                     <div><h2 style={{ fontSize: '16px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>{tx('Comissões', 'Comisiones', 'Commissions')}</h2></div>
                   </div>
 
-                  {/* NOVO CARTÃO DOURADO PARA O CEO */}
-                  <div onClick={() => setEcraAtual('dashboardMobile')} style={{ background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(180, 83, 9, 0.4))', border: '2px solid #f59e0b', borderRadius: '16px', padding: '24px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', boxShadow: '0 10px 25px rgba(245, 158, 11, 0.2)' }}>
+                  <div onClick={() => setEcraAtual('dashboardMobile')} style={{ background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(180, 83, 9, 0.4))', border: '2px solid #f59e0b', borderRadius: '16px', padding: '24px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', boxShadow: '0 10px 25px rgba(245, 158, 11, 0.2)' }}>
                     <div style={{ width: '50px', height: '50px', borderRadius: '14px', backgroundColor: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>📱</div>
                     <div><h2 style={{ fontSize: '16px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>App Mobile (CEO)</h2></div>
                   </div>
                   
-                  <div onClick={() => setEcraAtual('despesas')} style={{ backgroundColor: '#0b1120', border: '2px solid #e11d48', borderRadius: '16px', padding: '24px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px' }}>
+                  <div onClick={() => setEcraAtual('despesas')} style={{ backgroundColor: '#0b1120', border: '2px solid #e11d48', borderRadius: '16px', padding: '24px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px' }}>
                     <div style={{ width: '50px', height: '50px', borderRadius: '14px', backgroundColor: '#e11d48', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>💸</div>
                     <div><h2 style={{ fontSize: '16px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>{tx('Despesas', 'Gastos', 'Expenses')}</h2></div>
                   </div>
@@ -434,7 +502,6 @@ export default function App() {
           </div>
         )}
         
-        {/* RENDERIZAÇÃO DE TODOS OS MÓDULOS */}
         {ecraAtual === 'pdv' && <PDV produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} patenteUsuario={patenteUsuario} idioma={idioma} />}
         {ecraAtual === 'mesas' && <Mesas produtos={produtos} fmt={fmt} tx={tx} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} moeda={moeda} idioma={idioma} />}
         {ecraAtual === 'produtos' && <Produtos produtos={produtos} setProdutos={setProdutos} moeda={moeda} fmt={fmt} t={t} tx={tx} restaurarProdutosPadrao={() => { if (window.confirm('Recarregar catálogo padrão?')) { const padroes = produtosIniciais.map((p, idx) => normalizarProduto(p, idx)); setProdutos(padroes); localStorage.setItem('zenos_produtos', JSON.stringify(padroes)); } }} />}
@@ -447,7 +514,6 @@ export default function App() {
         {ecraAtual === 'despesas' && <Despesas despesas={despesas} setDespesas={setDespesas} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterParaBRL={converterParaBRL} />}
       </main>
 
-      {/* MODAL DE CÂMBIO */}
       {modalCambioAberto && (
         <div className="no-print" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
           <div style={{ backgroundColor: '#0b1120', border: '1px solid #6366f1', borderRadius: '24px', width: '100%', maxWidth: '420px', padding: '28px', color: '#fff' }}>
@@ -465,7 +531,6 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL DE GESTÃO DE GAVETA DE CAIXA */}
       {modalCaixaAberto && (
         <div className="no-print" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
           <div style={{ backgroundColor: '#0b1120', border: `1px solid ${tipoMovCaixa === 'sangria' ? '#f43f5e' : tipoMovCaixa === 'suprimento' ? '#10b981' : '#6366f1'}`, borderRadius: '24px', width: '100%', maxWidth: '420px', padding: '28px', color: '#fff' }}>
@@ -498,13 +563,12 @@ export default function App() {
               </div>
             )}
 
-            <button onClick={tipoMovCaixa === 'fechamento' ? processarFechamentoCego : registrarMovimentoCaixa} style={{ width: '100%', background: tipoMovCaixa === 'sangria' ? 'linear-gradient(135deg, #e11d48, #be123c)' : tipoMovCaixa === 'suprimento' ? 'linear-gradient(135deg, #10b981, #059669)' : 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#ffffff', padding: '16px', borderRadius: '12px', fontSize: '14px', fontWeight: 900, cursor: 'pointer', boxShadow: `0 4px 15px ${tipoMovCaixa === 'sangria' ? 'rgba(225, 29, 72, 0.3)' : tipoMovCaixa === 'suprimento' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(79, 70, 229, 0.3)'}` }}>
+            <button onClick={tipoMovCaixa === 'fechamento' ? processarFechamentoCego : registrarMovimentoCaixa} style={{ width: '100%', background: tipoMovCaixa === 'sangria' ? 'linear-gradient(135deg, #e11d48, #be123c)' : tipoMovCaixa === 'suprimento' ? 'linear-gradient(135deg, #10b981, #059669)' : 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#ffffff', padding: '16px', borderRadius: '12px', fontSize: '14px', fontWeight: 900, cursor: 'pointer' }}>
               {tipoMovCaixa === 'fechamento' ? tx('Auditar Caixa Cego', 'Auditar Caja', 'Audit Blind Box') : tx('Registrar na Gaveta', 'Registrar', 'Save Record')}
             </button>
           </div>
         </div>
       )}
-
     </div>
   );
 }
