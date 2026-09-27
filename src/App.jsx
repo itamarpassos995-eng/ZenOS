@@ -19,9 +19,9 @@ import DashboardMobile from './components/DashboardMobile';
 function ZeniteLogo({ aoClicar }) {
   return (
     <div onClick={aoClicar} style={{ display: 'flex', alignItems: 'center', gap: '14px', cursor: 'pointer', userSelect: 'none' }}>
-      <div style={{ backgroundColor: '#ffffff', padding: '3px 8px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '42px', minWidth: '42px', boxShadow: '0 2px 8px rgba(0,0,0,0.4)' }}>
-        {/* AQUI ESTÁ A MAGIA: Apontando para a logo oficial com cache-busting */}
-        <img src="/logo-zenos.png?v=3" alt="Zênite" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} onError={(e) => e.target.src = '/logo-zenos.png'} />
+      {/* Caixa transparente sem fundo branco */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '42px', minWidth: '42px' }}>
+        <img src="/logo-zenos.png?v=4" alt="Zênite" style={{ height: '42px', width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }} />
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', whiteSpace: 'nowrap' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}><span style={{ color: '#f8fafc', fontWeight: 900, fontSize: '18px', letterSpacing: '2.5px', textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>ZÊNITE</span><span style={{ color: '#818cf8', fontWeight: 800, fontSize: '10px', letterSpacing: '1px' }}>OS</span></div>
