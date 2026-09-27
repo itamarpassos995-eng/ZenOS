@@ -10,15 +10,22 @@ const LandingPage = () => {
 
   return (
     <div style={styles.pageContainer}>
-      {/* CAMADA DE FUNDO COM IMAGEM E ESCURECIMENTO */}
+      {/* CÓDIGO INVISÍVEL PARA MATAR A BARRA DE ROLAGEM DO NAVEGADOR */}
+      <style>{`
+        ::-webkit-scrollbar { display: none; }
+        * { -ms-overflow-style: none; scrollbar-width: none; }
+        body, html { margin: 0; padding: 0; overflow: hidden; background-color: #050505; }
+      `}</style>
+
+      {/* CAMADAS DE FUNDO */}
       <div style={styles.bgImage}></div>
       <div style={styles.bgOverlay}></div>
 
-      {/* CONTEÚDO PRINCIPAL (CENTRO) */}
+      {/* CENTRO DA TELA (AUTO-AJUSTÁVEL) */}
       <div style={styles.contentWrapper}>
         <div style={styles.glassCard}>
           
-          {/* LOGÓTIPO COM FALLBACK AUTOMÁTICO */}
+          {/* LOGÓTIPO COM BORDA ARREDONDADA */}
           <div style={styles.logoContainer}>
             <img 
               src="/logo-zenos.png?v=2" 
@@ -64,36 +71,31 @@ const LandingPage = () => {
         </div>
       </div>
 
-      {/* RODAPÉ COM AS FUNCIONALIDADES (INSPIRADO NA FOTO) */}
+      {/* RODAPÉ ALINHADO À BASE */}
       <div style={styles.featuresFooter}>
         <div style={styles.featuresRow}>
-          {/* Item 1 */}
           <div style={styles.featureItem}>
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#14b8a6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#14b8a6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
             <span style={styles.featureTitle}>VENDAS<br/>EM TEMPO REAL</span>
           </div>
           <div style={styles.divider}></div>
-          {/* Item 2 */}
           <div style={styles.featureItem}>
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#14b8a6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#14b8a6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
             <span style={styles.featureTitle}>ESTOQUE<br/>INTELIGENTE</span>
           </div>
           <div style={styles.divider}></div>
-          {/* Item 3 */}
           <div style={styles.featureItem}>
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#14b8a6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#14b8a6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
             <span style={styles.featureTitle}>COMISSÕES<br/>E EQUIPE</span>
           </div>
           <div style={styles.divider}></div>
-          {/* Item 4 */}
           <div style={styles.featureItem}>
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#14b8a6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#14b8a6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
             <span style={styles.featureTitle}>FINANCEIRO<br/>COMPLETO</span>
           </div>
           <div style={styles.divider}></div>
-          {/* Item 5 */}
           <div style={styles.featureItem}>
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#14b8a6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><polyline points="9 12 11 14 15 10"></polyline></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#14b8a6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><polyline points="9 12 11 14 15 10"></polyline></svg>
             <span style={styles.featureTitle}>CONTROLE<br/>TOTAL</span>
           </div>
         </div>
@@ -107,32 +109,31 @@ const LandingPage = () => {
 };
 
 // ==========================================
-// ESTILOS AVANÇADOS
+// ESTILOS DINÂMICOS 100% RESPONSIVOS
 // ==========================================
 const styles = {
   pageContainer: {
-    width: '100%',
-    minHeight: '100vh',
-    position: 'relative',
+    position: 'fixed', // TRAVA O ECRÃ POR COMPLETO
+    top: 0, left: 0, right: 0, bottom: 0,
     display: 'flex',
     flexDirection: 'column',
     fontFamily: '"Inter", "Segoe UI", sans-serif',
-    overflow: 'hidden',
+    backgroundColor: '#050505',
+    overflowY: 'auto', // Mantém funcionalidade escondida se ecrã for incrivelmente pequeno
+    overflowX: 'hidden',
   },
   bgImage: {
-    position: 'absolute',
+    position: 'fixed',
     top: 0, left: 0, right: 0, bottom: 0,
-    // Imagem de fundo premium (pessoas/tecnologia)
     backgroundImage: 'url("https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=2070&auto=format&fit=crop")',
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     zIndex: 1,
   },
   bgOverlay: {
-    position: 'absolute',
+    position: 'fixed',
     top: 0, left: 0, right: 0, bottom: 0,
-    // Degradê escuro para garantir leitura perfeita
-    background: 'linear-gradient(135deg, rgba(5,5,5,0.9) 0%, rgba(13,56,49,0.7) 100%)',
+    background: 'linear-gradient(135deg, rgba(5,5,5,0.92) 0%, rgba(13,56,49,0.75) 100%)',
     zIndex: 2,
   },
   contentWrapper: {
@@ -140,37 +141,40 @@ const styles = {
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 'clamp(16px, 5vw, 40px)',
+    padding: '0 20px',
     zIndex: 10,
     width: '100%',
     boxSizing: 'border-box',
   },
   glassCard: {
     width: '100%',
-    maxWidth: '480px',
+    maxWidth: '440px',
     background: 'rgba(10, 10, 10, 0.4)',
     backdropFilter: 'blur(20px)',
     WebkitBackdropFilter: 'blur(20px)',
     borderRadius: '24px',
     border: '1px solid rgba(255, 255, 255, 0.08)',
-    padding: 'clamp(30px, 6vw, 50px)',
+    padding: 'clamp(20px, 4vh, 40px)', // Adapta-se à altura
     boxShadow: '0 30px 60px rgba(0,0,0,0.8)',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     boxSizing: 'border-box',
+    marginTop: 'clamp(10px, 4vh, 30px)', // Dá espaço extra no topo
   },
   logoContainer: {
     width: '100%',
     display: 'flex',
     justifyContent: 'center',
-    marginBottom: '30px',
+    marginBottom: 'clamp(16px, 3vh, 30px)',
   },
   logoImage: {
     width: '100%',
-    maxWidth: '220px',
-    height: 'auto',
+    maxWidth: '180px',
+    height: 'clamp(60px, 12vh, 100px)', // Ajuste fino para não esticar
     objectFit: 'contain',
+    borderRadius: '16px', // Dá ao fundo branco a aparência de ícone Apple
+    boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
   },
   tabContainer: {
     display: 'flex',
@@ -178,12 +182,12 @@ const styles = {
     backgroundColor: 'rgba(0,0,0,0.5)',
     borderRadius: '12px',
     padding: '4px',
-    marginBottom: '30px',
+    marginBottom: 'clamp(16px, 3vh, 30px)',
     border: '1px solid rgba(255, 255, 255, 0.05)',
   },
   tab: {
     flex: 1,
-    padding: '12px 0',
+    padding: 'clamp(8px, 1.5vh, 12px) 0',
     background: 'transparent',
     border: 'none',
     color: '#888',
@@ -195,7 +199,7 @@ const styles = {
   },
   activeTab: {
     flex: 1,
-    padding: '12px 0',
+    padding: 'clamp(8px, 1.5vh, 12px) 0',
     background: 'rgba(255,255,255,0.15)',
     border: 'none',
     color: '#ffffff',
@@ -211,27 +215,27 @@ const styles = {
     flexDirection: 'column',
   },
   formTitle: {
-    fontSize: '24px',
+    fontSize: 'clamp(18px, 3vh, 24px)',
     fontWeight: '800',
     marginBottom: '8px',
     textAlign: 'center',
     color: '#ffffff',
   },
   formSubtitle: {
-    fontSize: '14px',
+    fontSize: 'clamp(12px, 1.5vh, 14px)',
     color: '#a3a3a3',
-    marginBottom: '24px',
+    marginBottom: 'clamp(16px, 3vh, 24px)',
     textAlign: 'center',
     lineHeight: '1.5',
   },
   form: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '16px',
+    gap: 'clamp(10px, 2vh, 16px)',
   },
   input: {
     width: '100%',
-    height: '54px',
+    height: 'clamp(44px, 6vh, 52px)',
     background: 'rgba(0, 0, 0, 0.6)',
     border: '1px solid rgba(255, 255, 255, 0.1)',
     borderRadius: '12px',
@@ -243,7 +247,7 @@ const styles = {
     transition: 'border 0.3s',
   },
   submitBtn: {
-    height: '54px',
+    height: 'clamp(46px, 6.5vh, 54px)',
     background: 'linear-gradient(135deg, #0d9488 0%, #14b8a6 100%)',
     color: '#ffffff',
     border: 'none',
@@ -251,33 +255,33 @@ const styles = {
     fontSize: '16px',
     fontWeight: '800',
     cursor: 'pointer',
-    marginTop: '10px',
+    marginTop: 'clamp(4px, 1vh, 10px)',
     transition: 'all 0.3s',
     boxShadow: '0 8px 20px rgba(20, 184, 166, 0.3)',
   },
   featuresFooter: {
     width: '100%',
     zIndex: 10,
-    padding: '20px',
+    padding: 'clamp(12px, 2.5vh, 20px)',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    background: 'linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0) 100%)',
+    background: 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0) 100%)',
   },
   featuresRow: {
     display: 'flex',
     flexWrap: 'wrap',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 'clamp(10px, 3vw, 30px)',
-    marginBottom: '16px',
+    gap: 'clamp(10px, 2vw, 30px)',
+    marginBottom: 'clamp(8px, 1.5vh, 16px)',
   },
   featureItem: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: '10px',
-    minWidth: '100px',
+    gap: '6px',
+    minWidth: '80px',
   },
   featureTitle: {
     color: '#e5e5e5',
@@ -289,7 +293,7 @@ const styles = {
   },
   divider: {
     width: '1px',
-    height: '30px',
+    height: 'clamp(20px, 4vh, 30px)',
     backgroundColor: 'rgba(255,255,255,0.1)',
   },
   featuresSubtitle: {
@@ -298,7 +302,7 @@ const styles = {
     fontWeight: '800',
     letterSpacing: '2px',
     textAlign: 'center',
-    paddingBottom: '20px',
+    paddingBottom: 'clamp(4px, 1vh, 10px)',
   }
 };
 
