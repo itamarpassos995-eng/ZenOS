@@ -257,26 +257,55 @@ export default function App() {
     return <LandingPage/>;
   }
 
-  if (statusLoja === 'aguardando_pagamento') {
+ if (statusLoja === 'aguardando_pagamento') {
     return (
-      <div style={{ minHeight: '100vh', backgroundColor: '#020617', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif' }}>
-        <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '24px', padding: '40px', width: '100%', maxWidth: '450px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', boxShadow: '0 25px 50px rgba(0,0,0,0.5)' }}>
-          <ZeniteLogo aoClicar={() => {}} />
-          <h2 style={{ color: '#fbbf24', fontSize: '22px', fontWeight: 900, marginTop: '30px', marginBottom: '10px' }}>Licença Pendente</h2>
-          <p style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '24px', lineHeight: '1.6' }}>
-            A conta da sua loja foi criada com sucesso, mas o acesso ao terminal Zênite OS encontra-se temporariamente bloqueado a aguardar a confirmação da licença.
-          </p>
-          <div style={{ backgroundColor: '#1e293b', padding: '20px', borderRadius: '12px', width: '100%', marginBottom: '24px', border: '1px solid #334155' }}>
-            <p style={{ color: '#fff', fontSize: '14px', margin: '0 0 10px 0', fontWeight: 700 }}>Para ativar o seu sistema agora:</p>
-            <p style={{ color: '#38bdf8', fontSize: '16px', fontWeight: 900, margin: '0 0 10px 0' }}>Contacte o Suporte Zênite OS</p>
-            <p style={{ color: '#64748b', fontSize: '12px', margin: 0, lineHeight: '1.5' }}>Assim que o Itamar confirmar a ativação do seu plano, o painel será desbloqueado de imediato e de forma automática no seu ecrã.</p>
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', fontFamily: '"Inter", "Segoe UI", sans-serif', backgroundColor: '#050505', overflowY: 'auto', overflowX: 'hidden' }}>
+        {/* CÓDIGO INVISÍVEL PARA MATAR A BARRA DE ROLAGEM */}
+        <style>{`
+          ::-webkit-scrollbar { display: none; }
+          * { -ms-overflow-style: none; scrollbar-width: none; }
+          body, html { margin: 0; padding: 0; overflow: hidden; background-color: #050505; }
+        `}</style>
+
+        {/* CAMADAS DE FUNDO IDÊNTICAS À LANDING PAGE */}
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url("https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=2070&auto=format&fit=crop")', backgroundSize: 'cover', backgroundPosition: 'center', zIndex: 1 }}></div>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'linear-gradient(135deg, rgba(5,5,5,0.92) 0%, rgba(13,56,49,0.75) 100%)', zIndex: 2 }}></div>
+
+        {/* CENTRO DA TELA (AUTO-AJUSTÁVEL) */}
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '0 20px', zIndex: 10, width: '100%', boxSizing: 'border-box' }}>
+          
+          {/* CARTÃO DE VIDRO FOSCO (GLASSMORPHISM) */}
+          <div style={{ width: '100%', maxWidth: '450px', background: 'rgba(10, 10, 10, 0.4)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderRadius: '24px', border: '1px solid rgba(255, 255, 255, 0.08)', padding: 'clamp(30px, 5vh, 40px)', boxShadow: '0 30px 60px rgba(0,0,0,0.8)', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', boxSizing: 'border-box' }}>
+            
+            {/* LOGÓTIPO OFICIAL COM SOMBRA INTELIGENTE */}
+            <div style={{ width: '100%', display: 'flex', justifyContent: 'center', marginBottom: 'clamp(20px, 3vh, 30px)' }}>
+              <img 
+                src="/logo-zenos.png?v=4" 
+                alt="ZenOS Logo Oficial" 
+                style={{ width: '100%', maxWidth: '180px', height: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.6))' }} 
+              />
+            </div>
+
+            <h2 style={{ color: '#fbbf24', fontSize: 'clamp(20px, 3vh, 24px)', fontWeight: 900, margin: '0 0 12px 0' }}>Licença Pendente</h2>
+            <p style={{ color: '#a3a3a3', fontSize: 'clamp(13px, 1.5vh, 14px)', marginBottom: '24px', lineHeight: '1.6' }}>
+              A conta da sua loja foi criada com sucesso, mas o acesso ao terminal Zênite OS encontra-se temporariamente bloqueado a aguardar a confirmação da licença.
+            </p>
+
+            {/* CAIXA DE INSTRUÇÕES PREMIUM */}
+            <div style={{ backgroundColor: 'rgba(0,0,0,0.5)', padding: '20px', borderRadius: '12px', width: '100%', marginBottom: '24px', border: '1px solid rgba(255,255,255,0.05)', boxSizing: 'border-box' }}>
+              <p style={{ color: '#e5e5e5', fontSize: '13px', margin: '0 0 8px 0', fontWeight: 700 }}>Para ativar o seu sistema agora:</p>
+              <p style={{ color: '#14b8a6', fontSize: '16px', fontWeight: 900, margin: '0 0 12px 0', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>Contacte o Suporte Zênite OS</p>
+              <p style={{ color: '#888', fontSize: '12px', margin: 0, lineHeight: '1.5' }}>Assim que o Itamar confirmar a ativação do seu plano, o painel será desbloqueado de imediato e de forma automática no seu ecrã.</p>
+            </div>
+
+            <button onClick={fazerLogout} style={{ background: 'transparent', border: '1px solid rgba(244, 63, 94, 0.4)', color: '#fb7185', padding: '14px 24px', borderRadius: '12px', fontSize: '14px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.3s', width: '100%' }}>
+              Sair e Voltar mais tarde
+            </button>
           </div>
-          <button onClick={fazerLogout} style={{ backgroundColor: 'transparent', border: '1px solid #f43f5e', color: '#fb7185', padding: '12px 24px', borderRadius: '8px', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}>Sair e Voltar mais tarde</button>
         </div>
       </div>
     );
   }
-
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#020617', color: '#e2e8f0', fontFamily: 'system-ui, sans-serif', padding: 0, margin: 0 }}>
       <style>{`* { scrollbar-width: thin; scrollbar-color: #334155 #0b1120; } *::-webkit-scrollbar { width: 6px; height: 6px; } *::-webkit-scrollbar-track { background: #0b1120; } *::-webkit-scrollbar-thumb { background-color: #334155; border-radius: 999px; } input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; } input[type=number] { -moz-appearance: textfield; }`}</style>
