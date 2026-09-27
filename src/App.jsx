@@ -37,6 +37,9 @@ export default function App() {
   const [carregandoAuth, setCarregandoAuth] = useState(true);
   const [patenteUsuario, setPatenteUsuario] = useState('gerencia'); 
 
+  const [modalPlanosAberto, setModalPlanosAberto] = useState(false);
+  const [demoSolicitada, setDemoSolicitada] = useState(false);
+
   const [ecraAtual, setEcraAtual] = useState('hub');
   const [menuNavAberto, setMenuNavAberto] = useState(false);
   const [idioma, setIdioma] = useState('pt');
@@ -54,6 +57,22 @@ export default function App() {
   const [historicoVendas, setHistoricoVendas] = useState(() => { try { const salvo = localStorage.getItem('zenos_historico_vendas'); return salvo ? JSON.parse(salvo) : []; } catch { return []; } });
   const [caixaMovimentos, setCaixaMovimentos] = useState(() => { try { const salvo = localStorage.getItem('zenos_caixa_movs'); return salvo ? JSON.parse(salvo) : []; } catch { return []; } });
   const [despesas, setDespesas] = useState(() => { try { const salvo = localStorage.getItem('zenos_despesas'); return salvo ? JSON.parse(salvo) : []; } catch { return []; } });
+
+  const solicitarDemoFirebase = async () => {
+    if (!userId) return;
+    try {
+      await setDoc(doc(db, "solicitacoes_demo", userId), {
+        email: usuarioAutenticado,
+        uid: userId,
+        dataSolicitacao: new Date().toISOString(),
+        status: 'pendente_analise'
+      }, { merge: true });
+      setDemoSolicitada(true);
+    } catch (err) {
+      console.error("Erro ao solicitar demo:", err);
+      alert(tx('Erro ao enviar solicitação. Tente novamente.', 'Error al enviar solicitud.', 'Error sending request.'));
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -243,7 +262,7 @@ export default function App() {
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url("https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=2070&auto=format&fit=crop")', backgroundSize: 'cover', backgroundPosition: 'center', zIndex: 1 }}></div>
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'linear-gradient(135deg, rgba(5,5,5,0.92) 0%, rgba(13,56,49,0.75) 100%)', zIndex: 2 }}></div>
         <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '0 20px', zIndex: 10, width: '100%', boxSizing: 'border-box' }}>
-          <div style={{ width: '100%', maxWidth: '450px', background: 'rgba(10, 10, 10, 0.4)', borderRadius: '24px', border: '1px solid rgba(255, 255, 255, 0.08)', padding: 'clamp(30px, 5vh, 40px)', boxShadow: '0 30px 60px rgba(0,0,0,0.8)', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', boxSizing: 'border-box' }}>
+          <div style={{ width: '100%', maxWidth: '450px', background: 'rgba(10, 10, 10, 0.6)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderRadius: '24px', border: '1px solid rgba(255, 255, 255, 0.08)', padding: 'clamp(30px, 5vh, 40px)', boxShadow: '0 30px 60px rgba(0,0,0,0.8)', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', boxSizing: 'border-box' }}>
             <div style={{ width: '100%', display: 'flex', justifyContent: 'center', marginBottom: 'clamp(20px, 3vh, 30px)' }}>
               <img src="/logo-zenos.png?v=4" alt="ZenOS Logo Oficial" style={{ width: '100%', maxWidth: '180px', height: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.6))' }} />
             </div>
@@ -257,12 +276,66 @@ export default function App() {
               <p style={{ color: '#888', fontSize: '12px', margin: 0, lineHeight: '1.5' }}>Assim que os nossos administradores confirmarem a adesão a um plano ou aprovarem o seu teste, o painel será desbloqueado de imediato e de forma automática no seu ecrã.</p>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
-              <button onClick={() => alert('Em breve: Redirecionamento para a página de Planos e Pagamentos do ZenOS.')} style={{ background: 'linear-gradient(135deg, #0d9488 0%, #14b8a6 100%)', border: 'none', color: '#ffffff', padding: '14px 24px', borderRadius: '12px', fontSize: '14px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.3s', width: '100%', boxShadow: '0 4px 15px rgba(20, 184, 166, 0.3)' }}>Ver Opções de Planos</button>
-              <button onClick={() => alert('Solicitação enviada! A equipa ZenOS irá libertar os seus dias de teste em breve.')} style={{ background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.15)', color: '#ffffff', padding: '14px 24px', borderRadius: '12px', fontSize: '14px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.3s', width: '100%' }}>Solicitar Teste Grátis (Demo)</button>
+              <button onClick={() => setModalPlanosAberto(true)} style={{ background: 'linear-gradient(135deg, #0d9488 0%, #14b8a6 100%)', border: 'none', color: '#ffffff', padding: '14px 24px', borderRadius: '12px', fontSize: '14px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.3s', width: '100%', boxShadow: '0 4px 15px rgba(20, 184, 166, 0.3)' }}>Ver Opções de Planos</button>
+              
+              <button onClick={solicitarDemoFirebase} disabled={demoSolicitada} style={{ background: demoSolicitada ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.05)', border: `1px solid ${demoSolicitada ? '#10b981' : 'rgba(255, 255, 255, 0.15)'}`, color: demoSolicitada ? '#34d399' : '#ffffff', padding: '14px 24px', borderRadius: '12px', fontSize: '14px', fontWeight: 800, cursor: demoSolicitada ? 'default' : 'pointer', transition: 'all 0.3s', width: '100%' }}>
+                {demoSolicitada ? '✓ Solicitação de Demo Enviada!' : 'Solicitar Teste Grátis (Demo)'}
+              </button>
+
               <button onClick={fazerLogout} style={{ background: 'transparent', border: '1px solid rgba(244, 63, 94, 0.3)', color: '#fb7185', padding: '14px 24px', borderRadius: '12px', fontSize: '14px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.3s', width: '100%', marginTop: '6px' }}>Sair e Voltar mais tarde</button>
             </div>
           </div>
         </div>
+
+        {/* MODAL DE PLANOS */}
+        {modalPlanosAberto && (
+          <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.9)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+            <div style={{ backgroundColor: '#0b1120', border: '1px solid #14b8a6', borderRadius: '24px', width: '100%', maxWidth: '650px', maxHeight: '90vh', overflowY: 'auto', padding: '32px', color: '#fff', boxSizing: 'border-box' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                <div>
+                  <span style={{ fontSize: '11px', fontWeight: 900, color: '#14b8a6', letterSpacing: '1px', textTransform: 'uppercase' }}>ZenOS Cloud SaaS</span>
+                  <h3 style={{ fontSize: '22px', fontWeight: 900, margin: '2px 0 0 0' }}>Escolha o Plano Ideal para a sua Loja</h3>
+                </div>
+                <button onClick={() => setModalPlanosAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#64748b', width: '36px', height: '36px', borderRadius: '10px', cursor: 'pointer', fontWeight: 900 }}>✕</button>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px', marginBottom: '24px' }}>
+                <div style={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div>
+                    <h4 style={{ fontSize: '16px', fontWeight: 900, color: '#38bdf8', margin: '0 0 4px 0' }}>Plano Essencial</h4>
+                    <div style={{ fontSize: '24px', fontWeight: 900, color: '#fff' }}>R$ 149<span style={{ fontSize: '12px', color: '#64748b', fontWeight: 500 }}>/mês</span></div>
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '13px', color: '#cbd5e1', lineHeight: '1.8', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <li>PDV Balcão Completo</li>
+                    <li>Controle de Estoque e Catálogo</li>
+                    <li>Gestão de Caixa e Fechamento Cego</li>
+                    <li>Até 2 Operadores Simultâneos</li>
+                  </ul>
+                  <button onClick={() => alert('Para ativar o Plano Essencial, entre em contacto com o suporte ZenOS.')} style={{ width: '100%', padding: '12px', background: '#0284c7', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', marginTop: 'auto' }}>Selecionar Essencial</button>
+                </div>
+
+                <div style={{ background: 'linear-gradient(135deg, rgba(13, 148, 136, 0.15), rgba(2, 6, 23, 0.8))', border: '1px solid #14b8a6', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 10px 30px rgba(20, 184, 166, 0.15)' }}>
+                  <div>
+                    <span style={{ backgroundColor: '#14b8a6', color: '#000', fontSize: '10px', fontWeight: 900, padding: '2px 8px', borderRadius: '999px', textTransform: 'uppercase' }}>Mais Popular</span>
+                    <h4 style={{ fontSize: '16px', fontWeight: 900, color: '#14b8a6', margin: '6px 0 4px 0' }}>Plano Multi-Filiais</h4>
+                    <div style={{ fontSize: '24px', fontWeight: 900, color: '#fff' }}>R$ 299<span style={{ fontSize: '12px', color: '#64748b', fontWeight: 500 }}>/mês</span></div>
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '13px', color: '#cbd5e1', lineHeight: '1.8', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <li>Tudo do Plano Essencial</li>
+                    <li>Gestão de Múltiplas Filiais / Lojas</li>
+                    <li>Painel Executivo e App Mobile (CEO)</li>
+                    <li>Suporte Prioritário 24/7</li>
+                  </ul>
+                  <button onClick={() => alert('Para ativar o Plano Multi-Filiais, entre em contacto com o suporte ZenOS.')} style={{ width: '100%', padding: '12px', background: 'linear-gradient(135deg, #0d9488, #14b8a6)', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', marginTop: 'auto', boxShadow: '0 4px 15px rgba(20,184,166,0.3)' }}>Selecionar Multi-Filiais</button>
+                </div>
+              </div>
+
+              <div style={{ textAlign: 'center' }}>
+                <button onClick={() => setModalPlanosAberto(false)} style={{ backgroundColor: 'transparent', border: 'none', color: '#94a3b8', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}>Fechar Tabela de Planos</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -332,7 +405,6 @@ export default function App() {
 
       <main className="no-print" style={{ padding: '20px 16px', maxWidth: '1600px', margin: '0 auto', boxSizing: 'border-box' }}>
         
-        {/* INÍCIO DO NOVO DASHBOARD HUB PREMIUM */}
         {ecraAtual === 'hub' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             
@@ -525,7 +597,6 @@ export default function App() {
             </div>
           </div>
         )}
-        {/* FIM DO NOVO DASHBOARD HUB PREMIUM */}
 
         {ecraAtual === 'pdv' && <PDV produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} patenteUsuario={patenteUsuario} idioma={idioma} />}
         {ecraAtual === 'mesas' && <Mesas produtos={produtos} fmt={fmt} tx={tx} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} moeda={moeda} idioma={idioma} />}
