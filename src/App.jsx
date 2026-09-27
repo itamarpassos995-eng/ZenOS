@@ -268,23 +268,24 @@ export default function App() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#020617', color: '#e2e8f0', fontFamily: 'system-ui, sans-serif', padding: 0, margin: 0, overflowX: 'hidden' }}>
+    <div style={{ minHeight: '100vh', height: '100vh', backgroundColor: '#020617', color: '#e2e8f0', fontFamily: 'system-ui, sans-serif', padding: 0, margin: 0, overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch' }}>
       <style>{`
-        * { scrollbar-width: thin; scrollbar-color: #334155 #0b1120; }
+        * { scrollbar-width: thin; scrollbar-color: #334155 #0b1120; box-sizing: border-box; }
         *::-webkit-scrollbar { width: 6px; height: 6px; }
         *::-webkit-scrollbar-track { background: #0b1120; }
         *::-webkit-scrollbar-thumb { background-color: #334155; border-radius: 999px; }
         input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         input[type=number] { -moz-appearance: textfield; }
+        html, body { height: 100%; margin: 0; padding: 0; overflow-y: auto !important; background-color: #020617; }
         @media (max-width: 768px) {
           .mobile-stack { flex-direction: column !important; align-items: stretch !important; }
           .mobile-stack > div { text-align: left !important; border-right: none !important; padding-right: 0 !important; margin-bottom: 12px; }
           .mobile-padding { padding: 16px !important; }
-          .mobile-text-lg { fontSize: 24px !important; }
+          .mobile-text-lg { font-size: 24px !important; }
         }
       `}</style>
       
-      <header className="no-print" style={{ backgroundColor: '#0b1120', borderBottom: '1px solid #1e293b', padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 100, flexWrap: 'wrap', gap: '10px' }}>
+      <header className="no-print" style={{ backgroundColor: '#0b1120', borderBottom: '1px solid #1e293b', padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 100, flexWrap: 'wrap', gap: '10px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <div style={{ position: 'relative' }}>
             <button onClick={() => setMenuNavAberto(!menuNavAberto)} style={{ backgroundColor: menuNavAberto ? '#1e293b' : '#020617', border: '1px solid #334155', color: '#f8fafc', padding: '8px 12px', borderRadius: '10px', fontSize: '14px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.4)' }}>
@@ -331,7 +332,7 @@ export default function App() {
 
       <main className="no-print" style={{ padding: '20px 16px', maxWidth: '1600px', margin: '0 auto', boxSizing: 'border-box' }}>
         
-        {/* INÍCIO DO NOVO DASHBOARD HUB PREMIUM (MOBILE RESPONSIVE & NO-BLUR) */}
+        {/* INÍCIO DO NOVO DASHBOARD HUB PREMIUM */}
         {ecraAtual === 'hub' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             
