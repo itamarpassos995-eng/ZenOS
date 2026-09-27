@@ -1,6 +1,13 @@
 import React from 'react';
 
 const LandingPage = () => {
+
+  // Função que dá vida aos botões
+  const handleAcesso = () => {
+    // Por enquanto é um alerta para testar. Depois, será o redirecionamento para o Login.
+    alert("Redirecionando para o acesso seguro do ZenOS...");
+  };
+
   return (
     <div style={styles.pageContainer}>
       {/* CABEÇALHO */}
@@ -9,7 +16,10 @@ const LandingPage = () => {
           <div style={styles.logoIcon}>Z</div>
           <h1 style={styles.logoText}>ZenOS</h1>
         </div>
-        <button style={styles.loginButtonOutline}>Acessar Sistema</button>
+        {/* Adicionado o onClick aqui */}
+        <button style={styles.loginButtonOutline} onClick={handleAcesso}>
+          Acessar Sistema
+        </button>
       </header>
 
       {/* SECÇÃO HERO (PRINCIPAL) */}
@@ -23,34 +33,19 @@ const LandingPage = () => {
               Esqueça os sistemas antigos. O ZenOS é a plataforma de gestão e PDV que cabe no seu bolso e tem a potência de um software corporativo.
             </p>
             <div style={styles.buttonGroup}>
-              <button style={styles.primaryButton}>Começar Agora</button>
-              <button style={styles.secondaryButton}>Conhecer Recursos</button>
+              {/* Adicionado o onClick aqui */}
+              <button style={styles.primaryButton} onClick={handleAcesso}>
+                Começar Agora
+              </button>
+              <button style={styles.secondaryButton} onClick={() => alert("Exibindo recursos do sistema...")}>
+                Conhecer Recursos
+              </button>
             </div>
           </div>
         </section>
-
-        {/* SECÇÃO DE DESTAQUES (CARDS) */}
-        <section style={styles.featuresSection}>
-          <div style={styles.featureCard}>
-            <h3 style={styles.featureTitle}>📱 PDV Mobile-First</h3>
-            <p style={styles.featureText}>
-              Venda de qualquer lugar com um ponto de venda desenhado perfeitamente para a tela do seu celular.
-            </p>
-          </div>
-          <div style={styles.featureCard}>
-            <h3 style={styles.featureTitle}>🏢 Multi-Lojas</h3>
-            <p style={styles.featureText}>
-              Faça a gestão de todas as suas filiais de forma centralizada e com isolamento total de dados.
-            </p>
-          </div>
-          <div style={styles.featureCard}>
-            <h3 style={styles.featureTitle}>⚡ Alta Performance</h3>
-            <p style={styles.featureText}>
-              Hospedado na nuvem com tecnologia de ponta. Os seus dados em tempo real, sem travamentos.
-            </p>
-          </div>
-        </section>
-      </main>
+        
+        {/* ... (mantenha o resto das sections e os styles inalterados para baixo) */}
+>
     </div>
   );
 };
