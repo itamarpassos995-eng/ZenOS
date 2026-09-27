@@ -20,7 +20,8 @@ function ZeniteLogo({ aoClicar }) {
   return (
     <div onClick={aoClicar} style={{ display: 'flex', alignItems: 'center', gap: '14px', cursor: 'pointer', userSelect: 'none' }}>
       <div style={{ backgroundColor: '#ffffff', padding: '3px 8px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '42px', minWidth: '42px', boxShadow: '0 2px 8px rgba(0,0,0,0.4)' }}>
-        <img src="/Logo.png.jpeg" alt="Zênite" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} onError={(e) => e.target.src = '/logo.png'} />
+        {/* AQUI ESTÁ A MAGIA: Apontando para a logo oficial com cache-busting */}
+        <img src="/logo-zenos.png?v=3" alt="Zênite" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} onError={(e) => e.target.src = '/logo-zenos.png'} />
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', whiteSpace: 'nowrap' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}><span style={{ color: '#f8fafc', fontWeight: 900, fontSize: '18px', letterSpacing: '2.5px', textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>ZÊNITE</span><span style={{ color: '#818cf8', fontWeight: 800, fontSize: '10px', letterSpacing: '1px' }}>OS</span></div>
@@ -29,7 +30,6 @@ function ZeniteLogo({ aoClicar }) {
     </div>
   );
 }
-
 export default function App() {
   const [usuarioAutenticado, setUsuarioAutenticado] = useState(null);
   const [userId, setUserId] = useState(null);
