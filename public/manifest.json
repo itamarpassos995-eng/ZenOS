@@ -1,16 +1,15 @@
 {
-  "short_name": "Zênite",
+  "short_name": "ZenOS",
   "name": "Zênite OS - Atacadão de Tintas",
   "icons": [
     {
-      "src": "/Logo.png.jpeg",
+      "src": "/logo-zenos.png",
       "sizes": "192x192 512x512",
-      "type": "image/jpeg",
-      "purpose": "any maskable"
+      "type": "image/png"
     }
   ],
-  "start_url": "/",
+  "start_url": ".",
   "display": "standalone",
-  "theme_color": "#0b1120",
-  "background_color": "#020617"
+  "theme_color": "#050505",
+  "background_color": "#050505"
 }
