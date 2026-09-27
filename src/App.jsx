@@ -359,113 +359,143 @@ export default function App() {
 
       <main className="no-print" style={{ padding: '40px 32px', maxWidth: '1600px', margin: '0 auto' }}>
         
+        {/* INÍCIO DO NOVO DASHBOARD HUB PREMIUM */}
         {ecraAtual === 'hub' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
             
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '20px', padding: '24px 32px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '24px', padding: '32px', boxShadow: '0 20px 40px rgba(0,0,0,0.3)' }}>
               <div>
-                <span style={{ fontSize: '12px', color: '#818cf8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1.5px' }}>ZenOS (Cloud Multi-Tenant)</span>
-                <h1 style={{ fontSize: '26px', fontWeight: 900, color: '#ffffff', margin: '4px 0 0 0' }}>{tx(`Olá!`, `¡Hola!`, `Hello!`)}</h1>
-                <span style={{ fontSize: '13px', color: '#64748b' }}>{tx('O que vamos fazer hoje?', '¿Qué vamos a hacer hoy?', 'What are we doing today?')}</span>
+                <span style={{ fontSize: '12px', color: '#38bdf8', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '2px' }}>ZenOS (Cloud Multi-Tenant)</span>
+                <h1 style={{ fontSize: '32px', fontWeight: 900, color: '#ffffff', margin: '8px 0 4px 0', letterSpacing: '-0.5px' }}>{tx(`Olá!`, `¡Hola!`, `Hello!`)}</h1>
+                <span style={{ fontSize: '15px', color: '#94a3b8', fontWeight: 500 }}>{tx('O que vamos fazer hoje?', '¿Qué vamos a hacer hoy?', 'What are we doing today?')}</span>
               </div>
-              <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-                <button onClick={() => setValoresTopoVisiveis(!valoresTopoVisiveis)} title={tx('Ocultar/Mostrar Valores', 'Ocultar/Mostrar Valores', 'Toggle Values')} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '24px', cursor: 'pointer', padding: '0 10px', outline: 'none' }}>
+              <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
+                <button onClick={() => setValoresTopoVisiveis(!valoresTopoVisiveis)} title={tx('Ocultar/Mostrar Valores', 'Ocultar/Mostrar Valores', 'Toggle Values')} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#e2e8f0', fontSize: '20px', cursor: 'pointer', padding: '12px', outline: 'none', transition: 'all 0.3s' }}>
                   {valoresTopoVisiveis ? '👁️' : '🙈'}
                 </button>
-                <div style={{ textAlign: 'right', borderRight: '1px solid #1e293b', paddingRight: '20px' }}>
-                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>{tx('Vendido Hoje', 'Vendido Hoy', 'Sold Today')}</span>
-                  <div style={{ fontSize: '22px', fontWeight: 900, color: '#34d399' }}>{valoresTopoVisiveis ? fmt(faturamentoTotalBRL) : '*****'}</div>
+                <div style={{ textAlign: 'right', borderRight: '1px solid rgba(255,255,255,0.1)', paddingRight: '24px' }}>
+                  <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>{tx('Vendido Hoje', 'Vendido Hoy', 'Sold Today')}</span>
+                  <div style={{ fontSize: '26px', fontWeight: 900, color: '#34d399', marginTop: '4px', textShadow: '0 2px 10px rgba(52,211,153,0.2)' }}>{valoresTopoVisiveis ? fmt(faturamentoTotalBRL) : '*****'}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>{tx('Fiado na Praça', 'Fiado a Cobrar', 'Pending Credit')}</span>
-                  <div style={{ fontSize: '22px', fontWeight: 900, color: totalFiadoAbertoBRL > 0 && valoresTopoVisiveis ? '#fb7185' : '#34d399' }}>{valoresTopoVisiveis ? fmt(totalFiadoAbertoBRL) : '*****'}</div>
+                  <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>{tx('Fiado na Praça', 'Fiado a Cobrar', 'Pending Credit')}</span>
+                  <div style={{ fontSize: '26px', fontWeight: 900, color: totalFiadoAbertoBRL > 0 && valoresTopoVisiveis ? '#fb7185' : '#34d399', marginTop: '4px' }}>{valoresTopoVisiveis ? fmt(totalFiadoAbertoBRL) : '*****'}</div>
                 </div>
               </div>
             </div>
 
             {patenteUsuario === 'gerencia' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div onClick={() => setMostrarPainelExecutivo(!mostrarPainelExecutivo)} style={{ backgroundColor: mostrarPainelExecutivo ? '#070d19' : '#1e1b4b', border: `1px solid ${mostrarPainelExecutivo ? '#1e293b' : '#6366f1'}`, borderRadius: '16px', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', transition: 'all 0.2s' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                    <span style={{ fontSize: '24px' }}>{mostrarPainelExecutivo ? '🙈' : '👁️'}</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                
+                <div onClick={() => setMostrarPainelExecutivo(!mostrarPainelExecutivo)} style={{ background: mostrarPainelExecutivo ? 'rgba(15, 23, 42, 0.4)' : 'linear-gradient(135deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.9))', backdropFilter: 'blur(16px)', border: `1px solid rgba(255,255,255,${mostrarPainelExecutivo ? '0.05' : '0.15'})`, borderRadius: '20px', padding: '20px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', transition: 'all 0.3s', boxShadow: mostrarPainelExecutivo ? 'none' : '0 10px 30px rgba(0,0,0,0.4)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>
+                      {mostrarPainelExecutivo ? '🙈' : '👁️'}
+                    </div>
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <h3 style={{ margin: 0, fontSize: '16px', color: mostrarPainelExecutivo ? '#94a3b8' : '#a5b4fc', fontWeight: 900 }}>{tx('Painel Executivo e Financeiro', 'Panel Ejecutivo y Financiero', 'Executive & Financial Dashboard')}</h3>
-                      <span style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{tx('Cálculo Real: Faturamento ➔ Lucro Bruto ➔ Despesas ➔ Lucro Líquido', 'Cálculo Real: Facturación ➔ Beneficio Bruto ➔ Gastos ➔ Beneficio Neto', 'Real Calc: Revenue ➔ Gross Profit ➔ Expenses ➔ Net Profit')}</span>
+                      <h3 style={{ margin: 0, fontSize: '18px', color: mostrarPainelExecutivo ? '#94a3b8' : '#e2e8f0', fontWeight: 900 }}>{tx('Painel Executivo e Financeiro', 'Panel Ejecutivo y Financiero', 'Executive & Financial Dashboard')}</h3>
+                      <span style={{ fontSize: '12px', color: '#64748b', marginTop: '4px', fontWeight: 500 }}>{tx('Cálculo Real: Faturamento ➔ Lucro Bruto ➔ Despesas ➔ Lucro Líquido', 'Cálculo Real: Facturación ➔ Beneficio Bruto ➔ Gastos ➔ Beneficio Neto', 'Real Calc: Revenue ➔ Gross Profit ➔ Expenses ➔ Net Profit')}</span>
                     </div>
                   </div>
-                  <span style={{ color: mostrarPainelExecutivo ? '#64748b' : '#818cf8', fontWeight: 900, fontSize: '12px', letterSpacing: '1px' }}>
+                  <span style={{ color: mostrarPainelExecutivo ? '#64748b' : '#38bdf8', fontWeight: 900, fontSize: '13px', letterSpacing: '1px', backgroundColor: mostrarPainelExecutivo ? 'transparent' : 'rgba(56,189,248,0.1)', padding: '8px 16px', borderRadius: '99px' }}>
                     {mostrarPainelExecutivo ? tx('▲ OCULTAR DADOS', '▲ OCULTAR DATOS', '▲ HIDE DATA') : tx('▼ REVELAR DADOS', '▼ REVELAR DATOS', '▼ REVEAL DATA')}
                   </span>
                 </div>
 
                 {mostrarPainelExecutivo && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px' }}>
-                      <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span style={{ fontSize: '18px' }}>💰</span><span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Faturamento</span></div>
-                        <span style={{ fontSize: '24px', fontWeight: 900, color: '#f8fafc', marginTop: '8px' }}>{fmt(faturamentoTotalBRL)}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', animation: 'fadeIn 0.5s ease-out' }}>
+                    
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
+                      <div style={{ background: 'rgba(16, 185, 129, 0.05)', backdropFilter: 'blur(16px)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: '24px', padding: '24px', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <span style={{ fontSize: '22px' }}>💰</span><span style={{ fontSize: '12px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px' }}>Faturamento</span>
+                        </div>
+                        <span style={{ fontSize: '28px', fontWeight: 900, color: '#f8fafc', marginTop: '12px' }}>{fmt(faturamentoTotalBRL)}</span>
                       </div>
-                      <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span style={{ fontSize: '18px' }}>💎</span><span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Lucro Bruto</span></div>
-                        <span style={{ fontSize: '24px', fontWeight: 900, color: '#38bdf8', marginTop: '8px' }}>{fmt(lucroBrutoBRL)}</span>
+                      
+                      <div style={{ background: 'rgba(14, 165, 233, 0.05)', backdropFilter: 'blur(16px)', border: '1px solid rgba(14, 165, 233, 0.2)', borderRadius: '24px', padding: '24px', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <span style={{ fontSize: '22px' }}>💎</span><span style={{ fontSize: '12px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px' }}>Lucro Bruto</span>
+                        </div>
+                        <span style={{ fontSize: '28px', fontWeight: 900, color: '#38bdf8', marginTop: '12px' }}>{fmt(lucroBrutoBRL)}</span>
                       </div>
-                      <div style={{ backgroundColor: '#451a03', border: '1px solid #b45309', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span style={{ fontSize: '18px' }}>💸</span><span style={{ fontSize: '11px', fontWeight: 800, color: '#fbbf24', textTransform: 'uppercase' }}>Despesas Pagas</span></div>
-                        <span style={{ fontSize: '24px', fontWeight: 900, color: '#fef3c7', marginTop: '8px' }}>{fmt(despesasPagasBRL)}</span>
+                      
+                      <div style={{ background: 'rgba(244, 63, 94, 0.05)', backdropFilter: 'blur(16px)', border: '1px solid rgba(244, 63, 94, 0.2)', borderRadius: '24px', padding: '24px', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <span style={{ fontSize: '22px' }}>💸</span><span style={{ fontSize: '12px', fontWeight: 800, color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '1px' }}>Despesas Pagas</span>
+                        </div>
+                        <span style={{ fontSize: '28px', fontWeight: 900, color: '#fef3c7', marginTop: '12px' }}>{fmt(despesasPagasBRL)}</span>
                       </div>
-                      <div style={{ backgroundColor: '#064e3b', border: '1px solid #10b981', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span style={{ fontSize: '18px' }}>🏆</span><span style={{ fontSize: '11px', fontWeight: 800, color: '#a7f3d0', textTransform: 'uppercase' }}>Lucro Líquido Real</span></div>
-                        <span style={{ fontSize: '24px', fontWeight: 900, color: '#fff', marginTop: '8px' }}>{fmt(lucroLiquidoRealBRL)}</span>
+                      
+                      <div style={{ background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.3))', backdropFilter: 'blur(16px)', border: '1px solid rgba(16, 185, 129, 0.4)', borderRadius: '24px', padding: '24px', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(16,185,129,0.15)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <span style={{ fontSize: '22px' }}>🏆</span><span style={{ fontSize: '12px', fontWeight: 900, color: '#a7f3d0', textTransform: 'uppercase', letterSpacing: '1px' }}>Lucro Líquido Real</span>
+                        </div>
+                        <span style={{ fontSize: '28px', fontWeight: 900, color: '#ffffff', marginTop: '12px', textShadow: '0 2px 10px rgba(0,0,0,0.3)' }}>{fmt(lucroLiquidoRealBRL)}</span>
                       </div>
-                      <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span style={{ fontSize: '18px' }}>📒</span><span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Fiado na Praça</span></div>
-                        <span style={{ fontSize: '24px', fontWeight: 900, color: '#fb7185', marginTop: '8px' }}>{fmt(totalFiadoAbertoBRL)}</span>
+                      
+                      <div style={{ background: 'rgba(245, 158, 11, 0.05)', backdropFilter: 'blur(16px)', border: '1px solid rgba(245, 158, 11, 0.2)', borderRadius: '24px', padding: '24px', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <span style={{ fontSize: '22px' }}>📒</span><span style={{ fontSize: '12px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px' }}>Fiado na Praça</span>
+                        </div>
+                        <span style={{ fontSize: '28px', fontWeight: 900, color: '#fb7185', marginTop: '12px' }}>{fmt(totalFiadoAbertoBRL)}</span>
                       </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-                      <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '24px' }}>
+                      
+                      <div style={{ background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '24px', padding: '32px', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><span style={{ fontSize: '24px' }}>💵</span><h3 style={{ fontSize: '18px', fontWeight: 900, color: '#fff', margin: 0 }}>{tx('Gestão de Caixa', 'Gestión de Caja', 'Cash Drawer Mgt')}</h3></div>
-                          <span style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '4px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, border: '1px solid #10b981' }}>{tx('Saldo Atual:', 'Saldo Actual:', 'Current Balance:')} {fmt(saldoCaixaFisicoBRL)}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}><span style={{ fontSize: '28px' }}>💵</span><h3 style={{ fontSize: '20px', fontWeight: 900, color: '#ffffff', margin: 0 }}>{tx('Gestão de Caixa', 'Gestión de Caja', 'Cash Drawer Mgt')}</h3></div>
+                          <span style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '8px 16px', borderRadius: '12px', fontSize: '13px', fontWeight: 900, border: '1px solid rgba(16, 185, 129, 0.3)' }}>{tx('Saldo Atual:', 'Saldo Actual:', 'Current Balance:')} {fmt(saldoCaixaFisicoBRL)}</span>
                         </div>
-                        <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
-                          <button onClick={() => { setTipoMovCaixa('suprimento'); setModalCaixaAberto(true); }} style={{ flex: 1, padding: '12px', backgroundColor: '#020617', border: '1px solid #10b981', color: '#34d399', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', fontSize: '13px' }}>{tx('+ Suprimento', '+ Suplemento', '+ Cash In')}</button>
-                          <button onClick={() => { setTipoMovCaixa('sangria'); setModalCaixaAberto(true); }} style={{ flex: 1, padding: '12px', backgroundColor: '#020617', border: '1px solid #f43f5e', color: '#fb7185', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', fontSize: '13px' }}>{tx('- Sangria', '- Sangría', '- Cash Out')}</button>
-                          <button onClick={() => { setTipoMovCaixa('fechamento'); setModalCaixaAberto(true); }} style={{ flex: 1, padding: '12px', background: 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#fff', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', fontSize: '13px' }}>{tx('🔒 Fechar', '🔒 Cerrar', '🔒 Close')}</button>
+                        
+                        <div style={{ display: 'flex', gap: '16px', marginBottom: '32px' }}>
+                          <button onClick={() => { setTipoMovCaixa('suprimento'); setModalCaixaAberto(true); }} style={{ flex: 1, padding: '16px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#34d399', borderRadius: '16px', fontWeight: 900, cursor: 'pointer', fontSize: '14px', transition: 'all 0.2s' }}>{tx('+ Suprimento', '+ Suplemento', '+ Cash In')}</button>
+                          <button onClick={() => { setTipoMovCaixa('sangria'); setModalCaixaAberto(true); }} style={{ flex: 1, padding: '16px', background: 'rgba(244, 63, 94, 0.1)', border: '1px solid rgba(244, 63, 94, 0.3)', color: '#fb7185', borderRadius: '16px', fontWeight: 900, cursor: 'pointer', fontSize: '14px', transition: 'all 0.2s' }}>{tx('- Sangria', '- Sangría', '- Cash Out')}</button>
+                          <button onClick={() => { setTipoMovCaixa('fechamento'); setModalCaixaAberto(true); }} style={{ flex: 1, padding: '16px', background: 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#ffffff', borderRadius: '16px', fontWeight: 900, cursor: 'pointer', fontSize: '14px', transition: 'all 0.2s', boxShadow: '0 4px 15px rgba(79,70,229,0.3)' }}>{tx('🔒 Fechar', '🔒 Cerrar', '🔒 Close')}</button>
                         </div>
-                        <div style={{ flex: 1, backgroundColor: '#020617', borderRadius: '12px', border: '1px solid #1e293b', padding: '12px', overflowY: 'auto', maxHeight: '200px' }}>
-                          <span style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '10px', display: 'block' }}>{tx('Movimentações Internas', 'Movimientos Internos', 'Internal Movements')}</span>
-                          {caixaMovimentos.length === 0 ? <div style={{ color: '#475569', fontSize: '12px', textAlign: 'center', marginTop: '20px' }}>-</div> : (
+                        
+                        <div style={{ flex: 1, background: 'rgba(0,0,0,0.2)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)', padding: '16px', overflowY: 'auto', maxHeight: '250px' }}>
+                          <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '16px', display: 'block', letterSpacing: '1px' }}>{tx('Movimentações Internas', 'Movimientos Internos', 'Internal Movements')}</span>
+                          {caixaMovimentos.length === 0 ? <div style={{ color: '#475569', fontSize: '14px', textAlign: 'center', marginTop: '30px' }}>-</div> : (
                             caixaMovimentos.map(m => (
-                              <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #1e293b', fontSize: '12px' }}>
-                                <div><span style={{ color: '#fff', fontWeight: 700 }}>{m.tipo === 'suprimento' ? 'Entrada' : 'Saída'}: {m.descricao}</span><br/><span style={{ color: '#64748b', fontSize: '10px' }}>{m.dataHora}</span></div>
-                                <span style={{ fontWeight: 900, color: m.tipo === 'suprimento' ? '#34d399' : '#fb7185' }}>{m.tipo === 'suprimento' ? '+' : '-'}{fmt(m.valorBRL, 'BRL')}</span>
+                              <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '14px' }}>
+                                <div><span style={{ color: '#e2e8f0', fontWeight: 700 }}>{m.tipo === 'suprimento' ? 'Entrada' : 'Saída'}: {m.descricao}</span><br/><span style={{ color: '#64748b', fontSize: '11px', marginTop: '4px', display: 'inline-block' }}>{m.dataHora}</span></div>
+                                <span style={{ fontWeight: 900, color: m.tipo === 'suprimento' ? '#34d399' : '#fb7185', fontSize: '16px' }}>{m.tipo === 'suprimento' ? '+' : '-'}{fmt(m.valorBRL, 'BRL')}</span>
                               </div>
                             ))
                           )}
                         </div>
                       </div>
-                      <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px' }}><span style={{ fontSize: '24px' }}>📈</span><h3 style={{ fontSize: '18px', fontWeight: 900, color: '#fff', margin: 0 }}>{tx('Curva ABC (Top 5)', 'Curva ABC (Top 5)', 'ABC Curve')}</h3></div>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                          <thead>
-                            <tr style={{ borderBottom: '1px solid #1e293b', color: '#64748b', fontSize: '11px', textTransform: 'uppercase' }}>
-                              <th style={{ paddingBottom: '10px' }}>{tx('Item', 'Ítem', 'Item')}</th><th style={{ paddingBottom: '10px', textAlign: 'center' }}>{tx('Qtd', 'Cant.', 'Qty')}</th><th style={{ paddingBottom: '10px', textAlign: 'right' }}>{tx('Faturamento', 'Facturación', 'Revenue')}</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {curvaABC.length === 0 ? <tr><td colSpan="3" style={{ textAlign: 'center', padding: '30px', color: '#475569', fontSize: '13px' }}>-</td></tr> : (
-                              curvaABC.map((item, index) => (
-                                <tr key={index} style={{ borderBottom: '1px solid #1e293b' }}>
-                                  <td style={{ padding: '12px 0' }}><div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span style={{ backgroundColor: index === 0 ? '#fbbf24' : index === 1 ? '#94a3b8' : index === 2 ? '#b45309' : '#1e293b', color: index < 3 ? '#000' : '#fff', width: '22px', height: '22px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 900 }}>{index + 1}</span><div style={{ display: 'flex', flexDirection: 'column' }}><span style={{ color: '#fff', fontSize: '13px', fontWeight: 700 }}>{item.nome.substring(0, 25)}</span><span style={{ color: '#64748b', fontSize: '10px' }}>{item.sku}</span></div></div></td>
-                                  <td style={{ textAlign: 'center', color: '#38bdf8', fontWeight: 800, fontSize: '13px' }}>{item.qtd} UN</td>
-                                  <td style={{ textAlign: 'right', color: '#34d399', fontWeight: 900, fontSize: '14px' }}>{fmt(item.faturamentoBRL, 'BRL')}</td>
-                                </tr>
-                              ))
-                            )}
-                          </tbody>
-                        </table>
+
+                      <div style={{ background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '24px', padding: '32px', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}><span style={{ fontSize: '28px' }}>📈</span><h3 style={{ fontSize: '20px', fontWeight: 900, color: '#ffffff', margin: 0 }}>{tx('Curva ABC (Top 5)', 'Curva ABC (Top 5)', 'ABC Curve')}</h3></div>
+                        <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)', padding: '4px 16px', flex: 1 }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                            <thead>
+                              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', color: '#64748b', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                                <th style={{ padding: '16px 0' }}>{tx('Item', 'Ítem', 'Item')}</th><th style={{ padding: '16px 0', textAlign: 'center' }}>{tx('Qtd', 'Cant.', 'Qty')}</th><th style={{ padding: '16px 0', textAlign: 'right' }}>{tx('Faturamento', 'Facturación', 'Revenue')}</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {curvaABC.length === 0 ? <tr><td colSpan="3" style={{ textAlign: 'center', padding: '40px', color: '#475569', fontSize: '14px' }}>-</td></tr> : (
+                                curvaABC.map((item, index) => (
+                                  <tr key={index} style={{ borderBottom: index === curvaABC.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.05)' }}>
+                                    <td style={{ padding: '16px 0' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                        <span style={{ background: index === 0 ? 'linear-gradient(135deg, #fbbf24, #d97706)' : index === 1 ? 'linear-gradient(135deg, #94a3b8, #64748b)' : index === 2 ? 'linear-gradient(135deg, #b45309, #78350f)' : 'rgba(255,255,255,0.1)', color: index < 3 ? '#ffffff' : '#94a3b8', width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 900, boxShadow: index < 3 ? '0 4px 10px rgba(0,0,0,0.3)' : 'none' }}>{index + 1}</span>
+                                        <div style={{ display: 'flex', flexDirection: 'column' }}><span style={{ color: '#e2e8f0', fontSize: '14px', fontWeight: 800 }}>{item.nome.substring(0, 25)}</span><span style={{ color: '#64748b', fontSize: '11px', marginTop: '2px' }}>{item.sku}</span></div>
+                                      </div>
+                                    </td>
+                                    <td style={{ textAlign: 'center', color: '#38bdf8', fontWeight: 900, fontSize: '15px' }}>{item.qtd} <span style={{fontSize: '11px', color: '#64748b'}}>UN</span></td>
+                                    <td style={{ textAlign: 'right', color: '#34d399', fontWeight: 900, fontSize: '16px' }}>{fmt(item.faturamentoBRL, 'BRL')}</td>
+                                  </tr>
+                                ))
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -473,65 +503,67 @@ export default function App() {
               </div>
             )}
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginTop: '10px' }}>
-              <div style={{ height: '1px', flex: 1, backgroundColor: '#1e293b' }}></div>
-              <span style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '2px' }}>{tx('Acessos Operacionais', 'Accesos Operativos', 'Operational Access')}</span>
-              <div style={{ height: '1px', flex: 1, backgroundColor: '#1e293b' }}></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginTop: '16px', marginBottom: '8px' }}>
+              <div style={{ height: '1px', flex: 1, background: 'linear-gradient(to right, transparent, rgba(255,255,255,0.1))' }}></div>
+              <span style={{ fontSize: '13px', fontWeight: 900, color: '#64748b', textTransform: 'uppercase', letterSpacing: '3px' }}>{tx('Acessos Operacionais', 'Accesos Operativos', 'Operational Access')}</span>
+              <div style={{ height: '1px', flex: 1, background: 'linear-gradient(to left, transparent, rgba(255,255,255,0.1))' }}></div>
             </div>
             
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
-              <div onClick={() => setEcraAtual('pdv')} style={{ background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(6, 78, 59, 0.4))', border: '2px solid #10b981', borderRadius: '16px', padding: '24px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px' }}>
-                <div style={{ width: '50px', height: '50px', borderRadius: '14px', backgroundColor: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>🛒</div>
-                <div><h2 style={{ fontSize: '16px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>PDV Balcão</h2></div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '24px' }}>
+              
+              <div onClick={() => setEcraAtual('pdv')} style={{ background: 'rgba(16, 185, 129, 0.05)', backdropFilter: 'blur(16px)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: '24px', padding: '32px 24px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '16px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
+                <div style={{ width: '64px', height: '64px', borderRadius: '20px', background: 'linear-gradient(135deg, #10b981, #059669)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', boxShadow: '0 8px 20px rgba(16,185,129,0.4)' }}>🛒</div>
+                <div><h2 style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff', margin: '0 0 6px 0' }}>PDV Balcão</h2><span style={{fontSize: '12px', color: '#94a3b8'}}>Frente de Caixa</span></div>
               </div>
               
-              <div onClick={() => setEcraAtual('mesas')} style={{ background: 'linear-gradient(135deg, rgba(225, 29, 72, 0.15), rgba(136, 19, 55, 0.4))', border: '2px solid #e11d48', borderRadius: '16px', padding: '24px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px' }}>
-                <div style={{ width: '50px', height: '50px', borderRadius: '14px', backgroundColor: '#e11d48', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>🍽️</div>
-                <div><h2 style={{ fontSize: '16px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>Mesas/Comandas</h2></div>
+              <div onClick={() => setEcraAtual('mesas')} style={{ background: 'rgba(225, 29, 72, 0.05)', backdropFilter: 'blur(16px)', border: '1px solid rgba(225, 29, 72, 0.2)', borderRadius: '24px', padding: '32px 24px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '16px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
+                <div style={{ width: '64px', height: '64px', borderRadius: '20px', background: 'linear-gradient(135deg, #e11d48, #be123c)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', boxShadow: '0 8px 20px rgba(225,29,72,0.4)' }}>🍽️</div>
+                <div><h2 style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff', margin: '0 0 6px 0' }}>Mesas</h2><span style={{fontSize: '12px', color: '#94a3b8'}}>Pedidos e Comandas</span></div>
               </div>
 
-              <div onClick={() => setEcraAtual('produtos')} style={{ background: 'linear-gradient(135deg, rgba(2, 132, 199, 0.15), rgba(8, 47, 73, 0.4))', border: '2px solid #0284c7', borderRadius: '16px', padding: '24px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px' }}>
-                <div style={{ width: '50px', height: '50px', borderRadius: '14px', backgroundColor: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>📦</div>
-                <div><h2 style={{ fontSize: '16px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>Catálogo</h2></div>
+              <div onClick={() => setEcraAtual('produtos')} style={{ background: 'rgba(2, 132, 199, 0.05)', backdropFilter: 'blur(16px)', border: '1px solid rgba(2, 132, 199, 0.2)', borderRadius: '24px', padding: '32px 24px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '16px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
+                <div style={{ width: '64px', height: '64px', borderRadius: '20px', background: 'linear-gradient(135deg, #0284c7, #0369a1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', boxShadow: '0 8px 20px rgba(2,132,199,0.4)' }}>📦</div>
+                <div><h2 style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff', margin: '0 0 6px 0' }}>Catálogo</h2><span style={{fontSize: '12px', color: '#94a3b8'}}>Produtos e Estoque</span></div>
               </div>
               
-              <div onClick={() => setEcraAtual('clientes')} style={{ background: 'linear-gradient(135deg, rgba(217, 119, 6, 0.15), rgba(69, 26, 3, 0.4))', border: '2px solid #d97706', borderRadius: '16px', padding: '24px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px' }}>
-                <div style={{ width: '50px', height: '50px', borderRadius: '14px', backgroundColor: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>👥</div>
-                <div><h2 style={{ fontSize: '16px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>Clientes (CRM)</h2></div>
+              <div onClick={() => setEcraAtual('clientes')} style={{ background: 'rgba(217, 119, 6, 0.05)', backdropFilter: 'blur(16px)', border: '1px solid rgba(217, 119, 6, 0.2)', borderRadius: '24px', padding: '32px 24px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '16px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
+                <div style={{ width: '64px', height: '64px', borderRadius: '20px', background: 'linear-gradient(135deg, #d97706, #b45309)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', boxShadow: '0 8px 20px rgba(217,119,6,0.4)' }}>👥</div>
+                <div><h2 style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff', margin: '0 0 6px 0' }}>Clientes</h2><span style={{fontSize: '12px', color: '#94a3b8'}}>CRM e Fiados</span></div>
               </div>
               
-              <div onClick={() => setEcraAtual('vendas')} style={{ backgroundColor: '#0b1120', border: '2px solid #4f46e5', borderRadius: '16px', padding: '24px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px' }}>
-                <div style={{ width: '50px', height: '50px', borderRadius: '14px', backgroundColor: '#4f46e5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>📑</div>
-                <div><h2 style={{ fontSize: '16px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>{tx('Histórico', 'Historial', 'History')}</h2></div>
+              <div onClick={() => setEcraAtual('vendas')} style={{ background: 'rgba(79, 70, 229, 0.05)', backdropFilter: 'blur(16px)', border: '1px solid rgba(79, 70, 229, 0.2)', borderRadius: '24px', padding: '32px 24px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '16px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
+                <div style={{ width: '64px', height: '64px', borderRadius: '20px', background: 'linear-gradient(135deg, #4f46e5, #4338ca)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', boxShadow: '0 8px 20px rgba(79,70,229,0.4)' }}>📑</div>
+                <div><h2 style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff', margin: '0 0 6px 0' }}>{tx('Histórico', 'Historial', 'History')}</h2><span style={{fontSize: '12px', color: '#94a3b8'}}>Relatórios e Devoluções</span></div>
               </div>
 
               {patenteUsuario === 'gerencia' && (
                 <>
-                  <div onClick={() => setEcraAtual('inteligencia')} style={{ background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.15), rgba(88, 28, 135, 0.4))', border: '2px solid #a855f7', borderRadius: '16px', padding: '24px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px' }}>
-                    <div style={{ width: '50px', height: '50px', borderRadius: '14px', backgroundColor: '#a855f7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>📊</div>
-                    <div><h2 style={{ fontSize: '16px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>{tx('Inteligência', 'Inteligencia', 'Intelligence')}</h2></div>
+                  <div onClick={() => setEcraAtual('inteligencia')} style={{ background: 'rgba(168, 85, 247, 0.05)', backdropFilter: 'blur(16px)', border: '1px solid rgba(168, 85, 247, 0.2)', borderRadius: '24px', padding: '32px 24px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '16px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
+                    <div style={{ width: '64px', height: '64px', borderRadius: '20px', background: 'linear-gradient(135deg, #a855f7, #7e22ce)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', boxShadow: '0 8px 20px rgba(168,85,247,0.4)' }}>📊</div>
+                    <div><h2 style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff', margin: '0 0 6px 0' }}>{tx('Inteligência', 'Inteligencia', 'Intelligence')}</h2><span style={{fontSize: '12px', color: '#94a3b8'}}>Análise de Dados</span></div>
                   </div>
                   
-                  <div onClick={() => setEcraAtual('comissoes')} style={{ background: 'linear-gradient(135deg, rgba(219, 39, 119, 0.15), rgba(131, 24, 67, 0.4))', border: '2px solid #db2777', borderRadius: '16px', padding: '24px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px' }}>
-                    <div style={{ width: '50px', height: '50px', borderRadius: '14px', backgroundColor: '#db2777', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>🤝</div>
-                    <div><h2 style={{ fontSize: '16px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>{tx('Comissões', 'Comisiones', 'Commissions')}</h2></div>
+                  <div onClick={() => setEcraAtual('comissoes')} style={{ background: 'rgba(219, 39, 119, 0.05)', backdropFilter: 'blur(16px)', border: '1px solid rgba(219, 39, 119, 0.2)', borderRadius: '24px', padding: '32px 24px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '16px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
+                    <div style={{ width: '64px', height: '64px', borderRadius: '20px', background: 'linear-gradient(135deg, #db2777, #be185d)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', boxShadow: '0 8px 20px rgba(219,39,119,0.4)' }}>🤝</div>
+                    <div><h2 style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff', margin: '0 0 6px 0' }}>{tx('Comissões', 'Comisiones', 'Commissions')}</h2><span style={{fontSize: '12px', color: '#94a3b8'}}>Gestão da Equipa</span></div>
                   </div>
 
-                  <div onClick={() => setEcraAtual('dashboardMobile')} style={{ background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(180, 83, 9, 0.4))', border: '2px solid #f59e0b', borderRadius: '16px', padding: '24px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', boxShadow: '0 10px 25px rgba(245, 158, 11, 0.2)' }}>
-                    <div style={{ width: '50px', height: '50px', borderRadius: '14px', backgroundColor: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>📱</div>
-                    <div><h2 style={{ fontSize: '16px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>App Mobile (CEO)</h2></div>
+                  <div onClick={() => setEcraAtual('dashboardMobile')} style={{ background: 'rgba(245, 158, 11, 0.05)', backdropFilter: 'blur(16px)', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: '24px', padding: '32px 24px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '16px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(245,158,11,0.15)' }}>
+                    <div style={{ width: '64px', height: '64px', borderRadius: '20px', background: 'linear-gradient(135deg, #f59e0b, #d97706)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', boxShadow: '0 8px 20px rgba(245,158,11,0.4)' }}>📱</div>
+                    <div><h2 style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff', margin: '0 0 6px 0' }}>App Mobile</h2><span style={{fontSize: '12px', color: '#94a3b8'}}>Visão do CEO</span></div>
                   </div>
                   
-                  <div onClick={() => setEcraAtual('despesas')} style={{ backgroundColor: '#0b1120', border: '2px solid #e11d48', borderRadius: '16px', padding: '24px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px' }}>
-                    <div style={{ width: '50px', height: '50px', borderRadius: '14px', backgroundColor: '#e11d48', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>💸</div>
-                    <div><h2 style={{ fontSize: '16px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>{tx('Despesas', 'Gastos', 'Expenses')}</h2></div>
+                  <div onClick={() => setEcraAtual('despesas')} style={{ background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '24px', padding: '32px 24px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '16px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
+                    <div style={{ width: '64px', height: '64px', borderRadius: '20px', background: 'linear-gradient(135deg, #64748b, #475569)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', boxShadow: '0 8px 20px rgba(0,0,0,0.3)' }}>💸</div>
+                    <div><h2 style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff', margin: '0 0 6px 0' }}>{tx('Despesas', 'Gastos', 'Expenses')}</h2><span style={{fontSize: '12px', color: '#94a3b8'}}>Contas a Pagar</span></div>
                   </div>
                 </>
               )}
             </div>
           </div>
         )}
-        
+        {/* FIM DO NOVO DASHBOARD HUB PREMIUM */}
+
         {ecraAtual === 'pdv' && <PDV produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} patenteUsuario={patenteUsuario} idioma={idioma} />}
         {ecraAtual === 'mesas' && <Mesas produtos={produtos} fmt={fmt} tx={tx} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} moeda={moeda} idioma={idioma} />}
         {ecraAtual === 'produtos' && <Produtos produtos={produtos} setProdutos={setProdutos} moeda={moeda} fmt={fmt} t={t} tx={tx} restaurarProdutosPadrao={() => { if (window.confirm('Recarregar catálogo padrão?')) { const padroes = produtosIniciais.map((p, idx) => normalizarProduto(p, idx)); setProdutos(padroes); localStorage.setItem('zenos_produtos', JSON.stringify(padroes)); } }} />}
