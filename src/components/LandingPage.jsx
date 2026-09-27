@@ -25,13 +25,12 @@ const LandingPage = () => {
       <div style={styles.contentWrapper}>
         <div style={styles.glassCard}>
           
-          {/* LOGÓTIPO COM BORDA ARREDONDADA */}
+          {/* LOGÓTIPO OFICIAL COM SOMBRA INTELIGENTE PARA PNG TRANSPARENTE */}
           <div style={styles.logoContainer}>
             <img 
-              src="/logo-zenos.png?v=2" 
-              alt="ZenOS Logo" 
+              src="/logo-zenos.png?v=3" 
+              alt="ZenOS Logo Oficial" 
               style={styles.logoImage} 
-              onError={(e) => { e.target.onerror = null; e.target.src = '/Logo.png.jpeg'; }}
             />
           </div>
 
@@ -113,13 +112,13 @@ const LandingPage = () => {
 // ==========================================
 const styles = {
   pageContainer: {
-    position: 'fixed', // TRAVA O ECRÃ POR COMPLETO
+    position: 'fixed', 
     top: 0, left: 0, right: 0, bottom: 0,
     display: 'flex',
     flexDirection: 'column',
     fontFamily: '"Inter", "Segoe UI", sans-serif',
     backgroundColor: '#050505',
-    overflowY: 'auto', // Mantém funcionalidade escondida se ecrã for incrivelmente pequeno
+    overflowY: 'auto', 
     overflowX: 'hidden',
   },
   bgImage: {
@@ -154,13 +153,13 @@ const styles = {
     WebkitBackdropFilter: 'blur(20px)',
     borderRadius: '24px',
     border: '1px solid rgba(255, 255, 255, 0.08)',
-    padding: 'clamp(20px, 4vh, 40px)', // Adapta-se à altura
+    padding: 'clamp(20px, 4vh, 40px)', 
     boxShadow: '0 30px 60px rgba(0,0,0,0.8)',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     boxSizing: 'border-box',
-    marginTop: 'clamp(10px, 4vh, 30px)', // Dá espaço extra no topo
+    marginTop: 'clamp(10px, 4vh, 30px)', 
   },
   logoContainer: {
     width: '100%',
@@ -171,10 +170,10 @@ const styles = {
   logoImage: {
     width: '100%',
     maxWidth: '180px',
-    height: 'clamp(60px, 12vh, 100px)', // Ajuste fino para não esticar
+    height: 'clamp(60px, 12vh, 100px)',
     objectFit: 'contain',
-    borderRadius: '16px', // Dá ao fundo branco a aparência de ícone Apple
-    boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
+    // Filtro inteligente que cria sombra baseada no recorte do PNG e não num quadrado!
+    filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.6))', 
   },
   tabContainer: {
     display: 'flex',
