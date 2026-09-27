@@ -3,7 +3,7 @@ import { traducoes, moedasConfig, normalizarProduto, normalizarCliente, produtos
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import Login from './components/Login';
+import LandingPage from './components/LandingPage';
 
 import Produtos from './components/Produtos';
 import Clientes from './components/Clientes';
@@ -254,7 +254,7 @@ export default function App() {
   }
 
   if (!usuarioAutenticado) {
-    return <Login />;
+    return <LandingPage/>;
   }
 
   if (statusLoja === 'aguardando_pagamento') {
