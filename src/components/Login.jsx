@@ -17,7 +17,7 @@ const Login = () => {
         {/* LOGÓTIPO */}
         <div style={styles.logoContainer}>
           <img 
-            src="/logo-zenos.png" 
+           src="/logo-zenos.png?v=1" 
             alt="ZenOS Logo" 
             style={styles.logoImage} 
           />
