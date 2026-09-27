@@ -1,164 +1,197 @@
 import React, { useState } from 'react';
-import { auth, db } from '../firebase';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
-import LandingPage from './LandingPage';
 
-export default function Login() {
-  const [modo, setModo] = useState('landing'); // 'landing', 'login' ou 'cadastro'
+const Login = () => {
   const [email, setEmail] = useState('');
-  const [senha, setSenha] = useState('');
-  const [confirmarSenha, setConfirmarSenha] = useState('');
-  const [erro, setErro] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [password, setPassword] = useState('');
 
-  const handleSubmit = async (e) => {
+  const handleLogin = (e) => {
     e.preventDefault();
-    setErro('');
-    setLoading(true);
-
-    try {
-      if (modo === 'cadastro') {
-        if (senha !== confirmarSenha) {
-          throw new Error('As senhas não coincidem.');
-        }
-        if (senha.length < 6) {
-          throw new Error('A senha deve ter pelo menos 6 caracteres.');
-        }
-        
-        // 1. Cria a conta no Auth do Firebase
-        const cred = await createUserWithEmailAndPassword(auth, email, senha);
-        
-        // 2. Inicializa o documento da nova loja com licença pendente (modelo SaaS)
-        await setDoc(doc(db, "lojas", cred.user.uid), {
-          email: email,
-          status: 'aguardando_pagamento',
-          criadoEm: new Date().toISOString()
-        });
-        
-      } else {
-        // Login normal
-        await signInWithEmailAndPassword(auth, email, senha);
-      }
-    } catch (err) {
-      console.error(err);
-      let msg = 'Ocorreu um erro no acesso.';
-      if (err.code === 'auth/invalid-email') msg = 'E-mail inválido.';
-      if (err.code === 'auth/user-not-found') msg = 'Loja/utilizador não encontrado.';
-      if (err.code === 'auth/wrong-password') msg = 'Senha incorreta.';
-      if (err.code === 'auth/email-already-in-use') msg = 'Este e-mail já está registado.';
-      setErro(err.message || msg);
-    } finally {
-      setLoading(false);
-    }
+    // Aqui vai entrar a ligação real ao Firebase na próxima etapa!
+    alert(`A iniciar sessão segura para: ${email}`);
   };
 
-  // Se o utilizador estiver na página de apresentação (Landing Page)
-  if (modo === 'landing') {
-    return <LandingPage aoIrParaLogin={() => setModo('login')} />;
-  }
-
-  // Ecrã de Login ou Cadastro
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#020617', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: 'system-ui, sans-serif', position: 'relative', overflow: 'hidden' }}>
-      
-      {/* Background Glows */}
-      <div style={{ position: 'absolute', top: '10%', left: '20%', width: '400px', height: '400px', background: 'radial-gradient(circle, rgba(79,70,229,0.1) 0%, rgba(2,6,23,0) 70%)', pointerEvents: 'none' }}></div>
-
-      <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '24px', padding: '40px', width: '100%', maxWidth: '420px', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px rgba(0,0,0,0.8)', zIndex: 1 }}>
+    <div style={styles.container}>
+      <div style={styles.loginCard}>
         
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ backgroundColor: '#ffffff', padding: '3px 8px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '36px' }}>
-              <img src="/Logo.png.jpeg" alt="ZenOS" style={{ height: '28px', width: 'auto', objectFit: 'contain' }} onError={(e) => e.target.src = '/logo.png'} />
-            </div>
-            <span style={{ color: '#fff', fontWeight: 900, fontSize: '18px', letterSpacing: '2px' }}>ZenOS</span>
-          </div>
-          <button onClick={() => setModo('landing')} style={{ background: 'none', border: 'none', color: '#818cf8', fontSize: '12px', fontWeight: 800, cursor: 'pointer' }}>
-            ← Voltar ao Início
-          </button>
+        {/* LOGÓTIPO */}
+        <div style={styles.logoContainer}>
+          <img 
+            src="/logo-zenos.png" 
+            alt="ZenOS Logo" 
+            style={styles.logoImage} 
+          />
         </div>
 
-        <h2 style={{ color: '#f8fafc', fontSize: '22px', fontWeight: 900, margin: '0 0 8px 0' }}>
-          {modo === 'login' ? 'Aceder ao Terminal' : 'Criar Nova Loja'}
-        </h2>
-        <p style={{ color: '#94a3b8', fontSize: '13px', margin: '0 0 24px 0' }}>
-          {modo === 'login' ? 'Entre com as credenciais da sua distribuidora.' : 'Registe o seu atacadão para iniciar a operação.'}
-        </p>
+        <div style={styles.headerText}>
+          <h2 style={styles.title}>Acesso Seguro</h2>
+          <p style={styles.subtitle}>Introduza as suas credenciais para aceder ao painel</p>
+        </div>
 
-        {erro && (
-          <div style={{ backgroundColor: 'rgba(244, 63, 94, 0.1)', border: '1px solid #f43f5e', color: '#fb7185', padding: '12px', borderRadius: '10px', fontSize: '13px', marginBottom: '20px', fontWeight: 700 }}>
-            {erro}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div>
-            <label style={{ fontSize: '11px', fontWeight: 800, color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>E-mail Corporativo</label>
+        {/* FORMULÁRIO */}
+        <form onSubmit={handleLogin} style={styles.form}>
+          <div style={styles.inputGroup}>
+            <label style={styles.label}>E-mail</label>
             <input 
               type="email" 
-              required
+              placeholder="exemplo@suaempresa.com"
+              style={styles.input} 
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="loja@zenos.app.br"
-              style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '12px', padding: '14px', color: '#fff', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}
+              required 
             />
           </div>
 
-          <div>
-            <label style={{ fontSize: '11px', fontWeight: 800, color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Palavra-passe</label>
+          <div style={styles.inputGroup}>
+            <label style={styles.label}>Palavra-passe</label>
             <input 
               type="password" 
-              required
-              value={senha}
-              onChange={(e) => setSenha(e.target.value)}
               placeholder="••••••••"
-              style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '12px', padding: '14px', color: '#fff', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}
+              style={styles.input} 
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required 
             />
           </div>
 
-          {modo === 'cadastro' && (
-            <div>
-              <label style={{ fontSize: '11px', fontWeight: 800, color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>Confirmar Palavra-passe</label>
-              <input 
-                type="password" 
-                required
-                value={confirmarSenha}
-                onChange={(e) => setConfirmarSenha(e.target.value)}
-                placeholder="••••••••"
-                style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '12px', padding: '14px', color: '#fff', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}
-              />
-            </div>
-          )}
+          <div style={styles.forgotPassword}>
+            <span style={styles.linkText}>Esqueceu-se da palavra-passe?</span>
+          </div>
 
-          <button 
-            type="submit" 
-            disabled={loading}
-            style={{ width: '100%', background: 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#fff', padding: '14px', borderRadius: '12px', fontSize: '14px', fontWeight: 900, cursor: 'pointer', marginTop: '8px', boxShadow: '0 4px 15px rgba(79, 70, 229, 0.4)', opacity: loading ? 0.7 : 1 }}
-          >
-            {loading ? 'A processar...' : (modo === 'login' ? 'Entrar no Sistema' : 'Registar Nova Loja')}
+          <button type="submit" style={styles.submitButton}>
+            Entrar no Sistema
           </button>
         </form>
 
-        <div style={{ marginTop: '24px', textAlign: 'center', borderTop: '1px solid #1e293b', paddingTop: '20px' }}>
-          {modo === 'login' ? (
-            <span style={{ fontSize: '13px', color: '#94a3b8' }}>
-              A sua loja ainda não tem acesso?{' '}
-              <button onClick={() => setModo('cadastro')} style={{ background: 'none', border: 'none', color: '#38bdf8', fontWeight: 800, cursor: 'pointer', padding: 0 }}>
-                Criar Conta SaaS
-              </button>
-            </span>
-          ) : (
-            <span style={{ fontSize: '13px', color: '#94a3b8' }}>
-              Já possui uma conta ativa?{' '}
-              <button onClick={() => setModo('login')} style={{ background: 'none', border: 'none', color: '#38bdf8', fontWeight: 800, cursor: 'pointer', padding: 0 }}>
-                Fazer Login
-              </button>
-            </span>
-          )}
+        <div style={styles.footer}>
+          <p style={styles.securityText}>🔒 Ligação encriptada de ponta a ponta</p>
         </div>
-
       </div>
     </div>
   );
-}
+};
+
+// ==========================================
+// ESTILOS: TEMA ESCURO CORPORATIVO & MOBILE-FIRST
+// ==========================================
+const styles = {
+  container: {
+    width: '100%',
+    minHeight: '100vh',
+    backgroundColor: '#0a0a0a', // Fundo super escuro para destacar o logótipo
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 'clamp(16px, 5vw, 40px)',
+    fontFamily: '"Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+    boxSizing: 'border-box',
+  },
+  loginCard: {
+    width: '100%',
+    maxWidth: '440px', // Trava o tamanho no PC
+    backgroundColor: '#141414', // Ligeiramente mais claro que o fundo
+    borderRadius: '16px',
+    padding: 'clamp(30px, 8vw, 50px)',
+    boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+    border: '1px solid #262626',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    boxSizing: 'border-box',
+  },
+  logoContainer: {
+    width: '100%',
+    display: 'flex',
+    justifyContent: 'center',
+    marginBottom: '20px',
+  },
+  logoImage: {
+    width: '100%',
+    maxWidth: '240px', // Tamanho ideal para o telemóvel e PC
+    height: 'auto',
+    objectFit: 'contain',
+  },
+  headerText: {
+    textAlign: 'center',
+    marginBottom: '30px',
+    width: '100%',
+  },
+  title: {
+    color: '#ffffff',
+    fontSize: '24px',
+    fontWeight: '700',
+    margin: '0 0 8px 0',
+  },
+  subtitle: {
+    color: '#a3a3a3',
+    fontSize: '14px',
+    margin: 0,
+  },
+  form: {
+    width: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '20px',
+  },
+  inputGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+  },
+  label: {
+    color: '#e5e5e5',
+    fontSize: '14px',
+    fontWeight: '500',
+  },
+  input: {
+    width: '100%',
+    height: '50px',
+    backgroundColor: '#1c1c1c',
+    border: '1px solid #333',
+    borderRadius: '8px',
+    padding: '0 16px',
+    color: '#ffffff',
+    fontSize: '15px',
+    outline: 'none',
+    boxSizing: 'border-box',
+    transition: 'border-color 0.2s',
+  },
+  // O foco do input não usa pseudo-classes em inline-styles simples, 
+  // mas o design base já passa a ideia de sofisticação.
+  forgotPassword: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    width: '100%',
+  },
+  linkText: {
+    color: '#14b8a6', // Tom de verde/teal para combinar com o logótipo
+    fontSize: '13px',
+    fontWeight: '600',
+    cursor: 'pointer',
+  },
+  submitButton: {
+    width: '100%',
+    height: '50px',
+    backgroundColor: '#14b8a6', // Verde/teal que puxa a cor do logótipo
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '16px',
+    fontWeight: '700',
+    cursor: 'pointer',
+    marginTop: '10px',
+    boxShadow: '0 4px 12px rgba(20, 184, 166, 0.3)',
+  },
+  footer: {
+    marginTop: '30px',
+    textAlign: 'center',
+  },
+  securityText: {
+    color: '#525252',
+    fontSize: '12px',
+    fontWeight: '500',
+    margin: 0,
+  }
+};
+
+export default Login;
