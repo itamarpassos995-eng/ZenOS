@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
 const LandingPage = () => {
-  const [view, setView] = useState('login'); // Pode ser: 'login', 'register', 'demo'
+  const [view, setView] = useState('login');
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -10,85 +10,151 @@ const LandingPage = () => {
 
   return (
     <div style={styles.pageContainer}>
-      {/* CARTÃO DE VIDRO FOSCO (GLASSMORPHISM) */}
-      <div style={styles.glassCard}>
+      {/* CAMADA DE FUNDO COM IMAGEM E ESCURECIMENTO */}
+      <div style={styles.bgImage}></div>
+      <div style={styles.bgOverlay}></div>
+
+      {/* CONTEÚDO PRINCIPAL (CENTRO) */}
+      <div style={styles.contentWrapper}>
+        <div style={styles.glassCard}>
+          
+          {/* LOGÓTIPO COM FALLBACK AUTOMÁTICO */}
+          <div style={styles.logoContainer}>
+            <img 
+              src="/logo-zenos.png?v=2" 
+              alt="ZenOS Logo" 
+              style={styles.logoImage} 
+              onError={(e) => { e.target.onerror = null; e.target.src = '/Logo.png.jpeg'; }}
+            />
+          </div>
+
+          <div style={styles.tabContainer}>
+            <button style={view === 'login' ? styles.activeTab : styles.tab} onClick={() => setView('login')}>Acesso</button>
+            <button style={view === 'register' ? styles.activeTab : styles.tab} onClick={() => setView('register')}>Criar Conta</button>
+            <button style={view === 'demo' ? styles.activeTab : styles.tab} onClick={() => setView('demo')}>Demo</button>
+          </div>
+
+          <div style={styles.formViewContainer}>
+            <h2 style={styles.formTitle}>
+              {view === 'login' && 'Bem-vindo de volta'}
+              {view === 'register' && 'Junte-se à Elite'}
+              {view === 'demo' && 'Agendar Demonstração'}
+            </h2>
+            <p style={styles.formSubtitle}>
+              {view === 'login' && 'Introduza as suas credenciais para aceder ao sistema de gestão.'}
+              {view === 'register' && 'Crie a sua conta e aguarde a aprovação da licença comercial.'}
+              {view === 'demo' && 'Descubra como o ZenOS pode transformar os resultados da sua loja.'}
+            </p>
+
+            <form onSubmit={handleSubmit} style={styles.form}>
+              {(view === 'register' || view === 'demo') && (
+                <input type="text" placeholder="Nome da Loja ou Empresa" style={styles.input} required />
+              )}
+              <input type="email" placeholder="E-mail profissional" style={styles.input} required />
+              {view !== 'demo' && (
+                <input type="password" placeholder="Palavra-passe" style={styles.input} required />
+              )}
+              <button type="submit" style={styles.submitBtn}>
+                {view === 'login' && 'Entrar no Sistema'}
+                {view === 'register' && 'Solicitar Acesso'}
+                {view === 'demo' && 'Pedir Demonstração Gratuita'}
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      {/* RODAPÉ COM AS FUNCIONALIDADES (INSPIRADO NA FOTO) */}
+      <div style={styles.featuresFooter}>
+        <div style={styles.featuresRow}>
+          {/* Item 1 */}
+          <div style={styles.featureItem}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#14b8a6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+            <span style={styles.featureTitle}>VENDAS<br/>EM TEMPO REAL</span>
+          </div>
+          <div style={styles.divider}></div>
+          {/* Item 2 */}
+          <div style={styles.featureItem}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#14b8a6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+            <span style={styles.featureTitle}>ESTOQUE<br/>INTELIGENTE</span>
+          </div>
+          <div style={styles.divider}></div>
+          {/* Item 3 */}
+          <div style={styles.featureItem}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#14b8a6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+            <span style={styles.featureTitle}>COMISSÕES<br/>E EQUIPE</span>
+          </div>
+          <div style={styles.divider}></div>
+          {/* Item 4 */}
+          <div style={styles.featureItem}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#14b8a6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+            <span style={styles.featureTitle}>FINANCEIRO<br/>COMPLETO</span>
+          </div>
+          <div style={styles.divider}></div>
+          {/* Item 5 */}
+          <div style={styles.featureItem}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#14b8a6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><polyline points="9 12 11 14 15 10"></polyline></svg>
+            <span style={styles.featureTitle}>CONTROLE<br/>TOTAL</span>
+          </div>
+        </div>
         
-        {/* LOGÓTIPO */}
-        <div style={styles.logoContainer}>
-          <img src="/logo-zenos.png?v=1" alt="ZenOS Logo" style={styles.logoImage} />
+        <div style={styles.featuresSubtitle}>
+          MAIS ORGANIZAÇÃO &nbsp;&nbsp;•&nbsp;&nbsp; MAIS RESULTADOS &nbsp;&nbsp;•&nbsp;&nbsp; MAIS LUCRO
         </div>
-
-        {/* ABAS DE NAVEGAÇÃO INTERNAS */}
-        <div style={styles.tabContainer}>
-          <button style={view === 'login' ? styles.activeTab : styles.tab} onClick={() => setView('login')}>Acesso</button>
-          <button style={view === 'register' ? styles.activeTab : styles.tab} onClick={() => setView('register')}>Criar Conta</button>
-          <button style={view === 'demo' ? styles.activeTab : styles.tab} onClick={() => setView('demo')}>Demo</button>
-        </div>
-
-        {/* ÁREA DINÂMICA (Muda conforme a aba) */}
-        <div style={styles.formViewContainer}>
-          <h2 style={styles.formTitle}>
-            {view === 'login' && 'Bem-vindo de volta'}
-            {view === 'register' && 'Junte-se à Elite'}
-            {view === 'demo' && 'Agendar Demonstração'}
-          </h2>
-          <p style={styles.formSubtitle}>
-            {view === 'login' && 'Introduza as suas credenciais para aceder ao sistema de gestão.'}
-            {view === 'register' && 'Crie a sua conta e aguarde a aprovação da licença comercial.'}
-            {view === 'demo' && 'Descubra como o ZenOS pode transformar os resultados da sua loja.'}
-          </p>
-
-          <form onSubmit={handleSubmit} style={styles.form}>
-            {(view === 'register' || view === 'demo') && (
-              <input type="text" placeholder="Nome da Loja ou Empresa" style={styles.input} required />
-            )}
-            
-            <input type="email" placeholder="E-mail profissional" style={styles.input} required />
-            
-            {view !== 'demo' && (
-              <input type="password" placeholder="Palavra-passe" style={styles.input} required />
-            )}
-            
-            <button type="submit" style={styles.submitBtn}>
-              {view === 'login' && 'Entrar no Sistema'}
-              {view === 'register' && 'Solicitar Acesso'}
-              {view === 'demo' && 'Pedir Demonstração Gratuita'}
-            </button>
-          </form>
-        </div>
-        
       </div>
     </div>
   );
 };
 
 // ==========================================
-// ESTILOS: TEMA ESCURO PREMIUM & GLASSMORPHISM
+// ESTILOS AVANÇADOS
 // ==========================================
 const styles = {
   pageContainer: {
     width: '100%',
     minHeight: '100vh',
-    backgroundColor: '#050505',
-    // Fundo com um leve brilho radial verde-água no topo para dar profundidade
-    backgroundImage: 'radial-gradient(circle at 50% -20%, #0d3831 0%, #050505 50%)',
+    position: 'relative',
+    display: 'flex',
+    flexDirection: 'column',
+    fontFamily: '"Inter", "Segoe UI", sans-serif',
+    overflow: 'hidden',
+  },
+  bgImage: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    // Imagem de fundo premium (pessoas/tecnologia)
+    backgroundImage: 'url("https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=2070&auto=format&fit=crop")',
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    zIndex: 1,
+  },
+  bgOverlay: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    // Degradê escuro para garantir leitura perfeita
+    background: 'linear-gradient(135deg, rgba(5,5,5,0.9) 0%, rgba(13,56,49,0.7) 100%)',
+    zIndex: 2,
+  },
+  contentWrapper: {
+    flex: 1,
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 'clamp(16px, 5vw, 40px)',
-    fontFamily: '"Inter", "Segoe UI", sans-serif',
+    zIndex: 10,
+    width: '100%',
     boxSizing: 'border-box',
   },
   glassCard: {
     width: '100%',
     maxWidth: '480px',
-    background: 'rgba(20, 20, 20, 0.6)',
-    backdropFilter: 'blur(16px)',
-    WebkitBackdropFilter: 'blur(16px)', // Suporte para Safari/iOS
+    background: 'rgba(10, 10, 10, 0.4)',
+    backdropFilter: 'blur(20px)',
+    WebkitBackdropFilter: 'blur(20px)',
     borderRadius: '24px',
-    border: '1px solid rgba(255, 255, 255, 0.05)',
+    border: '1px solid rgba(255, 255, 255, 0.08)',
     padding: 'clamp(30px, 6vw, 50px)',
-    boxShadow: '0 30px 60px rgba(0,0,0,0.6)',
+    boxShadow: '0 30px 60px rgba(0,0,0,0.8)',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
@@ -109,19 +175,20 @@ const styles = {
   tabContainer: {
     display: 'flex',
     width: '100%',
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     borderRadius: '12px',
     padding: '4px',
     marginBottom: '30px',
+    border: '1px solid rgba(255, 255, 255, 0.05)',
   },
   tab: {
     flex: 1,
     padding: '12px 0',
     background: 'transparent',
     border: 'none',
-    color: '#737373',
-    fontSize: '14px',
-    fontWeight: '600',
+    color: '#888',
+    fontSize: '13px',
+    fontWeight: '700',
     cursor: 'pointer',
     borderRadius: '8px',
     transition: 'all 0.3s',
@@ -129,14 +196,14 @@ const styles = {
   activeTab: {
     flex: 1,
     padding: '12px 0',
-    background: 'rgba(255,255,255,0.1)',
+    background: 'rgba(255,255,255,0.15)',
     border: 'none',
     color: '#ffffff',
-    fontSize: '14px',
-    fontWeight: '600',
+    fontSize: '13px',
+    fontWeight: '700',
     cursor: 'pointer',
     borderRadius: '8px',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
   },
   formViewContainer: {
     width: '100%',
@@ -145,7 +212,7 @@ const styles = {
   },
   formTitle: {
     fontSize: '24px',
-    fontWeight: '700',
+    fontWeight: '800',
     marginBottom: '8px',
     textAlign: 'center',
     color: '#ffffff',
@@ -165,7 +232,7 @@ const styles = {
   input: {
     width: '100%',
     height: '54px',
-    background: 'rgba(0, 0, 0, 0.5)',
+    background: 'rgba(0, 0, 0, 0.6)',
     border: '1px solid rgba(255, 255, 255, 0.1)',
     borderRadius: '12px',
     padding: '0 20px',
@@ -173,19 +240,65 @@ const styles = {
     fontSize: '15px',
     outline: 'none',
     boxSizing: 'border-box',
+    transition: 'border 0.3s',
   },
   submitBtn: {
     height: '54px',
-    background: '#14b8a6', // O verde-água da marca Zênite
+    background: 'linear-gradient(135deg, #0d9488 0%, #14b8a6 100%)',
     color: '#ffffff',
     border: 'none',
     borderRadius: '12px',
     fontSize: '16px',
-    fontWeight: '700',
+    fontWeight: '800',
     cursor: 'pointer',
     marginTop: '10px',
     transition: 'all 0.3s',
-    boxShadow: '0 4px 12px rgba(20, 184, 166, 0.2)',
+    boxShadow: '0 8px 20px rgba(20, 184, 166, 0.3)',
+  },
+  featuresFooter: {
+    width: '100%',
+    zIndex: 10,
+    padding: '20px',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    background: 'linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0) 100%)',
+  },
+  featuresRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 'clamp(10px, 3vw, 30px)',
+    marginBottom: '16px',
+  },
+  featureItem: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '10px',
+    minWidth: '100px',
+  },
+  featureTitle: {
+    color: '#e5e5e5',
+    fontSize: '10px',
+    fontWeight: '700',
+    textAlign: 'center',
+    letterSpacing: '1px',
+    lineHeight: '1.4',
+  },
+  divider: {
+    width: '1px',
+    height: '30px',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  featuresSubtitle: {
+    color: '#14b8a6',
+    fontSize: '10px',
+    fontWeight: '800',
+    letterSpacing: '2px',
+    textAlign: 'center',
+    paddingBottom: '20px',
   }
 };
 
