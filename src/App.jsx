@@ -257,7 +257,7 @@ export default function App() {
     return <LandingPage/>;
   }
 
- if (statusLoja === 'aguardando_pagamento') {
+if (statusLoja === 'aguardando_pagamento') {
     return (
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', fontFamily: '"Inter", "Segoe UI", sans-serif', backgroundColor: '#050505', overflowY: 'auto', overflowX: 'hidden' }}>
         {/* CÓDIGO INVISÍVEL PARA MATAR A BARRA DE ROLAGEM */}
@@ -267,17 +267,17 @@ export default function App() {
           body, html { margin: 0; padding: 0; overflow: hidden; background-color: #050505; }
         `}</style>
 
-        {/* CAMADAS DE FUNDO IDÊNTICAS À LANDING PAGE */}
+        {/* CAMADAS DE FUNDO */}
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url("https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=2070&auto=format&fit=crop")', backgroundSize: 'cover', backgroundPosition: 'center', zIndex: 1 }}></div>
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'linear-gradient(135deg, rgba(5,5,5,0.92) 0%, rgba(13,56,49,0.75) 100%)', zIndex: 2 }}></div>
 
-        {/* CENTRO DA TELA (AUTO-AJUSTÁVEL) */}
+        {/* CENTRO DA TELA */}
         <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '0 20px', zIndex: 10, width: '100%', boxSizing: 'border-box' }}>
           
-          {/* CARTÃO DE VIDRO FOSCO (GLASSMORPHISM) */}
+          {/* CARTÃO DE VIDRO FOSCO */}
           <div style={{ width: '100%', maxWidth: '450px', background: 'rgba(10, 10, 10, 0.4)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderRadius: '24px', border: '1px solid rgba(255, 255, 255, 0.08)', padding: 'clamp(30px, 5vh, 40px)', boxShadow: '0 30px 60px rgba(0,0,0,0.8)', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', boxSizing: 'border-box' }}>
             
-            {/* LOGÓTIPO OFICIAL COM SOMBRA INTELIGENTE */}
+            {/* LOGÓTIPO OFICIAL */}
             <div style={{ width: '100%', display: 'flex', justifyContent: 'center', marginBottom: 'clamp(20px, 3vh, 30px)' }}>
               <img 
                 src="/logo-zenos.png?v=4" 
@@ -285,6 +285,43 @@ export default function App() {
                 style={{ width: '100%', maxWidth: '180px', height: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.6))' }} 
               />
             </div>
+
+            <h2 style={{ color: '#fbbf24', fontSize: 'clamp(20px, 3vh, 24px)', fontWeight: 900, margin: '0 0 12px 0' }}>Licença Pendente</h2>
+            <p style={{ color: '#a3a3a3', fontSize: 'clamp(13px, 1.5vh, 14px)', marginBottom: '24px', lineHeight: '1.6' }}>
+              A conta da sua loja foi criada com sucesso, mas o acesso ao terminal ZenOS encontra-se temporariamente bloqueado a aguardar a ativação do plano.
+            </p>
+
+            {/* CAIXA DE INSTRUÇÕES PREMIUM */}
+            <div style={{ backgroundColor: 'rgba(0,0,0,0.5)', padding: '20px', borderRadius: '12px', width: '100%', marginBottom: '24px', border: '1px solid rgba(255,255,255,0.05)', boxSizing: 'border-box' }}>
+              <p style={{ color: '#e5e5e5', fontSize: '13px', margin: '0 0 8px 0', fontWeight: 700 }}>Escolha como deseja prosseguir:</p>
+              <p style={{ color: '#14b8a6', fontSize: '16px', fontWeight: 900, margin: '0 0 12px 0', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>Ativação do ZenOS</p>
+              <p style={{ color: '#888', fontSize: '12px', margin: 0, lineHeight: '1.5' }}>Assim que a nossa equipa confirmar a adesão a um plano ou aprovar o seu teste, o painel será desbloqueado de imediato e de forma automática.</p>
+            </div>
+
+            {/* GRUPO DE BOTÕES ESTRATÉGICOS */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
+              
+              {/* Botão Primário: Pagar / Planos */}
+              <button onClick={() => alert('Em breve: Redirecionamento para a página de Planos e Pagamentos do ZenOS.')} style={{ background: 'linear-gradient(135deg, #0d9488 0%, #14b8a6 100%)', border: 'none', color: '#ffffff', padding: '14px 24px', borderRadius: '12px', fontSize: '14px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.3s', width: '100%', boxShadow: '0 4px 15px rgba(20, 184, 166, 0.3)' }}>
+                Ver Opções de Planos
+              </button>
+
+              {/* Botão Secundário: Solicitar Demo */}
+              <button onClick={() => alert('Solicitação enviada! A equipa ZenOS irá libertar os seus dias de teste em breve.')} style={{ background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.15)', color: '#ffffff', padding: '14px 24px', borderRadius: '12px', fontSize: '14px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.3s', width: '100%' }}>
+                Solicitar Teste Grátis (Demo)
+              </button>
+
+              {/* Botão Terciário: Sair (Destacado mas discreto) */}
+              <button onClick={fazerLogout} style={{ background: 'transparent', border: '1px solid rgba(244, 63, 94, 0.3)', color: '#fb7185', padding: '14px 24px', borderRadius: '12px', fontSize: '14px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.3s', width: '100%', marginTop: '6px' }}>
+                Sair e Voltar mais tarde
+              </button>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
             <h2 style={{ color: '#fbbf24', fontSize: 'clamp(20px, 3vh, 24px)', fontWeight: 900, margin: '0 0 12px 0' }}>Licença Pendente</h2>
             <p style={{ color: '#a3a3a3', fontSize: 'clamp(13px, 1.5vh, 14px)', marginBottom: '24px', lineHeight: '1.6' }}>
