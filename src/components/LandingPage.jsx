@@ -1,11 +1,70 @@
 import React, { useState } from 'react';
+// INJEÇÃO 1: Importações do Cérebro do Sistema (Firebase)
+import { auth, db } from '../firebase';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 
 const LandingPage = () => {
   const [view, setView] = useState('login');
+  
+  // INJEÇÃO 2: Memória para o que o utilizador digita
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [storeName, setStoreName] = useState('');
+  
+  // INJEÇÃO 3: Estados de carregamento e mensagens para o utilizador
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
-  const handleSubmit = (e) => {
+  // INJEÇÃO 4: O Motor que processa o botão "Entrar" ou "Criar Conta"
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    alert("A conectar à infraestrutura segura ZenOS...");
+    setLoading(true);
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    try {
+      if (view === 'login') {
+        await signInWithEmailAndPassword(auth, email, password);
+        // O ficheiro App.jsx vai perceber o login automaticamente
+      } else if (view === 'register') {
+        if (!storeName) throw new Error('Por favor, introduza o nome da loja.');
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+
+        // Regista a loja nova no banco de dados com bloqueio de licença pendente
+        await setDoc(doc(db, "lojas", user.uid), {
+          nomeLoja: storeName,
+          emailAdmin: email,
+          status: 'aguardando_pagamento',
+          dataCriacao: new Date().toISOString()
+        });
+      } else if (view === 'demo') {
+        setSuccessMsg('Pedido enviado com sucesso! Entraremos em contacto.');
+        setEmail('');
+        setStoreName('');
+      }
+    } catch (error) {
+      console.error(error);
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+        setErrorMsg('Credenciais inválidas. Verifique os seus dados.');
+      } else if (error.code === 'auth/email-already-in-use') {
+        setErrorMsg('Este e-mail já está em uso.');
+      } else {
+        setErrorMsg('Ocorreu um erro. Tente novamente.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Limpa as mensagens de erro quando o utilizador muda de aba (Login -> Registo)
+  const mudarAba = (novaAba) => {
+    setView(novaAba);
+    setErrorMsg('');
+    setSuccessMsg('');
+    setPassword('');
   };
 
   return (
@@ -35,9 +94,10 @@ const LandingPage = () => {
           </div>
 
           <div style={styles.tabContainer}>
-            <button style={view === 'login' ? styles.activeTab : styles.tab} onClick={() => setView('login')}>Acesso</button>
-            <button style={view === 'register' ? styles.activeTab : styles.tab} onClick={() => setView('register')}>Criar Conta</button>
-            <button style={view === 'demo' ? styles.activeTab : styles.tab} onClick={() => setView('demo')}>Demo</button>
+            {/* INJEÇÃO 5: Usamos a função 'mudarAba' no clique dos botões em vez do setView direto */}
+            <button style={view === 'login' ? styles.activeTab : styles.tab} onClick={() => mudarAba('login')}>Acesso</button>
+            <button style={view === 'register' ? styles.activeTab : styles.tab} onClick={() => mudarAba('register')}>Criar Conta</button>
+            <button style={view === 'demo' ? styles.activeTab : styles.tab} onClick={() => mudarAba('demo')}>Demo</button>
           </div>
 
           <div style={styles.formViewContainer}>
@@ -52,18 +112,26 @@ const LandingPage = () => {
               {view === 'demo' && 'Descubra como o ZenOS pode transformar os resultados da sua loja.'}
             </p>
 
+            {/* INJEÇÃO 6: Caixas de aviso elegantes caso a passe esteja errada ou a conta dê sucesso */}
+            {errorMsg && <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.2)', border: '1px solid rgba(239, 68, 68, 0.5)', color: '#fca5a5', padding: '10px', borderRadius: '8px', fontSize: '13px', textAlign: 'center', marginBottom: '16px' }}>{errorMsg}</div>}
+            {successMsg && <div style={{ backgroundColor: 'rgba(16, 185, 129, 0.2)', border: '1px solid rgba(16, 185, 129, 0.5)', color: '#6ee7b7', padding: '10px', borderRadius: '8px', fontSize: '13px', textAlign: 'center', marginBottom: '16px' }}>{successMsg}</div>}
+
             <form onSubmit={handleSubmit} style={styles.form}>
               {(view === 'register' || view === 'demo') && (
-                <input type="text" placeholder="Nome da Loja ou Empresa" style={styles.input} required />
+                // INJEÇÃO 7: Liga o campo 'Nome da Loja' à memória do React
+                <input type="text" placeholder="Nome da Loja ou Empresa" style={styles.input} value={storeName} onChange={(e) => setStoreName(e.target.value)} required />
               )}
-              <input type="email" placeholder="E-mail profissional" style={styles.input} required />
+              {/* INJEÇÃO 8: Liga o campo 'E-mail' à memória do React */}
+              <input type="email" placeholder="E-mail profissional" style={styles.input} value={email} onChange={(e) => setEmail(e.target.value)} required />
+              
               {view !== 'demo' && (
-                <input type="password" placeholder="Palavra-passe" style={styles.input} required />
+                // INJEÇÃO 9: Liga o campo 'Palavra-passe' à memória do React
+                <input type="password" placeholder="Palavra-passe" style={styles.input} value={password} onChange={(e) => setPassword(e.target.value)} required />
               )}
-              <button type="submit" style={styles.submitBtn}>
-                {view === 'login' && 'Entrar no Sistema'}
-                {view === 'register' && 'Solicitar Acesso'}
-                {view === 'demo' && 'Pedir Demonstração Gratuita'}
+              
+              {/* INJEÇÃO 10: O botão desativa enquanto carrega para evitar cliques duplos */}
+              <button type="submit" style={styles.submitBtn} disabled={loading}>
+                {loading ? 'A processar...' : (view === 'login' ? 'Entrar no Sistema' : view === 'register' ? 'Solicitar Acesso' : 'Pedir Demonstração Gratuita')}
               </button>
             </form>
           </div>
@@ -172,7 +240,6 @@ const styles = {
     maxWidth: '180px',
     height: 'clamp(60px, 12vh, 100px)',
     objectFit: 'contain',
-    // Filtro inteligente que cria sombra baseada no recorte do PNG e não num quadrado!
     filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.6))', 
   },
   tabContainer: {
