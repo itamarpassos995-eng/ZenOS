@@ -129,7 +129,6 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
     const dadosFinais = normalizarProduto({ ...formProdutoPDV, custoBRL: custo, precoBRL: preco, preco2BRL: preco2, preco3BRL: preco3, estoque: estoque });
     dadosFinais.usoUnicoEncomendado = formProdutoPDV.usoUnicoEncomendado; 
     
-    // CORREÇÃO: Garante que um produto criado no balcão tem sempre um ID único
     if (!dadosFinais.id) dadosFinais.id = `PROD-BALCAO-${Date.now()}`;
 
     if (produtoEmEdicaoPDV) {
@@ -151,20 +150,17 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
     else if (e.key === 'Escape') { setTermoBusca(''); }
   };
 
- const confirmarAdicaoRapida = () => {
+  const confirmarAdicaoRapida = () => {
     if (!itemParaAdicionar) return;
     const qtdNum = Math.max(1, parseInt(qtdDigitadaRapida) || 1);
     const precoBase = aplicarPrecoPorPerfilCliente(itemParaAdicionar, clienteSelecionadoPDV);
 
-    // BLINDAGEM MÁXIMA: Ignoramos o ID do banco de dados (que pode estar duplicado).
-    // O sistema agora SÓ SOMA A QUANTIDADE se o NOME e o SKU forem exatamente iguais.
     const indiceExistente = itensVenda.findIndex(i => 
       i.nome === itemParaAdicionar.nome && 
       i.sku === itemParaAdicionar.sku
     );
 
     if (indiceExistente !== -1) {
-      // Se for exatamente o mesmo produto, soma a quantidade na mesma linha
       const novaLista = [...itensVenda];
       const qtdAtual = parseInt(novaLista[indiceExistente].qtd) || 0;
       novaLista[indiceExistente] = { 
@@ -173,9 +169,6 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
       };
       setItensVenda(novaLista);
     } else {
-      // Se for um produto DIFERENTE, cria uma linha separada OBRIGATORIAMENTE.
-      // Geramos um ID único com a data/hora exata para forçar a tela a desenhar a linha nova,
-      // contornando o erro de produtos cadastrados com o mesmo ID.
       setItensVenda([
         ...itensVenda, 
         { 
@@ -321,17 +314,34 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
   };
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '28px' }}>
-      <style>{`input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; } input[type=number] { -moz-appearance: textfield; }`}</style>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px', width: '100%', boxSizing: 'border-box' }}>
+      <style>{`
+        input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
+        @media (max-width: 900px) {
+          .pdv-grid-main { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
       
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <div style={{ position: 'relative', flex: 1 }}>
+      {/* COLUNA ESQUERDA: CLIENTE, BUSCA E LISTA DE ITENS */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
+        
+        {/* SELETOR DE CLIENTE */}
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative', flex: 1, minWidth: '220px' }}>
             <div style={{ position: 'absolute', top: '14px', left: '16px', fontSize: '18px' }}>👤</div>
-            <input type="text" placeholder={tx('Consumidor Final (Digite o nome para avulso ou buscar fiado)...', 'Consumidor Final...', 'Walk-in Customer...')} value={nomeClienteVulso} onChange={(e) => { if (clienteSelecionadoPDV) setClienteSelecionadoPDV(null); setNomeClienteVulso(e.target.value); }} onFocus={() => setFocoInputCliente(true)} onBlur={() => setTimeout(() => setFocoInputCliente(false), 200)} style={{ width: '100%', padding: '16px 20px 16px 44px', backgroundColor: clienteSelecionadoPDV ? '#082f49' : '#0b1120', border: `1px solid ${clienteSelecionadoPDV ? '#0284c7' : '#1e293b'}`, borderRadius: '14px', color: clienteSelecionadoPDV ? '#38bdf8' : '#f8fafc', fontSize: '15px', fontWeight: clienteSelecionadoPDV ? 900 : 600, outline: 'none', boxSizing: 'border-box' }} />
+            <input 
+              type="text" 
+              placeholder={tx('Consumidor Final (Digite o nome para avulso ou buscar fiado)...', 'Consumidor Final...', 'Walk-in Customer...')} 
+              value={nomeClienteVulso} 
+              onChange={(e) => { if (clienteSelecionadoPDV) setClienteSelecionadoPDV(null); setNomeClienteVulso(e.target.value); }} 
+              onFocus={() => setFocoInputCliente(true)} 
+              onBlur={() => setTimeout(() => setFocoInputCliente(false), 200)} 
+              style={{ width: '100%', padding: '16px 20px 16px 44px', backgroundColor: clienteSelecionadoPDV ? '#082f49' : '#0b1120', border: `1px solid ${clienteSelecionadoPDV ? '#0284c7' : '#1e293b'}`, borderRadius: '14px', color: clienteSelecionadoPDV ? '#38bdf8' : '#f8fafc', fontSize: '15px', fontWeight: clienteSelecionadoPDV ? 900 : 600, outline: 'none', boxSizing: 'border-box' }} 
+            />
             {clienteSelecionadoPDV && (
               <div style={{ position: 'absolute', top: '16px', right: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '11px', color: '#cbd5e1' }}>{tx('Fiado:', 'Deuda:', 'Debt:')} <strong style={{ color: clienteSelecionadoPDV.saldoDevedorBRL > 0 ? '#fb7185' : '#34d399' }}>{fmt(clienteSelecionadoPDV.saldoDevedorBRL, 'BRL')}</strong></span>
+                <span style={{ fontSize: '11px', color: '#cbd5e1' }} className="hide-mobile">{tx('Fiado:', 'Deuda:', 'Debt:')} <strong style={{ color: clienteSelecionadoPDV.saldoDevedorBRL > 0 ? '#fb7185' : '#34d399' }}>{fmt(clienteSelecionadoPDV.saldoDevedorBRL, 'BRL')}</strong></span>
                 <button onClick={removerClienteDoPDV} style={{ backgroundColor: '#020617', border: 'none', color: '#f43f5e', fontSize: '14px', cursor: 'pointer', fontWeight: 900 }}>✕</button>
               </div>
             )}
@@ -345,13 +355,14 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
               </div>
             )}
           </div>
-          <button onClick={abrirCadastroClientePDV} style={{ padding: '16px 24px', backgroundColor: '#451a03', border: '1px solid #d97706', color: '#fbbf24', borderRadius: '14px', fontSize: '13px', fontWeight: 900, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 4px 15px rgba(217, 119, 6, 0.2)' }}>{tx('+ Cadastrar Cliente', '+ Registrar Cliente', '+ Add Client')}</button>
+          <button onClick={abrirCadastroClientePDV} style={{ padding: '16px 20px', backgroundColor: '#451a03', border: '1px solid #d97706', color: '#fbbf24', borderRadius: '14px', fontSize: '13px', fontWeight: 900, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 4px 15px rgba(217, 119, 6, 0.2)' }}>{tx('+ Cliente', '+ Cliente', '+ Client')}</button>
         </div>
 
+        {/* CAMPO DE BUSCA DE PRODUTOS */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
             <label style={{ fontSize: '12px', fontWeight: 900, color: '#38bdf8', letterSpacing: '1px', textTransform: 'uppercase' }}>{t('digiteProdutoLabel')}</label>
-            <button onClick={abrirCadastroProdutoPDV} style={{ backgroundColor: '#0369a1', border: 'none', color: '#fff', fontSize: '11px', fontWeight: 800, padding: '4px 10px', borderRadius: '6px', cursor: 'pointer' }}>{tx('+ Cadastrar Produto no Balcão', '+ Registrar Producto Rápido', '+ Quick Add Product')}</button>
+            <button onClick={abrirCadastroProdutoPDV} style={{ backgroundColor: '#0369a1', border: 'none', color: '#fff', fontSize: '11px', fontWeight: 800, padding: '4px 10px', borderRadius: '6px', cursor: 'pointer' }}>{tx('+ Produto Balcão', '+ Producto Rápido', '+ Quick Product')}</button>
           </div>
           <div style={{ position: 'relative' }}>
             <input ref={inputBuscaRef} type="text" value={termoBusca} onChange={(e) => setTermoBusca(e.target.value)} onKeyDown={lidarTecladoBusca} placeholder={t('buscaPlaceholder')} style={{ width: '100%', backgroundColor: '#0b1120', border: '2px solid #0284c7', color: '#f8fafc', fontSize: '16px', borderRadius: '14px', padding: '16px 20px', outline: 'none', boxSizing: 'border-box' }} autoFocus />
@@ -371,31 +382,36 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
           </div>
         </div>
 
-        <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', display: 'flex', flexDirection: 'column', minHeight: '350px' }}>
-          <div style={{ padding: '16px 24px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {/* LISTA DE ITENS LANÇADOS (CARRINHO) */}
+        <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', display: 'flex', flexDirection: 'column', minHeight: '300px' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', letterSpacing: '1px', textTransform: 'uppercase' }}>{t('itensLancados')} ({itensVenda.length})</span>
           </div>
-          <div style={{ padding: '12px', flex: 1, overflowY: 'auto', maxHeight: '400px' }}>
-            {itensVenda.length === 0 ? <div style={{ padding: '80px 20px', textAlign: 'center', color: '#475569', fontSize: '14px' }}>{t('nenhumItem')}</div> : itensVenda.map(item => (
-              <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid #1e293b' }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 700, color: '#f8fafc', fontSize: '15px' }}>{item.nome} {(item.usoUnicoEncomendado || String(item.sku).includes('ENCOMENDA')) && <span style={{ color: '#fbbf24', fontSize: '10px' }}>(⭐ {tx('Encomenda', 'Especial', 'Order')})</span>}</div>
-                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginTop: '4px' }}>
-                    <span style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>SKU: {item.sku}</span>
+          <div style={{ padding: '8px', flex: 1, overflowY: 'auto', maxHeight: '400px' }}>
+            {itensVenda.length === 0 ? <div style={{ padding: '60px 20px', textAlign: 'center', color: '#475569', fontSize: '14px' }}>{t('nenhumItem')}</div> : itensVenda.map(item => (
+              <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderBottom: '1px solid #1e293b', gap: '8px', flexWrap: 'wrap' }}>
+                <div style={{ flex: '1 1 180px' }}>
+                  <div style={{ fontWeight: 700, color: '#f8fafc', fontSize: '14px' }}>{item.nome} {(item.usoUnicoEncomendado || String(item.sku).includes('ENCOMENDA')) && <span style={{ color: '#fbbf24', fontSize: '10px' }}>(⭐ {tx('Encomenda', 'Especial', 'Order')})</span>}</div>
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '4px' }}>
+                    <span style={{ fontSize: '10px', color: '#64748b', fontFamily: 'monospace' }}>SKU: {item.sku}</span>
                     <span onClick={() => abrirEdicaoProdutoPDV(item)} style={{ fontSize: '11px', color: '#38bdf8', cursor: 'pointer', fontWeight: 600 }}>{tx('Editar', 'Editar', 'Edit')}</span>
                     <span onClick={() => removerItem(item.id)} style={{ fontSize: '11px', color: '#f43f5e', cursor: 'pointer', fontWeight: 600 }}>{tx('Remover', 'Eliminar', 'Remove')}</span>
                   </div>
                 </div>
-                <div style={{ width: '100px', display: 'flex', justifyContent: 'center' }}><input type="number" value={item.qtd} onChange={(e) => atualizarQtd(item.id, e.target.value)} onFocus={(e) => e.target.select()} style={{ width: '45px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontWeight: 800, fontSize: '14px', textAlign: 'center', padding: '6px', outline: 'none' }} /></div>
-                <div style={{ width: '130px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '4px' }}><input type="text" value={item.precoTexto !== undefined ? item.precoTexto : converterDeBRL(item.precoPraticadoBRL, moeda).toFixed(2)} onChange={(e) => lidarDigitacaoPreco(item.id, e.target.value)} onFocus={(e) => e.target.select()} style={{ width: '85px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#34d399', fontWeight: 800, fontSize: '14px', textAlign: 'right', padding: '6px 8px', outline: 'none' }} /></div>
-                <div style={{ width: '130px', textAlign: 'right', fontWeight: 900, color: '#34d399', fontSize: '18px' }}>{fmt(Math.max(0, parseInt(item.qtd) || 0) * (item.precoPraticadoBRL || 0))}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: 'auto' }}>
+                  <input type="number" value={item.qtd} onChange={(e) => atualizarQtd(item.id, e.target.value)} onFocus={(e) => e.target.select()} style={{ width: '45px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontWeight: 800, fontSize: '13px', textAlign: 'center', padding: '6px', outline: 'none' }} />
+                  <input type="text" value={item.precoTexto !== undefined ? item.precoTexto : converterDeBRL(item.precoPraticadoBRL, moeda).toFixed(2)} onChange={(e) => lidarDigitacaoPreco(item.id, e.target.value)} onFocus={(e) => e.target.select()} style={{ width: '75px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#34d399', fontWeight: 800, fontSize: '13px', textAlign: 'right', padding: '6px', outline: 'none' }} />
+                  <div style={{ width: '85px', textAlign: 'right', fontWeight: 900, color: '#34d399', fontSize: '15px' }}>{fmt(Math.max(0, parseInt(item.qtd) || 0) * (item.precoPraticadoBRL || 0))}</div>
+                </div>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {/* COLUNA DIREITA: RESUMO, SEMÁFORO E FINALIZAÇÃO DE VENDA */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
+        
         <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
           <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', letterSpacing: '1px', textTransform: 'uppercase' }}>{t('resumoVenda')}</span>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#cbd5e1' }}><span>{t('subtotal')}</span><span style={{ fontWeight: 700, color: '#fff' }}>{fmt(subtotalBrutoBRL)}</span></div>
@@ -404,9 +420,9 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
             <input type="text" value={descontoTexto} onChange={(e) => setDescontoTexto(e.target.value)} onFocus={(e) => e.target.select()} style={{ width: '75px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', padding: '6px 8px', color: '#fbbf24', fontWeight: 800, fontSize: '14px', textAlign: 'right', outline: 'none' }} />
           </div>
           <div style={{ height: '1px', backgroundColor: '#1e293b', margin: '4px 0' }}></div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '14px', fontWeight: 700, color: '#94a3b8' }}>{t('totalPagar')}</span>
-            <span style={{ fontSize: '32px', fontWeight: 900, color: '#34d399', letterSpacing: '-1px' }}>{fmt(totalFinalBRL)}</span>
+            <span style={{ fontSize: '28px', fontWeight: 900, color: '#34d399', letterSpacing: '-1px' }}>{fmt(totalFinalBRL)}</span>
           </div>
         </div>
 
@@ -415,13 +431,14 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
           <div style={{ fontSize: '13px', fontWeight: 800, color: corSemafaro }}>{textoSemafaro}</div>
         </div>
 
-        <button onClick={abrirFechamento} style={{ background: vendaBloqueadaPorMargem ? '#334155' : 'linear-gradient(135deg, #4f46e5, #4338ca)', border: '1px solid #6366f1', color: '#fff', padding: '18px', borderRadius: '14px', fontSize: '15px', fontWeight: 900, cursor: vendaBloqueadaPorMargem ? 'not-allowed' : 'pointer', textAlign: 'center', boxShadow: '0 4px 15px rgba(79, 70, 229, 0.3)' }}>
+        <button onClick={abrirFechamento} style={{ background: vendaBloqueadaPorMargem ? '#334155' : 'linear-gradient(135deg, #4f46e5, #4338ca)', border: '1px solid #6366f1', color: '#fff', padding: '18px', borderRadius: '14px', fontSize: '15px', fontWeight: 900, cursor: vendaBloqueadaPorMargem ? 'not-allowed' : 'pointer', textAlign: 'center', boxShadow: '0 4px 15px rgba(79, 70, 229, 0.3)', width: '100%', boxSizing: 'border-box' }}>
           [F10] {t('fecharVenda')} {vendaBloqueadaPorMargem ? '🔒' : ''}
         </button>
       </div>
 
+      {/* MODAL DE QUANTIDADE RÁPIDA */}
       {itemParaAdicionar && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }}>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85), backdrop-filter: blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '16px' }}>
           <div style={{ backgroundColor: '#0b1120', border: '1px solid #6366f1', borderRadius: '20px', width: '100%', maxWidth: '400px', padding: '28px', color: '#fff', textAlign: 'center' }}>
             <h3 style={{ fontSize: '18px', fontWeight: 900, marginBottom: '16px' }}>{itemParaAdicionar.nome}</h3>
             <input ref={inputQtdRapidaRef} type="number" value={qtdDigitadaRapida} onChange={e => setQtdDigitadaRapida(e.target.value)} onFocus={e=>e.target.select()} onKeyDown={e=>{if(e.key==='Enter') confirmarAdicaoRapida(); if(e.key==='Escape') setItemParaAdicionar(null);}} style={{ width: '80px', padding: '10px', fontSize: '20px', textAlign: 'center', backgroundColor: '#020617', border: '1px solid #6366f1', color: '#fff', borderRadius: '8px', marginBottom: '20px', outline: 'none' }} />
@@ -433,23 +450,24 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
         </div>
       )}
 
+      {/* MODAL DE CADASTRO DE CLIENTE */}
       {modalClientePDVAberto && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1500 }}>
-          <div style={{ backgroundColor: '#0b1120', border: '1px solid #d97706', borderRadius: '24px', width: '100%', maxWidth: '680px', padding: '28px', color: '#fff' }}>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1500, padding: '16px' }}>
+          <div style={{ backgroundColor: '#0b1120', border: '1px solid #d97706', borderRadius: '24px', width: '100%', maxWidth: '680px', maxHeight: '90vh', overflowY: 'auto', padding: '28px', color: '#fff', boxSizing: 'border-box' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <div><span style={{ fontSize: '11px', fontWeight: 800, color: '#fbbf24', letterSpacing: '1px', textTransform: 'uppercase' }}>{tx('Ficha de Cliente', 'Ficha de Cliente', 'Client Profile')}</span><h3 style={{ fontSize: '20px', fontWeight: 900, margin: '2px 0 0 0' }}>{tx('Cadastrar Novo Cliente no Balcão', 'Registrar Nuevo Cliente', 'New Walk-in Client')}</h3></div>
+              <div><span style={{ fontSize: '11px', fontWeight: 800, color: '#fbbf24', letterSpacing: '1px', textTransform: 'uppercase' }}>{tx('Ficha de Cliente', 'Ficha de Cliente', 'Client Profile')}</span><h3 style={{ fontSize: '18px', fontWeight: 900, margin: '2px 0 0 0' }}>{tx('Cadastrar Novo Cliente no Balcão', 'Registrar Nuevo Cliente', 'New Walk-in Client')}</h3></div>
               <button onClick={() => setModalClientePDVAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#64748b', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>✕</button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px', marginBottom: '14px' }}>
-              <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Nome Completo / Razão Social', 'Nombre / Razón Social', 'Full Name')}</label><input type="text" value={formClientePDV.nome} onChange={(e) => setFormClientePDV({ ...formClientePDV, nome: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 700, fontSize: '13px', padding: '8px 10px', outline: 'none' }} /></div>
-              <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Perfil de Preço', 'Perfil de Precio', 'Price Profile')}</label><select value={formClientePDV.perfilPreco} onChange={(e) => setFormClientePDV({ ...formClientePDV, perfilPreco: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#38bdf8', fontSize: '12px', fontWeight: 800, padding: '8px', outline: 'none' }}><option value="preco1">{tx('Tabela Balcão', 'Precio Mostrador', 'Retail Price')}</option><option value="preco2">{tx('Tabela Pintor', 'Precio Pintor', 'Painter Price')}</option></select></div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px', marginBottom: '14px' }}>
+              <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Nome Completo / Razão Social', 'Nombre / Razón Social', 'Full Name')}</label><input type="text" value={formClientePDV.nome} onChange={(e) => setFormClientePDV({ ...formClientePDV, nome: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 700, fontSize: '13px', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
+              <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Perfil de Preço', 'Perfil de Precio', 'Price Profile')}</label><select value={formClientePDV.perfilPreco} onChange={(e) => setFormClientePDV({ ...formClientePDV, perfilPreco: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#38bdf8', fontSize: '12px', fontWeight: 800, padding: '10px', outline: 'none', boxSizing: 'border-box' }}><option value="preco1">{tx('Tabela Balcão', 'Precio Mostrador', 'Retail Price')}</option><option value="preco2">{tx('Tabela Pintor', 'Precio Pintor', 'Painter Price')}</option></select></div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '20px' }}>
-              <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Documento (CPF/RUC)', 'Documento (CI/RUC)', 'ID (TAX/SSN)')}</label><input type="text" value={formClientePDV.documento} onChange={(e) => setFormClientePDV({ ...formClientePDV, documento: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 700, fontSize: '13px', padding: '8px 10px', outline: 'none' }} /></div>
-              <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Telefone / WhatsApp', 'Teléfono / WhatsApp', 'Phone / WhatsApp')}</label><input type="text" value={formClientePDV.telefone} onChange={(e) => setFormClientePDV({ ...formClientePDV, telefone: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#34d399', fontWeight: 800, fontSize: '13px', padding: '8px 10px', outline: 'none' }} /></div>
-              <div><label style={{ fontSize: '11px', color: '#fbbf24', fontWeight: 800 }}>{tx('Limite Fiado (R$)', 'Límite Fiado ($)', 'Credit Limit ($)')}</label><input type="text" value={formClientePDV.limiteCreditoBRL} onChange={(e) => setFormClientePDV({ ...formClientePDV, limiteCreditoBRL: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #d97706', borderRadius: '8px', color: '#fbbf24', fontWeight: 900, fontSize: '14px', textAlign: 'right', padding: '8px 10px', outline: 'none' }} /></div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '20px' }}>
+              <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Documento (CPF/RUC)', 'Documento (CI/RUC)', 'ID (TAX/SSN)')}</label><input type="text" value={formClientePDV.documento} onChange={(e) => setFormClientePDV({ ...formClientePDV, documento: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 700, fontSize: '13px', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
+              <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Telefone / WhatsApp', 'Teléfono / WhatsApp', 'Phone / WhatsApp')}</label><input type="text" value={formClientePDV.telefone} onChange={(e) => setFormClientePDV({ ...formClientePDV, telefone: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#34d399', fontWeight: 800, fontSize: '13px', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
+              <div><label style={{ fontSize: '11px', color: '#fbbf24', fontWeight: 800 }}>{tx('Limite Fiado (R$)', 'Límite Fiado ($)', 'Credit Limit ($)')}</label><input type="text" value={formClientePDV.limiteCreditoBRL} onChange={(e) => setFormClientePDV({ ...formClientePDV, limiteCreditoBRL: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #d97706', borderRadius: '8px', color: '#fbbf24', fontWeight: 900, fontSize: '14px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
             </div>
-            <div style={{ display: 'flex', gap: '12px' }}>
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
               <button onClick={() => setModalClientePDVAberto(false)} style={{ flex: 1, backgroundColor: '#020617', border: '1px solid #1e293b', color: '#94a3b8', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}>{tx('Cancelar', 'Cancelar', 'Cancel')}</button>
               <button onClick={salvarClientePDV} style={{ flex: 2, background: 'linear-gradient(135deg, #d97706, #b45309)', border: 'none', color: '#ffffff', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 900, cursor: 'pointer' }}>{tx('Salvar e Vincular à Venda', 'Guardar y Vincular', 'Save and Link')}</button>
             </div>
@@ -457,50 +475,38 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
         </div>
       )}
 
+      {/* MODAL DE CADASTRO DE PRODUTO */}
       {modalProdutoPDVAberto && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1500 }}>
-          <div style={{ backgroundColor: '#0b1120', border: '1px solid #0284c7', borderRadius: '24px', width: '100%', maxWidth: '820px', maxHeight: '92vh', overflowY: 'auto', padding: '28px', color: '#fff' }}>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1500, padding: '16px' }}>
+          <div style={{ backgroundColor: '#0b1120', border: '1px solid #0284c7', borderRadius: '24px', width: '100%', maxWidth: '820px', maxHeight: '92vh', overflowY: 'auto', padding: '28px', color: '#fff', boxSizing: 'border-box' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <div><span style={{ fontSize: '11px', fontWeight: 800, color: '#38bdf8', letterSpacing: '1px', textTransform: 'uppercase' }}>Ficha Cadastral Universal • PDV Balcão</span><h3 style={{ fontSize: '20px', fontWeight: 900, margin: '2px 0 0 0' }}>{produtoEmEdicaoPDV ? `Editar: ${produtoEmEdicaoPDV.nome}` : tx('Cadastrar Novo Produto', 'Registrar Nuevo Producto', 'New Product')}</h3></div>
+              <div><span style={{ fontSize: '11px', fontWeight: 800, color: '#38bdf8', letterSpacing: '1px', textTransform: 'uppercase' }}>Ficha Cadastral Universal • PDV Balcão</span><h3 style={{ fontSize: '18px', fontWeight: 900, margin: '2px 0 0 0' }}>{produtoEmEdicaoPDV ? `Editar: ${produtoEmEdicaoPDV.nome}` : tx('Cadastrar Novo Produto', 'Registrar Nuevo Producto', 'New Product')}</h3></div>
               <button onClick={() => setModalProdutoPDVAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#64748b', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>✕</button>
             </div>
             <div style={{ backgroundColor: 'rgba(217, 119, 6, 0.15)', border: '1px solid rgba(217, 119, 6, 0.4)', borderRadius: '14px', padding: '14px 20px', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '12px' }}>
               <input type="checkbox" id="checkUsoUnico" checked={formProdutoPDV.usoUnicoEncomendado} onChange={e => setFormProdutoPDV({...formProdutoPDV, usoUnicoEncomendado: e.target.checked})} style={{ width: '18px', height: '18px', cursor: 'pointer' }} />
               <div><label htmlFor="checkUsoUnico" style={{ fontSize: '13px', fontWeight: 900, color: '#fbbf24', cursor: 'pointer' }}>{tx('⭐ Produto de Uso Único / Encomenda Especial', '⭐ Producto de Uso Único / Especial', '⭐ Single-Use / Special Order')}</label><p style={{ fontSize: '11px', color: '#cbd5e1', margin: '2px 0 0 0' }}>{tx('Se marcado, o sistema EXCLUIRÁ esse produto fisicamente da base de dados ao fechar a venda.', 'Si está marcado, el sistema ELIMINARÁ este producto al cerrar.', 'If checked, the system will DELETE this item upon sale completion.')}</p></div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '18px' }}>
-              {[{ id: 'mercadoria', rotulo: tx('Mercadoria Revenda', 'Mercancía Reventa', 'Retail Goods'), icone: '📦' }, { id: 'materia_prima', rotulo: tx('Matéria-Prima', 'Materia Prima', 'Raw Material'), icone: '🧪' }, { id: 'kit', rotulo: 'Kit / Combo', icone: '🎁' }, { id: 'servico', rotulo: tx('Serviço', 'Servicio', 'Service'), icone: '🛠️' }].map(tipo => {
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px', marginBottom: '18px' }}>
+              {[{ id: 'mercadoria', rotulo: tx('Mercadoria', 'Mercancía', 'Retail'), icone: '📦' }, { id: 'materia_prima', rotulo: tx('Matéria-Prima', 'Materia Prima', 'Raw'), icone: '🧪' }, { id: 'kit', rotulo: 'Kit / Combo', icone: '🎁' }, { id: 'servico', rotulo: tx('Serviço', 'Servicio', 'Service'), icone: '🛠️' }].map(tipo => {
                 const ativo = formProdutoPDV.tipoItem === tipo.id;
                 return (<button key={tipo.id} type="button" onClick={() => setFormProdutoPDV({ ...formProdutoPDV, tipoItem: tipo.id })} style={{ backgroundColor: ativo ? '#082f49' : '#020617', border: `1px solid ${ativo ? '#0284c7' : '#1e293b'}`, color: ativo ? '#38bdf8' : '#94a3b8', borderRadius: '10px', padding: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}><span>{tipo.icone}</span><span>{tipo.rotulo}</span></button>);
               })}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr', gap: '18px', marginBottom: '18px' }}>
-              <div>
-                <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Foto do Item</label>
-                <div onClick={() => fileInputPDVRef.current?.click()} style={{ width: '130px', height: '115px', borderRadius: '12px', backgroundColor: '#020617', border: '2px dashed #334155', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden' }}>{formProdutoPDV.imagem ? <img src={formProdutoPDV.imagem} alt="Produto" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ textAlign: 'center', color: '#64748b' }}><span style={{ fontSize: '24px', display: 'block' }}>📷</span><span style={{ fontSize: '10px', fontWeight: 700 }}>Foto</span></div>}</div>
-                <input ref={fileInputPDVRef} type="file" accept="image/*" onChange={lidarUploadImagemPDV} style={{ display: 'none' }} />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 100px', gap: '10px' }}>
-                  <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>SKU</label><input type="text" value={formProdutoPDV.sku} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, sku: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 800, fontSize: '13px', padding: '8px 10px', outline: 'none' }} /></div>
-                  <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Nome do Item</label><input type="text" value={formProdutoPDV.nome} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, nome: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 700, fontSize: '13px', padding: '8px 10px', outline: 'none' }} /></div>
-                  <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Unid</label><select value={formProdutoPDV.unidadeMedida} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, unidadeMedida: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#38bdf8', fontSize: '12px', fontWeight: 900, padding: '8px', outline: 'none' }}><option value="UN">UN</option><option value="KG">KG</option><option value="L">L</option><option value="M">M</option><option value="M²">M²</option><option value="CX">CX</option><option value="KIT">KIT</option></select></div>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
-                  <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Grupo</label><input type="text" value={formProdutoPDV.grupo} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, grupo: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontSize: '12px', padding: '8px 10px', outline: 'none' }} /></div>
-                  <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Marca</label><input type="text" value={formProdutoPDV.marca} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, marca: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontSize: '12px', padding: '8px 10px', outline: 'none' }} /></div>
-                  <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Fornecedor</label><input type="text" value={formProdutoPDV.fornecedor} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, fornecedor: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontSize: '12px', padding: '8px 10px', outline: 'none' }} /></div>
-                </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '18px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+                <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>SKU</label><input type="text" value={formProdutoPDV.sku} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, sku: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 800, fontSize: '13px', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
+                <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Nome do Item</label><input type="text" value={formProdutoPDV.nome} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, nome: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 700, fontSize: '13px', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
               </div>
             </div>
             <div style={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', padding: '16px 20px', marginBottom: '18px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', alignItems: 'center', marginBottom: '12px' }}>
-                <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>Custo (R$)</label><input type="text" value={formProdutoPDV.custoBRL} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, custoBRL: e.target.value })} style={{ width: '100%', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontWeight: 800, fontSize: '14px', textAlign: 'right', padding: '6px 10px', outline: 'none' }} /></div>
-                <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>Preço Venda (R$)</label><input type="text" value={formProdutoPDV.precoBRL} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, precoBRL: e.target.value })} style={{ width: '100%', backgroundColor: '#0b1120', border: '1px solid #34d399', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', padding: '6px 10px', outline: 'none' }} /></div>
-                <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>Estoque Inicial</label><input type="number" value={formProdutoPDV.estoque} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, estoque: e.target.value })} style={{ width: '100%', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#38bdf8', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '6px', outline: 'none' }} /></div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', alignItems: 'center', marginBottom: '12px' }}>
+                <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>Custo (R$)</label><input type="text" value={formProdutoPDV.custoBRL} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, custoBRL: e.target.value })} style={{ width: '100%', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontWeight: 800, fontSize: '14px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
+                <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>Preço Venda (R$)</label><input type="text" value={formProdutoPDV.precoBRL} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, precoBRL: e.target.value })} style={{ width: '100%', backgroundColor: '#0b1120', border: '1px solid #34d399', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
+                <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>Estoque Inicial</label><input type="number" value={formProdutoPDV.estoque} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, estoque: e.target.value })} style={{ width: '100%', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#38bdf8', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: '12px' }}>
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
               <button onClick={() => setModalProdutoPDVAberto(false)} style={{ flex: 1, backgroundColor: '#020617', border: '1px solid #1e293b', color: '#94a3b8', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}>{tx('Cancelar', 'Cancelar', 'Cancel')}</button>
               <button onClick={salvarProdutoPDV} style={{ flex: 2, background: 'linear-gradient(135deg, #0284c7, #0369a1)', border: 'none', color: '#ffffff', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 900, cursor: 'pointer' }}>{tx('Salvar e Lançar na Venda', 'Guardar e Incluir', 'Save and Add')}</button>
             </div>
@@ -508,9 +514,10 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
         </div>
       )}
 
+      {/* MODAL DE FECHAMENTO DE CAIXA (CHECKOUT) */}
       {modalFechamentoAberto && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1500 }}>
-          <div style={{ backgroundColor: vendaSucesso ? '#ffffff' : '#0b1120', border: '1px solid #10b981', borderRadius: vendaSucesso ? '16px' : '24px', width: '100%', maxWidth: vendaSucesso ? '380px' : '750px', padding: vendaSucesso ? '0' : '32px', color: vendaSucesso ? '#000' : '#fff', boxShadow: '0 25px 50px rgba(0,0,0,0.5)' }}>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1500, padding: '16px', boxSizing: 'border-box' }}>
+          <div style={{ backgroundColor: vendaSucesso ? '#ffffff' : '#0b1120', border: '1px solid #10b981', borderRadius: vendaSucesso ? '16px' : '24px', width: '100%', maxWidth: vendaSucesso ? '380px' : '750px', maxHeight: '95vh', overflowY: 'auto', padding: vendaSucesso ? '0' : '28px', color: vendaSucesso ? '#000' : '#fff', boxShadow: '0 25px 50px rgba(0,0,0,0.5)', boxSizing: 'border-box' }}>
             {vendaSucesso ? (
               <div>
                 <div id="area-cupom-pdv" style={{ padding: '20px', fontFamily: 'monospace', fontSize: '12px' }}>
@@ -539,46 +546,45 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
                   <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
                   <div style={{ textAlign: 'center', fontSize: '10px' }}>Obrigado pela preferência!<br/>Volte Sempre.</div>
                 </div>
-                <div className="no-print" style={{ padding: '20px', backgroundColor: '#f1f5f9', display: 'flex', gap: '10px', borderTop: '1px dashed #ccc', borderBottomLeftRadius: '16px', borderBottomRightRadius: '16px' }}>
-                  <button onClick={executarImpressaoNativa} style={{ flex: 1, padding: '12px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '14px' }}>🖨️ {tx('Confirmar Impressão', 'Imprimir', 'Print')}</button>
+                <div className="no-print" style={{ padding: '20px', backgroundColor: '#f1f5f9', display: 'flex', gap: '10px', borderTop: '1px dashed #ccc', borderBottomLeftRadius: '16px', borderBottomRightRadius: '16px', flexWrap: 'wrap' }}>
+                  <button onClick={executarImpressaoNativa} style={{ flex: 1, padding: '12px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '14px' }}>🖨️ {tx('Imprimir', 'Imprimir', 'Print')}</button>
                   <button onClick={limparParaNovaVenda} style={{ flex: 1, padding: '12px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '14px' }}>{tx('Nova Venda', 'Nueva Venta', 'New Sale')}</button>
                 </div>
               </div>
             ) : (
               <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                   <div>
                     <span style={{ fontSize: '11px', fontWeight: 900, color: '#34d399', letterSpacing: '1px', textTransform: 'uppercase' }}>{tx('Fechamento de Caixa • Múltiplas Formas', 'Cierre de Caja', 'Checkout')}</span>
-                    <h3 style={{ fontSize: '22px', fontWeight: 900, margin: '4px 0 0 0' }}>{clienteSelecionadoPDV ? clienteSelecionadoPDV.nome : (nomeClienteVulso || tx('Consumidor Balcão', 'Consumidor', 'Walk-in'))}</h3>
+                    <h3 style={{ fontSize: '18px', fontWeight: 900, margin: '4px 0 0 0' }}>{clienteSelecionadoPDV ? clienteSelecionadoPDV.nome : (nomeClienteVulso || tx('Consumidor Balcão', 'Consumidor', 'Walk-in'))}</h3>
                   </div>
-                  <button onClick={() => setModalFechamentoAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #334155', color: '#94a3b8', borderRadius: '10px', width: '36px', height: '36px', cursor: 'pointer', fontWeight: 900, transition: 'all 0.2s' }}>✕</button>
+                  <button onClick={() => setModalFechamentoAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #334155', color: '#94a3b8', borderRadius: '10px', width: '36px', height: '36px', cursor: 'pointer', fontWeight: 900 }}>✕</button>
                 </div>
                 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', padding: '20px', gap: '16px', marginBottom: '24px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}><span style={{ fontSize: '12px', color: '#64748b', fontWeight: 800 }}>{tx('Total da Venda', 'Total Venta', 'Total Sale')}</span><div style={{ fontSize: '22px', fontWeight: 900, color: '#ffffff' }}>{fmt(totalFinalBRL, 'BRL')}</div></div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderLeft: '1px solid #1e293b', paddingLeft: '16px' }}><span style={{ fontSize: '12px', color: '#64748b', fontWeight: 800 }}>{tx('Valor Pago', 'Valor Pagado', 'Amount Paid')}</span><div style={{ fontSize: '22px', fontWeight: 900, color: '#34d399' }}>{fmt(totalPagoConvertidoBRL, 'BRL')}</div></div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderLeft: '1px solid #1e293b', paddingLeft: '16px' }}><span style={{ fontSize: '12px', color: '#64748b', fontWeight: 800 }}>{tx('Falta Pagar', 'Falta Pagar', 'Remaining')}</span><div style={{ fontSize: '22px', fontWeight: 900, color: saldoRestanteBRL > 0.01 ? '#fb7185' : '#38bdf8' }}>{saldoRestanteBRL > 0.01 ? fmt(saldoRestanteBRL, 'BRL') : 'QUITADO ✓'}</div></div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', padding: '16px', gap: '12px', marginBottom: '20px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}><span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800 }}>{tx('Total', 'Total', 'Total')}</span><div style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff' }}>{fmt(totalFinalBRL, 'BRL')}</div></div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}><span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800 }}>{tx('Pago', 'Pagado', 'Paid')}</span><div style={{ fontSize: '18px', fontWeight: 900, color: '#34d399' }}>{fmt(totalPagoConvertidoBRL, 'BRL')}</div></div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}><span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800 }}>{tx('Falta', 'Falta', 'Due')}</span><div style={{ fontSize: '18px', fontWeight: 900, color: saldoRestanteBRL > 0.01 ? '#fb7185' : '#38bdf8' }}>{saldoRestanteBRL > 0.01 ? fmt(saldoRestanteBRL, 'BRL') : 'QUITADO ✓'}</div></div>
                 </div>
                 
-                <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr auto', gap: '12px', marginBottom: '20px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '10px', marginBottom: '16px' }}>
                   <select 
                     value={formaSelecionada} 
                     onChange={e => {
                       const novaForma = e.target.value;
                       setFormaSelecionada(novaForma);
-                      // LÓGICA DE CONVERSÃO AUTOMÁTICA RESTAURADA E BLINDADA
                       const pendenteBRL = Math.max(0, totalFinalBRL - totalPagoConvertidoBRL);
                       const conf = catalogoFormas.find(f => f.id === novaForma) || catalogoFormas[0];
                       setValorLancamentoInput(pendenteBRL > 0 ? converterDeBRL(pendenteBRL, conf.moedaOrigem).toFixed(2) : '');
                     }} 
-                    style={{ padding: '16px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '12px', color: '#f8fafc', fontSize: '14px', fontWeight: 800, outline: 'none', cursor: 'pointer' }}
+                    style={{ padding: '14px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '12px', color: '#f8fafc', fontSize: '14px', fontWeight: 800, outline: 'none', cursor: 'pointer', width: '100%', boxSizing: 'border-box' }}
                   >
                     <option value="dinheiro_brl">💵 Dinheiro (R$)</option>
                     <option value="dinheiro_usd">💵 Dólar ($)</option>
                     <option value="dinheiro_pyg">💵 Guarani (₲)</option>
                     <option value="pix">⚡ Pix QR Code</option>
-                    <option value="cartaoCredito">💳 Cartão de Crédito</option>
-                    <option value="cartaoDebito">💳 Cartão de Débito</option>
+                    <option value="cartaoCredito">💳 Cartão Crédito</option>
+                    <option value="cartaoDebito">💳 Cartão Débito</option>
                     <option value="crediario">📒 Fiado / Crediário</option>
                   </select>
                   
@@ -590,34 +596,34 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
                     onKeyDown={e => e.key === 'Enter' && adicionarPagamento()} 
                     placeholder="0.00" 
                     onFocus={e => e.target.select()}
-                    style={{ padding: '16px', backgroundColor: '#020617', border: '1px solid #10b981', borderRadius: '12px', color: '#34d399', fontSize: '20px', fontWeight: 900, textAlign: 'right', outline: 'none', boxSizing: 'border-box' }} 
+                    style={{ padding: '14px', backgroundColor: '#020617', border: '1px solid #10b981', borderRadius: '12px', color: '#34d399', fontSize: '18px', fontWeight: 900, textAlign: 'right', outline: 'none', boxSizing: 'border-box', width: '100%' }} 
                   />
-                  
-                  <button 
-                    onClick={adicionarPagamento} 
-                    style={{ padding: '0 24px', background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '15px', boxShadow: '0 4px 15px rgba(16, 185, 129, 0.3)' }}
-                  >
-                    + Lançar
-                  </button>
                 </div>
                 
-                <div style={{ maxHeight: '140px', overflowY: 'auto', marginBottom: '24px', background: '#020617', padding: '12px', borderRadius: '12px', border: '1px solid #1e293b' }}>
+                <button 
+                  onClick={adicionarPagamento} 
+                  style={{ width: '100%', padding: '14px', background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '15px', marginBottom: '20px', boxShadow: '0 4px 15px rgba(16, 185, 129, 0.3)', boxSizing: 'border-box' }}
+                >
+                  + Lançar Pagamento
+                </button>
+                
+                <div style={{ maxHeight: '120px', overflowY: 'auto', marginBottom: '20px', background: '#020617', padding: '10px', borderRadius: '12px', border: '1px solid #1e293b' }}>
                   {pagamentosLancados.length === 0 ? (
-                    <div style={{ textAlign: 'center', color: '#475569', fontSize: '13px', padding: '20px 0' }}>{tx('Nenhum pagamento lançado.', 'Ningún pago.', 'No payments.')}</div>
+                    <div style={{ textAlign: 'center', color: '#475569', fontSize: '12px', padding: '15px 0' }}>{tx('Nenhum pagamento lançado.', 'Ningún pago.', 'No payments.')}</div>
                   ) : pagamentosLancados.map(p => (
-                    <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', fontSize: '14px', borderBottom: '1px solid #1e293b' }}>
+                    <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', fontSize: '13px', borderBottom: '1px solid #1e293b' }}>
                       <span style={{ color: '#cbd5e1', fontWeight: 600 }}>{p.icone} {p.rotulo}</span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                        <strong style={{ color: '#fff', fontSize: '15px' }}>{p.valorOriginal.toFixed(2)}</strong>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <strong style={{ color: '#fff', fontSize: '14px' }}>{p.valorOriginal.toFixed(2)}</strong>
                         <button onClick={() => setPagamentosLancados(pagamentosLancados.filter(x => x.id !== p.id))} style={{ color: '#f43f5e', backgroundColor: 'rgba(244, 63, 94, 0.1)', border: 'none', borderRadius: '6px', width: '24px', height: '24px', cursor: 'pointer', fontWeight: 900 }}>✕</button>
                       </div>
                     </div>
                   ))}
                 </div>
                 
-                <div style={{ display: 'flex', gap: '16px' }}>
-                  <button onClick={() => setModalFechamentoAberto(false)} style={{ flex: 1, padding: '16px', backgroundColor: '#020617', border: '1px solid #1e293b', color: '#cbd5e1', borderRadius: '12px', cursor: 'pointer', fontWeight: 800, fontSize: '14px' }}>{tx('Cancelar', 'Cancelar', 'Cancel')}</button>
-                  <button onClick={concluirVenda} disabled={!podeFinalizarVenda} style={{ flex: 2, padding: '16px', background: podeFinalizarVenda ? 'linear-gradient(135deg, #0284c7, #0369a1)' : '#1e293b', border: 'none', color: podeFinalizarVenda ? '#fff' : '#64748b', borderRadius: '12px', cursor: podeFinalizarVenda ? 'pointer' : 'not-allowed', fontWeight: 900, fontSize: '15px', boxShadow: podeFinalizarVenda ? '0 4px 15px rgba(2, 132, 199, 0.4)' : 'none' }}>{tx('Confirmar Pagamento e Finalizar', 'Finalizar Venta', 'Complete Sale')}</button>
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  <button onClick={() => setModalFechamentoAberto(false)} style={{ flex: 1, padding: '14px', backgroundColor: '#020617', border: '1px solid #1e293b', color: '#cbd5e1', borderRadius: '12px', cursor: 'pointer', fontWeight: 800, fontSize: '13px' }}>{tx('Cancelar', 'Cancelar', 'Cancel')}</button>
+                  <button onClick={concluirVenda} disabled={!podeFinalizarVenda} style={{ flex: 2, padding: '14px', background: podeFinalizarVenda ? 'linear-gradient(135deg, #0284c7, #0369a1)' : '#1e293b', border: 'none', color: podeFinalizarVenda ? '#fff' : '#64748b', borderRadius: '12px', cursor: podeFinalizarVenda ? 'pointer' : 'not-allowed', fontWeight: 900, fontSize: '14px', boxShadow: podeFinalizarVenda ? '0 4px 15px rgba(2, 132, 199, 0.4)' : 'none' }}>{tx('Confirmar e Finalizar', 'Finalizar', 'Complete Sale')}</button>
                 </div>
               </>
             )}
