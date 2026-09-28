@@ -1,21 +1,21 @@
 import React, { useState } from 'react';
 import { auth, db } from '../firebase';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 
 const LandingPage = () => {
-  const [view, setView] = useState('login');
+  const [view, setView] = useState('login'); // 'login' | 'register' | 'demo' | 'recovery'
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState(''); // NOVO: Estado para confirmar palavra-passe
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [storeName, setStoreName] = useState('');
   
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   
-  const [showPassword, setShowPassword] = useState(false); // NOVO: Estado para o "Olho"
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -30,7 +30,6 @@ const LandingPage = () => {
       } else if (view === 'register') {
         if (!storeName) throw new Error('Por favor, introduza o nome da loja.');
         
-        // NOVO: Validação de palavras-passe iguais
         if (password !== confirmPassword) {
            setErrorMsg('As palavras-passe não coincidem. Verifique e tente novamente.');
            setLoading(false);
@@ -50,7 +49,15 @@ const LandingPage = () => {
       } else if (view === 'demo') {
         setSuccessMsg('Pedido enviado com sucesso! Entraremos em contacto.');
         setEmail('');
-        setStoreName('');
+        storeName && setStoreName('');
+
+      } else if (view === 'recovery') {
+        if (!email || !email.includes('@')) {
+          throw new Error('Por favor, insira um e-mail válido para a recuperação.');
+        }
+        await sendPasswordResetEmail(auth, email);
+        setSuccessMsg('E-mail de recuperação enviado! Verifique a sua caixa de entrada e spam.');
+        setEmail('');
       }
     } catch (error) {
       console.error(error);
@@ -58,6 +65,8 @@ const LandingPage = () => {
         setErrorMsg('Credenciais inválidas. Verifique os seus dados.');
       } else if (error.code === 'auth/email-already-in-use') {
         setErrorMsg('Este e-mail já está em uso.');
+      } else if (error.code === 'auth/user-not-found') {
+        setErrorMsg('Não existe nenhuma conta associada a este e-mail.');
       } else {
         setErrorMsg(error.message || 'Ocorreu um erro. Tente novamente.');
       }
@@ -71,8 +80,8 @@ const LandingPage = () => {
     setErrorMsg('');
     setSuccessMsg('');
     setPassword('');
-    setConfirmPassword(''); // Limpa a confirmação ao mudar de aba
-    setShowPassword(false); // Oculta a passe ao mudar de aba
+    setConfirmPassword('');
+    setShowPassword(false);
   };
 
   return (
@@ -98,7 +107,7 @@ const LandingPage = () => {
           </div>
 
           <div style={styles.tabContainer}>
-            <button style={view === 'login' ? styles.activeTab : styles.tab} onClick={() => mudarAba('login')}>Acesso</button>
+            <button style={view === 'login' || view === 'recovery' ? styles.activeTab : styles.tab} onClick={() => mudarAba('login')}>Acesso</button>
             <button style={view === 'register' ? styles.activeTab : styles.tab} onClick={() => mudarAba('register')}>Criar Conta</button>
             <button style={view === 'demo' ? styles.activeTab : styles.tab} onClick={() => mudarAba('demo')}>Demo</button>
           </div>
@@ -108,11 +117,13 @@ const LandingPage = () => {
               {view === 'login' && 'Bem-vindo de volta'}
               {view === 'register' && 'Junte-se à Elite'}
               {view === 'demo' && 'Agendar Demonstração'}
+              {view === 'recovery' && 'Recuperar Senha'}
             </h2>
             <p style={styles.formSubtitle}>
               {view === 'login' && 'Introduza as suas credenciais para aceder ao sistema de gestão.'}
               {view === 'register' && 'Crie a sua conta e aguarde a aprovação da licença comercial.'}
               {view === 'demo' && 'Descubra como o ZenOS pode transformar os resultados da sua loja.'}
+              {view === 'recovery' && 'Introduza o seu e-mail cadastrado para receber o link de redefinição.'}
             </p>
 
             {errorMsg && <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.2)', border: '1px solid rgba(239, 68, 68, 0.5)', color: '#fca5a5', padding: '10px', borderRadius: '8px', fontSize: '13px', textAlign: 'center', marginBottom: '16px' }}>{errorMsg}</div>}
@@ -125,14 +136,13 @@ const LandingPage = () => {
               
               <input type="email" placeholder="E-mail profissional" style={styles.input} value={email} onChange={(e) => setEmail(e.target.value)} required />
               
-              {view !== 'demo' && (
+              {view !== 'demo' && view !== 'recovery' && (
                 <>
-                  {/* NOVO: Wrapper da Palavra-passe com o botão do olho */}
                   <div style={{ position: 'relative', width: '100%' }}>
                     <input 
                       type={showPassword ? "text" : "password"} 
                       placeholder="Palavra-passe" 
-                      style={{ ...styles.input, paddingRight: '45px' }} // Espaço extra à direita para o ícone
+                      style={{ ...styles.input, paddingRight: '45px' }}
                       value={password} 
                       onChange={(e) => setPassword(e.target.value)} 
                       required 
@@ -151,7 +161,6 @@ const LandingPage = () => {
                     </button>
                   </div>
 
-                  {/* NOVO: Campo de Confirmar Palavra-passe apenas na aba de Registo */}
                   {view === 'register' && (
                     <div style={{ position: 'relative', width: '100%' }}>
                       <input 
@@ -168,8 +177,33 @@ const LandingPage = () => {
               )}
               
               <button type="submit" style={styles.submitBtn} disabled={loading}>
-                {loading ? 'A processar...' : (view === 'login' ? 'Entrar no Sistema' : view === 'register' ? 'Solicitar Acesso' : 'Pedir Demonstração Gratuita')}
+                {loading ? 'A processar...' : (view === 'login' ? 'Entrar no Sistema' : view === 'register' ? 'Solicitar Acesso' : view === 'demo' ? 'Pedir Demonstração Gratuita' : 'Enviar Link de Recuperação')}
               </button>
+
+              {/* Botão secundário de transição para Recuperar Senha */}
+              {view === 'login' && (
+                <div style={{ textAlign: 'center', marginTop: '4px' }}>
+                  <button 
+                    type="button" 
+                    onClick={() => mudarAba('recovery')}
+                    style={styles.textLinkBtn}
+                  >
+                    Esqueceu a sua palavra-passe?
+                  </button>
+                </div>
+              )}
+
+              {view === 'recovery' && (
+                <div style={{ textAlign: 'center', marginTop: '4px' }}>
+                  <button 
+                    type="button" 
+                    onClick={() => mudarAba('login')}
+                    style={styles.textLinkBtn}
+                  >
+                    Lembrou-se da palavra-passe? Voltar ao Login
+                  </button>
+                </div>
+              )}
             </form>
           </div>
         </div>
@@ -212,9 +246,9 @@ const styles = {
   formSubtitle: { fontSize: 'clamp(12px, 1.5vh, 14px)', color: '#a3a3a3', marginBottom: 'clamp(16px, 3vh, 24px)', textAlign: 'center', lineHeight: '1.5' },
   form: { display: 'flex', flexDirection: 'column', gap: 'clamp(10px, 2vh, 16px)' },
   input: { width: '100%', height: 'clamp(44px, 6vh, 52px)', background: 'rgba(0, 0, 0, 0.6)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '12px', padding: '0 20px', color: '#ffffff', fontSize: '15px', outline: 'none', boxSizing: 'border-box', transition: 'border 0.3s' },
-  // NOVO: Estilo para o botão invisível do Olho
   eyeButton: { position: 'absolute', right: '15px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', padding: '0', display: 'flex', alignItems: 'center', justifyContent: 'center', outline: 'none' },
   submitBtn: { height: 'clamp(46px, 6.5vh, 54px)', background: 'linear-gradient(135deg, #0d9488 0%, #14b8a6 100%)', color: '#ffffff', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: '800', cursor: 'pointer', marginTop: 'clamp(4px, 1vh, 10px)', transition: 'all 0.3s', boxShadow: '0 8px 20px rgba(20, 184, 166, 0.3)' },
+  textLinkBtn: { background: 'transparent', border: 'none', color: '#14b8a6', fontSize: '12px', fontWeight: '700', cursor: 'pointer', textDecoration: 'underline', padding: '4px 0', marginTop: '4px' },
   featuresFooter: { width: '100%', zIndex: 10, padding: 'clamp(12px, 2.5vh, 20px)', display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0) 100%)' },
   featuresRow: { display: 'flex', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: 'clamp(10px, 2vw, 30px)', marginBottom: 'clamp(8px, 1.5vh, 16px)' },
   featureItem: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', minWidth: '80px' },
