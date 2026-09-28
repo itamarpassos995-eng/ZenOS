@@ -568,7 +568,7 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
                 </div>
                 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '10px', marginBottom: '16px' }}>
-                  <select 
+                 <select 
                     value={formaSelecionada} 
                     onChange={e => {
                       const novaForma = e.target.value;
@@ -579,13 +579,11 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
                     }} 
                     style={{ padding: '14px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '12px', color: '#f8fafc', fontSize: '14px', fontWeight: 800, outline: 'none', cursor: 'pointer', width: '100%', boxSizing: 'border-box' }}
                   >
-                    <option value="dinheiro_brl">💵 Dinheiro (R$)</option>
-                    <option value="dinheiro_usd">💵 Dólar ($)</option>
-                    <option value="dinheiro_pyg">💵 Guarani (₲)</option>
-                    <option value="pix">⚡ Pix QR Code</option>
-                    <option value="cartaoCredito">💳 Cartão Crédito</option>
-                    <option value="cartaoDebito">💳 Cartão Débito</option>
-                    <option value="crediario">📒 Fiado / Crediário</option>
+                    {catalogoFormas.map(f => (
+                      <option key={f.id} value={f.id}>
+                        {f.icone} {f.rotulo}
+                      </option>
+                    ))}
                   </select>
                   
                   <input 
