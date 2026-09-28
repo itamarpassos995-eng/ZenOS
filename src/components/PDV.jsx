@@ -109,15 +109,6 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
     setModalProdutoPDVAberto(true);
   };
 
-  const lidarUploadImagemPDV = (e) => {
-    const arquivo = e.target.files?.[0];
-    if (arquivo) {
-      const reader = new FileReader();
-      reader.onloadend = () => setFormProdutoPDV(prev => ({ ...prev, imagem: reader.result }));
-      reader.readAsDataURL(arquivo);
-    }
-  };
-
   const salvarProdutoPDV = () => {
     if (!formProdutoPDV.nome.trim()) return alert(tx('Informe o nome do produto.', 'Informe el nombre del producto.', 'Enter product name.'));
     const custo = parseFloat(String(formProdutoPDV.custoBRL).replace(',', '.')) || 0;
@@ -155,34 +146,24 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
     const qtdNum = Math.max(1, parseInt(qtdDigitadaRapida) || 1);
     const precoBase = aplicarPrecoPorPerfilCliente(itemParaAdicionar, clienteSelecionadoPDV);
 
-    const indiceExistente = itensVenda.findIndex(i => 
-      i.nome === itemParaAdicionar.nome && 
-      i.sku === itemParaAdicionar.sku
-    );
+    const indiceExistente = itensVenda.findIndex(i => i.nome === itemParaAdicionar.nome && i.sku === itemParaAdicionar.sku);
 
     if (indiceExistente !== -1) {
       const novaLista = [...itensVenda];
       const qtdAtual = parseInt(novaLista[indiceExistente].qtd) || 0;
-      novaLista[indiceExistente] = { 
-        ...novaLista[indiceExistente], 
-        qtd: String(qtdAtual + qtdNum) 
-      };
+      novaLista[indiceExistente] = { ...novaLista[indiceExistente], qtd: String(qtdAtual + qtdNum) };
       setItensVenda(novaLista);
     } else {
-      setItensVenda([
-        ...itensVenda, 
-        { 
-          ...itemParaAdicionar, 
-          id: `${itemParaAdicionar.id}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-          produtoOriginalId: itemParaAdicionar.id,
-          qtd: String(qtdNum), 
-          precoPraticadoBRL: precoBase, 
-          precoTexto: converterDeBRL(precoBase, moeda).toFixed(2) 
-        }
-      ]);
+      setItensVenda([ ...itensVenda, { 
+        ...itemParaAdicionar, 
+        id: `${itemParaAdicionar.id}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        produtoOriginalId: itemParaAdicionar.id,
+        qtd: String(qtdNum), 
+        precoPraticadoBRL: precoBase, 
+        precoTexto: converterDeBRL(precoBase, moeda).toFixed(2) 
+      }]);
     }
-    setItemParaAdicionar(null); 
-    setTermoBusca(''); 
+    setItemParaAdicionar(null); setTermoBusca(''); 
     if (inputBuscaRef.current) inputBuscaRef.current.focus();
   };
 
@@ -190,30 +171,38 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
   const atualizarQtd = (id, valor) => { setItensVenda(itensVenda.map(item => item.id === id ? { ...item, qtd: valor } : item)); };
   const lidarDigitacaoPreco = (id, valorDigitado) => { setItensVenda(itensVenda.map(item => item.id === id ? { ...item, precoTexto: valorDigitado, precoPraticadoBRL: converterParaBRL(parseFloat(valorDigitado.replace(',', '.')) || 0, moeda) } : item)); };
 
+  // CÁLCULOS MATEMÁTICOS PARA MARGEM REAL
   const subtotalBrutoBRL = itensVenda.reduce((acc, item) => acc + (Math.max(0, parseInt(item.qtd) || 0) * (item.precoPraticadoBRL || 0)), 0);
   const custoTotalBRL = itensVenda.reduce((acc, item) => acc + (Math.max(0, parseInt(item.qtd) || 0) * (item.custoBRL || 0)), 0);
   const descBRL = converterParaBRL(parseFloat(String(descontoTexto).replace(',', '.')) || 0, moeda);
+  
   const totalFinalBRL = Math.max(0, subtotalBrutoBRL - descBRL);
   const lucroEstimadoBRL = totalFinalBRL - custoTotalBRL;
   
-  // 🛡️ LÓGICA DO SEMÁFORO DE DESCONTO BASEADO NAS REGRAS DEFINIDAS PELO LOJISTA
-  const regras = regrasDesconto || { verdeMax: 5, amareloMax: 12, exigirSenhaVermelho: true, senhaGerente: '1234' };
-  const percentualDesconto = subtotalBrutoBRL > 0 ? (descBRL / subtotalBrutoBRL) * 100 : 0;
+  // A MÁGICA ESTÁ AQUI: Avalia o Lucro Real versus o Faturamento Real
+  const margemLucroReal = totalFinalBRL > 0 ? (lucroEstimadoBRL / totalFinalBRL) * 100 : 0;
+
+  // 🛡️ LÓGICA DO SEMÁFORO BASEADO NA MARGEM REAL
+  const regras = regrasDesconto || {};
+  const margemIdeal = regras.margemIdeal ?? 30; // Padrão: Acima de 30% é Verde
+  const margemMinima = regras.margemMinima ?? 15; // Padrão: Abaixo de 15% é Vermelho
 
   let corSemafaro = '#34d399'; let bgSemafaro = 'rgba(16, 185, 129, 0.1)'; let borderSemafaro = 'rgba(16, 185, 129, 0.3)';
-  let textoSemafaro = tx(`🟢 Venda Liberada (Livre até ${regras.verdeMax}%)`, `🟢 Venta Liberada`, `🟢 Sale Approved`); 
+  let textoSemafaro = tx(`🟢 Margem Saudável (> ${margemIdeal}%)`, `🟢 Margen Saludable`, `🟢 Healthy Margin`); 
   let vendaBloqueadaPorMargem = false;
 
-  if (totalFinalBRL > 0 && percentualDesconto > 0) {
-    if (percentualDesconto > regras.amareloMax) { 
+  if (itensVenda.length > 0 && totalFinalBRL > 0) {
+    if (margemLucroReal < margemMinima) { 
       corSemafaro = '#fb7185'; bgSemafaro = 'rgba(244, 63, 94, 0.15)'; borderSemafaro = 'rgba(244, 63, 94, 0.4)'; 
-      textoSemafaro = tx(`🔴 Requer Autorização (> ${regras.amareloMax}%)`, `🔴 Requiere Autorización`, `🔴 Needs Authorization`); 
+      textoSemafaro = tx(`🔴 Margem Crítica / Prejuízo (< ${margemMinima}%)`, `🔴 Margen Crítico`, `🔴 Critical Margin`); 
       if (patenteUsuario !== 'gerencia') vendaBloqueadaPorMargem = true; 
     } 
-    else if (percentualDesconto > regras.verdeMax) { 
+    else if (margemLucroReal < margemIdeal) { 
       corSemafaro = '#fbbf24'; bgSemafaro = 'rgba(245, 158, 11, 0.15)'; borderSemafaro = 'rgba(245, 158, 11, 0.4)'; 
-      textoSemafaro = tx(`🟡 Alerta de Desconto (> ${regras.verdeMax}%)`, `🟡 Alerta de Descuento`, `🟡 Discount Alert`); 
+      textoSemafaro = tx(`🟡 Margem Baixa/Em Alerta (< ${margemIdeal}%)`, `🟡 Alerta de Margen`, `🟡 Margin Alert`); 
     }
+  } else if (itensVenda.length === 0) {
+    textoSemafaro = tx(`🟢 Aguardando Produtos...`, `🟢 Esperando Productos...`, `🟢 Waiting for Products...`);
   }
 
   const catalogoFormas = [
@@ -235,19 +224,19 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
   const podeFinalizarVenda = totalFinalBRL > 0 && totalPagoConvertidoBRL >= (totalFinalBRL - 0.01);
 
   const abrirFechamento = () => {
-    // 🛡️ APLICAÇÃO DA SENHA DE GERÊNCIA NO BLOQUEIO
+    // 🛡️ APLICAÇÃO DA SENHA DE GERÊNCIA NO BLOQUEIO DE MARGEM
     if (vendaBloqueadaPorMargem) {
-      if (regras?.exigirSenhaVermelho) {
+      if (regras?.exigirSenhaVermelho ?? true) {
         const senhaDigitada = window.prompt(tx(
-          '🔴 Desconto acima do limite permitido!\nInsira a Senha da Gerência para liberar a venda:', 
-          '🔴 ¡Descuento por encima del límite!\nIngrese la Contraseña de Gerencia:', 
-          '🔴 Discount above limit!\nEnter Manager Password:'
+          `🔴 A margem de lucro caiu para ${margemLucroReal.toFixed(1)}% (Mínimo exigido: ${margemMinima}%).\nInsira a Senha da Gerência para liberar a venda:`, 
+          `🔴 ¡Margen por debajo del límite!\nIngrese la Contraseña de Gerencia:`, 
+          `🔴 Margin below limit!\nEnter Manager Password:`
         ));
-        if (senhaDigitada !== regras.senhaGerente) {
+        if (senhaDigitada !== (regras?.senhaGerente ?? '1234')) {
           return alert(tx('⛔ Senha incorreta! Venda bloqueada.', '⛔ ¡Contraseña incorrecta!', '⛔ Wrong password!'));
         }
       } else {
-        return alert(tx('⛔ Venda bloqueada!\nO desconto excedeu o limite máximo.', '⛔ ¡Venta bloqueada!', '⛔ Sale blocked!'));
+        return alert(tx(`⛔ Venda bloqueada!\nA margem de lucro (${margemLucroReal.toFixed(1)}%) está abaixo do mínimo exigido.`, '⛔ ¡Venta bloqueada!', '⛔ Sale blocked!'));
       }
     }
     
@@ -453,7 +442,7 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
         </div>
 
         <div style={{ backgroundColor: bgSemafaro, border: `1px solid ${borderSemafaro}`, borderRadius: '16px', padding: '20px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 800, color: corSemafaro, textTransform: 'uppercase', marginBottom: '4px' }}>{tx('Semáforo de Desconto', 'Semáforo de Descuento', 'Discount Light')}</div>
+          <div style={{ fontSize: '11px', fontWeight: 800, color: corSemafaro, textTransform: 'uppercase', marginBottom: '4px' }}>{tx('Semáforo de Lucratividade', 'Semáforo de Rentabilidad', 'Profitability Light')}</div>
           <div style={{ fontSize: '13px', fontWeight: 800, color: corSemafaro }}>{textoSemafaro}</div>
         </div>
 
