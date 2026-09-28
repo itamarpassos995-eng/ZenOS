@@ -21,31 +21,44 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
     setSelTudo(val); setSelProdutos(val); setSelClientes(val); setSelVendas(val); setSelCaixa(val); setSelDespesas(val);
   };
 
+  // 🛡️ AQUI ESTAVA O ERRO DA TELA PRETA (ESTADOS QUE FALTAVAM)
   const [novoVendedorNome, setNovoVendedorNome] = useState('');
-  const [novoVendedorPercentual, setNovoVendedorPercentual] = useState('5');
+  const [novoVendedorCargo, setNovoVendedorCargo] = useState('');
   const [novoVendedorSenha, setNovoVendedorSenha] = useState('');
-  const [novoVendedorPatente, setNovoVendedorPatente] = useState('vendedor');
+  const [novoVendedorPercentual, setNovoVendedorPercentual] = useState('');
+  const [novoVendedorPermissoes, setNovoVendedorPermissoes] = useState({
+    admin: false, pdv: true, produtos: false, clientes: false, vendas: false, caixa: false, despesas: false, mesas: false, inteligencia: false
+  });
 
   const adicionarVendedor = () => {
-    if (!novoVendedorNome.trim() || !novoVendedorSenha.trim()) return alert('Informe o nome e a senha do vendedor.');
+    if (!novoVendedorNome.trim() || !novoVendedorSenha.trim()) return alert('Informe o nome e a senha (PIN) do operador.');
+    
     const nv = { 
-      id: Date.now(), 
+      id: Date.now().toString(), 
       nome: novoVendedorNome.trim(), 
+      cargo: novoVendedorCargo.trim() || 'Operador',
+      senha: novoVendedorSenha.trim(),
       comissaoTipo: 'venda', 
       percentual: parseFloat(novoVendedorPercentual) || 0,
-      senha: novoVendedorSenha.trim(),
-      patente: novoVendedorPatente
+      permissoes: novoVendedorPermissoes
     };
-    setVendedores([...vendedores, nv]);
+
+    if (setVendedores) setVendedores([...(vendedores || []), nv]);
+    
+    // Limpar o formulário após salvar
     setNovoVendedorNome('');
+    setNovoVendedorCargo('');
     setNovoVendedorSenha('');
-    alert('Vendedor adicionado com sucesso!');
+    setNovoVendedorPercentual('');
+    setNovoVendedorPermissoes({ admin: false, pdv: true, produtos: false, clientes: false, vendas: false, caixa: false, despesas: false, mesas: false, inteligencia: false });
+    
+    alert('Utilizador adicionado com sucesso!');
   };
 
   const removerVendedor = (idParaRemover) => {
-    if (vendedores.length <= 1) return alert('Você não pode excluir o último utilizador do sistema.');
-    if(window.confirm('Tem a certeza que deseja excluir este vendedor?')) {
-      setVendedores(vendedores.filter(v => v.id !== idParaRemover));
+    if (!vendedores || vendedores.length <= 1) return alert('Você não pode excluir o último utilizador do sistema.');
+    if(window.confirm('Tem a certeza que deseja excluir este utilizador?')) {
+      if (setVendedores) setVendedores(vendedores.filter(v => String(v.id) !== String(idParaRemover)));
     }
   };
 
@@ -76,7 +89,7 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
   };
 
   const lidarComMudancaRegra = (campo, valor) => {
-    setRegrasDesconto(prev => ({ ...prev, [campo]: valor }));
+    if(setRegrasDesconto) setRegrasDesconto(prev => ({ ...prev, [campo]: valor }));
   };
 
   return (
@@ -86,6 +99,7 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
         <span style={{ fontSize: '13px', color: '#64748b' }}>Gestão de equipa, rentabilidade e segurança</span>
       </div>
 
+      {/* 🛡️ SEMÁFORO DE LUCRATIVIDADE DA VENDA */}
       <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{ fontSize: '20px' }}>🚥</span>
@@ -107,6 +121,7 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
               />
               <span style={{ color: '#cbd5e1', fontSize: '13px' }}>%</span>
             </div>
+            <span style={{ display: 'block', color: '#64748b', fontSize: '10px', marginTop: '8px' }}>Lucro excelente. O PDV liberta a venda sem alertas.</span>
           </div>
 
           <div style={{ backgroundColor: '#2b1704', border: '1px solid rgba(245,158,11,0.3)', padding: '16px', borderRadius: '12px' }}>
@@ -120,6 +135,7 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
               />
               <span style={{ color: '#cbd5e1', fontSize: '13px' }}>%</span>
             </div>
+            <span style={{ display: 'block', color: '#64748b', fontSize: '10px', marginTop: '8px' }}>Avisa o vendedor que o lucro final está a ficar baixo.</span>
           </div>
 
           <div style={{ backgroundColor: '#2e0a16', border: '1px solid rgba(225,29,72,0.3)', padding: '16px', borderRadius: '12px' }}>
@@ -149,7 +165,7 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
         </div>
       </div>
 
-     {/* 🛡️ GESTÃO DE EQUIPA E PERMISSÕES GRANULARES (RBAC) */}
+      {/* 🛡️ GESTÃO DE EQUIPA E PERMISSÕES GRANULARES (RBAC) */}
       <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{ fontSize: '20px' }}>🔐</span><h3 style={{ fontSize: '18px', fontWeight: 900, color: '#fff', margin: 0 }}>Gestão de Equipa e Controlo de Acessos</h3>
@@ -219,7 +235,6 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
                 <input type="checkbox" disabled={novoVendedorPermissoes.admin} checked={novoVendedorPermissoes.admin || novoVendedorPermissoes.inteligencia} onChange={e => setNovoVendedorPermissoes({...novoVendedorPermissoes, inteligencia: e.target.checked})} style={{ width: '16px', height: '16px', accentColor: '#a855f7' }} />
                 📊 Painel Executivo / Dashboard
               </label>
-
             </div>
           </div>
           <button onClick={adicionarVendedor} type="button" style={{ backgroundColor: '#4f46e5', border: 'none', color: '#fff', padding: '14px', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', fontSize: '14px', boxShadow: '0 4px 15px rgba(79, 70, 229, 0.3)' }}>+ Adicionar Utilizador ao Sistema</button>
@@ -227,13 +242,13 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
 
         {/* LISTA DE UTILIZADORES */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>Utilizadores Cadastrados ({vendedores.length})</span>
-          {vendedores.map(v => (
+          <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>Utilizadores Cadastrados ({vendedores?.length || 0})</span>
+          {vendedores?.map(v => (
             <div key={v.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#020617', padding: '16px', borderRadius: '12px', border: '1px solid #1e293b', flexWrap: 'wrap', gap: '10px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ color: '#f8fafc', fontWeight: 900, fontSize: '15px' }}>{v.nome}</span>
-                  <span style={{ fontSize: '10px', backgroundColor: v.permissoes?.admin ? 'rgba(244, 63, 94, 0.2)' : 'rgba(56, 189, 248, 0.2)', color: v.permissoes?.admin ? '#fb7185' : '#38bdf8', padding: '2px 8px', borderRadius: '6px', fontWeight: 800 }}>{v.cargo}</span>
+                  <span style={{ fontSize: '10px', backgroundColor: v.permissoes?.admin ? 'rgba(244, 63, 94, 0.2)' : 'rgba(56, 189, 248, 0.2)', color: v.permissoes?.admin ? '#fb7185' : '#38bdf8', padding: '2px 8px', borderRadius: '6px', fontWeight: 800 }}>{v.cargo || 'Operador'}</span>
                 </div>
                 <span style={{ fontSize: '11px', color: '#94a3b8' }}>PIN: <strong style={{ color: '#fff' }}>{v.senha}</strong> • Comissão: <strong style={{ color: '#34d399' }}>{v.percentual}%</strong></span>
               </div>
@@ -242,6 +257,8 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
           ))}
         </div>
       </div>
+
+      {/* ZONA DE PERIGO */}
       <div style={{ backgroundColor: '#2e0a16', border: '1px solid rgba(244, 63, 94, 0.4)', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{ fontSize: '20px' }}>⚠️</span><h3 style={{ fontSize: '18px', fontWeight: 900, color: '#fb7185', margin: 0 }}>Zona de Perigo • Limpeza</h3>
