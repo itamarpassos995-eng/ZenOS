@@ -261,8 +261,15 @@ export default function App() {
     }
   };
 
-  const trocarOperador = () => {
+ const trocarOperador = () => {
     setOperadorAtivo(null);
+    setEcraAtual('hub'); // 🛡️ FORÇA VOLTAR AO PAINEL INICIAL
+    setMostrarPainelExecutivo(false); // Esconde painéis abertos do gerente anterior
+  };
+  const processarLoginOperador = (operador) => {
+    setOperadorAtivo(operador);
+    setEcraAtual('hub'); // 🛡️ GARANTE QUE ENTRA SEMPRE PELA PORTA DA FRENTE
+    setMostrarPainelExecutivo(false); // Reseta a vista financeira
   };
 
   useEffect(() => { 
@@ -412,11 +419,11 @@ export default function App() {
   }
 
   // 🛡️ BLOQUEIA A LOJA SE NINGUÉM ESTIVER LOGADO NO TERMINAL (SUB-LOGIN)
-  if (statusLoja === 'ativo' && !operadorAtivo) {
+ if (statusLoja === 'ativo' && !operadorAtivo) {
     return (
       <TerminalLogin 
         vendedores={vendedores} 
-        onLoginSuccess={(operador) => setOperadorAtivo(operador)} 
+        onLoginSuccess={processarLoginOperador} 
         onSairLoja={fazerLogout} 
       />
     );
