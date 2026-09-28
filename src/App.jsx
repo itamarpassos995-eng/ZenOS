@@ -39,6 +39,7 @@ export default function App() {
 
   const [modalPlanosAberto, setModalPlanosAberto] = useState(false);
   const [demoSolicitada, setDemoSolicitada] = useState(false);
+  const [cicloPlano, setCicloPlano] = useState('anual'); // 'mensal' ou 'anual'
 
   const [ecraAtual, setEcraAtual] = useState('hub');
   const [menuNavAberto, setMenuNavAberto] = useState(false);
@@ -68,6 +69,7 @@ export default function App() {
         status: 'pendente_analise'
       }, { merge: true });
       setDemoSolicitada(true);
+      alert('Solicitação de teste enviada com sucesso! A equipa comercial irá aprovar o seu acesso.');
     } catch (err) {
       console.error("Erro ao solicitar demo:", err);
       alert(tx('Erro ao enviar solicitação. Tente novamente.', 'Error al enviar solicitud.', 'Error sending request.'));
@@ -81,9 +83,28 @@ export default function App() {
         setUsuarioAutenticado(user.email);
         
         try {
-          const docSnap = await getDoc(doc(db, "lojas", user.uid));
+          const docRef = doc(db, "lojas", user.uid);
+          const docSnap = await getDoc(docRef);
+          
           if (docSnap.exists()) {
-            setStatusLoja(docSnap.data().status);
+            const dadosLoja = docSnap.data();
+            let status = dadosLoja.status || 'aguardando_pagamento';
+            
+            // AUTOMACAO DE TESTE GRATIS DE 7 DIAS
+            const dataCriacaoStr = dadosLoja.dataCriacao || dadosLoja.createdAt || new Date().toISOString();
+            const dataCriacao = new Date(dataCriacaoStr);
+            const agora = new Date();
+            const diffDias = (agora - dataCriacao) / (1000 * 60 * 60 * 24);
+
+            if (status === 'aguardando_pagamento' && diffDias <= 7) {
+              status = 'ativo'; // Liberta automaticamente o teste de 7 dias
+            }
+            setStatusLoja(status);
+          } else {
+            // Se a loja não tem doc, cria com 7 dias de teste automático
+            const novaDataCriacao = new Date().toISOString();
+            await setDoc(docRef, { email: user.email, status: 'ativo', dataCriacao: novaDataCriacao }, { merge: true });
+            setStatusLoja('ativo');
           }
 
           const dadosLojaSnap = await getDoc(doc(db, "lojas", user.uid, "dados", "operacao"));
@@ -97,6 +118,7 @@ export default function App() {
           }
         } catch (err) {
           console.error("Erro ao carregar dados da nuvem:", err);
+          setStatusLoja('ativo'); // Fallback seguro para não travar o lojista
         }
       } else {
         setUsuarioAutenticado(null);
@@ -266,20 +288,20 @@ export default function App() {
             <div style={{ width: '100%', display: 'flex', justifyContent: 'center', marginBottom: 'clamp(20px, 3vh, 30px)' }}>
               <img src="/logo-zenos.png?v=4" alt="ZenOS Logo Oficial" style={{ width: '100%', maxWidth: '180px', height: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.6))' }} />
             </div>
-            <h2 style={{ color: '#fbbf24', fontSize: 'clamp(20px, 3vh, 24px)', fontWeight: 900, margin: '0 0 12px 0' }}>Licença Pendente</h2>
+            <h2 style={{ color: '#fbbf24', fontSize: 'clamp(20px, 3vh, 24px)', fontWeight: 900, margin: '0 0 12px 0' }}>Licença Pendente / Teste Expirado</h2>
             <p style={{ color: '#a3a3a3', fontSize: 'clamp(13px, 1.5vh, 14px)', marginBottom: '24px', lineHeight: '1.6' }}>
-              A conta da sua loja foi criada com sucesso, mas o acesso ao terminal ZenOS encontra-se temporariamente bloqueado a aguardar a ativação do plano.
+              O seu período de teste gratuito de 7 dias terminou ou a licença da loja aguarda ativação. Escolha um plano para desbloquear o terminal ZenOS de imediato.
             </p>
             <div style={{ backgroundColor: 'rgba(0,0,0,0.5)', padding: '20px', borderRadius: '12px', width: '100%', marginBottom: '24px', border: '1px solid rgba(255,255,255,0.05)', boxSizing: 'border-box' }}>
-              <p style={{ color: '#e5e5e5', fontSize: '13px', margin: '0 0 8px 0', fontWeight: 700 }}>Escolha como deseja prosseguir:</p>
-              <p style={{ color: '#14b8a6', fontSize: '16px', fontWeight: 900, margin: '0 0 12px 0', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>Ativação do ZenOS</p>
-              <p style={{ color: '#888', fontSize: '12px', margin: 0, lineHeight: '1.5' }}>Assim que os nossos administradores confirmarem a adesão a um plano ou aprovarem o seu teste, o painel será desbloqueado de imediato e de forma automática no seu ecrã.</p>
+              <p style={{ color: '#e5e5e5', fontSize: '13px', margin: '0 0 8px 0', fontWeight: 700 }}>Ativação Instantânea:</p>
+              <p style={{ color: '#14b8a6', fontSize: '15px', fontWeight: 900, margin: '0 0 8px 0' }}>ZenOS Cloud SaaS Enterprise</p>
+              <p style={{ color: '#888', fontSize: '12px', margin: 0, lineHeight: '1.5' }}>Aceda a relatórios avançados, gestão de filiais em tempo real e suporte prioritário.</p>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
               <button onClick={() => setModalPlanosAberto(true)} style={{ background: 'linear-gradient(135deg, #0d9488 0%, #14b8a6 100%)', border: 'none', color: '#ffffff', padding: '14px 24px', borderRadius: '12px', fontSize: '14px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.3s', width: '100%', boxShadow: '0 4px 15px rgba(20, 184, 166, 0.3)' }}>Ver Opções de Planos</button>
               
               <button onClick={solicitarDemoFirebase} disabled={demoSolicitada} style={{ background: demoSolicitada ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.05)', border: `1px solid ${demoSolicitada ? '#10b981' : 'rgba(255, 255, 255, 0.15)'}`, color: demoSolicitada ? '#34d399' : '#ffffff', padding: '14px 24px', borderRadius: '12px', fontSize: '14px', fontWeight: 800, cursor: demoSolicitada ? 'default' : 'pointer', transition: 'all 0.3s', width: '100%' }}>
-                {demoSolicitada ? '✓ Solicitação de Demo Enviada!' : 'Solicitar Teste Grátis (Demo)'}
+                {demoSolicitada ? '✓ Solicitação de Demo Enviada!' : 'Solicitar Extensão de Teste'}
               </button>
 
               <button onClick={fazerLogout} style={{ background: 'transparent', border: '1px solid rgba(244, 63, 94, 0.3)', color: '#fb7185', padding: '14px 24px', borderRadius: '12px', fontSize: '14px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.3s', width: '100%', marginTop: '6px' }}>Sair e Voltar mais tarde</button>
@@ -287,47 +309,101 @@ export default function App() {
           </div>
         </div>
 
-        {/* MODAL DE PLANOS */}
+        {/* MODAL DE PLANOS PROFISSIONAL SUPERCHARGED (INSPIRADO NOS MELHORES SAAS) */}
         {modalPlanosAberto && (
-          <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.9)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-            <div style={{ backgroundColor: '#0b1120', border: '1px solid #14b8a6', borderRadius: '24px', width: '100%', maxWidth: '650px', maxHeight: '90vh', overflowY: 'auto', padding: '32px', color: '#fff', boxSizing: 'border-box' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+          <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.9)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px', boxSizing: 'border-box' }}>
+            <div style={{ backgroundColor: '#0b1120', border: '1px solid #14b8a6', borderRadius: '24px', width: '100%', maxWidth: '900px', maxHeight: '92vh', overflowY: 'auto', padding: '32px', color: '#fff', boxSizing: 'border-box' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
                 <div>
-                  <span style={{ fontSize: '11px', fontWeight: 900, color: '#14b8a6', letterSpacing: '1px', textTransform: 'uppercase' }}>ZenOS Cloud SaaS</span>
-                  <h3 style={{ fontSize: '22px', fontWeight: 900, margin: '2px 0 0 0' }}>Escolha o Plano Ideal para a sua Loja</h3>
+                  <span style={{ fontSize: '11px', fontWeight: 900, color: '#14b8a6', letterSpacing: '1px', textTransform: 'uppercase' }}>ZenOS Cloud SaaS Enterprise</span>
+                  <h3 style={{ fontSize: '24px', fontWeight: 900, margin: '2px 0 0 0' }}>Escolha o Plano Ideal para o seu Negócio</h3>
+                </div>
+                <div style={{ display: 'flex', backgroundColor: '#020617', padding: '4px', borderRadius: '12px', border: '1px solid #1e293b' }}>
+                  <button onClick={() => setCicloPlano('mensal')} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', backgroundColor: cicloPlano === 'mensal' ? '#14b8a6' : 'transparent', color: cicloPlano === 'mensal' ? '#000' : '#94a3b8', fontWeight: 900, fontSize: '12px', cursor: 'pointer' }}>Mensal</button>
+                  <button onClick={() => setCicloPlano('anual')} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', backgroundColor: cicloPlano === 'anual' ? '#14b8a6' : 'transparent', color: cicloPlano === 'anual' ? '#000' : '#94a3b8', fontWeight: 900, fontSize: '12px', cursor: 'pointer' }}>Anual (-20% OFF)</button>
                 </div>
                 <button onClick={() => setModalPlanosAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#64748b', width: '36px', height: '36px', borderRadius: '10px', cursor: 'pointer', fontWeight: 900 }}>✕</button>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px', marginBottom: '24px' }}>
-                <div style={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* GRID DE PLANOS */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+                
+                {/* PLANO BÁSICO */}
+                <div style={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '20px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   <div>
-                    <h4 style={{ fontSize: '16px', fontWeight: 900, color: '#38bdf8', margin: '0 0 4px 0' }}>Plano Essencial</h4>
-                    <div style={{ fontSize: '24px', fontWeight: 900, color: '#fff' }}>R$ 149<span style={{ fontSize: '12px', color: '#64748b', fontWeight: 500 }}>/mês</span></div>
+                    <h4 style={{ fontSize: '15px', fontWeight: 900, color: '#38bdf8', margin: '0 0 4px 0' }}>Básico</h4>
+                    <div style={{ fontSize: '22px', fontWeight: 900, color: '#fff' }}>
+                      {cicloPlano === 'anual' ? 'R$ 28,48' : 'R$ 35,00'}<span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>/mês</span>
+                    </div>
+                    <span style={{ fontSize: '10px', color: '#64748b' }}>{cicloPlano === 'anual' ? 'Cobrado anualmente' : 'Sem fidelidade'}</span>
                   </div>
-                  <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '13px', color: '#cbd5e1', lineHeight: '1.8', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <li>PDV Balcão Completo</li>
-                    <li>Controle de Estoque e Catálogo</li>
-                    <li>Gestão de Caixa e Fechamento Cego</li>
-                    <li>Até 2 Operadores Simultâneos</li>
+                  <ul style={{ margin: 0, paddingLeft: '14px', fontSize: '12px', color: '#cbd5e1', lineHeight: '1.6', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <li>Até 100 Clientes</li>
+                    <li>Até 500 Produtos</li>
+                    <li>Controle de Vendas e Estoque</li>
+                    <li>Frente de Caixa PDV</li>
+                    <li>3 Usuários / Vendedores</li>
                   </ul>
-                  <button onClick={() => alert('Para ativar o Plano Essencial, entre em contacto com o suporte ZenOS.')} style={{ width: '100%', padding: '12px', background: '#0284c7', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', marginTop: 'auto' }}>Selecionar Essencial</button>
+                  <button onClick={() => alert('Para ativar o Plano Básico, contacte o suporte comercial ZenOS.')} style={{ width: '100%', padding: '10px', background: '#0284c7', border: 'none', color: '#fff', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', marginTop: 'auto', fontSize: '12px' }}>Selecionar Básico</button>
                 </div>
 
-                <div style={{ background: 'linear-gradient(135deg, rgba(13, 148, 136, 0.15), rgba(2, 6, 23, 0.8))', border: '1px solid #14b8a6', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 10px 30px rgba(20, 184, 166, 0.15)' }}>
+                {/* PLANO ESSENCIAL (MAIS POPULAR) */}
+                <div style={{ background: 'linear-gradient(135deg, rgba(13, 148, 136, 0.15), rgba(2, 6, 23, 0.9))', border: '1px solid #14b8a6', borderRadius: '20px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 10px 30px rgba(20, 184, 166, 0.15)', position: 'relative' }}>
+                  <div style={{ position: 'absolute', top: '-10px', right: '16px', backgroundColor: '#14b8a6', color: '#000', fontSize: '9px', fontWeight: 900, padding: '2px 8px', borderRadius: '999px', textTransform: 'uppercase' }}>Mais Popular</div>
                   <div>
-                    <span style={{ backgroundColor: '#14b8a6', color: '#000', fontSize: '10px', fontWeight: 900, padding: '2px 8px', borderRadius: '999px', textTransform: 'uppercase' }}>Mais Popular</span>
-                    <h4 style={{ fontSize: '16px', fontWeight: 900, color: '#14b8a6', margin: '6px 0 4px 0' }}>Plano Multi-Filiais</h4>
-                    <div style={{ fontSize: '24px', fontWeight: 900, color: '#fff' }}>R$ 299<span style={{ fontSize: '12px', color: '#64748b', fontWeight: 500 }}>/mês</span></div>
+                    <h4 style={{ fontSize: '15px', fontWeight: 900, color: '#14b8a6', margin: '0 0 4px 0' }}>Essencial</h4>
+                    <div style={{ fontSize: '22px', fontWeight: 900, color: '#fff' }}>
+                      {cicloPlano === 'anual' ? 'R$ 33,57' : 'R$ 44,90'}<span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>/mês</span>
+                    </div>
+                    <span style={{ fontSize: '10px', color: '#64748b' }}>{cicloPlano === 'anual' ? 'Cobrado anualmente' : 'Sem fidelidade'}</span>
                   </div>
-                  <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '13px', color: '#cbd5e1', lineHeight: '1.8', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <li>Tudo do Plano Essencial</li>
-                    <li>Gestão de Múltiplas Filiais / Lojas</li>
-                    <li>Painel Executivo e App Mobile (CEO)</li>
-                    <li>Suporte Prioritário 24/7</li>
+                  <ul style={{ margin: 0, paddingLeft: '14px', fontSize: '12px', color: '#cbd5e1', lineHeight: '1.6', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <li>Clientes Ilimitados</li>
+                    <li>Até 2.000 Produtos</li>
+                    <li>Catálogo Digital Grátis</li>
+                    <li>Contagem e Inventário</li>
+                    <li>Contas a Pagar e Receber</li>
+                    <li>5 Usuários / Vendedores</li>
                   </ul>
-                  <button onClick={() => alert('Para ativar o Plano Multi-Filiais, entre em contacto com o suporte ZenOS.')} style={{ width: '100%', padding: '12px', background: 'linear-gradient(135deg, #0d9488, #14b8a6)', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', marginTop: 'auto', boxShadow: '0 4px 15px rgba(20,184,166,0.3)' }}>Selecionar Multi-Filiais</button>
+                  <button onClick={() => alert('Para ativar o Plano Essencial, contacte o suporte comercial ZenOS.')} style={{ width: '100%', padding: '10px', background: 'linear-gradient(135deg, #0d9488, #14b8a6)', border: 'none', color: '#fff', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', marginTop: 'auto', fontSize: '12px', boxShadow: '0 4px 15px rgba(20,184,166,0.3)' }}>Selecionar Essencial</button>
                 </div>
+
+                {/* PLANO PRO */}
+                <div style={{ backgroundColor: '#020617', border: '1px solid #6366f1', borderRadius: '20px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div>
+                    <h4 style={{ fontSize: '15px', fontWeight: 900, color: '#818cf8', margin: '0 0 4px 0' }}>Pro Avançado</h4>
+                    <div style={{ fontSize: '22px', fontWeight: 900, color: '#fff' }}>
+                      {cicloPlano === 'anual' ? 'R$ 43,75' : 'R$ 59,90'}<span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>/mês</span>
+                    </div>
+                    <span style={{ fontSize: '10px', color: '#64748b' }}>{cicloPlano === 'anual' ? 'Cobrado anualmente' : 'Sem fidelidade'}</span>
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: '14px', fontSize: '12px', color: '#cbd5e1', lineHeight: '1.6', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <li>Tudo Ilimitado (Clientes/Produtos)</li>
+                    <li>Controle de Ordens de Serviço</li>
+                    <li>Importação de XML e NFe</li>
+                    <li>Curva ABC & Inteligência</li>
+                    <li>Até 20 Usuários Simultâneos</li>
+                  </ul>
+                  <button onClick={() => alert('Para ativar o Plano Pro, contacte o suporte comercial ZenOS.')} style={{ width: '100%', padding: '10px', background: 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#fff', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', marginTop: 'auto', fontSize: '12px' }}>Selecionar Pro</button>
+                </div>
+
+                {/* PLANO MULTI-FILIAIS / ENTERPRISE (ESTOQUE CONECTADO ENTRE LOJAS) */}
+                <div style={{ background: 'linear-gradient(135deg, rgba(217, 119, 6, 0.15), rgba(2, 6, 23, 0.9))', border: '1px solid #d97706', borderRadius: '20px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 10px 30px rgba(217, 119, 6, 0.15)' }}>
+                  <div>
+                    <span style={{ backgroundColor: '#d97706', color: '#000', fontSize: '9px', fontWeight: 900, padding: '2px 8px', borderRadius: '999px', textTransform: 'uppercase' }}>Redes / Franquias</span>
+                    <h4 style={{ fontSize: '15px', fontWeight: 900, color: '#fbbf24', margin: '4px 0 4px 0' }}>Multi-Filiais</h4>
+                    <div style={{ fontSize: '22px', fontWeight: 900, color: '#fff' }}>Sob Consulta</div>
+                    <span style={{ fontSize: '10px', color: '#fbbf24' }}>Conexão total de estoques</span>
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: '14px', fontSize: '12px', color: '#cbd5e1', lineHeight: '1.6', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <li><b>Estoque Unificado Multi-Filial:</b> Consulte em tempo real se o produto X está na Filial Centro ou Filial Shopping</li>
+                    <li>Painel Executivo Central (CEO)</li>
+                    <li>Usuários e Lojas Ilimitadas</li>
+                    <li>Gerente de Conta Dedicado 24/7</li>
+                  </ul>
+                  <button onClick={() => alert('Para contratar o Plano Multi-Filiais para a sua rede, um consultor ZenOS entrará em contacto.')} style={{ width: '100%', padding: '10px', background: 'linear-gradient(135deg, #d97706, #b45309)', border: 'none', color: '#fff', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', marginTop: 'auto', fontSize: '12px', boxShadow: '0 4px 15px rgba(217,119,6,0.3)' }}>Falar com Consultor</button>
+                </div>
+
               </div>
 
               <div style={{ textAlign: 'center' }}>
@@ -336,6 +412,7 @@ export default function App() {
             </div>
           </div>
         )}
+
       </div>
     );
   }
@@ -412,7 +489,7 @@ export default function App() {
               <div style={{ flex: '1 1 100%', minWidth: '250px' }}>
                 <span style={{ fontSize: '12px', color: '#38bdf8', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '2px' }}>ZenOS (Cloud)</span>
                 <h1 className="mobile-text-lg" style={{ fontSize: '32px', fontWeight: 900, color: '#ffffff', margin: '8px 0 4px 0', letterSpacing: '-0.5px' }}>{tx(`Olá!`, `¡Hola!`, `Hello!`)}</h1>
-                <span style={{ fontSize: '15px', color: '#94a3b8', fontWeight: 500 }}>{tx('O que vamos fazer hoje?', '¿Qué vamos a hacer hoy?', 'What are we doing today?')}</span>
+                <span style={{ fontSize: '15px', color: '#94a3b8', fontWeight: 500 }}>{tx('O que vamos fazer hoje?', '¿Qué vamos a hacer сегодня?', 'What are we doing today?')}</span>
               </div>
               
               <div className="mobile-stack" style={{ display: 'flex', gap: '24px', alignItems: 'center', width: '100%' }}>
