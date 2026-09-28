@@ -1,3 +1,4 @@
+import TerminalLogin from './components/TerminalLogin';
 import React, { useState, useEffect } from 'react';
 import { traducoes, moedasConfig, normalizarProduto, normalizarCliente, produtosIniciais, clientesIniciais } from './data';
 import { auth, db } from './firebase';
