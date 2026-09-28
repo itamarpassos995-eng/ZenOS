@@ -8,11 +8,23 @@ export default function Clientes({ clientes, setClientes, moeda, fmt, t, convert
   const [modalClienteAberto, setModalClienteAberto] = useState(false);
   const [clienteEmEdicao, setClienteEmEdicao] = useState(null);
   
-  // MODAL DE RECEBIMENTO DE FIADO (CONTAS)
+  // MODAL DE RECEBIMENTO DE FIADO (CONTAS) COM CATÁLOGO COMPLETO
   const [modalReceberFiadoAberto, setModalReceberFiadoAberto] = useState(false);
   const [clienteReceberFiado, setClienteReceberFiado] = useState(null);
   const [valorAmortizacaoInput, setValorAmortizacaoInput] = useState('');
-  const [formaAmortizacaoSel, setFormaAmortizacaoSel] = useState('Dinheiro / Caixa');
+  const [formaAmortizacaoSel, setFormaAmortizacaoSel] = useState('dinheiro_brl');
+
+  const catalogoFormas = [
+    { id: 'dinheiro_brl', rotulo: 'Dinheiro (R$)', moedaOrigem: 'BRL', icone: '💵' }, 
+    { id: 'dinheiro_usd', rotulo: 'Dólar ($)', moedaOrigem: 'USD', icone: '💵' },
+    { id: 'dinheiro_pyg', rotulo: 'Guarani (₲)', moedaOrigem: 'PYG', icone: '💵' }, 
+    { id: 'dinheiro_eur', rotulo: 'Euro (€)', moedaOrigem: 'EUR', icone: '💶' },
+    { id: 'pix', rotulo: 'Pix QR Code', moedaOrigem: 'BRL', icone: '⚡' }, 
+    { id: 'cartaoCredito', rotulo: 'Cartão Crédito', moedaOrigem: 'BRL', icone: '💳' },
+    { id: 'cartaoDebito', rotulo: 'Cartão Débito', moedaOrigem: 'BRL', icone: '💳' }, 
+    { id: 'voucher', rotulo: 'Voucher / Vale', moedaOrigem: 'BRL', icone: '🎟️' },
+    { id: 'cheque', rotulo: 'Cheque', moedaOrigem: 'BRL', icone: '📝' }
+  ];
 
   const [formCliente, setFormCliente] = useState(normalizarCliente({}));
   const inputValorAmortizacaoRef = useRef(null);
@@ -73,7 +85,7 @@ export default function Clientes({ clientes, setClientes, moeda, fmt, t, convert
   const abrirRecebimentoFiado = (cli) => {
     setClienteReceberFiado(cli);
     setValorAmortizacaoInput(cli.saldoDevedorBRL > 0 ? String(cli.saldoDevedorBRL) : '');
-    setFormaAmortizacaoSel('Dinheiro / Caixa');
+    setFormaAmortizacaoSel('dinheiro_brl');
     setModalReceberFiadoAberto(true);
   };
 
@@ -294,7 +306,7 @@ export default function Clientes({ clientes, setClientes, moeda, fmt, t, convert
         </div>
       )}
 
-      {/* MODAL DE RECEBER CONTA / QUITAR FIADO */}
+      {/* MODAL DE RECEBER CONTA / QUITAR FIADO COM CATÁLOGO COMPLETO */}
       {modalReceberFiadoAberto && clienteReceberFiado && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1500 }}>
           <div style={{ backgroundColor: '#0b1120', border: '1px solid #10b981', borderRadius: '24px', width: '420px', padding: '28px', color: '#fff' }}>
@@ -313,9 +325,11 @@ export default function Clientes({ clientes, setClientes, moeda, fmt, t, convert
 
             <label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800 }}>Forma de Recebimento:</label>
             <select value={formaAmortizacaoSel} onChange={e => setFormaAmortizacaoSel(e.target.value)} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '12px', outline: 'none', marginTop: '6px', marginBottom: '24px', boxSizing: 'border-box' }}>
-              <option value="Dinheiro / Caixa">💵 Dinheiro (Entra na Gaveta)</option>
-              <option value="Pix">📲 Pix</option>
-              <option value="Cartão">💳 Cartão de Crédito/Débito</option>
+              {catalogoFormas.map(f => (
+                <option key={f.id} value={f.id}>
+                  {f.icone} {f.rotulo}
+                </option>
+              ))}
             </select>
 
             <div style={{ display: 'flex', gap: '12px' }}>
