@@ -16,7 +16,46 @@ import Comissoes from './components/Comissoes';
 import Mesas from './components/Mesas';
 import DashboardMobile from './components/DashboardMobile';
 import Configuracoes from './components/Configuracoes';
+const CURRENT_SCHEMA_VERSION = 1;
 
+function executarMigracaoDeDados() {
+  try {
+    const versaoSalva = parseInt(localStorage.getItem('zenos_schema_version') || '0', 10);
+
+    if (versaoSalva < CURRENT_SCHEMA_VERSION) {
+      console.info(`[ZenOS Migration] Atualizando base de dados local da v${versaoSalva} para v${CURRENT_SCHEMA_VERSION}...`);
+
+      // Migração v1: Garante que todos os produtos e clientes salvos possuem o schema normalizado atual
+      const prodLocal = localStorage.getItem('zenos_produtos');
+      if (prodLocal) {
+        const parsed = JSON.parse(prodLocal);
+        if (Array.isArray(parsed)) {
+          const normalizados = parsed.map((p, idx) => normalizarProduto(p, idx));
+          localStorage.setItem('zenos_produtos', JSON.stringify(normalizados));
+        }
+      }
+
+      const clienteLocal = localStorage.getItem('zenos_clientes');
+      if (clienteLocal) {
+        const parsed = JSON.parse(clienteLocal);
+        if (Array.isArray(parsed)) {
+          const normalizados = parsed.map(c => normalizarCliente(c));
+          localStorage.setItem('zenos_clientes', JSON.stringify(normalizados));
+        }
+      }
+
+      // Seta a nova versão de schema com sucesso
+      localStorage.setItem('zenos_schema_version', CURRENT_SCHEMA_VERSION.toString());
+      console.info("[ZenOS Migration] Migração concluída com sucesso. Dados preservados.");
+    }
+  } catch (err) {
+    console.error("[ZenOS Migration Error] Falha ao executar migração de schema:", err);
+    // Em caso de erro crítico, nunca apagamos os dados; mantemos o que existe no storage.
+  }
+}
+
+// Executa a migração antes de inicializar os states
+executarMigracaoDeDados();
 function ZeniteLogo({ aoClicar }) {
   return (
     <div onClick={aoClicar} style={{ display: 'flex', alignItems: 'center', gap: '14px', cursor: 'pointer', userSelect: 'none' }}>
