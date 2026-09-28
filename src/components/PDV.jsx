@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { normalizarProduto, normalizarCliente } from '../data';
 
-export default function PDV({ produtos, setProdutos, clientes, setClientes, moeda, fmt, t, tx, converterDeBRL, converterParaBRL, historicoVendas, setHistoricoVendas, patenteUsuario, idioma }) {
+export default function PDV({ produtos, setProdutos, clientes, setClientes, moeda, fmt, t, tx, converterDeBRL, converterParaBRL, historicoVendas, setHistoricoVendas, patenteUsuario, idioma, regrasDesconto }) {
   const [termoBusca, setTermoBusca] = useState('');
   const [indiceFocoBusca, setIndiceFocoBusca] = useState(0);
   const [itensVenda, setItensVenda] = useState([]);
@@ -195,14 +195,25 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
   const descBRL = converterParaBRL(parseFloat(String(descontoTexto).replace(',', '.')) || 0, moeda);
   const totalFinalBRL = Math.max(0, subtotalBrutoBRL - descBRL);
   const lucroEstimadoBRL = totalFinalBRL - custoTotalBRL;
-  const margemLucro = totalFinalBRL > 0 ? (lucroEstimadoBRL / totalFinalBRL) * 100 : 0;
+  
+  // 🛡️ LÓGICA DO SEMÁFORO DE DESCONTO BASEADO NAS REGRAS DEFINIDAS PELO LOJISTA
+  const regras = regrasDesconto || { verdeMax: 5, amareloMax: 12, exigirSenhaVermelho: true, senhaGerente: '1234' };
+  const percentualDesconto = subtotalBrutoBRL > 0 ? (descBRL / subtotalBrutoBRL) * 100 : 0;
 
   let corSemafaro = '#34d399'; let bgSemafaro = 'rgba(16, 185, 129, 0.1)'; let borderSemafaro = 'rgba(16, 185, 129, 0.3)';
-  let textoSemafaro = tx('🟢 Venda Liberada', '🟢 Venta Liberada', '🟢 Sale Approved'); let vendaBloqueadaPorMargem = false;
+  let textoSemafaro = tx(`🟢 Venda Liberada (Livre até ${regras.verdeMax}%)`, `🟢 Venta Liberada`, `🟢 Sale Approved`); 
+  let vendaBloqueadaPorMargem = false;
 
-  if (totalFinalBRL > 0) {
-    if (margemLucro < 15) { corSemafaro = '#fb7185'; bgSemafaro = 'rgba(244, 63, 94, 0.15)'; borderSemafaro = 'rgba(244, 63, 94, 0.4)'; textoSemafaro = tx('🔴 Operação Requer Autorização', '🔴 Requiere Autorización', '🔴 Needs Authorization'); if (patenteUsuario !== 'gerencia') vendaBloqueadaPorMargem = true; } 
-    else if (margemLucro < 30) { corSemafaro = '#fbbf24'; bgSemafaro = 'rgba(245, 158, 11, 0.15)'; borderSemafaro = 'rgba(245, 158, 11, 0.4)'; textoSemafaro = tx('🟡 Condição Especial', '🟡 Condición Especial', '🟡 Special Condition'); }
+  if (totalFinalBRL > 0 && percentualDesconto > 0) {
+    if (percentualDesconto > regras.amareloMax) { 
+      corSemafaro = '#fb7185'; bgSemafaro = 'rgba(244, 63, 94, 0.15)'; borderSemafaro = 'rgba(244, 63, 94, 0.4)'; 
+      textoSemafaro = tx(`🔴 Requer Autorização (> ${regras.amareloMax}%)`, `🔴 Requiere Autorización`, `🔴 Needs Authorization`); 
+      if (patenteUsuario !== 'gerencia') vendaBloqueadaPorMargem = true; 
+    } 
+    else if (percentualDesconto > regras.verdeMax) { 
+      corSemafaro = '#fbbf24'; bgSemafaro = 'rgba(245, 158, 11, 0.15)'; borderSemafaro = 'rgba(245, 158, 11, 0.4)'; 
+      textoSemafaro = tx(`🟡 Alerta de Desconto (> ${regras.verdeMax}%)`, `🟡 Alerta de Descuento`, `🟡 Discount Alert`); 
+    }
   }
 
   const catalogoFormas = [
@@ -224,7 +235,22 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
   const podeFinalizarVenda = totalFinalBRL > 0 && totalPagoConvertidoBRL >= (totalFinalBRL - 0.01);
 
   const abrirFechamento = () => {
-    if (vendaBloqueadaPorMargem) return alert(tx('⛔ Venda bloqueada!\nRequer autorização da Gerência.', '⛔ ¡Venta bloqueada!\nRequiere autorización.', '⛔ Sale blocked!\nNeeds authorization.'));
+    // 🛡️ APLICAÇÃO DA SENHA DE GERÊNCIA NO BLOQUEIO
+    if (vendaBloqueadaPorMargem) {
+      if (regras?.exigirSenhaVermelho) {
+        const senhaDigitada = window.prompt(tx(
+          '🔴 Desconto acima do limite permitido!\nInsira a Senha da Gerência para liberar a venda:', 
+          '🔴 ¡Descuento por encima del límite!\nIngrese la Contraseña de Gerencia:', 
+          '🔴 Discount above limit!\nEnter Manager Password:'
+        ));
+        if (senhaDigitada !== regras.senhaGerente) {
+          return alert(tx('⛔ Senha incorreta! Venda bloqueada.', '⛔ ¡Contraseña incorrecta!', '⛔ Wrong password!'));
+        }
+      } else {
+        return alert(tx('⛔ Venda bloqueada!\nO desconto excedeu o limite máximo.', '⛔ ¡Venta bloqueada!', '⛔ Sale blocked!'));
+      }
+    }
+    
     if (itensVenda.length === 0 || totalFinalBRL <= 0) return alert(tx('Adicione produtos à venda.', 'Añada productos.', 'Add products.'));
     setPagamentosLancados([]); setFormaSelecionada('dinheiro_brl');
     setValorLancamentoInput(converterDeBRL(totalFinalBRL, 'BRL').toFixed(2));
@@ -427,11 +453,11 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
         </div>
 
         <div style={{ backgroundColor: bgSemafaro, border: `1px solid ${borderSemafaro}`, borderRadius: '16px', padding: '20px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 800, color: corSemafaro, textTransform: 'uppercase', marginBottom: '4px' }}>{tx('Semáforo de Lucratividade', 'Semáforo de Rentabilidad', 'Profitability Light')}</div>
+          <div style={{ fontSize: '11px', fontWeight: 800, color: corSemafaro, textTransform: 'uppercase', marginBottom: '4px' }}>{tx('Semáforo de Desconto', 'Semáforo de Descuento', 'Discount Light')}</div>
           <div style={{ fontSize: '13px', fontWeight: 800, color: corSemafaro }}>{textoSemafaro}</div>
         </div>
 
-        <button onClick={abrirFechamento} style={{ background: vendaBloqueadaPorMargem ? '#334155' : 'linear-gradient(135deg, #4f46e5, #4338ca)', border: '1px solid #6366f1', color: '#fff', padding: '18px', borderRadius: '14px', fontSize: '15px', fontWeight: 900, cursor: vendaBloqueadaPorMargem ? 'not-allowed' : 'pointer', textAlign: 'center', boxShadow: '0 4px 15px rgba(79, 70, 229, 0.3)', width: '100%', boxSizing: 'border-box' }}>
+        <button onClick={abrirFechamento} style={{ background: vendaBloqueadaPorMargem ? '#334155' : 'linear-gradient(135deg, #4f46e5, #4338ca)', border: '1px solid #6366f1', color: '#fff', padding: '18px', borderRadius: '14px', fontSize: '15px', fontWeight: 900, cursor: vendaBloqueadaPorMargem ? 'pointer' : 'pointer', textAlign: 'center', boxShadow: '0 4px 15px rgba(79, 70, 229, 0.3)', width: '100%', boxSizing: 'border-box' }}>
           [F10] {t('fecharVenda')} {vendaBloqueadaPorMargem ? '🔒' : ''}
         </button>
       </div>
