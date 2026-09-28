@@ -244,29 +244,44 @@ export default function App() {
     }
   };
 
-  useEffect(() => { 
+useEffect(() => { 
     localStorage.setItem('zenos_produtos', JSON.stringify(produtos)); 
-    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas }, { merge: true }).catch(() => {}); }
+    if (userId) { 
+      setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas }, { merge: true })
+        .catch(err => console.warn("Aviso de sincronização em background (Cloud-First):", err)); 
+    }
   }, [produtos, userId]);
 
   useEffect(() => { 
     localStorage.setItem('zenos_clientes', JSON.stringify(clientes)); 
-    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas }, { merge: true }).catch(() => {}); }
+    if (userId) { 
+      setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas }, { merge: true })
+        .catch(err => console.warn("Aviso de sincronização em background (Cloud-First):", err)); 
+    }
   }, [clientes, userId]);
 
   useEffect(() => { 
     localStorage.setItem('zenos_historico_vendas', JSON.stringify(historicoVendas)); 
-    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas }, { merge: true }).catch(() => {}); }
+    if (userId) { 
+      setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas }, { merge: true })
+        .catch(err => console.warn("Aviso de sincronização em background (Cloud-First):", err)); 
+    }
   }, [historicoVendas, userId]);
 
   useEffect(() => { 
     localStorage.setItem('zenos_caixa_movs', JSON.stringify(caixaMovimentos)); 
-    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas }, { merge: true }).catch(() => {}); }
+    if (userId) { 
+      setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas }, { merge: true })
+        .catch(err => console.warn("Aviso de sincronização em background (Cloud-First):", err)); 
+    }
   }, [caixaMovimentos, userId]);
 
   useEffect(() => { 
     localStorage.setItem('zenos_despesas', JSON.stringify(despesas)); 
-    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas }, { merge: true }).catch(() => {}); }
+    if (userId) { 
+      setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas }, { merge: true })
+        .catch(err => console.warn("Aviso de sincronização em background (Cloud-First):", err)); 
+    }
   }, [despesas, userId]);
 
   const t = (chave) => traducoes[idioma]?.[chave] || traducoes.pt[chave] || chave;
