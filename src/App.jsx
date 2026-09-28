@@ -53,12 +53,77 @@ export default function App() {
   const [taxasCambio, setTaxasCambio] = useState({ BRL: 1.0, USD: 0.185, EUR: 0.165, PYG: 1380.0 });
   const [taxasInput, setTaxasInput] = useState({ USD: '5.40', EUR: '6.05', PYG: '1380' });
   const [modalCambioAberto, setModalCambioAberto] = useState(false);
+// 🛡️ INICIALIZAÇÃO BLINDADA DE PRODUTOS (Preserva dados do lojista sem reindexar)
+  const [produtos, setProdutos] = useState(() => {
+    try {
+      const salvo = localStorage.getItem('zenos_produtos');
+      if (salvo) {
+        const parsed = JSON.parse(salvo);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (err) {
+      console.error("Erro crítico ao carregar produtos do cache:", err);
+    }
+    return produtosIniciais.map((p, idx) => normalizarProduto(p, idx));
+  });
 
-  const [produtos, setProdutos] = useState(() => { try { const salvo = localStorage.getItem('zenos_produtos'); return salvo ? JSON.parse(salvo).map(p => normalizarProduto(p)) : produtosIniciais; } catch { return produtosIniciais; } });
-  const [clientes, setClientes] = useState(() => { try { const salvo = localStorage.getItem('zenos_clientes'); return salvo ? JSON.parse(salvo).map(c => normalizarCliente(c)) : clientesIniciais; } catch { return clientesIniciais; } });
-  const [historicoVendas, setHistoricoVendas] = useState(() => { try { const salvo = localStorage.getItem('zenos_historico_vendas'); return salvo ? JSON.parse(salvo) : []; } catch { return []; } });
-  const [caixaMovimentos, setCaixaMovimentos] = useState(() => { try { const salvo = localStorage.getItem('zenos_caixa_movs'); return salvo ? JSON.parse(salvo) : []; } catch { return []; } });
-  const [despesas, setDespesas] = useState(() => { try { const salvo = localStorage.getItem('zenos_despesas'); return salvo ? JSON.parse(salvo) : []; } catch { return []; } });
+  // 🛡️ INICIALIZAÇÃO BLINDADA DE CLIENTES
+  const [clientes, setClientes] = useState(() => {
+    try {
+      const salvo = localStorage.getItem('zenos_clientes');
+      if (salvo) {
+        const parsed = JSON.parse(salvo);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (err) {
+      console.error("Erro ao carregar clientes:", err);
+    }
+    return clientesIniciais.map(c => normalizarCliente(c));
+  });
+
+  // 🛡️ INICIALIZAÇÃO BLINDADA DE HISTÓRICO DE VENDAS
+  const [historicoVendas, setHistoricoVendas] = useState(() => {
+    try {
+      const salvo = localStorage.getItem('zenos_historico_vendas');
+      if (salvo) {
+        const parsed = JSON.parse(salvo);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (err) {
+      console.error("Erro ao carregar vendas:", err);
+    }
+    return [];
+  });
+
+  // 🛡️ INICIALIZAÇÃO BLINDADA DE CAIXA
+  const [caixaMovimentos, setCaixaMovimentos] = useState(() => {
+    try {
+      const salvo = localStorage.getItem('zenos_caixa_movs');
+      if (salvo) {
+        const parsed = JSON.parse(salvo);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (err) {
+      console.error("Erro ao carregar caixa:", err);
+    }
+    return [];
+  });
+
+  // 🛡️ INICIALIZAÇÃO BLINDADA DE DESPESAS
+  const [despesas, setDespesas] = useState(() => {
+    try {
+      const salvo = localStorage.getItem('zenos_despesas');
+      if (salvo) {
+        const parsed = JSON.parse(salvo);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (err) {
+      console.error("Erro ao carregar despesas:", err);
+    }
+    return [];
+  });
 
   const solicitarDemoFirebase = async () => {
     if (!userId) return;
