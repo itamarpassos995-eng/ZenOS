@@ -145,7 +145,6 @@ export default function Produtos({ produtos, setProdutos, moeda, fmt, t, restaur
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div><h2 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>{t('catalogoTitulo')}</h2><span style={{ fontSize: '13px', color: '#64748b' }}>{t('catalogoSub')}</span></div>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <button onClick={restaurarProdutosPadrao} style={{ backgroundColor: '#020617', border: '1px solid #334155', color: '#94a3b8', padding: '12px 18px', borderRadius: '12px', fontSize: '12px', fontWeight: 800, cursor: 'pointer' }}>🔄 {t('restaurarPadroes')}</button>
           <button onClick={abrirCadastroNovoProduto} style={{ background: 'linear-gradient(135deg, #0284c7, #0369a1)', border: '1px solid #38bdf8', color: '#ffffff', padding: '12px 24px', borderRadius: '12px', fontSize: '13px', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 15px rgba(2, 132, 199, 0.3)' }}>{t('novoProdutoBtn')}</button>
         </div>
       </div>
