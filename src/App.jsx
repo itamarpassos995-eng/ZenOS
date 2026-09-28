@@ -16,6 +16,7 @@ import Comissoes from './components/Comissoes';
 import Mesas from './components/Mesas';
 import DashboardMobile from './components/DashboardMobile';
 import Configuracoes from './components/Configuracoes';
+
 const CURRENT_SCHEMA_VERSION = 1;
 
 function executarMigracaoDeDados() {
@@ -25,7 +26,6 @@ function executarMigracaoDeDados() {
     if (versaoSalva < CURRENT_SCHEMA_VERSION) {
       console.info(`[ZenOS Migration] Atualizando base de dados local da v${versaoSalva} para v${CURRENT_SCHEMA_VERSION}...`);
 
-      // Migração v1: Garante que todos os produtos e clientes salvos possuem o schema normalizado atual
       const prodLocal = localStorage.getItem('zenos_produtos');
       if (prodLocal) {
         const parsed = JSON.parse(prodLocal);
@@ -44,18 +44,16 @@ function executarMigracaoDeDados() {
         }
       }
 
-      // Seta a nova versão de schema com sucesso
       localStorage.setItem('zenos_schema_version', CURRENT_SCHEMA_VERSION.toString());
       console.info("[ZenOS Migration] Migração concluída com sucesso. Dados preservados.");
     }
   } catch (err) {
     console.error("[ZenOS Migration Error] Falha ao executar migração de schema:", err);
-    // Em caso de erro crítico, nunca apagamos os dados; mantemos o que existe no storage.
   }
 }
 
-// Executa a migração antes de inicializar os states
 executarMigracaoDeDados();
+
 function ZeniteLogo({ aoClicar }) {
   return (
     <div onClick={aoClicar} style={{ display: 'flex', alignItems: 'center', gap: '14px', cursor: 'pointer', userSelect: 'none' }}>
@@ -79,7 +77,7 @@ export default function App() {
 
   const [modalPlanosAberto, setModalPlanosAberto] = useState(false);
   const [demoSolicitada, setDemoSolicitada] = useState(false);
-  const [cicloPlano, setCicloPlano] = useState('anual'); // 'mensal' ou 'anual'
+  const [cicloPlano, setCicloPlano] = useState('anual');
 
   const [ecraAtual, setEcraAtual] = useState('hub');
   const [menuNavAberto, setMenuNavAberto] = useState(false);
@@ -92,23 +90,31 @@ export default function App() {
   const [taxasCambio, setTaxasCambio] = useState({ BRL: 1.0, USD: 0.185, EUR: 0.165, PYG: 1380.0 });
   const [taxasInput, setTaxasInput] = useState({ USD: '5.40', EUR: '6.05', PYG: '1380' });
   const [modalCambioAberto, setModalCambioAberto] = useState(false);
-// 🛡️ INICIALIZAÇÃO BLINDADA DE PRODUTOS (Preserva dados do lojista sem reindexar)
+
+  // 🛡️ NOVO: INICIALIZAÇÃO BLINDADA DAS REGRAS DO SEMÁFORO DE DESCONTO
+  const [regrasDesconto, setRegrasDesconto] = useState(() => {
+    try {
+      const salvo = localStorage.getItem('zenos_regras_desconto');
+      if (salvo) return JSON.parse(salvo);
+    } catch (err) {
+      console.error("Erro ao carregar regras de desconto:", err);
+    }
+    return { verdeMax: 5, amareloMax: 12, exigirSenhaVermelho: true, senhaGerente: '1234' }; // Padrões de fábrica
+  });
+
   const [produtos, setProdutos] = useState(() => {
     try {
       const salvo = localStorage.getItem('zenos_produtos');
       if (salvo) {
         const parsed = JSON.parse(salvo);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch (err) {
-      console.error("Erro crítico ao carregar produtos do cache:", err);
+      console.error("Erro crítico ao carregar produtos:", err);
     }
     return produtosIniciais.map((p, idx) => normalizarProduto(p, idx));
   });
 
-  // 🛡️ INICIALIZAÇÃO BLINDADA DE CLIENTES
   const [clientes, setClientes] = useState(() => {
     try {
       const salvo = localStorage.getItem('zenos_clientes');
@@ -122,7 +128,6 @@ export default function App() {
     return clientesIniciais.map(c => normalizarCliente(c));
   });
 
-  // 🛡️ INICIALIZAÇÃO BLINDADA DE HISTÓRICO DE VENDAS
   const [historicoVendas, setHistoricoVendas] = useState(() => {
     try {
       const salvo = localStorage.getItem('zenos_historico_vendas');
@@ -136,7 +141,6 @@ export default function App() {
     return [];
   });
 
-  // 🛡️ INICIALIZAÇÃO BLINDADA DE CAIXA
   const [caixaMovimentos, setCaixaMovimentos] = useState(() => {
     try {
       const salvo = localStorage.getItem('zenos_caixa_movs');
@@ -150,7 +154,6 @@ export default function App() {
     return [];
   });
 
-  // 🛡️ INICIALIZAÇÃO BLINDADA DE DESPESAS
   const [despesas, setDespesas] = useState(() => {
     try {
       const salvo = localStorage.getItem('zenos_despesas');
@@ -195,18 +198,16 @@ export default function App() {
             const dadosLoja = docSnap.data();
             let status = dadosLoja.status || 'aguardando_pagamento';
             
-            // AUTOMACAO DE TESTE GRATIS DE 7 DIAS
             const dataCriacaoStr = dadosLoja.dataCriacao || dadosLoja.createdAt || new Date().toISOString();
             const dataCriacao = new Date(dataCriacaoStr);
             const agora = new Date();
             const diffDias = (agora - dataCriacao) / (1000 * 60 * 60 * 24);
 
             if (status === 'aguardando_pagamento' && diffDias <= 7) {
-              status = 'ativo'; // Liberta automaticamente o teste de 7 dias
+              status = 'ativo';
             }
             setStatusLoja(status);
           } else {
-            // Se a loja não tem doc, cria com 7 dias de teste automático
             const novaDataCriacao = new Date().toISOString();
             await setDoc(docRef, { email: user.email, status: 'ativo', dataCriacao: novaDataCriacao }, { merge: true });
             setStatusLoja('ativo');
@@ -220,10 +221,12 @@ export default function App() {
             if (d.historicoVendas) setHistoricoVendas(d.historicoVendas);
             if (d.caixaMovimentos) setCaixaMovimentos(d.caixaMovimentos);
             if (d.despesas) setDespesas(d.despesas);
+            // 🛡️ Carrega as regras da nuvem se existirem
+            if (d.regrasDesconto) setRegrasDesconto(d.regrasDesconto); 
           }
         } catch (err) {
           console.error("Erro ao carregar dados da nuvem:", err);
-          setStatusLoja('ativo'); // Fallback seguro para não travar o lojista
+          setStatusLoja('ativo');
         }
       } else {
         setUsuarioAutenticado(null);
@@ -244,45 +247,36 @@ export default function App() {
     }
   };
 
-useEffect(() => { 
+  useEffect(() => { 
     localStorage.setItem('zenos_produtos', JSON.stringify(produtos)); 
-    if (userId) { 
-      setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas }, { merge: true })
-        .catch(err => console.warn("Aviso de sincronização em background (Cloud-First):", err)); 
-    }
+    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
   }, [produtos, userId]);
 
   useEffect(() => { 
     localStorage.setItem('zenos_clientes', JSON.stringify(clientes)); 
-    if (userId) { 
-      setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas }, { merge: true })
-        .catch(err => console.warn("Aviso de sincronização em background (Cloud-First):", err)); 
-    }
+    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
   }, [clientes, userId]);
 
   useEffect(() => { 
     localStorage.setItem('zenos_historico_vendas', JSON.stringify(historicoVendas)); 
-    if (userId) { 
-      setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas }, { merge: true })
-        .catch(err => console.warn("Aviso de sincronização em background (Cloud-First):", err)); 
-    }
+    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
   }, [historicoVendas, userId]);
 
   useEffect(() => { 
     localStorage.setItem('zenos_caixa_movs', JSON.stringify(caixaMovimentos)); 
-    if (userId) { 
-      setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas }, { merge: true })
-        .catch(err => console.warn("Aviso de sincronização em background (Cloud-First):", err)); 
-    }
+    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
   }, [caixaMovimentos, userId]);
 
   useEffect(() => { 
     localStorage.setItem('zenos_despesas', JSON.stringify(despesas)); 
-    if (userId) { 
-      setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas }, { merge: true })
-        .catch(err => console.warn("Aviso de sincronização em background (Cloud-First):", err)); 
-    }
+    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
   }, [despesas, userId]);
+
+  // 🛡️ Salva as Regras na Nuvem e Localmente sempre que o lojista alterar nas configurações
+  useEffect(() => { 
+    localStorage.setItem('zenos_regras_desconto', JSON.stringify(regrasDesconto)); 
+    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
+  }, [regrasDesconto, userId]);
 
   const t = (chave) => traducoes[idioma]?.[chave] || traducoes.pt[chave] || chave;
   const tx = (pt, es, en) => { if (idioma === 'es') return es || pt; if (idioma === 'en') return en || pt; return pt; };
@@ -585,41 +579,37 @@ useEffect(() => {
           <ZeniteLogo aoClicar={() => setEcraAtual('hub')} />
         </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', padding: '4px 8px', gap: '6px', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.5)' }}>
-            {/* Seletor de Idioma */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ fontSize: '12px' }}>{idioma === 'pt' ? '🇧🇷' : idioma === 'es' ? '🇪🇸' : '🇺🇸'}</span>
-              <select value={idioma} onChange={(e) => setIdioma(e.target.value)} style={{ backgroundColor: 'transparent', color: '#cbd5e1', fontSize: '11px', fontWeight: 800, border: 'none', outline: 'none', cursor: 'pointer' }}>
-                <option value="pt" style={{ backgroundColor: '#0b1120', color: '#fff' }}>PT</option>
-                <option value="es" style={{ backgroundColor: '#0b1120', color: '#fff' }}>ES</option>
-                <option value="en" style={{ backgroundColor: '#0b1120', color: '#fff' }}>EN</option>
-              </select>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', padding: '4px 8px', gap: '6px', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.5)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ fontSize: '12px' }}>{idioma === 'pt' ? '🇧🇷' : idioma === 'es' ? '🇪🇸' : '🇺🇸'}</span>
+                <select value={idioma} onChange={(e) => setIdioma(e.target.value)} style={{ backgroundColor: 'transparent', color: '#cbd5e1', fontSize: '11px', fontWeight: 800, border: 'none', outline: 'none', cursor: 'pointer' }}>
+                  <option value="pt" style={{ backgroundColor: '#0b1120', color: '#fff' }}>PT</option>
+                  <option value="es" style={{ backgroundColor: '#0b1120', color: '#fff' }}>ES</option>
+                  <option value="en" style={{ backgroundColor: '#0b1120', color: '#fff' }}>EN</option>
+                </select>
+              </div>
+              <div style={{ width: '1px', height: '14px', backgroundColor: '#334155' }}></div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ fontSize: '10px', color: '#818cf8', fontWeight: 900 }}>🌐</span>
+                <select value={moeda} onChange={(e) => setMoeda(e.target.value)} style={{ backgroundColor: 'transparent', color: '#34d399', fontSize: '11px', fontWeight: 900, border: 'none', outline: 'none', cursor: 'pointer' }}>
+                  <option value="BRL" style={{ backgroundColor: '#0b1120', color: '#fff' }}>BRL (R$)</option>
+                  <option value="USD" style={{ backgroundColor: '#0b1120', color: '#fff' }}>USD ($)</option>
+                  <option value="EUR" style={{ backgroundColor: '#0b1120', color: '#fff' }}>EUR (€)</option>
+                  <option value="PYG" style={{ backgroundColor: '#0b1120', color: '#fff' }}>PYG (₲)</option>
+                </select>
+              </div>
+              <div style={{ width: '1px', height: '14px', backgroundColor: '#334155' }}></div>
+              <button 
+                onClick={() => setModalCambioAberto(true)} 
+                title="Ajustar Cotações de Câmbio"
+                style={{ backgroundColor: 'transparent', border: 'none', cursor: 'pointer', fontSize: '12px', padding: '0 2px' }}
+                role="button"
+              >
+                ⚙️
+              </button>
             </div>
-            
-            <div style={{ width: '1px', height: '14px', backgroundColor: '#334155' }}></div>
-            
-            {/* Seletor de Moeda */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ fontSize: '10px', color: '#818cf8', fontWeight: 900 }}>🌐</span>
-              <select value={moeda} onChange={(e) => setMoeda(e.target.value)} style={{ backgroundColor: 'transparent', color: '#34d399', fontSize: '11px', fontWeight: 900, border: 'none', outline: 'none', cursor: 'pointer' }}>
-                <option value="BRL" style={{ backgroundColor: '#0b1120', color: '#fff' }}>BRL (R$)</option>
-                <option value="USD" style={{ backgroundColor: '#0b1120', color: '#fff' }}>USD ($)</option>
-                <option value="EUR" style={{ backgroundColor: '#0b1120', color: '#fff' }}>EUR (€)</option>
-                <option value="PYG" style={{ backgroundColor: '#0b1120', color: '#fff' }}>PYG (₲)</option>
-              </select>
-            </div>
-
-            <div style={{ width: '1px', height: '14px', backgroundColor: '#334155' }}></div>
-
-            {/* Botão de Câmbio / Configuração de Taxas */}
-            <button 
-              onClick={() => setModalCambioAberto(true)} 
-              title="Ajustar Cotações de Câmbio"
-              style={{ backgroundColor: 'rgba(99, 102, 241, 0.2)', border: '1px solid #6366f1', color: '#818cf8', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-            >
-              ⚙️ Câmbio
-            </button>
           </div>
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '8px', padding: '6px 10px' }}>
@@ -640,7 +630,7 @@ useEffect(() => {
               <div style={{ flex: '1 1 100%', minWidth: '250px' }}>
                 <span style={{ fontSize: '12px', color: '#38bdf8', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '2px' }}>ZenOS (Cloud)</span>
                 <h1 className="mobile-text-lg" style={{ fontSize: '32px', fontWeight: 900, color: '#ffffff', margin: '8px 0 4px 0', letterSpacing: '-0.5px' }}>{tx(`Olá!`, `¡Hola!`, `Hello!`)}</h1>
-                <span style={{ fontSize: '15px', color: '#94a3b8', fontWeight: 500 }}>{tx('O que vamos fazer hoje?', '¿Qué vamos a hacer сегодня?', 'What are we doing today?')}</span>
+                <span style={{ fontSize: '15px', color: '#94a3b8', fontWeight: 500 }}>{tx('O que vamos fazer hoje?', '¿Qué vamos a hacer hoy?', 'What are we doing today?')}</span>
               </div>
               
               <div className="mobile-stack" style={{ display: 'flex', gap: '24px', alignItems: 'center', width: '100%' }}>
@@ -826,7 +816,8 @@ useEffect(() => {
           </div>
         )}
 
-        {ecraAtual === 'pdv' && <PDV produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} patenteUsuario={patenteUsuario} idioma={idioma} />}
+        {/* 🛡️ REGRAS DE DESCONTO ENVIADAS PARA PDV E CONFIGURAÇÕES */}
+        {ecraAtual === 'pdv' && <PDV produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} patenteUsuario={patenteUsuario} idioma={idioma} regrasDesconto={regrasDesconto} />}
         {ecraAtual === 'mesas' && <Mesas produtos={produtos} fmt={fmt} tx={tx} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} moeda={moeda} idioma={idioma} />}
         {ecraAtual === 'produtos' && <Produtos produtos={produtos} setProdutos={setProdutos} moeda={moeda} fmt={fmt} t={t} tx={tx} />}
         {ecraAtual === 'inteligencia' && <EstoqueInteligente produtos={produtos} fmt={fmt} />}
@@ -835,7 +826,7 @@ useEffect(() => {
         {ecraAtual === 'clientes' && <Clientes clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} />}
         {ecraAtual === 'vendas' && <Vendas historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} fmt={fmt} t={t} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterDeBRL={converterDeBRL} />}
         {ecraAtual === 'migracao' && <Migracao produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} t={t} tx={tx} />}
-        {ecraAtual === 'configuracoes' && <Configuracoes produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} despesas={despesas} setDespesas={setDespesas} moeda={moeda} fmt={fmt} tx={tx} />}
+        {ecraAtual === 'configuracoes' && <Configuracoes produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} despesas={despesas} setDespesas={setDespesas} moeda={moeda} fmt={fmt} tx={tx} regrasDesconto={regrasDesconto} setRegrasDesconto={setRegrasDesconto} />}
         {ecraAtual === 'despesas' && <Despesas despesas={despesas} setDespesas={setDespesas} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterParaBRL={converterParaBRL} />}
       </main>
 
