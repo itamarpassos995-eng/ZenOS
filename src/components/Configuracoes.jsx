@@ -4,7 +4,7 @@ import { doc, setDoc } from 'firebase/firestore';
 import { EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { produtosIniciais, clientesIniciais, normalizarProduto, normalizarCliente } from '../data';
 
-export default function Configuracoes({ produtos, setProdutos, clientes, setClientes, historicoVendas, setHistoricoVendas, caixaMovimentos, setCaixaMovimentos, despesas, setDespesas, moeda, fmt, tx }) {
+export default function Configuracoes({ produtos, setProdutos, clientes, setClientes, historicoVendas, setHistoricoVendas, caixaMovimentos, setCaixaMovimentos, despesas, setDespesas, moeda, fmt, tx, regrasDesconto, setRegrasDesconto }) {
   const [modalResetAberto, setModalResetAberto] = useState(false);
   const [senhaAdmin, setSenhaAdmin] = useState('');
   const [etapaAviso, setEtapaAviso] = useState(1); // 1: Seleção e aviso, 2: Senha de admin
@@ -99,11 +99,88 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
     }
   };
 
+  // Funções para salvar regras de desconto (Semáforo)
+  const lidarComMudancaRegra = (campo, valor) => {
+    setRegrasDesconto(prev => ({ ...prev, [campo]: valor }));
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px', maxWidth: '1000px', margin: '0 auto' }}>
       <div>
         <h2 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>Configurações do Sistema</h2>
-        <span style={{ fontSize: '13px', color: '#64748b' }}>Gestão de equipa, regras de comissão e segurança da loja</span>
+        <span style={{ fontSize: '13px', color: '#64748b' }}>Gestão de equipa, regras de desconto e segurança</span>
+      </div>
+
+      {/* 🛡️ NOVO: SEÇÃO SEMÁFORO DE DESCONTO */}
+      <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ fontSize: '20px' }}>🚥</span>
+          <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#fff', margin: 0 }}>Semáforo de Desconto e Autorizações</h3>
+        </div>
+        <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
+          Defina as margens de desconto permitidas no Frente de Caixa (PDV). O sistema avisará os operadores visualmente.
+        </p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px' }}>
+          {/* FAIXA VERDE */}
+          <div style={{ backgroundColor: '#021e15', border: '1px solid rgba(16,185,129,0.3)', padding: '16px', borderRadius: '12px' }}>
+            <span style={{ display: 'block', color: '#10b981', fontSize: '12px', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>🟢 Faixa Livre (Sem aviso)</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ color: '#cbd5e1', fontSize: '13px' }}>Até</span>
+              <input 
+                type="number" 
+                value={regrasDesconto.verdeMax} 
+                onChange={(e) => lidarComMudancaRegra('verdeMax', parseFloat(e.target.value) || 0)}
+                style={{ width: '60px', backgroundColor: '#020617', border: '1px solid #10b981', color: '#34d399', fontWeight: 900, padding: '8px', borderRadius: '6px', textAlign: 'center', outline: 'none' }}
+              />
+              <span style={{ color: '#cbd5e1', fontSize: '13px' }}>%</span>
+            </div>
+            <span style={{ display: 'block', color: '#64748b', fontSize: '10px', marginTop: '8px' }}>Os vendedores podem aplicar descontos até este valor sem alertas.</span>
+          </div>
+
+          {/* FAIXA AMARELA */}
+          <div style={{ backgroundColor: '#2b1704', border: '1px solid rgba(245,158,11,0.3)', padding: '16px', borderRadius: '12px' }}>
+            <span style={{ display: 'block', color: '#f59e0b', fontSize: '12px', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>🟡 Faixa de Alerta</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ color: '#cbd5e1', fontSize: '13px' }}>Acima de {regrasDesconto.verdeMax}% até</span>
+              <input 
+                type="number" 
+                value={regrasDesconto.amareloMax} 
+                onChange={(e) => lidarComMudancaRegra('amareloMax', parseFloat(e.target.value) || 0)}
+                style={{ width: '60px', backgroundColor: '#020617', border: '1px solid #f59e0b', color: '#fbbf24', fontWeight: 900, padding: '8px', borderRadius: '6px', textAlign: 'center', outline: 'none' }}
+              />
+              <span style={{ color: '#cbd5e1', fontSize: '13px' }}>%</span>
+            </div>
+            <span style={{ display: 'block', color: '#64748b', fontSize: '10px', marginTop: '8px' }}>O sistema exibirá um aviso amarelo a solicitar moderação.</span>
+          </div>
+
+          {/* FAIXA VERMELHA */}
+          <div style={{ backgroundColor: '#2e0a16', border: '1px solid rgba(225,29,72,0.3)', padding: '16px', borderRadius: '12px' }}>
+            <span style={{ display: 'block', color: '#e11d48', fontSize: '12px', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>🔴 Margem Crítica (Acima de {regrasDesconto.amareloMax}%)</span>
+            
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginTop: '10px' }}>
+              <input 
+                type="checkbox" 
+                checked={regrasDesconto.exigirSenhaVermelho} 
+                onChange={(e) => lidarComMudancaRegra('exigirSenhaVermelho', e.target.checked)}
+                style={{ accentColor: '#e11d48', width: '16px', height: '16px' }}
+              />
+              <span style={{ color: '#cbd5e1', fontSize: '13px', fontWeight: 700 }}>Exigir Senha da Gerência</span>
+            </label>
+
+            {regrasDesconto.exigirSenhaVermelho && (
+              <div style={{ marginTop: '12px' }}>
+                <span style={{ color: '#64748b', fontSize: '11px', display: 'block', marginBottom: '4px' }}>Senha de Autorização:</span>
+                <input 
+                  type="text" 
+                  value={regrasDesconto.senhaGerente} 
+                  onChange={(e) => lidarComMudancaRegra('senhaGerente', e.target.value)}
+                  style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #e11d48', color: '#fb7185', fontWeight: 900, padding: '8px', borderRadius: '6px', textAlign: 'center', outline: 'none' }}
+                />
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* SEÇÃO DE VENDEDORES E COMISSÕES */}
