@@ -585,23 +585,42 @@ useEffect(() => {
           <ZeniteLogo aoClicar={() => setEcraAtual('hub')} />
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-  <span style={{ fontSize: '10px', color: '#818cf8', fontWeight: 900 }}>🌐</span>
-  <select value={moeda} onChange={(e) => setMoeda(e.target.value)} style={{ backgroundColor: 'transparent', color: '#34d399', fontSize: '11px', fontWeight: 900, border: 'none', outline: 'none', cursor: 'pointer' }}>
-    <option value="BRL" style={{ backgroundColor: '#0b1120', color: '#fff' }}>BRL (R$)</option>
-    <option value="USD" style={{ backgroundColor: '#0b1120', color: '#fff' }}>USD ($)</option>
-    <option value="EUR" style={{ backgroundColor: '#0b1120', color: '#fff' }}>EUR (€)</option>
-    <option value="PYG" style={{ backgroundColor: '#0b1120', color: '#fff' }}>PYG (₲)</option>
-  </select>
-  <button 
-    onClick={() => setModalCambioAberto(true)} 
-    title="Ajustar Cotações de Câmbio"
-    style={{ backgroundColor: 'rgba(99, 102, 241, 0.2)', border: '1px solid #6366f1', color: '#818cf8', padding: '2px 6px', borderRadius: '6px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
-  >
-    ⚙️ Câmbio
-  </button>
-</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', padding: '4px 8px', gap: '6px', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.5)' }}>
+            {/* Seletor de Idioma */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <span style={{ fontSize: '12px' }}>{idioma === 'pt' ? '🇧🇷' : idioma === 'es' ? '🇪🇸' : '🇺🇸'}</span>
+              <select value={idioma} onChange={(e) => setIdioma(e.target.value)} style={{ backgroundColor: 'transparent', color: '#cbd5e1', fontSize: '11px', fontWeight: 800, border: 'none', outline: 'none', cursor: 'pointer' }}>
+                <option value="pt" style={{ backgroundColor: '#0b1120', color: '#fff' }}>PT</option>
+                <option value="es" style={{ backgroundColor: '#0b1120', color: '#fff' }}>ES</option>
+                <option value="en" style={{ backgroundColor: '#0b1120', color: '#fff' }}>EN</option>
+              </select>
+            </div>
+            
+            <div style={{ width: '1px', height: '14px', backgroundColor: '#334155' }}></div>
+            
+            {/* Seletor de Moeda */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <span style={{ fontSize: '10px', color: '#818cf8', fontWeight: 900 }}>🌐</span>
+              <select value={moeda} onChange={(e) => setMoeda(e.target.value)} style={{ backgroundColor: 'transparent', color: '#34d399', fontSize: '11px', fontWeight: 900, border: 'none', outline: 'none', cursor: 'pointer' }}>
+                <option value="BRL" style={{ backgroundColor: '#0b1120', color: '#fff' }}>BRL (R$)</option>
+                <option value="USD" style={{ backgroundColor: '#0b1120', color: '#fff' }}>USD ($)</option>
+                <option value="EUR" style={{ backgroundColor: '#0b1120', color: '#fff' }}>EUR (€)</option>
+                <option value="PYG" style={{ backgroundColor: '#0b1120', color: '#fff' }}>PYG (₲)</option>
+              </select>
+            </div>
+
+            <div style={{ width: '1px', height: '14px', backgroundColor: '#334155' }}></div>
+
+            {/* Botão de Câmbio / Configuração de Taxas */}
+            <button 
+              onClick={() => setModalCambioAberto(true)} 
+              title="Ajustar Cotações de Câmbio"
+              style={{ backgroundColor: 'rgba(99, 102, 241, 0.2)', border: '1px solid #6366f1', color: '#818cf8', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+            >
+              ⚙️ Câmbio
+            </button>
+          </div>
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '8px', padding: '6px 10px' }}>
             <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 800 }} className="hide-mobile">{tx('Operador:', 'Operador:', 'User:')}</span>
