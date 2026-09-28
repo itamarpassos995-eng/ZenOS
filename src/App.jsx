@@ -15,6 +15,7 @@ import EstoqueInteligente from './components/EstoqueInteligente';
 import Comissoes from './components/Comissoes';
 import Mesas from './components/Mesas';
 import DashboardMobile from './components/DashboardMobile';
+import Configuracoes from './components/Configuracoes';
 
 function ZeniteLogo({ aoClicar }) {
   return (
@@ -456,6 +457,7 @@ export default function App() {
                   {patenteUsuario === 'gerencia' && renderNavButton('comissoes', '🤝', tx('Comissões', 'Comisiones', 'Commissions'))}
                   {patenteUsuario === 'gerencia' && renderNavButton('dashboardMobile', '📱', tx('App Mobile (CEO)', 'App Mobile (CEO)', 'Mobile App (CEO)'))}
                   {patenteUsuario === 'gerencia' && renderNavButton('despesas', '💸', tx('Contas a Pagar', 'Cuentas a Pagar', 'Expenses'), { bg: '#e11d48', color: '#fff', text: despesas.filter(d=>d.status==='pendente').length || '0' })}
+                  {patenteUsuario === 'gerencia' && renderNavButton('configuracoes', '⚙️', tx('Configurações', 'Configuraciones', 'Settings'))}
                   {patenteUsuario === 'gerencia' && renderNavButton('migracao', '📥', tx('Importar Dados', 'Importar Datos', 'Import Data'))}
                 </div>
               </>
@@ -684,6 +686,7 @@ export default function App() {
         {ecraAtual === 'clientes' && <Clientes clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} />}
         {ecraAtual === 'vendas' && <Vendas historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} fmt={fmt} t={t} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterDeBRL={converterDeBRL} />}
         {ecraAtual === 'migracao' && <Migracao produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} t={t} tx={tx} />}
+        {ecraAtual === 'configuracoes' && <Configuracoes setProdutos={setProdutos} setClientes={setClientes} setHistoricoVendas={setHistoricoVendas} setCaixaMovimentos={setCaixaMovimentos} setDespesas={setDespesas} moeda={moeda} fmt={fmt} tx={tx} />}
         {ecraAtual === 'despesas' && <Despesas despesas={despesas} setDespesas={setDespesas} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterParaBRL={converterParaBRL} />}
       </main>
 
