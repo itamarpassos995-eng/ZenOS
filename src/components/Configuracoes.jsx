@@ -1,16 +1,33 @@
 import React, { useState } from 'react';
 import { db, auth } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
-import { EmailAuthProvider, reauthenticateWithCredential, signInWithEmailAndPassword } from 'firebase/auth';
+import { EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { produtosIniciais, clientesIniciais, normalizarProduto, normalizarCliente } from '../data';
 
-export default function Configuracoes({ setProdutos, setClientes, setHistoricoVendas, setCaixaMovimentos, setDespesas, moeda, fmt, tx }) {
+export default function Configuracoes({ produtos, setProdutos, clientes, setClientes, historicoVendas, setHistoricoVendas, caixaMovimentos, setCaixaMovimentos, despesas, setDespesas, moeda, fmt, tx }) {
   const [modalResetAberto, setModalResetAberto] = useState(false);
   const [senhaAdmin, setSenhaAdmin] = useState('');
-  const [etapaAviso, setEtapaAviso] = useState(1); // 1: Aviso de risco, 2: Senha de admin
+  const [etapaAviso, setEtapaAviso] = useState(1); // 1: Seleção e aviso, 2: Senha de admin
   const [carregandoReset, setCarregandoReset] = useState(false);
 
-  // Configurações de Vendedores e Comissões
+  // Estados dos Checkboxes Granulares
+  const [selProdutos, setSelProdutos] = useState(false);
+  const [selClientes, setSelClientes] = useState(false);
+  const [selVendas, setSelVendas] = useState(false);
+  const [selCaixa, setSelCaixa] = useState(false);
+  const [selDespesas, setSelDespesas] = useState(false);
+  const [selTudo, setSelTudo] = useState(false);
+
+  const handleSelTudo = (val) => {
+    setSelTudo(val);
+    setSelProdutos(val);
+    setSelClientes(val);
+    setSelVendas(val);
+    setSelCaixa(val);
+    setSelDespesas(val);
+  };
+
+  // Gestão de Vendedores e Comissões
   const [vendedores, setVendedores] = useState([
     { id: 1, nome: 'Gerência / Administrador', comissaoTipo: 'lucro', percentual: 0 },
     { id: 2, nome: 'Vendedor Padrão', comissaoTipo: 'venda', percentual: 5 }
@@ -31,46 +48,52 @@ export default function Configuracoes({ setProdutos, setClientes, setHistoricoVe
     alert('Vendedor adicionado com sucesso!');
   };
 
-  const executarResetCompleto = async () => {
+  const executarResetGranular = async () => {
     if (!senhaAdmin) return alert('Por favor, digite a senha de administrador.');
+    if (!selProdutos && !selClientes && !selVendas && !selCaixa && !selDespesas) {
+      return alert('Selecione pelo menos uma opção para restaurar ou limpar.');
+    }
+
     setCarregandoReset(true);
 
     try {
       const user = auth.currentUser;
-      if (!user || !user.email) {
-        throw new Error('Utilizador não autenticado.');
-      }
+      if (!user || !user.email) throw new Error('Utilizador não autenticado.');
 
-      // Reautenticação segura no Firebase com a senha fornecida
+      // Reautenticação segura no Firebase com a senha de admin
       const credential = EmailAuthProvider.credential(user.email, senhaAdmin);
       await reauthenticateWithCredential(user, credential);
 
-      // Se a senha estiver correta, limpa os dados locais e de fábrica
-      const padroesProd = produtosIniciais.map((p, idx) => normalizarProduto(p, idx));
-      const padroesCli = clientesIniciais.map(c => normalizarCliente(c));
+      // Aplica as alterações apenas nos módulos selecionados
+      const novosProdutos = selProdutos ? produtosIniciais.map((p, idx) => normalizarProduto(p, idx)) : produtos;
+      const novosClientes = selClientes ? clientesIniciais.map(c => normalizarCliente(c)) : clientes;
+      const novoHistoricoVendas = selVendas ? [] : historicoVendas;
+      const novosCaixaMovs = selCaixa ? [] : caixaMovimentos;
+      const novasDespesas = selDespesas ? [] : despesas;
 
-      setProdutos(padroesProd);
-      setClientes(padroesCli);
-      setHistoricoVendas([]);
-      setCaixaMovimentos([]);
-      setDespesas([]);
+      setProdutos(novosProdutos);
+      setClientes(novosClientes);
+      setHistoricoVendas(novoHistoricoVendas);
+      setCaixaMovimentos(novosCaixaMovs);
+      setDespesas(novasDespesas);
 
-      // Limpa também no Firestore da loja atual
+      // Atualiza na nuvem do Firebase da loja atual
       await setDoc(doc(db, "lojas", user.uid, "dados", "operacao"), {
-        produtos: padroesProd,
-        clientes: padroesCli,
-        historicoVendas: [],
-        caixaMovimentos: [],
-        despesas: []
+        produtos: novosProdutos,
+        clientes: novosClientes,
+        historicoVendas: novoHistoricoVendas,
+        caixaMovimentos: novosCaixaMovs,
+        despesas: novasDespesas
       }, { merge: true });
 
-      alert('Sistema limpo e restaurado para os dados de fábrica com sucesso!');
+      alert('Itens selecionados limpos/restaurados com sucesso!');
       setModalResetAberto(false);
       setSenhaAdmin('');
       setEtapaAviso(1);
+      handleSelTudo(false);
     } catch (err) {
       console.error("Erro ao validar senha de admin:", err);
-      alert('Senha de Administrador incorreta ou erro de autenticação. A operação foi cancelada por segurança.');
+      alert('Senha de Administrador incorreta ou erro de autenticação. A operação foi cancelada.');
     } finally {
       setCarregandoReset(false);
     }
@@ -104,7 +127,7 @@ export default function Configuracoes({ setProdutos, setClientes, setHistoricoVe
             placeholder="% Comissão"
             style={{ flex: 1, minWidth: '100px', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#34d399', fontWeight: 900, padding: '10px 14px', outline: 'none', fontSize: '13px', textAlign: 'center' }}
           />
-          <button onClick={vendedores} type="button" onClick={adicionarVendedor} style={{ backgroundColor: '#4f46e5', border: 'none', color: '#fff', padding: '10px 20px', borderRadius: '8px', fontWeight: 900, cursor: 'pointer', fontSize: '13px' }}>
+          <button onClick={adicionarVendedor} type="button" style={{ backgroundColor: '#4f46e5', border: 'none', color: '#fff', padding: '10px 20px', borderRadius: '8px', fontWeight: 900, cursor: 'pointer', fontSize: '13px' }}>
             + Adicionar Vendedor
           </button>
         </div>
@@ -119,43 +142,88 @@ export default function Configuracoes({ setProdutos, setClientes, setHistoricoVe
         </div>
       </div>
 
-      {/* ZONA DE PERIGO: RESTAURAR DADOS DE FÁBRICA */}
+      {/* ZONA DE PERIGO: RESTAURAÇÃO GRANULAR */}
       <div style={{ backgroundColor: '#2e0a16', border: '1px solid rgba(244, 63, 94, 0.4)', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{ fontSize: '20px' }}>⚠️</span>
-          <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#fb7185', margin: 0 }}>Zona de Perigo • Restauração de Fábrica</h3>
+          <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#fb7185', margin: 0 }}>Zona de Perigo • Restauração e Limpeza de Fábrica</h3>
         </div>
         <p style={{ fontSize: '13px', color: '#fca5a5', margin: 0, lineHeight: 1.5 }}>
-          Esta ação irá <b>apagar permanentemente</b> todos os produtos atuais, histórico de vendas, clientes cadastrados e fechos de caixa, retornando o sistema para os dados iniciais de demonstração.
+          Central de limpeza do sistema. Permite redefinir dados de treino, limpar histórico ou zerar módulos específicos antes de entregar a loja ao cliente final.
         </p>
         <div>
           <button 
-            onClick={() => { setEtapaAviso(1); setSenhaAdmin(''); setModalResetAberto(true); }}
+            onClick={() => { setEtapaAviso(1); setSenhaAdmin(''); handleSelTudo(false); setModalResetAberto(true); }}
             type="button" 
             style={{ backgroundColor: '#e11d48', border: 'none', color: '#fff', padding: '12px 24px', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', fontSize: '13px', boxShadow: '0 4px 15px rgba(225,29,72,0.4)' }}
           >
-            🗑️ Limpar Sistema e Restaurar Padrões
+            🗑️ Gerir Restauração e Limpeza de Dados
           </button>
         </div>
       </div>
 
-      {/* MODAL DE SEGURANÇA PARA RESET (DUPLA BARREIRA) */}
+      {/* MODAL DE RESTAURAÇÃO GRANULAR COM SENHA DE ADMIN */}
       {modalResetAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.9)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '16px' }}>
-          <div style={{ backgroundColor: '#0b1120', border: '2px solid #f43f5e', borderRadius: '24px', padding: '32px', width: '100%', maxWidth: '460px', color: '#fff', boxSizing: 'border-box' }}>
+          <div style={{ backgroundColor: '#0b1120', border: '2px solid #f43f5e', borderRadius: '24px', padding: '32px', width: '100%', maxWidth: '480px', color: '#fff', boxSizing: 'border-box' }}>
             
             {etapaAviso === 1 ? (
               <>
-                <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                  <span style={{ fontSize: '40px' }}>🚨</span>
-                  <h3 style={{ fontSize: '20px', fontWeight: 900, color: '#f43f5e', margin: '8px 0 0 0' }}>ATENÇÃO: AÇÃO IRREVERSÍVEL!</h3>
+                <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+                  <span style={{ fontSize: '36px' }}>🛡️</span>
+                  <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#f43f5e', margin: '6px 0 0 0' }}>Escolha o que deseja Restaurar / Limpar</h3>
                 </div>
-                <p style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: 1.6, marginBottom: '24px', textAlign: 'center' }}>
-                  Tem a certeza absoluta de que pretende zerar o sistema? Todo o estoque atual, registos de clientes com fiado e histórico de vendas serão <b>destruídos permanentemente</b>.
+                <p style={{ fontSize: '12px', color: '#cbd5e1', lineHeight: 1.5, marginBottom: '20px', textAlign: 'center' }}>
+                  Selecione os módulos que pretende zerar ou restaurar para os padrões de fábrica.
                 </p>
+
+                {/* CHECKBOXES */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', backgroundColor: '#020617', padding: '16px', borderRadius: '14px', border: '1px solid #1e293b', marginBottom: '20px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '13px', fontWeight: 900, color: '#fbbf24', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '8px' }}>
+                    <input type="checkbox" checked={selTudo} onChange={e => handleSelTudo(e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#d97706', cursor: 'pointer' }} />
+                    🔥 Restaurar / Zerar Tudo (Selecionar Todos)
+                  </label>
+                  
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '13px', color: '#e2e8f0', fontWeight: 700 }}>
+                    <input type="checkbox" checked={selProdutos} onChange={e => setSelProdutos(e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#e11d48', cursor: 'pointer' }} />
+                    📦 Produtos (Voltar ao catálogo padrão de tintas)
+                  </label>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '13px', color: '#e2e8f0', fontWeight: 700 }}>
+                    <input type="checkbox" checked={selClientes} onChange={e => setSelClientes(e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#e11d48', cursor: 'pointer' }} />
+                    👥 Clientes e Fiados (Zerar CRM e saldos devedores)
+                  </label>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '13px', color: '#e2e8f0', fontWeight: 700 }}>
+                    <input type="checkbox" checked={selVendas} onChange={e => setSelVendas(e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#e11d48', cursor: 'pointer' }} />
+                    📑 Histórico de Vendas (Apagar registos de PDV e Mesas)
+                  </label>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '13px', color: '#e2e8f0', fontWeight: 700 }}>
+                    <input type="checkbox" checked={selCaixa} onChange={e => setSelCaixa(e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#e11d48', cursor: 'pointer' }} />
+                    💵 Movimentos de Caixa (Zerar gaveta, sangrias e suprimentos)
+                  </label>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '13px', color: '#e2e8f0', fontWeight: 700 }}>
+                    <input type="checkbox" checked={selDespesas} onChange={e => setSelDespesas(e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#e11d48', cursor: 'pointer' }} />
+                    💸 Despesas e Contas a Pagar (Zerar lançamentos financeiros)
+                  </label>
+                </div>
+
                 <div style={{ display: 'flex', gap: '12px' }}>
-                  <button onClick={() => setModalResetAberto(false)} type="button" style={{ flex: 1, padding: '14px', backgroundColor: '#020617', border: '1px solid #334155', color: '#94a3b8', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}>Cancelar</button>
-                  <button onClick={() => setEtapaAviso(2)} type="button" style={{ flex: 1, padding: '14px', backgroundColor: '#e11d48', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}>Sim, Compreendo os Riscos</button>
+                  <button onClick={() => setModalResetAberto(false)} type="button" style={{ flex: 1, padding: '12px', backgroundColor: '#020617', border: '1px solid #334155', color: '#94a3b8', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}>Cancelar</button>
+                  <button 
+                    onClick={() => {
+                      if (!selProdutos && !selClientes && !selVendas && !selCaixa && !selDespesas) {
+                        return alert('Por favor, selecione pelo menos uma opção.');
+                      }
+                      setEtapaAviso(2);
+                    }} 
+                    type="button" 
+                    style={{ flex: 1, padding: '12px', backgroundColor: '#e11d48', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}
+                  >
+                    Avançar para Senha ➔
+                  </button>
                 </div>
               </>
             ) : (
@@ -165,7 +233,7 @@ export default function Configuracoes({ setProdutos, setClientes, setHistoricoVe
                   <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#fff', margin: '8px 0 0 0' }}>Confirmação de Administrador</h3>
                 </div>
                 <p style={{ fontSize: '13px', color: '#94a3b8', lineHeight: 1.5, marginBottom: '16px', textAlign: 'center' }}>
-                  Por motivos de segurança, insira a sua <b>senha de Administrador</b> para autorizar a limpeza total da loja.
+                  Para executar a limpeza dos itens selecionados, insira a sua <b>senha de Administrador</b>.
                 </p>
 
                 <label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800, display: 'block', marginBottom: '6px' }}>Senha de Administrador:</label>
@@ -177,14 +245,14 @@ export default function Configuracoes({ setProdutos, setClientes, setHistoricoVe
                 />
 
                 <div style={{ display: 'flex', gap: '12px' }}>
-                  <button onClick={() => setModalResetAberto(false)} type="button" style={{ flex: 1, padding: '14px', backgroundColor: '#020617', border: '1px solid #334155', color: '#94a3b8', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}>Voltar</button>
+                  <button onClick={() => setEtapaAviso(1)} type="button" style={{ flex: 1, padding: '14px', backgroundColor: '#020617', border: '1px solid #334155', color: '#94a3b8', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}>Voltar</button>
                   <button 
                     disabled={carregandoReset}
-                    onClick={executarResetCompleto} 
+                    onClick={executarResetGranular} 
                     type="button" 
                     style={{ flex: 2, padding: '14px', backgroundColor: carregandoReset ? '#475569' : '#e11d48', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: carregandoReset ? 'not-allowed' : 'pointer', boxShadow: '0 4px 15px rgba(225,29,72,0.3)' }}
                   >
-                    {carregandoReset ? 'A limpar sistema...' : 'Autorizar e Limpar Tudo'}
+                    {carregandoReset ? 'A processar limpeza...' : 'Confirmar e Executar Limpeza'}
                   </button>
                 </div>
               </>
