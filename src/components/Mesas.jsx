@@ -22,14 +22,27 @@ export default function Mesas({ produtos, fmt, tx, historicoVendas, setHistorico
   const [mesaAtivaId, setMesaAtivaId] = useState(null);
   const [buscaProduto, setBuscaProduto] = useState('');
   const [modalPagamento, setModalPagamento] = useState(false);
-  const [metodoPgto, setMetodoPgto] = useState('Dinheiro');
+  const [metodoPgto, setMetodoPgto] = useState('Dinheiro (R$)');
   
   const mesaAtiva = mesas.find(m => m.id === mesaAtivaId);
+
+  // Catálogo unificado de pagamentos idêntico ao PDV
+  const catalogoFormas = [
+    { id: 'Dinheiro (R$)', rotulo: 'Dinheiro (R$)', icone: '💵' }, 
+    { id: 'Dólar ($)', rotulo: 'Dólar ($)', icone: '💵' },
+    { id: 'Guarani (₲)', rotulo: 'Guarani (₲)', icone: '💵' }, 
+    { id: 'Euro (€)', rotulo: 'Euro (€)', icone: '💶' },
+    { id: 'Pix QR Code', rotulo: 'Pix QR Code', icone: '⚡' }, 
+    { id: 'Cartão Crédito', rotulo: 'Cartão Crédito', icone: '💳' },
+    { id: 'Cartão Débito', rotulo: 'Cartão Débito', icone: '💳' }, 
+    { id: 'Voucher / Vale', rotulo: 'Voucher / Vale', icone: '🎟️' },
+    { id: 'Cheque', rotulo: 'Cheque', icone: '📝' }
+  ];
 
   // Otimização de Busca para Cardápio (Ignora itens de uso único sem estoque)
   const produtosCardapio = useMemo(() => {
     let lista = produtos.filter(p => !p.usoUnicoEncomendado || p.estoque > 0);
-    if (!buscaProduto) return lista.slice(0, 50); // Mostra 50 primeiros para ser rápido
+    if (!buscaProduto) return lista.slice(0, 50);
     const txt = buscaProduto.toLowerCase();
     return lista.filter(p => (p.nome || '').toLowerCase().includes(txt) || (p.sku || '').toLowerCase().includes(txt)).slice(0, 50);
   }, [produtos, buscaProduto]);
@@ -78,7 +91,6 @@ export default function Mesas({ produtos, fmt, tx, historicoVendas, setHistorico
   const processarPagamento = () => {
     if (!mesaAtiva || mesaAtiva.itens.length === 0) return;
     
-    // Constrói objeto de venda perfeitamente compatível com o seu sistema de Faturamento
     const novaVenda = {
       id: Date.now(),
       dataHora: new Date().toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR'),
@@ -100,10 +112,7 @@ export default function Mesas({ produtos, fmt, tx, historicoVendas, setHistorico
       ]
     };
 
-    // Salva na Nuvem/Histórico Geral
     setHistoricoVendas([novaVenda, ...historicoVendas]);
-
-    // Limpa e liberta a Mesa
     setMesas(prev => prev.map(m => m.id === mesaAtivaId ? { ...m, status: 'livre', itens: [] } : m));
     setModalPagamento(false);
     setMesaAtivaId(null);
@@ -112,8 +121,8 @@ export default function Mesas({ produtos, fmt, tx, historicoVendas, setHistorico
   // TELA 1: MAPA GERAL DE MESAS
   if (!mesaAtivaId) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '28px', width: '100%', boxSizing: 'border-box' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
           <div><h2 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>Mapa de Mesas & Comandas</h2><span style={{ fontSize: '13px', color: '#64748b' }}>Gestão de consumos em aberto</span></div>
           <div style={{ display: 'flex', gap: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#10b981' }}></div><span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 800 }}>Livre</span></div>
@@ -121,7 +130,7 @@ export default function Mesas({ produtos, fmt, tx, historicoVendas, setHistorico
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '16px' }}>
           {mesas.map(m => {
             const ocupada = m.status === 'ocupada';
             const total = ocupada ? m.itens.reduce((acc, it) => acc + (it.preco * it.qtd), 0) : 0;
@@ -151,11 +160,17 @@ export default function Mesas({ produtos, fmt, tx, historicoVendas, setHistorico
     );
   }
 
-  // TELA 2: GESTÃO DA MESA SELECIONADA
+  // TELA 2: GESTÃO DA MESA SELECIONADA (ADAPTADA MOBILE RESPONSIVE)
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', height: 'calc(100vh - 140px)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0b1120', padding: '16px 24px', borderRadius: '16px', border: '1px solid #1e293b' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', boxSizing: 'border-box' }}>
+      <style>{`
+        @media (max-width: 900px) {
+          .mesas-gestao-layout { flex-direction: column !important; }
+        }
+      `}</style>
+      
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0b1120', padding: '16px 24px', borderRadius: '16px', border: '1px solid #1e293b', flexWrap: 'wrap', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
           <button onClick={() => setMesaAtivaId(null)} style={{ backgroundColor: '#020617', border: '1px solid #334155', color: '#94a3b8', padding: '10px 16px', borderRadius: '10px', fontWeight: 800, cursor: 'pointer' }}>⬅ Voltar ao Mapa</button>
           <div>
             <h2 style={{ margin: 0, fontSize: '20px', color: '#fff', fontWeight: 900 }}>{mesaAtiva.rotulo}</h2>
@@ -164,18 +179,19 @@ export default function Mesas({ produtos, fmt, tx, historicoVendas, setHistorico
             </span>
           </div>
         </div>
-        <div style={{ fontSize: '24px', fontWeight: 900, color: '#38bdf8' }}>Total: {fmt(totalMesa)}</div>
+        <div style={{ fontSize: '22px', fontWeight: 900, color: '#38bdf8' }}>Total: {fmt(totalMesa)}</div>
       </div>
 
-      <div style={{ display: 'flex', gap: '20px', flex: 1, overflow: 'hidden' }}>
+      <div className="mesas-gestao-layout" style={{ display: 'flex', gap: '20px', width: '100%', boxSizing: 'border-box' }}>
+        
         {/* LADO ESQUERDO: CARDÁPIO / PRODUTOS */}
-        <div style={{ flex: 2, display: 'flex', flexDirection: 'column', gap: '16px', backgroundColor: '#0b1120', borderRadius: '16px', border: '1px solid #1e293b', padding: '20px' }}>
+        <div style={{ flex: 2, display: 'flex', flexDirection: 'column', gap: '16px', backgroundColor: '#0b1120', borderRadius: '16px', border: '1px solid #1e293b', padding: '20px', minWidth: 0, boxSizing: 'border-box' }}>
           <input 
             type="text" value={buscaProduto} onChange={e => setBuscaProduto(e.target.value)}
             placeholder="🔍 Buscar produto no cardápio..."
             style={{ width: '100%', padding: '14px 20px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '12px', color: '#fff', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}
           />
-          <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '12px', alignContent: 'start' }}>
+          <div style={{ maxHeight: '450px', overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '12px', alignContent: 'start' }}>
             {produtosCardapio.map(p => (
               <div 
                 key={p.id} onClick={() => adicionarItemMesa(p)}
@@ -194,22 +210,22 @@ export default function Mesas({ produtos, fmt, tx, historicoVendas, setHistorico
         </div>
 
         {/* LADO DIREITO: CONTA DA MESA */}
-        <div style={{ flex: 1, backgroundColor: '#020617', borderRadius: '16px', border: '1px solid #1e293b', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ flex: 1, backgroundColor: '#020617', borderRadius: '16px', border: '1px solid #1e293b', display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: '280px', boxSizing: 'border-box' }}>
           <div style={{ backgroundColor: '#1e1b4b', padding: '16px', borderBottom: '1px solid #312e81', textAlign: 'center' }}>
             <h3 style={{ margin: 0, color: '#a5b4fc', fontSize: '15px', fontWeight: 900 }}>CONTA ABERTA</h3>
           </div>
           
-          <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ maxHeight: '350px', overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {mesaAtiva.itens.length === 0 ? (
               <div style={{ textAlign: 'center', color: '#475569', fontSize: '13px', marginTop: '40px', fontWeight: 800 }}>Mesa vazia. Adicione itens do cardápio.</div>
             ) : (
               mesaAtiva.itens.map(it => (
-                <div key={it.produtoId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0b1120', padding: '12px', borderRadius: '10px', border: '1px solid #1e293b' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-                    <span style={{ color: '#fff', fontSize: '13px', fontWeight: 800 }}>{it.nome}</span>
+                <div key={it.produtoId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0b1120', padding: '12px', borderRadius: '10px', border: '1px solid #1e293b', gap: '8px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+                    <span style={{ color: '#fff', fontSize: '13px', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.nome}</span>
                     <span style={{ color: '#94a3b8', fontSize: '11px' }}>{fmt(it.preco)} / un</span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                     <button onClick={() => alterarQtdItem(it.produtoId, -1)} style={{ width: '28px', height: '28px', borderRadius: '6px', border: 'none', backgroundColor: '#f43f5e', color: '#fff', fontWeight: 900, cursor: 'pointer' }}>-</button>
                     <span style={{ color: '#38bdf8', fontWeight: 900, fontSize: '14px', width: '20px', textAlign: 'center' }}>{it.qtd}</span>
                     <button onClick={() => alterarQtdItem(it.produtoId, 1)} style={{ width: '28px', height: '28px', borderRadius: '6px', border: 'none', backgroundColor: '#10b981', color: '#fff', fontWeight: 900, cursor: 'pointer' }}>+</button>
@@ -219,11 +235,11 @@ export default function Mesas({ produtos, fmt, tx, historicoVendas, setHistorico
             )}
           </div>
 
-          <div style={{ padding: '20px', backgroundColor: '#0b1120', borderTop: '1px solid #1e293b' }}>
+          <div style={{ padding: '20px', backgroundColor: '#0b1120', borderTop: '1px solid #1e293b', marginTop: 'auto' }}>
             <button 
               disabled={mesaAtiva.itens.length === 0}
               onClick={() => setModalPagamento(true)}
-              style={{ width: '100%', padding: '16px', borderRadius: '12px', fontSize: '16px', fontWeight: 900, cursor: mesaAtiva.itens.length === 0 ? 'not-allowed' : 'pointer', background: mesaAtiva.itens.length === 0 ? '#1e293b' : 'linear-gradient(135deg, #10b981, #059669)', color: mesaAtiva.itens.length === 0 ? '#64748b' : '#fff', border: 'none', boxShadow: mesaAtiva.itens.length === 0 ? 'none' : '0 10px 25px rgba(16, 185, 129, 0.3)' }}
+              style={{ width: '100%', padding: '16px', borderRadius: '12px', fontSize: '16px', fontWeight: 900, cursor: mesaAtiva.itens.length === 0 ? 'not-allowed' : 'pointer', background: mesaAtiva.itens.length === 0 ? '#1e1b4b' : 'linear-gradient(135deg, #10b981, #059669)', color: mesaAtiva.itens.length === 0 ? '#64748b' : '#fff', border: 'none', boxShadow: mesaAtiva.itens.length === 0 ? 'none' : '0 10px 25px rgba(16, 185, 129, 0.3)', boxSizing: 'border-box' }}
             >
               💳 FECHAR CONTA • {fmt(totalMesa)}
             </button>
@@ -231,28 +247,29 @@ export default function Mesas({ produtos, fmt, tx, historicoVendas, setHistorico
         </div>
       </div>
 
-      {/* MODAL DE PAGAMENTO RÁPIDO */}
+      {/* MODAL DE PAGAMENTO RÁPIDO COM CATÁLOGO COMPLETO */}
       {modalPagamento && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ backgroundColor: '#0b1120', border: '1px solid #10b981', borderRadius: '24px', padding: '32px', width: '100%', maxWidth: '400px' }}>
-            <h2 style={{ margin: '0 0 8px 0', color: '#fff', fontSize: '24px', fontWeight: 900, textAlign: 'center' }}>Finalizar Mesa</h2>
-            <div style={{ fontSize: '32px', fontWeight: 900, color: '#34d399', textAlign: 'center', marginBottom: '24px' }}>{fmt(totalMesa)}</div>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.9)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '16px', boxSizing: 'border-box' }}>
+          <div style={{ backgroundColor: '#0b1120', border: '1px solid #10b981', borderRadius: '24px', padding: '28px', width: '100%', maxWidth: '420px', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h2 style={{ margin: '0 0 4px 0', color: '#fff', fontSize: '20px', fontWeight: 900, textAlign: 'center' }}>Finalizar Mesa</h2>
+            <div style={{ fontSize: '28px', fontWeight: 900, color: '#34d399', textAlign: 'center', marginBottom: '20px' }}>{fmt(totalMesa)}</div>
             
             <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Forma de Pagamento</label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '24px' }}>
-              {['Dinheiro', 'Cartão Crédito', 'Cartão Débito', 'Pix'].map(mt => (
-                <button 
-                  key={mt} onClick={() => setMetodoPgto(mt)}
-                  style={{ padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 800, cursor: 'pointer', border: `1px solid ${metodoPgto === mt ? '#10b981' : '#334155'}`, backgroundColor: metodoPgto === mt ? 'rgba(16, 185, 129, 0.1)' : '#020617', color: metodoPgto === mt ? '#34d399' : '#94a3b8' }}
-                >
-                  {mt}
-                </button>
+            <select 
+              value={metodoPgto} 
+              onChange={e => setMetodoPgto(e.target.value)} 
+              style={{ width: '100%', padding: '14px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '12px', color: '#f8fafc', fontSize: '14px', fontWeight: 800, outline: 'none', cursor: 'pointer', marginBottom: '24px', boxSizing: 'border-box' }}
+            >
+              {catalogoFormas.map(f => (
+                <option key={f.id} value={f.id}>
+                  {f.icone} {f.rotulo}
+                </option>
               ))}
-            </div>
+            </select>
 
             <div style={{ display: 'flex', gap: '12px' }}>
-              <button onClick={() => setModalPagamento(false)} style={{ flex: 1, padding: '16px', backgroundColor: '#020617', border: '1px solid #f43f5e', color: '#fb7185', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={processarPagamento} style={{ flex: 2, padding: '16px', background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}>Confirmar Recebimento</button>
+              <button onClick={() => setModalPagamento(false)} style={{ flex: 1, padding: '14px', backgroundColor: '#020617', border: '1px solid #f43f5e', color: '#fb7185', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={processarPagamento} style={{ flex: 2, padding: '14px', background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}>Confirmar Recebimento</button>
             </div>
           </div>
         </div>
