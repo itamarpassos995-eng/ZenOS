@@ -75,6 +75,9 @@ export default function App() {
   const [userId, setUserId] = useState(null);
   const [statusLoja, setStatusLoja] = useState(null);
   const [carregandoAuth, setCarregandoAuth] = useState(true);
+  
+  // 🔒 NOVO: MOTOR DE SINCRONIZAÇÃO (TRANCA DE DADOS)
+  const [nuvemSincronizada, setNuvemSincronizada] = useState(false);
 
   const [vendedores, setVendedores] = useState(() => {
     try {
@@ -186,6 +189,7 @@ export default function App() {
     }
   };
 
+  // 🔒 ATUALIZADO: MOTOR DE DESCARGA E TRANCA DE SOBRESCRITA (DOWNLOAD-FIRST)
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -221,9 +225,16 @@ export default function App() {
             if (d.vendedores) setVendedores(d.vendedores);
             if (d.sessoesCaixa) setSessoesCaixa(d.sessoesCaixa);
           }
-        } catch (err) { setStatusLoja('ativo'); }
+        } catch (err) { 
+          setStatusLoja('ativo'); 
+        } finally {
+          // 🔒 AQUI A TRANCA É ABERTA: O sistema leu a nuvem e injetou no estado local com sucesso. Agora ele permite os salvamentos.
+          setNuvemSincronizada(true);
+        }
       } else {
+        // Zera tudo e tranca o sistema novamente
         setUsuarioAutenticado(null); setUserId(null); setStatusLoja(null); setOperadorAtivo(null);
+        setNuvemSincronizada(false);
       }
       setCarregandoAuth(false);
     });
@@ -252,47 +263,55 @@ export default function App() {
     setMostrarPainelExecutivo(false);
   };
 
+  // 🔒 ATUALIZADO: TODOS OS GATILHOS ESTÃO AGORA PROTEGIDOS PELA TRANCA "nuvemSincronizada"
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
+    if (!nuvemSincronizada) return;
     localStorage.setItem('zenos_produtos', JSON.stringify(produtos)); 
     if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(()=>{}); }
-  }, [produtos, userId]);
+  }, [produtos, userId, nuvemSincronizada]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
+    if (!nuvemSincronizada) return;
     localStorage.setItem('zenos_clientes', JSON.stringify(clientes)); 
     if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(()=>{}); }
-  }, [clientes, userId]);
+  }, [clientes, userId, nuvemSincronizada]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
+    if (!nuvemSincronizada) return;
     localStorage.setItem('zenos_historico_vendas', JSON.stringify(historicoVendas)); 
     if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(()=>{}); }
-  }, [historicoVendas, userId]);
+  }, [historicoVendas, userId, nuvemSincronizada]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
+    if (!nuvemSincronizada) return;
     localStorage.setItem('zenos_caixa_movs', JSON.stringify(caixaMovimentos)); 
     if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(()=>{}); }
-  }, [caixaMovimentos, userId]);
+  }, [caixaMovimentos, userId, nuvemSincronizada]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
+    if (!nuvemSincronizada) return;
     localStorage.setItem('zenos_despesas', JSON.stringify(despesas)); 
     if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(()=>{}); }
-  }, [despesas, userId]);
+  }, [despesas, userId, nuvemSincronizada]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
+    if (!nuvemSincronizada) return;
     localStorage.setItem('zenos_regras_desconto', JSON.stringify(regrasDesconto)); 
     if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(()=>{}); }
-  }, [regrasDesconto, userId]);
+  }, [regrasDesconto, userId, nuvemSincronizada]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
+    if (!nuvemSincronizada) return;
     localStorage.setItem('zenos_sessoes_caixa', JSON.stringify(sessoesCaixa)); 
     if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(()=>{}); }
-  }, [sessoesCaixa, userId]);
+  }, [sessoesCaixa, userId, nuvemSincronizada]);
 
   const t = (chave) => traducoes[idioma]?.[chave] || traducoes.pt[chave] || chave;
   const tx = (pt, es, en) => { if (idioma === 'es') return es || pt; if (idioma === 'en') return en || pt; return pt; };
@@ -501,7 +520,7 @@ export default function App() {
     ? historicoVendas 
     : historicoVendas.filter(v => String(v.vendedorId) === String(operadorAtivo?.id));
 
- const renderNavButton = (id, icone, texto, badge = null) => {
+  const renderNavButton = (id, icone, texto, badge = null) => {
     const ativo = ecraAtual === id;
     
     const lidarComClique = () => {
@@ -533,7 +552,6 @@ export default function App() {
         marginBottom: '2px'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {/* O segredo do alinhamento: largura fixa (24px) e centralização para o ícone */}
           <span style={{ fontSize: '18px', width: '24px', textAlign: 'center', filter: ativo ? 'grayscale(0%)' : 'grayscale(100%) opacity(0.6)' }}>{icone}</span>
           <span style={{ letterSpacing: '0.3px' }}>{texto}</span>
         </div>
@@ -541,6 +559,7 @@ export default function App() {
       </button>
     );
   };
+
   if (carregandoAuth) {
     return (
       <div style={{ minHeight: '100vh', backgroundColor: '#020617', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -584,34 +603,15 @@ export default function App() {
             </button>
         {menuNavAberto && (
               <>
-                {/* Overlay com leve desfoque para dar destaque ao menu */}
                 <div onClick={() => setMenuNavAberto(false)} style={{ position: 'fixed', inset: 0, zIndex: 40, backgroundColor: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(2px)' }}></div>
                 
                 <div style={{ 
-                  position: 'absolute', 
-                  top: '100%', 
-                  left: 0, 
-                  marginTop: '12px', 
-                  backgroundColor: '#1e293b', 
-                  border: '1px solid #334155', 
-                  borderRadius: '16px', 
-                  padding: '16px 12px', 
-                  zIndex: 50, 
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  gap: '4px', 
-                  width: '280px', 
-                  boxShadow: '0 20px 40px rgba(0,0,0,0.8)',
-                  maxHeight: 'calc(100vh - 90px)', 
-                  overflowY: 'auto' 
+                  position: 'absolute', top: '100%', left: 0, marginTop: '12px', backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '16px', padding: '16px 12px', zIndex: 50, display: 'flex', flexDirection: 'column', gap: '4px', width: '280px', boxShadow: '0 20px 40px rgba(0,0,0,0.8)', maxHeight: 'calc(100vh - 90px)', overflowY: 'auto' 
                 }}>
                   
-                  {/* Bloco de Perfil da Loja (Dinâmico) */}
                   <div style={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '12px', padding: '12px', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{ width: '40px', height: '40px', backgroundColor: '#1e293b', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
-                        🏢
-                      </div>
+                      <div style={{ width: '40px', height: '40px', backgroundColor: '#1e293b', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>🏢</div>
                       <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                         <span style={{ fontSize: '14px', fontWeight: 800, color: '#f8fafc', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', textTransform: 'capitalize' }}>
                           {localStorage.getItem('zenos_nome_loja') || (usuarioAutenticado ? usuarioAutenticado.split('@')[0].replace(/[._-]/g, ' ') : 'Minha Loja')}
@@ -637,7 +637,6 @@ export default function App() {
                   {temPermissao('clientes') && renderNavButton('clientes', '👥', t('clientesFiado'), totalFiadoAbertoBRL > 0 ? { bg: '#dc2626', color: '#fff', text: tx('Fiado', 'Deuda', 'Debt') } : null)}
                   {temPermissao('vendas') && renderNavButton('vendas', '📑', t('vendasDevolucoes'))}
                   
-                  {/* Linha separadora sutil */}
                   <div style={{ height: '1px', backgroundColor: '#334155', margin: '8px 12px' }}></div>
                   
                   {temPermissao('inteligencia') && renderNavButton('inteligencia', '📊', tx('Inteligência', 'Inteligencia', 'Intelligence'))}
@@ -656,9 +655,8 @@ export default function App() {
 
        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           
-          {/* 🗣️ NOVO: SELETOR DE IDIOMA GLOBAL */}
           <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', padding: '4px 8px', gap: '6px', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.5)' }}>
-            <span style={{ fontSize: '12px' }}>🗣️️</span>
+            <span style={{ fontSize: '12px' }}>🗣</span>
             <select value={idioma} onChange={(e) => setIdioma(e.target.value)} style={{ backgroundColor: 'transparent', color: '#f8fafc', fontSize: '11px', fontWeight: 900, border: 'none', outline: 'none', cursor: 'pointer' }}>
               <option value="pt" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>Português (PT)</option>
               <option value="es" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>Español (ES)</option>
@@ -666,7 +664,6 @@ export default function App() {
             </select>
           </div>
 
-          {/* 🌐 SELETOR DE MOEDAS (Já existente) */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', padding: '4px 8px', gap: '6px', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.5)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
