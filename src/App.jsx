@@ -17,7 +17,7 @@ import Comissoes from './components/Comissoes';
 import Mesas from './components/Mesas';
 import DashboardMobile from './components/DashboardMobile';
 import Configuracoes from './components/Configuracoes';
-import GestaoCaixas from './components/GestaoCaixas'; // ADICIONADO NOVO COMPONENTE
+import GestaoCaixas from './components/GestaoCaixas';
 
 const CURRENT_SCHEMA_VERSION = 1;
 
@@ -76,13 +76,11 @@ export default function App() {
   const [statusLoja, setStatusLoja] = useState(null);
   const [carregandoAuth, setCarregandoAuth] = useState(true);
 
-  // 🛡️ SISTEMA MULTI-OPERADOR E PATENTES
   const [vendedores, setVendedores] = useState(() => {
     try {
       const salvo = localStorage.getItem('zenos_vendedores');
       if (salvo) return JSON.parse(salvo);
     } catch (err) {}
-    // Utilizador mestre inicial de fábrica
     return [{ id: 'admin', nome: 'Administrador (Gerência)', patente: 'gerencia', senha: 'admin', percentual: 0, comissaoTipo: 'lucro' }];
   });
   const [operadorAtivo, setOperadorAtivo] = useState(null); 
@@ -104,15 +102,12 @@ export default function App() {
   const [taxasInput, setTaxasInput] = useState({ USD: '5.40', EUR: '6.05', PYG: '1380' });
   const [modalCambioAberto, setModalCambioAberto] = useState(false);
 
-  // 🛡️ REGRAS DO SEMÁFORO DE DESCONTO E NOVO ESTADO DE CAIXAS INDEPENDENTES
   const [regrasDesconto, setRegrasDesconto] = useState(() => {
     try {
       const salvo = localStorage.getItem('zenos_regras_desconto');
       if (salvo) return JSON.parse(salvo);
-    } catch (err) {
-      console.error("Erro ao carregar regras de desconto:", err);
-    }
-    return { verdeMax: 5, amareloMax: 12, exigirSenhaVermelho: true, senhaGerente: '1234' }; // Padrões de fábrica
+    } catch (err) {}
+    return { verdeMax: 5, amareloMax: 12, exigirSenhaVermelho: true, senhaGerente: '1234' };
   });
 
   const [sessoesCaixa, setSessoesCaixa] = useState(() => {
@@ -130,9 +125,7 @@ export default function App() {
         const parsed = JSON.parse(salvo);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
-    } catch (err) {
-      console.error("Erro crítico ao carregar produtos:", err);
-    }
+    } catch (err) {}
     return produtosIniciais.map((p, idx) => normalizarProduto(p, idx));
   });
 
@@ -143,9 +136,7 @@ export default function App() {
         const parsed = JSON.parse(salvo);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
-    } catch (err) {
-      console.error("Erro ao carregar clientes:", err);
-    }
+    } catch (err) {}
     return clientesIniciais.map(c => normalizarCliente(c));
   });
 
@@ -156,9 +147,7 @@ export default function App() {
         const parsed = JSON.parse(salvo);
         if (Array.isArray(parsed)) return parsed;
       }
-    } catch (err) {
-      console.error("Erro ao carregar vendas:", err);
-    }
+    } catch (err) {}
     return [];
   });
 
@@ -169,9 +158,7 @@ export default function App() {
         const parsed = JSON.parse(salvo);
         if (Array.isArray(parsed)) return parsed;
       }
-    } catch (err) {
-      console.error("Erro ao carregar caixa:", err);
-    }
+    } catch (err) {}
     return [];
   });
 
@@ -182,9 +169,7 @@ export default function App() {
         const parsed = JSON.parse(salvo);
         if (Array.isArray(parsed)) return parsed;
       }
-    } catch (err) {
-      console.error("Erro ao carregar despesas:", err);
-    }
+    } catch (err) {}
     return [];
   });
 
@@ -200,8 +185,7 @@ export default function App() {
       setDemoSolicitada(true);
       alert('Solicitação de teste enviada com sucesso! A equipa comercial irá aprovar o seu acesso.');
     } catch (err) {
-      console.error("Erro ao solicitar demo:", err);
-      alert(tx('Erro ao enviar solicitação. Tente novamente.', 'Error al enviar solicitud.', 'Error sending request.'));
+      alert(tx('Erro ao enviar solicitação.', 'Error al enviar solicitud.', 'Error sending request.'));
     }
   };
 
@@ -218,7 +202,6 @@ export default function App() {
           if (docSnap.exists()) {
             const dadosLoja = docSnap.data();
             let status = dadosLoja.status || 'aguardando_pagamento';
-            
             const dataCriacaoStr = dadosLoja.dataCriacao || dadosLoja.createdAt || new Date().toISOString();
             const dataCriacao = new Date(dataCriacaoStr);
             const agora = new Date();
@@ -244,17 +227,16 @@ export default function App() {
             if (d.despesas) setDespesas(d.despesas);
             if (d.regrasDesconto) setRegrasDesconto(d.regrasDesconto); 
             if (d.vendedores) setVendedores(d.vendedores);
-            if (d.sessoesCaixa) setSessoesCaixa(d.sessoesCaixa); // 🛡️ Restaura os turnos
+            if (d.sessoesCaixa) setSessoesCaixa(d.sessoesCaixa);
           }
         } catch (err) {
-          console.error("Erro ao carregar dados da nuvem:", err);
           setStatusLoja('ativo');
         }
       } else {
         setUsuarioAutenticado(null);
         setUserId(null);
         setStatusLoja(null);
-        setOperadorAtivo(null); // Desconecta o operador se perder a sessão
+        setOperadorAtivo(null);
       }
       setCarregandoAuth(false);
     });
@@ -273,57 +255,56 @@ export default function App() {
 
   const trocarOperador = () => {
     setOperadorAtivo(null);
-    setEcraAtual('hub'); // 🛡️ FORÇA VOLTAR AO PAINEL INICIAL
-    setMostrarPainelExecutivo(false); // Esconde painéis abertos do gerente anterior
+    setEcraAtual('hub');
+    setMostrarPainelExecutivo(false);
   };
 
   const processarLoginOperador = (operador) => {
     setOperadorAtivo(operador);
-    setEcraAtual('hub'); // 🛡️ GARANTE QUE ENTRA SEMPRE PELA PORTA DA FRENTE
-    setMostrarPainelExecutivo(false); // Reseta a vista financeira
+    setEcraAtual('hub');
+    setMostrarPainelExecutivo(false);
   };
 
-  // 🛡️ VERCEL FIX: As tags abaixo obrigam o Vercel a ignorar os falsos avisos de "missing dependencies"
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
     localStorage.setItem('zenos_produtos', JSON.stringify(produtos)); 
-    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
+    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(()=>{}); }
   }, [produtos, userId]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
     localStorage.setItem('zenos_clientes', JSON.stringify(clientes)); 
-    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
+    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(()=>{}); }
   }, [clientes, userId]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
     localStorage.setItem('zenos_historico_vendas', JSON.stringify(historicoVendas)); 
-    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
+    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(()=>{}); }
   }, [historicoVendas, userId]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
     localStorage.setItem('zenos_caixa_movs', JSON.stringify(caixaMovimentos)); 
-    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
+    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(()=>{}); }
   }, [caixaMovimentos, userId]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
     localStorage.setItem('zenos_despesas', JSON.stringify(despesas)); 
-    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
+    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(()=>{}); }
   }, [despesas, userId]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
     localStorage.setItem('zenos_regras_desconto', JSON.stringify(regrasDesconto)); 
-    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
+    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(()=>{}); }
   }, [regrasDesconto, userId]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
     localStorage.setItem('zenos_sessoes_caixa', JSON.stringify(sessoesCaixa)); 
-    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
+    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(()=>{}); }
   }, [sessoesCaixa, userId]);
 
   const t = (chave) => traducoes[idioma]?.[chave] || traducoes.pt[chave] || chave;
@@ -369,12 +350,11 @@ export default function App() {
   };
   const curvaABC = gerarCurvaABC();
 
-  // 🛡️ MOTOR DE TURNOS INDEPENDENTES DE CAIXA
+  // 🛡️ MOTOR DE TURNOS INDEPENDENTES
   const idVendedorAtual = (operadorAtivo && operadorAtivo.id) ? operadorAtivo.id : 'admin';
   const sessaoAtiva = sessoesCaixa.find(s => s.operadorId === idVendedorAtual && s.status === 'aberta');
   const timestampSessao = sessaoAtiva ? parseInt(sessaoAtiva.id.split('-')[1]) : 0;
 
-  // Filtramos Vendas e Movimentações APENAS deste turno atual!
   const vendasDestaSessao = sessaoAtiva ? vendasValidas.filter(v => v.vendedorId === idVendedorAtual && parseInt(v.id.split('-')[1]) >= timestampSessao) : [];
   const movsSessao = sessaoAtiva ? caixaMovimentos.filter(m => m.sessaoId === sessaoAtiva.id) : [];
 
@@ -389,55 +369,69 @@ export default function App() {
 
   const [modalCaixaAberto, setModalCaixaAberto] = useState(false);
   const [tipoMovCaixa, setTipoMovCaixa] = useState('suprimento'); 
-  const [valorMovCaixa, setValorMovCaixa] = useState('');
+  
+  // 🛡️ NOVO GESTOR DE GAVETA MULTIMOEDAS
+  const [valoresMovCaixa, setValoresMovCaixa] = useState({ BRL: '', USD: '', EUR: '', PYG: '' });
   const [descMovCaixa, setDescMovCaixa] = useState('');
 
+  const calcularTotalMovBRL = () => {
+    return (parseFloat(String(valoresMovCaixa.BRL).replace(',','.')) || 0) +
+           converterParaBRL(parseFloat(String(valoresMovCaixa.USD).replace(',','.')) || 0, 'USD') +
+           converterParaBRL(parseFloat(String(valoresMovCaixa.EUR).replace(',','.')) || 0, 'EUR') +
+           converterParaBRL(parseFloat(String(valoresMovCaixa.PYG).replace(',','.')) || 0, 'PYG');
+  };
+  const resetarValoresCaixa = () => setValoresMovCaixa({ BRL: '', USD: '', EUR: '', PYG: '' });
+
   const abrirTurnoDeCaixa = () => {
-    const saldoIni = converterParaBRL(parseFloat(valorMovCaixa.replace(',', '.')) || 0, moeda);
+    const saldoIni = calcularTotalMovBRL();
     const novaSessao = {
       id: `SESSAO-${Date.now()}`,
       operadorId: idVendedorAtual,
       operadorNome: operadorAtivo?.nome || 'Administrador',
       saldoInicial: saldoIni,
+      detalheAbertura: { ...valoresMovCaixa }, // Guarda as moedas inseridas ao abrir
       status: 'aberta',
       abertura: new Date().toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR')
     };
     setSessoesCaixa([novaSessao, ...sessoesCaixa]);
     setModalCaixaAberto(false);
-    setValorMovCaixa('');
+    resetarValoresCaixa();
   };
 
   const registrarMovimentoCaixa = () => {
     if (!sessaoAtiva) return alert(tx('Precisa de abrir o turno de caixa primeiro.', 'Debe abrir turno primero.', 'Must open shift first.'));
-    const valBRL = converterParaBRL(parseFloat(valorMovCaixa.replace(',', '.')) || 0, moeda);
+    const valBRL = calcularTotalMovBRL();
     if (valBRL <= 0) return alert(tx('Insira um valor válido.', 'Ingrese un valor válido.', 'Enter a valid amount.'));
     if (tipoMovCaixa === 'sangria' && valBRL > saldoSessaoFisicoBRL) {
       if (!window.confirm(tx('O valor é maior que o saldo da SUA gaveta. Continuar?', 'El valor es mayor al saldo. ¿Continuar?', 'Value exceeds balance. Continue?'))) return;
     }
-    const novoMov = { id: Date.now(), sessaoId: sessaoAtiva.id, dataHora: new Date().toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR'), tipo: tipoMovCaixa, valorBRL: valBRL, descricao: descMovCaixa || (tipoMovCaixa === 'suprimento' ? tx('Reforço de Fundo', 'Refuerzo de Caja', 'Float Fund') : tx('Retirada de Caixa', 'Retiro de Caja', 'Cash Withdrawal')), operador: operadorAtivo?.nome };
+    const novoMov = { 
+      id: Date.now(), sessaoId: sessaoAtiva.id, dataHora: new Date().toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR'), 
+      tipo: tipoMovCaixa, valorBRL: valBRL, detalhesMoedas: { ...valoresMovCaixa }, 
+      descricao: descMovCaixa || (tipoMovCaixa === 'suprimento' ? tx('Reforço de Fundo', 'Refuerzo de Caja', 'Float Fund') : tx('Retirada de Caixa', 'Retiro de Caja', 'Cash Withdrawal')), 
+      operador: operadorAtivo?.nome 
+    };
     setCaixaMovimentos([novoMov, ...caixaMovimentos]);
     setModalCaixaAberto(false);
-    setValorMovCaixa(''); setDescMovCaixa('');
+    resetarValoresCaixa(); setDescMovCaixa('');
   };
 
- // 🛡️ FECHAMENTO DE TURNO COM IMPRESSÃO TÉRMICA
+  // 🛡️ FECHAMENTO DE TURNO COM IMPRESSÃO TÉRMICA E EXTRATO DE MOEDAS
   const processarFechamentoCego = () => {
-    const valInformadoBRL = converterParaBRL(parseFloat(valorMovCaixa.replace(',', '.')) || 0, moeda);
+    const valInformadoBRL = calcularTotalMovBRL();
     const diferenca = valInformadoBRL - saldoSessaoFisicoBRL;
     
     const dataFechoISO = new Date().toISOString();
     const dataFechoLocal = new Date().toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR');
     
-    // Fecha o turno na DB
     const sessoesAtualizadas = sessoesCaixa.map(s => {
       if (s.id === sessaoAtiva.id) {
-        return { ...s, status: 'fechada', fechamento: dataFechoISO, saldoInformado: valInformadoBRL, diferenca: diferenca, saldoSistema: saldoSessaoFisicoBRL };
+        return { ...s, status: 'fechada', fechamento: dataFechoISO, saldoInformado: valInformadoBRL, detalheFechamento: { ...valoresMovCaixa }, diferenca: diferenca, saldoSistema: saldoSessaoFisicoBRL };
       }
       return s;
     });
     setSessoesCaixa(sessoesAtualizadas);
 
-    // Resumo de Entradas por Moeda/Forma (para a Impressão)
     const resumoEntradas = vendasDestaSessao.reduce((res, v) => {
       (v.pagamentos || []).forEach(p => {
         if (!res[p.rotulo]) res[p.rotulo] = 0;
@@ -446,10 +440,11 @@ export default function App() {
       return res;
     }, {});
 
+    const moedasContadasHTML = Object.entries(valoresMovCaixa).filter(([_,v]) => parseFloat(String(v).replace(',','.'))>0).map(([m,v]) => `<div style="display: flex; justify-content: space-between;"><span>Informado em ${m}:</span><span>${parseFloat(String(v).replace(',','.')).toFixed(2)}</span></div>`).join('');
+
     const temQuebra = Math.abs(diferenca) > 0.05;
     const descQuebra = temQuebra ? (diferenca < 0 ? 'FALTA DE CAIXA (QUEBRA NEGATIVA)' : 'SOBRA DE CAIXA (QUEBRA POSITIVA)') : 'CAIXA CONCILIADO CORRETAMENTE';
 
-    // 🖨️ GERA O HTML DO TALÃO DE FECHO PARA IMPRESSÃO (FECHO Z)
     const reciboFechoHTML = `
       <div style="font-family: monospace; font-size: 12px; width: 100%; text-align: left;">
         <div style="text-align: center; margin-bottom: 10px;">
@@ -472,12 +467,16 @@ export default function App() {
         ${Object.entries(resumoEntradas).map(([forma, valor]) => `<div style="display: flex; justify-content: space-between;"><span>${forma}:</span><span>${valor.toFixed(2)}</span></div>`).join('')}
         
         <div style="border-bottom: 1px dashed #000; margin: 10px 0;"></div>
-        <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 14px;"><span>SALDO ESPERADO (GAVETA):</span><span>${fmt(saldoSessaoFisicoBRL, 'BRL')}</span></div>
-        <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 14px;"><span>SALDO INFORMADO:</span><span>${fmt(valInformadoBRL, 'BRL')}</span></div>
+        <div style="margin-bottom: 5px;"><strong>>> GAVETA FÍSICA (MOEDAS CONTADAS)</strong></div>
+        ${moedasContadasHTML || '<div style="display: flex; justify-content: space-between;"><span>Sem moedas</span><span>0.00</span></div>'}
+        <div style="border-bottom: 1px dashed #000; margin: 10px 0;"></div>
+        
+        <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 14px;"><span>SALDO ESPERADO (BRL):</span><span>${fmt(saldoSessaoFisicoBRL, 'BRL')}</span></div>
+        <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 14px;"><span>SALDO INFORMADO (BRL):</span><span>${fmt(valInformadoBRL, 'BRL')}</span></div>
         
         <div style="border-bottom: 1px dashed #000; margin: 10px 0;"></div>
-        <div style="text-align: center; font-weight: bold; font-size: 12px; margin-top: 10px; color: ${temQuebra ? '#000' : '#000'};">
-          DIFERENÇA: ${fmt(diferenca, 'BRL')}<br/>
+        <div style="text-align: center; font-weight: bold; font-size: 12px; margin-top: 10px; color: #000;">
+          DIFERENÇA (BRL): ${fmt(diferenca, 'BRL')}<br/>
           ${descQuebra}
         </div>
         
@@ -493,7 +492,6 @@ export default function App() {
       </div>
     `;
 
-    // ABRE A JANELA DO SISTEMA PARA IMPRIMIR IMEDIATAMENTE
     const janelaImpressao = window.open('', '_blank', 'width=400,height=600');
     if (janelaImpressao) {
       janelaImpressao.document.write(`
@@ -502,28 +500,27 @@ export default function App() {
       `);
       janelaImpressao.document.close();
     } else {
-      alert("Bloqueador de pop-ups ativo. O talão de fecho não pôde ser impresso. Permita pop-ups para o ZenOS.");
+      alert("Bloqueador de pop-ups ativo. O talão de fecho não pôde ser impresso.");
     }
 
     setModalCaixaAberto(false);
-    setValorMovCaixa('');
+    resetarValoresCaixa();
   };
 
-  // 🛡️ MOTOR DE PERMISSÕES RBAC
   const temPermissao = (modulo) => {
     if (!operadorAtivo) return false;
     if (operadorAtivo.id === 'admin' || operadorAtivo.permissoes?.admin) return true;
     return !!operadorAtivo.permissoes?.[modulo];
   };
 
- const renderNavButton = (id, icone, texto, badge = null) => {
+  const renderNavButton = (id, icone, texto, badge = null) => {
     const ativo = ecraAtual === id;
     
     const lidarComClique = () => {
       // 🛡️ O BLOQUEIO DE SEGURANÇA NO MENU: Não deixa aceder ao PDV sem caixa aberto!
       if (id === 'pdv' && !sessaoAtiva) {
         alert(tx('Acesso Bloqueado: Para iniciar vendas, abra primeiro o seu Turno de Caixa no painel financeiro!', '¡Debe abrir turno de caja primero!', 'You must open a shift first!'));
-        setEcraAtual('hub'); // Atira de volta para a Home
+        setEcraAtual('hub');
       } else {
         setEcraAtual(id);
       }
@@ -537,6 +534,18 @@ export default function App() {
       </button>
     );
   };
+
+  if (carregandoAuth) {
+    return (
+      <div style={{ minHeight: '100vh', backgroundColor: '#020617', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+          <ZeniteLogo aoClicar={() => {}} />
+          <span style={{ color: '#64748b', fontSize: '14px', fontWeight: 700, letterSpacing: '2px' }}>A INICIAR SISTEMA...</span>
+        </div>
+      </div>
+    );
+  }
+
   if (!usuarioAutenticado) {
     return <LandingPage/>;
   }
@@ -1021,14 +1030,27 @@ export default function App() {
                 <p style={{ fontSize: '13px', color: '#94a3b8', lineHeight: 1.5, marginBottom: '16px' }}>
                   {tx('Conte as notas e moedas físicas na gaveta e digite o total exato abaixo.', 'Cuente el efectivo físico en la gaveta e ingrese el total exacto.', 'Count the physical cash in the drawer and enter the exact total below.')}
                 </p>
-                <label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800 }}>{tx('Valor Físico Contado', 'Valor Físico Contado', 'Counted Cash Value')} ({moeda}):</label>
-                <input type="text" value={valorMovCaixa} onChange={(e) => setValorMovCaixa(e.target.value)} placeholder="0.00" onFocus={e=>e.target.select()} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #4f46e5', borderRadius: '12px', color: '#fff', fontSize: '24px', fontWeight: 900, textAlign: 'center', padding: '16px', outline: 'none', marginTop: '8px', boxSizing: 'border-box' }} />
+                
+                {/* 🛡️ GRELHA MULTIMOEDAS PARA CONTAGEM DE GAVETA */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  {['BRL', 'USD', 'EUR', 'PYG'].map(m => (
+                    <div key={m}>
+                      <label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800 }}>{m}:</label>
+                      <input type="text" value={valoresMovCaixa[m]} onChange={(e) => setValoresMovCaixa({...valoresMovCaixa, [m]: e.target.value})} placeholder="0.00" onFocus={e=>e.target.select()} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #4f46e5', borderRadius: '8px', color: '#fff', fontSize: '18px', fontWeight: 900, textAlign: 'center', padding: '10px', outline: 'none', boxSizing: 'border-box' }} />
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '20px' }}>
-                <div>
-                  <label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800 }}>{tx('Valor a ', 'Valor a ', 'Amount to ')}{tipoMovCaixa === 'sangria' ? tx('retirar', 'retirar', 'drop') : tx('inserir', 'ingresar', 'add')} ({moeda}):</label>
-                  <input type="text" value={valorMovCaixa} onChange={(e) => setValorMovCaixa(e.target.value)} placeholder="0.00" onFocus={e=>e.target.select()} style={{ width: '100%', backgroundColor: '#020617', border: `1px solid ${tipoMovCaixa === 'sangria' ? '#f43f5e' : '#10b981'}`, borderRadius: '12px', color: tipoMovCaixa === 'sangria' ? '#fb7185' : '#34d399', fontSize: '24px', fontWeight: 900, textAlign: 'center', padding: '16px', outline: 'none', marginTop: '8px', boxSizing: 'border-box' }} />
+                {/* 🛡️ GRELHA MULTIMOEDAS PARA SANGRIA E SUPRIMENTO */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  {['BRL', 'USD', 'EUR', 'PYG'].map(m => (
+                    <div key={m}>
+                      <label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800 }}>{m}:</label>
+                      <input type="text" value={valoresMovCaixa[m]} onChange={(e) => setValoresMovCaixa({...valoresMovCaixa, [m]: e.target.value})} placeholder="0.00" onFocus={e=>e.target.select()} style={{ width: '100%', backgroundColor: '#020617', border: `1px solid ${tipoMovCaixa === 'sangria' ? '#f43f5e' : '#10b981'}`, borderRadius: '8px', color: tipoMovCaixa === 'sangria' ? '#fb7185' : '#34d399', fontSize: '18px', fontWeight: 900, textAlign: 'center', padding: '10px', outline: 'none', boxSizing: 'border-box' }} />
+                    </div>
+                  ))}
                 </div>
                 <div>
                   <label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800 }}>{tx('Motivo / Descrição:', 'Motivo / Descripción:', 'Reason / Description:')}</label>
@@ -1038,7 +1060,7 @@ export default function App() {
             )}
 
             <button onClick={tipoMovCaixa === 'fechamento' ? processarFechamentoCego : (tipoMovCaixa === 'abertura' ? abrirTurnoDeCaixa : registrarMovimentoCaixa)} style={{ width: '100%', background: tipoMovCaixa === 'sangria' ? 'linear-gradient(135deg, #e11d48, #be123c)' : tipoMovCaixa === 'suprimento' ? 'linear-gradient(135deg, #10b981, #059669)' : 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#ffffff', padding: '16px', borderRadius: '12px', fontSize: '14px', fontWeight: 900, cursor: 'pointer' }}>
-              {tipoMovCaixa === 'fechamento' ? tx('Auditar Caixa Cego', 'Auditar Caja', 'Audit Blind Box') : (tipoMovCaixa === 'abertura' ? tx('Abrir Turno com Saldo', 'Abrir Turno', 'Open Shift') : tx('Registrar na Gaveta', 'Registrar', 'Save Record'))}
+              {tipoMovCaixa === 'fechamento' ? tx('Auditar e Imprimir Fecho', 'Auditar e Imprimir', 'Audit & Print') : (tipoMovCaixa === 'abertura' ? tx('Abrir Turno com Saldo', 'Abrir Turno', 'Open Shift') : tx('Registrar na Gaveta', 'Registrar', 'Save Record'))}
             </button>
           </div>
         </div>
