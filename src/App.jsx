@@ -227,7 +227,7 @@ export default function App() {
   }, []);
 
   const fazerLogout = async () => {
-    if(window.confirm(tx('Encerrar a sessão principal?', '¿Cerrar sesión?', 'End session?'))) {
+    if(window.confirm(tx('Encerrar a sessão principal desta loja?', '¿Cerrar sesión?', 'End session?'))) {
       await signOut(auth);
       setMostrarPainelExecutivo(false); 
       setOperadorAtivo(null);
@@ -309,7 +309,7 @@ export default function App() {
     setModalCambioAberto(false);
   };
 
-  // 🛡️ NOVO MOTOR FINANCEIRO BLINDADO: Só soma vendas que foram 100% liquidadas ("concluida"). Orçamentos e Pré-Pedidos são ignorados.
+  // 🛡️ MOTOR FINANCEIRO BLINDADO: Só soma vendas que foram 100% liquidadas ("concluida").
   const vendasValidas = historicoVendas.filter(v => v.estado === 'concluida');
   
   const faturamentoTotalBRL = vendasValidas.reduce((acc, v) => acc + (v.totalBRL || 0), 0);
@@ -353,7 +353,6 @@ export default function App() {
 
   const [modalCaixaAberto, setModalCaixaAberto] = useState(false);
   const [tipoMovCaixa, setTipoMovCaixa] = useState('suprimento'); 
-  
   const [valoresMovCaixa, setValoresMovCaixa] = useState({ BRL: '', USD: '', EUR: '', PYG: '' });
   const [descMovCaixa, setDescMovCaixa] = useState('');
 
@@ -494,7 +493,7 @@ export default function App() {
     return !!operadorAtivo.permissoes?.[modulo];
   };
 
-  // 🛡️ O FILTRO MÁGICO DE PRIVACIDADE: Impede vendedores de verem vendas e comissões dos outros.
+  // 🛡️ O FILTRO MÁGICO DE PRIVACIDADE NO MENU E ROTAS
   const historicoVisivelParaOperador = patenteUsuario === 'gerencia' 
     ? historicoVendas 
     : historicoVendas.filter(v => String(v.vendedorId) === String(operadorAtivo?.id));
@@ -504,7 +503,7 @@ export default function App() {
     
     const lidarComClique = () => {
       if (id === 'pdv' && !sessaoAtiva) {
-        alert(tx('Acesso Bloqueado: Para iniciar vendas, abra primeiro o seu Turno de Caixa no painel financeiro!', '¡Debe abrir turno de caja primero!', 'You must open a shift first!'));
+        alert(tx('Acesso Bloqueado: Para iniciar vendas, abra primeiro o seu Turno de Caixa no painel financeiro da Home!', '¡Debe abrir turno de caja primero!', 'You must open a shift first!'));
         setEcraAtual('hub');
       } else {
         setEcraAtual(id);
@@ -593,6 +592,15 @@ export default function App() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', padding: '4px 8px', gap: '6px', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.5)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ fontSize: '12px' }}>{idioma === 'pt' ? '🇧🇷' : idioma === 'es' ? '🇪🇸' : '🇺🇸'}</span>
+                <select value={idioma} onChange={(e) => setIdioma(e.target.value)} style={{ backgroundColor: 'transparent', color: '#cbd5e1', fontSize: '11px', fontWeight: 800, border: 'none', outline: 'none', cursor: 'pointer' }}>
+                  <option value="pt" style={{ backgroundColor: '#0b1120', color: '#fff' }}>PT</option>
+                  <option value="es" style={{ backgroundColor: '#0b1120', color: '#fff' }}>ES</option>
+                  <option value="en" style={{ backgroundColor: '#0b1120', color: '#fff' }}>EN</option>
+                </select>
+              </div>
+              <div style={{ width: '1px', height: '14px', backgroundColor: '#334155' }}></div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <span style={{ fontSize: '10px', color: '#818cf8', fontWeight: 900 }}>🌐</span>
                 <select value={moeda} onChange={(e) => setMoeda(e.target.value)} style={{ backgroundColor: 'transparent', color: '#34d399', fontSize: '11px', fontWeight: 900, border: 'none', outline: 'none', cursor: 'pointer' }}>
                   <option value="BRL" style={{ backgroundColor: '#0b1120', color: '#fff' }}>BRL (R$)</option>
@@ -610,6 +618,7 @@ export default function App() {
             <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 800 }} className="hide-mobile">Operador:</span>
             <span style={{ color: patenteUsuario === 'gerencia' ? '#fbbf24' : '#818cf8', fontWeight: 900, fontSize: '12px' }}>{operadorAtivo?.nome || 'Admin'}</span>
           </div>
+
           <button onClick={trocarOperador} style={{ backgroundColor: 'rgba(99, 102, 241, 0.1)', border: '1px solid #6366f1', color: '#818cf8', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>Trocar Operador</button>
         </div>
       </header>
@@ -635,7 +644,7 @@ export default function App() {
                   <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>{tx('Fiado na Praça', 'Fiado a Cobrar', 'Pending Credit')}</span>
                   <div style={{ fontSize: '26px', fontWeight: 900, color: totalFiadoAbertoBRL > 0 && valoresTopoVisiveis ? '#fb7185' : '#34d399', marginTop: '4px' }}>{valoresTopoVisiveis ? fmt(totalFiadoAbertoBRL) : '*****'}</div>
                 </div>
-                <button onClick={() => setValoresTopoVisiveis(!valoresTopoVisiveis)} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#e2e8f0', fontSize: '20px', cursor: 'pointer', padding: '12px', outline: 'none', transition: 'all 0.3s' }}>
+                <button onClick={() => setValoresTopoVisiveis(!valoresTopoVisiveis)} title={tx('Ocultar/Mostrar Valores', 'Ocultar/Mostrar Valores', 'Toggle Values')} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#e2e8f0', fontSize: '20px', cursor: 'pointer', padding: '12px', outline: 'none', transition: 'all 0.3s' }}>
                   {valoresTopoVisiveis ? '👁️' : '🙈'}
                 </button>
               </div>
@@ -654,7 +663,7 @@ export default function App() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', animation: 'fadeIn 0.5s ease-out' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
                       <div style={{ backgroundColor: '#021e15', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '20px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><span style={{ fontSize: '20px' }}>💰</span><span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px' }}>Faturamento</span></div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><span style={{ fontSize: '20px' }}>💰</span><span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px' }}>Faturamento Real</span></div>
                         <span style={{ fontSize: '24px', fontWeight: 900, color: '#f8fafc', marginTop: '12px' }}>{fmt(faturamentoTotalBRL)}</span>
                       </div>
                       <div style={{ backgroundColor: '#06283d', border: '1px solid rgba(14, 165, 233, 0.3)', borderRadius: '20px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
@@ -686,7 +695,7 @@ export default function App() {
                         
                         {!sessaoAtiva ? (
                           <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                            <span style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '16px' }}>Você precisa de abrir o seu turno com um fundo de troco para começar a vender.</span>
+                            <span style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '16px' }}>Você precisa de abrir o seu turno com um fundo de troco para começar a vender no caixa.</span>
                             <button onClick={() => { setTipoMovCaixa('abertura'); setModalCaixaAberto(true); }} style={{ padding: '14px 24px', background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', color: '#ffffff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '14px', boxShadow: '0 4px 15px rgba(16, 185, 129, 0.3)' }}>🔓 Abrir Turno de Caixa</button>
                           </div>
                         ) : (
@@ -756,7 +765,7 @@ export default function App() {
               {temPermissao('pdv') && (
                 <div onClick={() => setEcraAtual('pdv')} style={{ backgroundColor: '#021e15', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '20px', padding: '24px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
                   <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #10b981, #059669)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', boxShadow: '0 8px 20px rgba(16,185,129,0.4)' }}>🛒</div>
-                  <div><h2 style={{ fontSize: '15px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>PDV Balcão</h2><span style={{fontSize: '11px', color: '#94a3b8'}}>Frente de Caixa</span></div>
+                  <div><h2 style={{ fontSize: '15px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>PDV Balcão</h2><span style={{fontSize: '11px', color: '#94a3b8'}}>Frente de Caixa / Pré-pedidos</span></div>
                 </div>
               )}
               
@@ -792,7 +801,7 @@ export default function App() {
                 <>
                   <div onClick={() => setEcraAtual('comissoes')} style={{ backgroundColor: '#2e071c', border: '1px solid rgba(219, 39, 119, 0.3)', borderRadius: '20px', padding: '24px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
                     <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #db2777, #be185d)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', boxShadow: '0 8px 20px rgba(219,39,119,0.4)' }}>🤝</div>
-                    <div><h2 style={{ fontSize: '15px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>{tx('Comissões', 'Comisiones', 'Commissions')}</h2><span style={{fontSize: '11px', color: '#94a3b8'}}>Equipa</span></div>
+                    <div><h2 style={{ fontSize: '15px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>{tx('Comissões', 'Comisiones', 'Commissions')}</h2><span style={{fontSize: '11px', color: '#94a3b8'}}>Desempenho</span></div>
                   </div>
 
                   <div onClick={() => setEcraAtual('dashboardMobile')} style={{ backgroundColor: '#2b1704', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: '20px', padding: '24px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(245,158,11,0.15)' }}>
@@ -812,7 +821,7 @@ export default function App() {
           </div>
         )}
 
-        {ecraAtual === 'pdv' && <PDV produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} patenteUsuario={patenteUsuario} idioma={idioma} regrasDesconto={regrasDesconto} operadorAtivo={operadorAtivo} />}
+        {ecraAtual === 'pdv' && <PDV produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} patenteUsuario={patenteUsuario} idioma={idioma} regrasDesconto={regrasDesconto} operadorAtivo={operadorAtivo} sessaoAtiva={sessaoAtiva} />}
         {ecraAtual === 'mesas' && <Mesas produtos={produtos} fmt={fmt} tx={tx} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} moeda={moeda} idioma={idioma} />}
         {ecraAtual === 'produtos' && <Produtos produtos={produtos} setProdutos={setProdutos} moeda={moeda} fmt={fmt} t={t} tx={tx} />}
         {ecraAtual === 'inteligencia' && <EstoqueInteligente produtos={produtos} fmt={fmt} />}
