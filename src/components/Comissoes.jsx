@@ -3,8 +3,8 @@ import React, { useState } from 'react';
 export default function Comissoes({ historicoVendas, fmt, tx, patenteUsuario, operadorAtivo }) {
   const [filtroMes, setFiltroMes] = useState(new Date().toISOString().slice(0, 7)); // 'YYYY-MM'
 
-  // As vendas consideradas para comissão são apenas as "concluídas"
-  const vendasElegiveis = (historicoVendas || []).filter(v => v.estado === 'concluida' && v.dataHora.startsWith(filtroMes));
+  // As vendas consideradas para comissão são apenas as "concluídas" (Pré-pedidos pendentes não entram)
+  const vendasElegiveis = (historicoVendas || []).filter(v => v.estado === 'concluida');
 
   // 🛡️ REGRAS DE PRIVACIDADE
   // Se for administrador (gerencia), vê todos. Se não, vê apenas as suas próprias vendas.
