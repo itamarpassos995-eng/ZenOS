@@ -24,8 +24,10 @@ const CURRENT_SCHEMA_VERSION = 1;
 function executarMigracaoDeDados() {
   try {
     const versaoSalva = parseInt(localStorage.getItem('zenos_schema_version') || '0', 10);
+
     if (versaoSalva < CURRENT_SCHEMA_VERSION) {
       console.info(`[ZenOS Migration] Atualizando base de dados local da v${versaoSalva} para v${CURRENT_SCHEMA_VERSION}...`);
+
       const prodLocal = localStorage.getItem('zenos_produtos');
       if (prodLocal) {
         const parsed = JSON.parse(prodLocal);
@@ -34,6 +36,7 @@ function executarMigracaoDeDados() {
           localStorage.setItem('zenos_produtos', JSON.stringify(normalizados));
         }
       }
+
       const clienteLocal = localStorage.getItem('zenos_clientes');
       if (clienteLocal) {
         const parsed = JSON.parse(clienteLocal);
@@ -42,25 +45,26 @@ function executarMigracaoDeDados() {
           localStorage.setItem('zenos_clientes', JSON.stringify(normalizados));
         }
       }
+
       localStorage.setItem('zenos_schema_version', CURRENT_SCHEMA_VERSION.toString());
-      console.info("[ZenOS Migration] Migração concluída com sucesso.");
+      console.info("[ZenOS Migration] Migração concluída com sucesso. Dados preservados.");
     }
   } catch (err) {
-    console.error("[ZenOS Migration Error] Falha ao executar migração:", err);
+    console.error("[ZenOS Migration Error] Falha ao executar migração de schema:", err);
   }
 }
 
 executarMigracaoDeDados();
 
-function ZeniteLogo({ aoClicar }) {
+function ZenosLogo({ aoClicar }) {
   return (
     <div onClick={aoClicar} style={{ display: 'flex', alignItems: 'center', gap: '14px', cursor: 'pointer', userSelect: 'none' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '42px', minWidth: '42px' }}>
         <img src="/logo-zenos.png?v=4" alt="ZenOS" style={{ height: '42px', width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }} />
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', whiteSpace: 'nowrap' }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}><span style={{ color: '#f8fafc', fontWeight: 900, fontSize: '18px', letterSpacing: '2.5px', textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>ZÊNITE</span><span style={{ color: '#818cf8', fontWeight: 800, fontSize: '10px', letterSpacing: '1px' }}>OS</span></div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '3px' }}><div style={{ height: '1.5px', width: '10px', backgroundColor: '#c27849' }}></div><span style={{ color: '#cbd5e1', fontSize: '8.5px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase' }}>ATACADÃO DE TINTAS</span><div style={{ height: '1.5px', width: '10px', backgroundColor: '#c27849' }}></div></div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}><span style={{ color: '#f8fafc', fontWeight: 900, fontSize: '18px', letterSpacing: '2.5px', textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>Zen</span><span style={{ color: '#818cf8', fontWeight: 800, fontSize: '16px', letterSpacing: '1px' }}>OS</span></div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '3px' }}><div style={{ height: '1.5px', width: '10px', backgroundColor: '#6366f1' }}></div><span style={{ color: '#cbd5e1', fontSize: '8.5px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase' }}>SISTEMA DE GESTÃO</span><div style={{ height: '1.5px', width: '10px', backgroundColor: '#6366f1' }}></div></div>
       </div>
     </div>
   );
@@ -429,7 +433,7 @@ export default function App() {
       <div style="font-family: monospace; font-size: 12px; width: 100%; text-align: left;">
         <div style="text-align: center; margin-bottom: 10px;">
           <h2 style="margin: 0; font-size: 14px;">FECHAMENTO DE TURNO (FECHO Z)</h2>
-          <div>ZÊNITE ATACADÃO DE TINTAS</div>
+          <div>ZenOS - SISTEMA DE GESTÃO</div>
         </div>
         <div style="border-bottom: 1px dashed #000; margin: 10px 0;"></div>
         <div><strong>Operador:</strong> ${sessaoAtiva.operadorNome}</div>
@@ -493,7 +497,6 @@ export default function App() {
     return !!operadorAtivo.permissoes?.[modulo];
   };
 
-  // 🛡️ O FILTRO MÁGICO DE PRIVACIDADE NO MENU E ROTAS
   const historicoVisivelParaOperador = patenteUsuario === 'gerencia' 
     ? historicoVendas 
     : historicoVendas.filter(v => String(v.vendedorId) === String(operadorAtivo?.id));
@@ -523,7 +526,7 @@ export default function App() {
     return (
       <div style={{ minHeight: '100vh', backgroundColor: '#020617', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
-          <ZeniteLogo aoClicar={() => {}} />
+          <ZenosLogo aoClicar={() => {}} />
           <span style={{ color: '#64748b', fontSize: '14px', fontWeight: 700, letterSpacing: '2px' }}>A INICIAR SISTEMA...</span>
         </div>
       </div>
@@ -585,21 +588,12 @@ export default function App() {
               </>
             )}
           </div>
-          <ZeniteLogo aoClicar={() => setEcraAtual('hub')} />
+          <ZenosLogo aoClicar={() => setEcraAtual('hub')} />
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', padding: '4px 8px', gap: '6px', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.5)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ fontSize: '12px' }}>{idioma === 'pt' ? '🇧🇷' : idioma === 'es' ? '🇪🇸' : '🇺🇸'}</span>
-                <select value={idioma} onChange={(e) => setIdioma(e.target.value)} style={{ backgroundColor: 'transparent', color: '#cbd5e1', fontSize: '11px', fontWeight: 800, border: 'none', outline: 'none', cursor: 'pointer' }}>
-                  <option value="pt" style={{ backgroundColor: '#0b1120', color: '#fff' }}>PT</option>
-                  <option value="es" style={{ backgroundColor: '#0b1120', color: '#fff' }}>ES</option>
-                  <option value="en" style={{ backgroundColor: '#0b1120', color: '#fff' }}>EN</option>
-                </select>
-              </div>
-              <div style={{ width: '1px', height: '14px', backgroundColor: '#334155' }}></div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <span style={{ fontSize: '10px', color: '#818cf8', fontWeight: 900 }}>🌐</span>
                 <select value={moeda} onChange={(e) => setMoeda(e.target.value)} style={{ backgroundColor: 'transparent', color: '#34d399', fontSize: '11px', fontWeight: 900, border: 'none', outline: 'none', cursor: 'pointer' }}>
@@ -618,7 +612,6 @@ export default function App() {
             <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 800 }} className="hide-mobile">Operador:</span>
             <span style={{ color: patenteUsuario === 'gerencia' ? '#fbbf24' : '#818cf8', fontWeight: 900, fontSize: '12px' }}>{operadorAtivo?.nome || 'Admin'}</span>
           </div>
-
           <button onClick={trocarOperador} style={{ backgroundColor: 'rgba(99, 102, 241, 0.1)', border: '1px solid #6366f1', color: '#818cf8', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>Trocar Operador</button>
         </div>
       </header>
@@ -644,7 +637,7 @@ export default function App() {
                   <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>{tx('Fiado na Praça', 'Fiado a Cobrar', 'Pending Credit')}</span>
                   <div style={{ fontSize: '26px', fontWeight: 900, color: totalFiadoAbertoBRL > 0 && valoresTopoVisiveis ? '#fb7185' : '#34d399', marginTop: '4px' }}>{valoresTopoVisiveis ? fmt(totalFiadoAbertoBRL) : '*****'}</div>
                 </div>
-                <button onClick={() => setValoresTopoVisiveis(!valoresTopoVisiveis)} title={tx('Ocultar/Mostrar Valores', 'Ocultar/Mostrar Valores', 'Toggle Values')} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#e2e8f0', fontSize: '20px', cursor: 'pointer', padding: '12px', outline: 'none', transition: 'all 0.3s' }}>
+                <button onClick={() => setValoresTopoVisiveis(!valoresTopoVisiveis)} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#e2e8f0', fontSize: '20px', cursor: 'pointer', padding: '12px', outline: 'none', transition: 'all 0.3s' }}>
                   {valoresTopoVisiveis ? '👁️' : '🙈'}
                 </button>
               </div>
@@ -801,7 +794,7 @@ export default function App() {
                 <>
                   <div onClick={() => setEcraAtual('comissoes')} style={{ backgroundColor: '#2e071c', border: '1px solid rgba(219, 39, 119, 0.3)', borderRadius: '20px', padding: '24px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
                     <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #db2777, #be185d)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', boxShadow: '0 8px 20px rgba(219,39,119,0.4)' }}>🤝</div>
-                    <div><h2 style={{ fontSize: '15px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>{tx('Comissões', 'Comisiones', 'Commissions')}</h2><span style={{fontSize: '11px', color: '#94a3b8'}}>Desempenho</span></div>
+                    <div><h2 style={{ fontSize: '15px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>{tx('Comissões', 'Comisiones', 'Commissions')}</h2><span style={{fontSize: '11px', color: '#94a3b8'}}>Equipa</span></div>
                   </div>
 
                   <div onClick={() => setEcraAtual('dashboardMobile')} style={{ backgroundColor: '#2b1704', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: '20px', padding: '24px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(245,158,11,0.15)' }}>
