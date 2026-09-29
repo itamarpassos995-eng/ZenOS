@@ -24,10 +24,8 @@ const CURRENT_SCHEMA_VERSION = 1;
 function executarMigracaoDeDados() {
   try {
     const versaoSalva = parseInt(localStorage.getItem('zenos_schema_version') || '0', 10);
-
     if (versaoSalva < CURRENT_SCHEMA_VERSION) {
       console.info(`[ZenOS Migration] Atualizando base de dados local da v${versaoSalva} para v${CURRENT_SCHEMA_VERSION}...`);
-
       const prodLocal = localStorage.getItem('zenos_produtos');
       if (prodLocal) {
         const parsed = JSON.parse(prodLocal);
@@ -36,7 +34,6 @@ function executarMigracaoDeDados() {
           localStorage.setItem('zenos_produtos', JSON.stringify(normalizados));
         }
       }
-
       const clienteLocal = localStorage.getItem('zenos_clientes');
       if (clienteLocal) {
         const parsed = JSON.parse(clienteLocal);
@@ -45,12 +42,11 @@ function executarMigracaoDeDados() {
           localStorage.setItem('zenos_clientes', JSON.stringify(normalizados));
         }
       }
-
       localStorage.setItem('zenos_schema_version', CURRENT_SCHEMA_VERSION.toString());
-      console.info("[ZenOS Migration] Migração concluída com sucesso. Dados preservados.");
+      console.info("[ZenOS Migration] Migração concluída com sucesso.");
     }
   } catch (err) {
-    console.error("[ZenOS Migration Error] Falha ao executar migração de schema:", err);
+    console.error("[ZenOS Migration Error] Falha ao executar migração:", err);
   }
 }
 
@@ -177,13 +173,10 @@ export default function App() {
     if (!userId) return;
     try {
       await setDoc(doc(db, "solicitacoes_demo", userId), {
-        email: usuarioAutenticado,
-        uid: userId,
-        dataSolicitacao: new Date().toISOString(),
-        status: 'pendente_analise'
+        email: usuarioAutenticado, uid: userId, dataSolicitacao: new Date().toISOString(), status: 'pendente_analise'
       }, { merge: true });
       setDemoSolicitada(true);
-      alert('Solicitação de teste enviada com sucesso! A equipa comercial irá aprovar o seu acesso.');
+      alert('Solicitação enviada!');
     } catch (err) {
       alert(tx('Erro ao enviar solicitação.', 'Error al enviar solicitud.', 'Error sending request.'));
     }
@@ -194,11 +187,9 @@ export default function App() {
       if (user) {
         setUserId(user.uid);
         setUsuarioAutenticado(user.email);
-        
         try {
           const docRef = doc(db, "lojas", user.uid);
           const docSnap = await getDoc(docRef);
-          
           if (docSnap.exists()) {
             const dadosLoja = docSnap.data();
             let status = dadosLoja.status || 'aguardando_pagamento';
@@ -206,10 +197,7 @@ export default function App() {
             const dataCriacao = new Date(dataCriacaoStr);
             const agora = new Date();
             const diffDias = (agora - dataCriacao) / (1000 * 60 * 60 * 24);
-
-            if (status === 'aguardando_pagamento' && diffDias <= 7) {
-              status = 'ativo';
-            }
+            if (status === 'aguardando_pagamento' && diffDias <= 7) status = 'ativo';
             setStatusLoja(status);
           } else {
             const novaDataCriacao = new Date().toISOString();
@@ -229,14 +217,9 @@ export default function App() {
             if (d.vendedores) setVendedores(d.vendedores);
             if (d.sessoesCaixa) setSessoesCaixa(d.sessoesCaixa);
           }
-        } catch (err) {
-          setStatusLoja('ativo');
-        }
+        } catch (err) { setStatusLoja('ativo'); }
       } else {
-        setUsuarioAutenticado(null);
-        setUserId(null);
-        setStatusLoja(null);
-        setOperadorAtivo(null);
+        setUsuarioAutenticado(null); setUserId(null); setStatusLoja(null); setOperadorAtivo(null);
       }
       setCarregandoAuth(false);
     });
@@ -244,7 +227,7 @@ export default function App() {
   }, []);
 
   const fazerLogout = async () => {
-    if(window.confirm(tx('Encerrar a sessão principal desta loja?', '¿Cerrar la sesión de esta tienda?', 'End session for this store?'))) {
+    if(window.confirm(tx('Encerrar a sessão principal?', '¿Cerrar sesión?', 'End session?'))) {
       await signOut(auth);
       setMostrarPainelExecutivo(false); 
       setOperadorAtivo(null);
@@ -326,7 +309,9 @@ export default function App() {
     setModalCambioAberto(false);
   };
 
-  const vendasValidas = historicoVendas.filter(v => v.estado !== 'cancelada');
+  // 🛡️ NOVO MOTOR FINANCEIRO BLINDADO: Só soma vendas que foram 100% liquidadas ("concluida"). Orçamentos e Pré-Pedidos são ignorados.
+  const vendasValidas = historicoVendas.filter(v => v.estado === 'concluida');
+  
   const faturamentoTotalBRL = vendasValidas.reduce((acc, v) => acc + (v.totalBRL || 0), 0);
   const lucroBrutoBRL = vendasValidas.reduce((acc, v) => acc + (v.lucroBRL || 0), 0);
   const despesasPagasBRL = despesas.filter(d => d.status === 'paga').reduce((acc, d) => acc + (parseFloat(d.valorBRL) || 0), 0);
@@ -350,7 +335,6 @@ export default function App() {
   };
   const curvaABC = gerarCurvaABC();
 
-  // 🛡️ MOTOR DE TURNOS INDEPENDENTES
   const idVendedorAtual = (operadorAtivo && operadorAtivo.id) ? operadorAtivo.id : 'admin';
   const sessaoAtiva = sessoesCaixa.find(s => s.operadorId === idVendedorAtual && s.status === 'aberta');
   const timestampSessao = sessaoAtiva ? parseInt(sessaoAtiva.id.split('-')[1]) : 0;
@@ -439,7 +423,6 @@ export default function App() {
     }, {});
 
     const moedasContadasHTML = Object.entries(valoresMovCaixa).filter(([_,v]) => parseFloat(String(v).replace(',','.'))>0).map(([m,v]) => `<div style="display: flex; justify-content: space-between;"><span>Informado em ${m}:</span><span>${parseFloat(String(v).replace(',','.')).toFixed(2)}</span></div>`).join('');
-
     const temQuebra = Math.abs(diferenca) > 0.05;
     const descQuebra = temQuebra ? (diferenca < 0 ? 'FALTA DE CAIXA (QUEBRA NEGATIVA)' : 'SOBRA DE CAIXA (QUEBRA POSITIVA)') : 'CAIXA CONCILIADO CORRETAMENTE';
 
@@ -511,6 +494,11 @@ export default function App() {
     return !!operadorAtivo.permissoes?.[modulo];
   };
 
+  // 🛡️ O FILTRO MÁGICO DE PRIVACIDADE: Impede vendedores de verem vendas e comissões dos outros.
+  const historicoVisivelParaOperador = patenteUsuario === 'gerencia' 
+    ? historicoVendas 
+    : historicoVendas.filter(v => String(v.vendedorId) === String(operadorAtivo?.id));
+
   const renderNavButton = (id, icone, texto, badge = null) => {
     const ativo = ecraAtual === id;
     
@@ -543,156 +531,10 @@ export default function App() {
     );
   }
 
-  if (!usuarioAutenticado) {
-    return <LandingPage/>;
-  }
+  if (!usuarioAutenticado) return <LandingPage/>;
 
   if (statusLoja === 'ativo' && !operadorAtivo) {
-    return (
-      <TerminalLogin 
-        vendedores={vendedores} 
-        onLoginSuccess={processarLoginOperador} 
-        onSairLoja={fazerLogout} 
-      />
-    );
-  }
-
-  if (statusLoja === 'aguardando_pagamento') {
-    return (
-      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', fontFamily: '"Inter", "Segoe UI", sans-serif', backgroundColor: '#050505', overflowY: 'auto', overflowX: 'hidden' }}>
-        <style>{`
-          ::-webkit-scrollbar { display: none; }
-          * { -ms-overflow-style: none; scrollbar-width: none; }
-          body, html { margin: 0; padding: 0; overflow: hidden; background-color: #050505; }
-        `}</style>
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url("https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=2070&auto=format&fit=crop")', backgroundSize: 'cover', backgroundPosition: 'center', zIndex: 1 }}></div>
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'linear-gradient(135deg, rgba(5,5,5,0.92) 0%, rgba(13,56,49,0.75) 100%)', zIndex: 2 }}></div>
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '0 20px', zIndex: 10, width: '100%', boxSizing: 'border-box' }}>
-          <div style={{ width: '100%', maxWidth: '450px', background: 'rgba(10, 10, 10, 0.6)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderRadius: '24px', border: '1px solid rgba(255, 255, 255, 0.08)', padding: 'clamp(30px, 5vh, 40px)', boxShadow: '0 30px 60px rgba(0,0,0,0.8)', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', boxSizing: 'border-box' }}>
-            <div style={{ width: '100%', display: 'flex', justifyContent: 'center', marginBottom: 'clamp(20px, 3vh, 30px)' }}>
-              <img src="/logo-zenos.png?v=4" alt="ZenOS Logo Oficial" style={{ width: '100%', maxWidth: '180px', height: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.6))' }} />
-            </div>
-            <h2 style={{ color: '#fbbf24', fontSize: 'clamp(20px, 3vh, 24px)', fontWeight: 900, margin: '0 0 12px 0' }}>Licença Pendente / Teste Expirado</h2>
-            <p style={{ color: '#a3a3a3', fontSize: 'clamp(13px, 1.5vh, 14px)', marginBottom: '24px', lineHeight: '1.6' }}>
-              O seu período de teste gratuito de 7 dias terminou ou a licença da loja aguarda ativação. Escolha um plano para desbloquear o terminal ZenOS de imediato.
-            </p>
-            <div style={{ backgroundColor: 'rgba(0,0,0,0.5)', padding: '20px', borderRadius: '12px', width: '100%', marginBottom: '24px', border: '1px solid rgba(255,255,255,0.05)', boxSizing: 'border-box' }}>
-              <p style={{ color: '#e5e5e5', fontSize: '13px', margin: '0 0 8px 0', fontWeight: 700 }}>Ativação Instantânea:</p>
-              <p style={{ color: '#14b8a6', fontSize: '15px', fontWeight: 900, margin: '0 0 8px 0' }}>ZenOS Cloud SaaS Enterprise</p>
-              <p style={{ color: '#888', fontSize: '12px', margin: 0, lineHeight: '1.5' }}>Aceda a relatórios avançados, gestão de filiais em tempo real e suporte prioritário.</p>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
-              <button onClick={() => setModalPlanosAberto(true)} style={{ background: 'linear-gradient(135deg, #0d9488 0%, #14b8a6 100%)', border: 'none', color: '#ffffff', padding: '14px 24px', borderRadius: '12px', fontSize: '14px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.3s', width: '100%', boxShadow: '0 4px 15px rgba(20, 184, 166, 0.3)' }}>Ver Opções de Planos</button>
-              
-              <button onClick={solicitarDemoFirebase} disabled={demoSolicitada} style={{ background: demoSolicitada ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.05)', border: `1px solid ${demoSolicitada ? '#10b981' : 'rgba(255, 255, 255, 0.15)'}`, color: demoSolicitada ? '#34d399' : '#ffffff', padding: '14px 24px', borderRadius: '12px', fontSize: '14px', fontWeight: 800, cursor: demoSolicitada ? 'default' : 'pointer', transition: 'all 0.3s', width: '100%' }}>
-                {demoSolicitada ? '✓ Solicitação de Demo Enviada!' : 'Solicitar Extensão de Teste'}
-              </button>
-
-              <button onClick={fazerLogout} style={{ background: 'transparent', border: '1px solid rgba(244, 63, 94, 0.3)', color: '#fb7185', padding: '14px 24px', borderRadius: '12px', fontSize: '14px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.3s', width: '100%', marginTop: '6px' }}>Sair e Voltar mais tarde</button>
-            </div>
-          </div>
-        </div>
-
-        {modalPlanosAberto && (
-          <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.9)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px', boxSizing: 'border-box' }}>
-            <div style={{ backgroundColor: '#0b1120', border: '1px solid #14b8a6', borderRadius: '24px', width: '100%', maxWidth: '900px', maxHeight: '92vh', overflowY: 'auto', padding: '32px', color: '#fff', boxSizing: 'border-box' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
-                <div>
-                  <span style={{ fontSize: '11px', fontWeight: 900, color: '#14b8a6', letterSpacing: '1px', textTransform: 'uppercase' }}>ZenOS Cloud SaaS Enterprise</span>
-                  <h3 style={{ fontSize: '24px', fontWeight: 900, margin: '2px 0 0 0' }}>Escolha o Plano Ideal para o seu Negócio</h3>
-                </div>
-                <div style={{ display: 'flex', backgroundColor: '#020617', padding: '4px', borderRadius: '12px', border: '1px solid #1e293b' }}>
-                  <button onClick={() => setCicloPlano('mensal')} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', backgroundColor: cicloPlano === 'mensal' ? '#14b8a6' : 'transparent', color: cicloPlano === 'mensal' ? '#000' : '#94a3b8', fontWeight: 900, fontSize: '12px', cursor: 'pointer' }}>Mensal</button>
-                  <button onClick={() => setCicloPlano('anual')} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', backgroundColor: cicloPlano === 'anual' ? '#14b8a6' : 'transparent', color: cicloPlano === 'anual' ? '#000' : '#94a3b8', fontWeight: 900, fontSize: '12px', cursor: 'pointer' }}>Anual (-20% OFF)</button>
-                </div>
-                <button onClick={() => setModalPlanosAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#64748b', width: '36px', height: '36px', borderRadius: '10px', cursor: 'pointer', fontWeight: 900 }}>✕</button>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-                
-                <div style={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '20px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <div>
-                    <h4 style={{ fontSize: '15px', fontWeight: 900, color: '#38bdf8', margin: '0 0 4px 0' }}>Básico</h4>
-                    <div style={{ fontSize: '22px', fontWeight: 900, color: '#fff' }}>
-                      {cicloPlano === 'anual' ? 'R$ 28,48' : 'R$ 35,00'}<span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>/mês</span>
-                    </div>
-                    <span style={{ fontSize: '10px', color: '#64748b' }}>{cicloPlano === 'anual' ? 'Cobrado anualmente' : 'Sem fidelidade'}</span>
-                  </div>
-                  <ul style={{ margin: 0, paddingLeft: '14px', fontSize: '12px', color: '#cbd5e1', lineHeight: '1.6', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <li>Até 100 Clientes</li>
-                    <li>Até 500 Produtos</li>
-                    <li>Controle de Vendas e Estoque</li>
-                    <li>Frente de Caixa PDV</li>
-                    <li>3 Usuários / Vendedores</li>
-                  </ul>
-                  <button onClick={() => alert('Para ativar o Plano Básico, contacte o suporte comercial ZenOS.')} style={{ width: '100%', padding: '10px', background: '#0284c7', border: 'none', color: '#fff', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', marginTop: 'auto', fontSize: '12px' }}>Selecionar Básico</button>
-                </div>
-
-                <div style={{ background: 'linear-gradient(135deg, rgba(13, 148, 136, 0.15), rgba(2, 6, 23, 0.9))', border: '1px solid #14b8a6', borderRadius: '20px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 10px 30px rgba(20, 184, 166, 0.15)', position: 'relative' }}>
-                  <div style={{ position: 'absolute', top: '-10px', right: '16px', backgroundColor: '#14b8a6', color: '#000', fontSize: '9px', fontWeight: 900, padding: '2px 8px', borderRadius: '999px', textTransform: 'uppercase' }}>Mais Popular</div>
-                  <div>
-                    <h4 style={{ fontSize: '15px', fontWeight: 900, color: '#14b8a6', margin: '0 0 4px 0' }}>Essencial</h4>
-                    <div style={{ fontSize: '22px', fontWeight: 900, color: '#fff' }}>
-                      {cicloPlano === 'anual' ? 'R$ 33,57' : 'R$ 44,90'}<span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>/mês</span>
-                    </div>
-                    <span style={{ fontSize: '10px', color: '#64748b' }}>{cicloPlano === 'anual' ? 'Cobrado anualmente' : 'Sem fidelidade'}</span>
-                  </div>
-                  <ul style={{ margin: 0, paddingLeft: '14px', fontSize: '12px', color: '#cbd5e1', lineHeight: '1.6', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <li>Clientes Ilimitados</li>
-                    <li>Até 2.000 Produtos</li>
-                    <li>Catálogo Digital Grátis</li>
-                    <li>Contagem e Inventário</li>
-                    <li>Contas a Pagar e Receber</li>
-                    <li>5 Usuários / Vendedores</li>
-                  </ul>
-                  <button onClick={() => alert('Para ativar o Plano Essencial, contacte o suporte comercial ZenOS.')} style={{ width: '100%', padding: '10px', background: 'linear-gradient(135deg, #0d9488, #14b8a6)', border: 'none', color: '#fff', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', marginTop: 'auto', fontSize: '12px', boxShadow: '0 4px 15px rgba(20,184,166,0.3)' }}>Selecionar Essencial</button>
-                </div>
-
-                <div style={{ backgroundColor: '#020617', border: '1px solid #6366f1', borderRadius: '20px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <div>
-                    <h4 style={{ fontSize: '15px', fontWeight: 900, color: '#818cf8', margin: '0 0 4px 0' }}>Pro Avançado</h4>
-                    <div style={{ fontSize: '22px', fontWeight: 900, color: '#fff' }}>
-                      {cicloPlano === 'anual' ? 'R$ 43,75' : 'R$ 59,90'}<span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>/mês</span>
-                    </div>
-                    <span style={{ fontSize: '10px', color: '#64748b' }}>{cicloPlano === 'anual' ? 'Cobrado anualmente' : 'Sem fidelidade'}</span>
-                  </div>
-                  <ul style={{ margin: 0, paddingLeft: '14px', fontSize: '12px', color: '#cbd5e1', lineHeight: '1.6', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <li>Tudo Ilimitado (Clientes/Produtos)</li>
-                    <li>Controle de Ordens de Serviço</li>
-                    <li>Importação de XML e NFe</li>
-                    <li>Curva ABC & Inteligência</li>
-                    <li>Até 20 Usuários Simultâneos</li>
-                  </ul>
-                  <button onClick={() => alert('Para ativar o Plano Pro, contacte o suporte comercial ZenOS.')} style={{ width: '100%', padding: '10px', background: 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#fff', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', marginTop: 'auto', fontSize: '12px' }}>Selecionar Pro</button>
-                </div>
-
-                <div style={{ background: 'linear-gradient(135deg, rgba(217, 119, 6, 0.15), rgba(2, 6, 23, 0.9))', border: '1px solid #d97706', borderRadius: '20px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 10px 30px rgba(217, 119, 6, 0.15)' }}>
-                  <div>
-                    <span style={{ backgroundColor: '#d97706', color: '#000', fontSize: '9px', fontWeight: 900, padding: '2px 8px', borderRadius: '999px', textTransform: 'uppercase' }}>Redes / Franquias</span>
-                    <h4 style={{ fontSize: '15px', fontWeight: 900, color: '#fbbf24', margin: '4px 0 4px 0' }}>Multi-Filiais</h4>
-                    <div style={{ fontSize: '22px', fontWeight: 900, color: '#fff' }}>Sob Consulta</div>
-                    <span style={{ fontSize: '10px', color: '#fbbf24' }}>Conexão total de estoques</span>
-                  </div>
-                  <ul style={{ margin: 0, paddingLeft: '14px', fontSize: '12px', color: '#cbd5e1', lineHeight: '1.6', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <li><b>Estoque Unificado Multi-Filial:</b> Consulte em tempo real se o produto X está na Filial Centro ou Filial Shopping</li>
-                    <li>Painel Executivo Central (CEO)</li>
-                    <li>Usuários e Lojas Ilimitadas</li>
-                    <li>Gerente de Conta Dedicado 24/7</li>
-                  </ul>
-                  <button onClick={() => alert('Para contratar o Plano Multi-Filiais para a sua rede, um consultor ZenOS entrará em contacto.')} style={{ width: '100%', padding: '10px', background: 'linear-gradient(135deg, #d97706, #b45309)', border: 'none', color: '#fff', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', marginTop: 'auto', fontSize: '12px', boxShadow: '0 4px 15px rgba(217,119,6,0.3)' }}>Falar com Consultor</button>
-                </div>
-
-              </div>
-
-              <div style={{ textAlign: 'center' }}>
-                <button onClick={() => setModalPlanosAberto(false)} style={{ backgroundColor: 'transparent', border: 'none', color: '#94a3b8', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}>Fechar Tabela de Planos</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-      </div>
-    );
+    return <TerminalLogin vendedores={vendedores} onLoginSuccess={processarLoginOperador} onSairLoja={fazerLogout} />;
   }
 
   return (
@@ -751,15 +593,6 @@ export default function App() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', padding: '4px 8px', gap: '6px', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.5)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ fontSize: '12px' }}>{idioma === 'pt' ? '🇧🇷' : idioma === 'es' ? '🇪🇸' : '🇺🇸'}</span>
-                <select value={idioma} onChange={(e) => setIdioma(e.target.value)} style={{ backgroundColor: 'transparent', color: '#cbd5e1', fontSize: '11px', fontWeight: 800, border: 'none', outline: 'none', cursor: 'pointer' }}>
-                  <option value="pt" style={{ backgroundColor: '#0b1120', color: '#fff' }}>PT</option>
-                  <option value="es" style={{ backgroundColor: '#0b1120', color: '#fff' }}>ES</option>
-                  <option value="en" style={{ backgroundColor: '#0b1120', color: '#fff' }}>EN</option>
-                </select>
-              </div>
-              <div style={{ width: '1px', height: '14px', backgroundColor: '#334155' }}></div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <span style={{ fontSize: '10px', color: '#818cf8', fontWeight: 900 }}>🌐</span>
                 <select value={moeda} onChange={(e) => setMoeda(e.target.value)} style={{ backgroundColor: 'transparent', color: '#34d399', fontSize: '11px', fontWeight: 900, border: 'none', outline: 'none', cursor: 'pointer' }}>
                   <option value="BRL" style={{ backgroundColor: '#0b1120', color: '#fff' }}>BRL (R$)</option>
@@ -777,7 +610,6 @@ export default function App() {
             <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 800 }} className="hide-mobile">Operador:</span>
             <span style={{ color: patenteUsuario === 'gerencia' ? '#fbbf24' : '#818cf8', fontWeight: 900, fontSize: '12px' }}>{operadorAtivo?.nome || 'Admin'}</span>
           </div>
-
           <button onClick={trocarOperador} style={{ backgroundColor: 'rgba(99, 102, 241, 0.1)', border: '1px solid #6366f1', color: '#818cf8', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>Trocar Operador</button>
         </div>
       </header>
@@ -803,7 +635,7 @@ export default function App() {
                   <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>{tx('Fiado na Praça', 'Fiado a Cobrar', 'Pending Credit')}</span>
                   <div style={{ fontSize: '26px', fontWeight: 900, color: totalFiadoAbertoBRL > 0 && valoresTopoVisiveis ? '#fb7185' : '#34d399', marginTop: '4px' }}>{valoresTopoVisiveis ? fmt(totalFiadoAbertoBRL) : '*****'}</div>
                 </div>
-                <button onClick={() => setValoresTopoVisiveis(!valoresTopoVisiveis)} title={tx('Ocultar/Mostrar Valores', 'Ocultar/Mostrar Valores', 'Toggle Values')} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#e2e8f0', fontSize: '20px', cursor: 'pointer', padding: '12px', outline: 'none', transition: 'all 0.3s' }}>
+                <button onClick={() => setValoresTopoVisiveis(!valoresTopoVisiveis)} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#e2e8f0', fontSize: '20px', cursor: 'pointer', padding: '12px', outline: 'none', transition: 'all 0.3s' }}>
                   {valoresTopoVisiveis ? '👁️' : '🙈'}
                 </button>
               </div>
@@ -922,7 +754,7 @@ export default function App() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '16px' }}>
               
               {temPermissao('pdv') && (
-                <div onClick={() => sessaoAtiva ? setEcraAtual('pdv') : alert(tx('Para vender, abra primeiro o seu Turno de Caixa no painel financeiro!', '¡Abra su turno de caja primero!', 'Open your cash shift first!'))} style={{ backgroundColor: '#021e15', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '20px', padding: '24px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
+                <div onClick={() => setEcraAtual('pdv')} style={{ backgroundColor: '#021e15', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '20px', padding: '24px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
                   <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #10b981, #059669)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', boxShadow: '0 8px 20px rgba(16,185,129,0.4)' }}>🛒</div>
                   <div><h2 style={{ fontSize: '15px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>PDV Balcão</h2><span style={{fontSize: '11px', color: '#94a3b8'}}>Frente de Caixa</span></div>
                 </div>
@@ -984,10 +816,10 @@ export default function App() {
         {ecraAtual === 'mesas' && <Mesas produtos={produtos} fmt={fmt} tx={tx} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} moeda={moeda} idioma={idioma} />}
         {ecraAtual === 'produtos' && <Produtos produtos={produtos} setProdutos={setProdutos} moeda={moeda} fmt={fmt} t={t} tx={tx} />}
         {ecraAtual === 'inteligencia' && <EstoqueInteligente produtos={produtos} fmt={fmt} />}
-        {ecraAtual === 'comissoes' && <Comissoes historicoVendas={historicoVendas} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} operadorAtivo={operadorAtivo} />}
+        {ecraAtual === 'comissoes' && <Comissoes historicoVendas={historicoVisivelParaOperador} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} operadorAtivo={operadorAtivo} regrasDesconto={regrasDesconto} />}
         {ecraAtual === 'dashboardMobile' && <DashboardMobile historicoVendas={historicoVendas} despesas={despesas} clientes={clientes} produtos={produtos} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} />}
         {ecraAtual === 'clientes' && <Clientes clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} />}
-        {ecraAtual === 'vendas' && <Vendas historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} fmt={fmt} t={t} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterDeBRL={converterDeBRL} />}
+        {ecraAtual === 'vendas' && <Vendas historicoVendas={historicoVisivelParaOperador} setHistoricoVendas={setHistoricoVendas} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} fmt={fmt} t={t} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterDeBRL={converterDeBRL} />}
         {ecraAtual === 'migracao' && <Migracao produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} t={t} tx={tx} />}
         {ecraAtual === 'configuracoes' && <Configuracoes produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} despesas={despesas} setDespesas={setDespesas} moeda={moeda} fmt={fmt} tx={tx} regrasDesconto={regrasDesconto} setRegrasDesconto={setRegrasDesconto} vendedores={vendedores} setVendedores={(novosVendedores) => { setVendedores(novosVendedores); localStorage.setItem('zenos_vendedores', JSON.stringify(novosVendedores)); if (userId) setDoc(doc(db, "lojas", userId, "dados", "operacao"), { vendedores: novosVendedores }, { merge: true }); }} />}
         {ecraAtual === 'auditoria_caixas' && <GestaoCaixas sessoesCaixa={sessoesCaixa} fmt={fmt} tx={tx} />}
@@ -1028,7 +860,6 @@ export default function App() {
                   {tx('Conte as notas e moedas físicas na gaveta e digite o total exato abaixo.', 'Cuente el efectivo físico en la gaveta e ingrese el total exacto.', 'Count the physical cash in the drawer and enter the exact total below.')}
                 </p>
                 
-                {/* 🛡️ GRELHA MULTIMOEDAS PARA CONTAGEM DE GAVETA */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                   {['BRL', 'USD', 'EUR', 'PYG'].map(m => (
                     <div key={m}>
@@ -1040,7 +871,6 @@ export default function App() {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '20px' }}>
-                {/* 🛡️ GRELHA MULTIMOEDAS PARA SANGRIA E SUPRIMENTO */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                   {['BRL', 'USD', 'EUR', 'PYG'].map(m => (
                     <div key={m}>
