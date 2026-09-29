@@ -582,32 +582,49 @@ export default function App() {
             <button onClick={() => setMenuNavAberto(!menuNavAberto)} style={{ backgroundColor: menuNavAberto ? '#1e293b' : '#020617', border: '1px solid #334155', color: '#f8fafc', padding: '8px 12px', borderRadius: '10px', fontSize: '14px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.4)' }}>
               <span style={{ fontSize: '18px' }}>☰</span><span className="hide-mobile">{tx('Menu', 'Menú', 'Menu')}</span>
             </button>
-          {menuNavAberto && (
+         {menuNavAberto && (
               <>
                 {/* Overlay com leve desfoque para dar destaque ao menu */}
                 <div onClick={() => setMenuNavAberto(false)} style={{ position: 'fixed', inset: 0, zIndex: 40, backgroundColor: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(2px)' }}></div>
                 
-                <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '12px', backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '16px', padding: '16px 12px', zIndex: 50, display: 'flex', flexDirection: 'column', gap: '4px', width: '280px', boxShadow: '0 20px 40px rgba(0,0,0,0.8)' }}>
+                <div style={{ 
+                  position: 'absolute', 
+                  top: '100%', 
+                  left: 0, 
+                  marginTop: '12px', 
+                  backgroundColor: '#1e293b', /* NOVO: Cor mais clara (Slate 800) para destacar do fundo */
+                  border: '1px solid #334155', /* Borda também mais clara */
+                  borderRadius: '16px', 
+                  padding: '16px 12px', 
+                  zIndex: 50, 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  gap: '4px', 
+                  width: '280px', 
+                  boxShadow: '0 20px 40px rgba(0,0,0,0.8)',
+                  maxHeight: 'calc(100vh - 90px)', /* NOVO: Limita a altura para nunca passar do limite da tela */
+                  overflowY: 'auto' /* NOVO: Ativa a rolagem mestre caso o conteúdo seja maior que a tela */
+                }}>
                   
-                  {/* NOVO: Bloco de Perfil da Loja (Nível Executivo) */}
-                  <div style={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '12px', padding: '12px', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {/* Bloco de Perfil da Loja */}
+                  <div style={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '12px', padding: '12px', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <div style={{ width: '40px', height: '40px', backgroundColor: '#1e293b', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
                         🏢
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                         <span style={{ fontSize: '14px', fontWeight: 800, color: '#f8fafc', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>Zênite Atacadão</span>
-                        <span style={{ fontSize: '11px', color: '#94a3b8', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{usuarioAutenticado || 'loja@zenos.com'}</span>
+                        <span style={{ fontSize: '11px', color: '#cbd5e1', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{usuarioAutenticado || 'loja@zenos.com'}</span>
                       </div>
                     </div>
-                    <div style={{ height: '1px', backgroundColor: '#1e293b' }}></div>
+                    <div style={{ height: '1px', backgroundColor: '#334155' }}></div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>ID: {userId ? userId.substring(0, 8).toUpperCase() : '---'}</span>
-                      <span style={{ fontSize: '10px', backgroundColor: 'rgba(52, 211, 153, 0.1)', color: '#34d399', padding: '2px 6px', borderRadius: '4px', fontWeight: 800, textTransform: 'uppercase' }}>{patenteUsuario}</span>
+                      <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600 }}>ID: {userId ? userId.substring(0, 8).toUpperCase() : '---'}</span>
+                      <span style={{ fontSize: '10px', backgroundColor: 'rgba(52, 211, 153, 0.15)', color: '#34d399', padding: '2px 6px', borderRadius: '4px', fontWeight: 800, textTransform: 'uppercase' }}>{patenteUsuario}</span>
                     </div>
                   </div>
 
-                  <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', padding: '4px 12px 8px 12px' }}>{t('modulosSistema')}</span>
+                  <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', padding: '4px 12px 8px 12px' }}>{t('modulosSistema')}</span>
                   
                   {renderNavButton('hub', '🏠', tx('Painel Inicial', 'Panel de Inicio', 'Home Dashboard'))}
                   {temPermissao('pdv') && renderNavButton('pdv', '🛒', t('pdvBalcao'))}
@@ -617,7 +634,7 @@ export default function App() {
                   {temPermissao('vendas') && renderNavButton('vendas', '📑', t('vendasDevolucoes'))}
                   
                   {/* Linha separadora sutil */}
-                  <div style={{ height: '1px', backgroundColor: '#1e293b', margin: '8px 12px' }}></div>
+                  <div style={{ height: '1px', backgroundColor: '#334155', margin: '8px 12px' }}></div>
                   
                   {temPermissao('inteligencia') && renderNavButton('inteligencia', '📊', tx('Inteligência', 'Inteligencia', 'Intelligence'))}
                   {temPermissao('admin') && renderNavButton('comissoes', '🤝', tx('Comissões', 'Comisiones', 'Commissions'))}
