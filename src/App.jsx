@@ -1,691 +1,909 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { normalizarProduto, normalizarCliente } from '../data';
+import TerminalLogin from './components/TerminalLogin';
+import React, { useState, useEffect } from 'react';
+import { traducoes, moedasConfig, normalizarProduto, normalizarCliente, produtosIniciais, clientesIniciais } from './data';
+import { auth, db } from './firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import LandingPage from './components/LandingPage';
 
-export default function PDV({ produtos, setProdutos, clientes, setClientes, moeda, fmt, t, tx, converterDeBRL, converterParaBRL, historicoVendas, setHistoricoVendas, patenteUsuario, idioma, regrasDesconto, operadorAtivo }) {
-  const [termoBusca, setTermoBusca] = useState('');
-  const [indiceFocoBusca, setIndiceFocoBusca] = useState(0);
-  const [itensVenda, setItensVenda] = useState([]);
-  const [descontoTexto, setDescontoTexto] = useState('0');
+import Produtos from './components/Produtos';
+import Clientes from './components/Clientes';
+import PDV from './components/PDV';
+import Vendas from './components/Vendas';
+import Migracao from './components/Migracao';
+import Despesas from './components/Despesas';
+import EstoqueInteligente from './components/EstoqueInteligente';
+import Comissoes from './components/Comissoes';
+import Mesas from './components/Mesas';
+import DashboardMobile from './components/DashboardMobile';
+import Configuracoes from './components/Configuracoes';
+
+const CURRENT_SCHEMA_VERSION = 1;
+
+function executarMigracaoDeDados() {
+  try {
+    const versaoSalva = parseInt(localStorage.getItem('zenos_schema_version') || '0', 10);
+
+    if (versaoSalva < CURRENT_SCHEMA_VERSION) {
+      console.info(`[ZenOS Migration] Atualizando base de dados local da v${versaoSalva} para v${CURRENT_SCHEMA_VERSION}...`);
+
+      const prodLocal = localStorage.getItem('zenos_produtos');
+      if (prodLocal) {
+        const parsed = JSON.parse(prodLocal);
+        if (Array.isArray(parsed)) {
+          const normalizados = parsed.map((p, idx) => normalizarProduto(p, idx));
+          localStorage.setItem('zenos_produtos', JSON.stringify(normalizados));
+        }
+      }
+
+      const clienteLocal = localStorage.getItem('zenos_clientes');
+      if (clienteLocal) {
+        const parsed = JSON.parse(clienteLocal);
+        if (Array.isArray(parsed)) {
+          const normalizados = parsed.map(c => normalizarCliente(c));
+          localStorage.setItem('zenos_clientes', JSON.stringify(normalizados));
+        }
+      }
+
+      localStorage.setItem('zenos_schema_version', CURRENT_SCHEMA_VERSION.toString());
+      console.info("[ZenOS Migration] Migração concluída com sucesso. Dados preservados.");
+    }
+  } catch (err) {
+    console.error("[ZenOS Migration Error] Falha ao executar migração de schema:", err);
+  }
+}
+
+executarMigracaoDeDados();
+
+function ZeniteLogo({ aoClicar }) {
+  return (
+    <div onClick={aoClicar} style={{ display: 'flex', alignItems: 'center', gap: '14px', cursor: 'pointer', userSelect: 'none' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '42px', minWidth: '42px' }}>
+        <img src="/logo-zenos.png?v=4" alt="ZenOS" style={{ height: '42px', width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }} />
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', whiteSpace: 'nowrap' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}><span style={{ color: '#f8fafc', fontWeight: 900, fontSize: '18px', letterSpacing: '2.5px', textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>ZÊNITE</span><span style={{ color: '#818cf8', fontWeight: 800, fontSize: '10px', letterSpacing: '1px' }}>OS</span></div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '3px' }}><div style={{ height: '1.5px', width: '10px', backgroundColor: '#c27849' }}></div><span style={{ color: '#cbd5e1', fontSize: '8.5px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase' }}>ATACADÃO DE TINTAS</span><div style={{ height: '1.5px', width: '10px', backgroundColor: '#c27849' }}></div></div>
+      </div>
+    </div>
+  );
+}
+
+export default function App() {
+  const [usuarioAutenticado, setUsuarioAutenticado] = useState(null);
+  const [userId, setUserId] = useState(null);
+  const [statusLoja, setStatusLoja] = useState(null);
+  const [carregandoAuth, setCarregandoAuth] = useState(true);
+
+  // 🛡️ SISTEMA MULTI-OPERADOR E PATENTES
+  const [vendedores, setVendedores] = useState(() => {
+    try {
+      const salvo = localStorage.getItem('zenos_vendedores');
+      if (salvo) return JSON.parse(salvo);
+    } catch (err) {}
+    return [{ id: 'admin', nome: 'Administrador (Gerência)', patente: 'gerencia', senha: 'admin', percentual: 0, comissaoTipo: 'lucro' }];
+  });
+  const [operadorAtivo, setOperadorAtivo] = useState(null); 
+  const patenteUsuario = operadorAtivo?.patente || 'vendedor'; 
+
+  const [modalPlanosAberto, setModalPlanosAberto] = useState(false);
+  const [demoSolicitada, setDemoSolicitada] = useState(false);
+  const [cicloPlano, setCicloPlano] = useState('anual');
+
+  const [ecraAtual, setEcraAtual] = useState('hub');
+  const [menuNavAberto, setMenuNavAberto] = useState(false);
+  const [idioma, setIdioma] = useState('pt');
+  const [moeda, setMoeda] = useState('BRL');
   
-  const [nomeClienteVulso, setNomeClienteVulso] = useState('');
-  const [clienteSelecionadoPDV, setClienteSelecionadoPDV] = useState(null);
-  const [focoInputCliente, setFocoInputCliente] = useState(false);
+  const [mostrarPainelExecutivo, setMostrarPainelExecutivo] = useState(false);
+  const [valoresTopoVisiveis, setValoresTopoVisiveis] = useState(true);
 
-  const [modalProdutoPDVAberto, setModalProdutoPDVAberto] = useState(false);
-  const [produtoEmEdicaoPDV, setProdutoEmEdicaoPDV] = useState(null);
-  const [formProdutoPDV, setFormProdutoPDV] = useState(normalizarProduto({}));
+  const [taxasCambio, setTaxasCambio] = useState({ BRL: 1.0, USD: 0.185, EUR: 0.165, PYG: 1380.0 });
+  const [taxasInput, setTaxasInput] = useState({ USD: '5.40', EUR: '6.05', PYG: '1380' });
+  const [modalCambioAberto, setModalCambioAberto] = useState(false);
 
-  const [modalClientePDVAberto, setModalClientePDVAberto] = useState(false);
-  const [formClientePDV, setFormClientePDV] = useState(normalizarCliente({}));
-
-  const [itemParaAdicionar, setItemParaAdicionar] = useState(null);
-  const [qtdDigitadaRapida, setQtdDigitadaRapida] = useState('1');
-  const [modalFechamentoAberto, setModalFechamentoAberto] = useState(false);
-
-  const [pagamentosLancados, setPagamentosLancados] = useState([]);
-  const [formaSelecionada, setFormaSelecionada] = useState('dinheiro_brl');
-  const [valorLancamentoInput, setValorLancamentoInput] = useState('');
-  
-  const [vendaSucesso, setVendaSucesso] = useState(false);
-  const [vendaConcluidaObj, setVendaConcluidaObj] = useState(null);
-
-  const inputBuscaRef = useRef(null);
-  const inputQtdRapidaRef = useRef(null);
-  const inputValorLancamentoRef = useRef(null);
-
-  const termosProd = termoBusca.toLowerCase().trim().split(/\s+/).filter(Boolean);
-  const produtosFiltrados = produtos.filter(prod => {
-    if (!prod) return false;
-    const ehUsoUnico = prod.usoUnicoEncomendado || String(prod.sku || '').toUpperCase().includes('ENCOMENDA');
-    if (ehUsoUnico && parseInt(prod.estoque || 0) <= 0) return false; 
-    const textoCompleto = `${prod.nome || ''} ${prod.sku || ''} ${prod.grupo || ''}`.toLowerCase();
-    return termosProd.every(termo => textoCompleto.includes(termo));
+  // 🛡️ REGRAS DO SEMÁFORO DE DESCONTO
+  const [regrasDesconto, setRegrasDesconto] = useState(() => {
+    try {
+      const salvo = localStorage.getItem('zenos_regras_desconto');
+      if (salvo) return JSON.parse(salvo);
+    } catch (err) {
+      console.error("Erro ao carregar regras de desconto:", err);
+    }
+    return { verdeMax: 5, amareloMax: 12, exigirSenhaVermelho: true, senhaGerente: '1234' };
   });
 
-  const termosBuscaCli = nomeClienteVulso.toLowerCase().trim().split(/\s+/).filter(Boolean);
-  const clientesSugeridos = (nomeClienteVulso.trim() && !clienteSelecionadoPDV)
-    ? clientes.filter(c => {
-        const textoCompleto = `${c.nome || ''} ${c.documento || ''} ${c.telefone || ''}`.toLowerCase();
-        return termosBuscaCli.every(termo => textoCompleto.includes(termo));
-      })
-    : [];
-
-  useEffect(() => { setIndiceFocoBusca(0); }, [termoBusca]);
-  useEffect(() => { if (itemParaAdicionar && inputQtdRapidaRef.current) { inputQtdRapidaRef.current.focus(); inputQtdRapidaRef.current.select(); } }, [itemParaAdicionar]);
-
-  const aplicarPrecoPorPerfilCliente = (prod, cliente) => {
-    if (!prod) return 0;
-    if (cliente && cliente.perfilPreco === 'preco2' && prod.habilitarPreco2 && prod.preco2BRL > 0) return prod.preco2BRL;
-    return prod.precoBRL || 0;
-  };
-
-  const selecionarClienteNoPDV = (cli) => {
-    setClienteSelecionadoPDV(cli); setNomeClienteVulso(cli.nome); setFocoInputCliente(false);
-    setItensVenda(itensVenda.map(item => {
-      const prodOriginal = produtos.find(p => p.id === item.id) || item;
-      const novoPrecoBRL = aplicarPrecoPorPerfilCliente(prodOriginal, cli);
-      return { ...item, precoPraticadoBRL: novoPrecoBRL, precoTexto: converterDeBRL(novoPrecoBRL, moeda).toFixed(2) };
-    }));
-  };
-
-  const removerClienteDoPDV = () => {
-    setClienteSelecionadoPDV(null); setNomeClienteVulso('');
-    setItensVenda(itensVenda.map(item => {
-      const prodOriginal = produtos.find(p => p.id === item.id) || item;
-      return { ...item, precoPraticadoBRL: prodOriginal.precoBRL || 0, precoTexto: converterDeBRL(prodOriginal.precoBRL || 0, moeda).toFixed(2) };
-    }));
-  };
-
-  const abrirCadastroClientePDV = () => {
-    setFormClientePDV(normalizarCliente({ nome: nomeClienteVulso, pais: moeda === 'PYG' ? 'PY' : 'BR', tipoDocumento: moeda === 'PYG' ? 'RUC' : 'CPF' }));
-    setModalClientePDVAberto(true);
-  };
-
-  const salvarClientePDV = () => {
-    if (!formClientePDV.nome.trim()) return alert(tx('Informe o nome do cliente.', 'Informe el nombre del cliente.', 'Enter customer name.'));
-    const limiteNum = parseFloat(String(formClientePDV.limiteCreditoBRL).replace(',', '.')) || 0;
-    const novoCli = normalizarCliente({ ...formClientePDV, limiteCreditoBRL: limiteNum });
-    setClientes([novoCli, ...clientes]);
-    selecionarClienteNoPDV(novoCli);
-    setModalClientePDVAberto(false);
-  };
-
-  const abrirCadastroProdutoPDV = () => {
-    setProdutoEmEdicaoPDV(null); 
-    setFormProdutoPDV(normalizarProduto({ sku: `ENCOMENDA-${Date.now().toString().slice(-5)}`, usoUnicoEncomendado: true }));
-    setModalProdutoPDVAberto(true);
-  };
-
-  const abrirEdicaoProdutoPDV = (prod) => {
-    setProdutoEmEdicaoPDV(prod); 
-    setFormProdutoPDV({
-      ...normalizarProduto(prod), custoBRL: (prod.custoBRL || 0).toString(), precoBRL: (prod.precoBRL || 0).toString(),
-      preco2BRL: (prod.preco2BRL || 0).toString(), preco3BRL: (prod.preco3BRL || 0).toString(), estoque: (prod.estoque || 0).toString(),
-      usoUnicoEncomendado: prod.usoUnicoEncomendado || String(prod.sku).toUpperCase().includes('ENCOMENDA')
-    });
-    setModalProdutoPDVAberto(true);
-  };
-
-  const salvarProdutoPDV = () => {
-    if (!formProdutoPDV.nome.trim()) return alert(tx('Informe o nome do produto.', 'Informe el nombre del producto.', 'Enter product name.'));
-    const custo = parseFloat(String(formProdutoPDV.custoBRL).replace(',', '.')) || 0;
-    const preco = parseFloat(String(formProdutoPDV.precoBRL).replace(',', '.')) || 0;
-    const preco2 = formProdutoPDV.habilitarPreco2 ? (parseFloat(String(formProdutoPDV.preco2BRL).replace(',', '.')) || 0) : 0;
-    const preco3 = formProdutoPDV.habilitarPreco3 ? (parseFloat(String(formProdutoPDV.preco3BRL).replace(',', '.')) || 0) : 0;
-    const estoque = parseInt(String(formProdutoPDV.estoque)) || 0;
-
-    const dadosFinais = normalizarProduto({ ...formProdutoPDV, custoBRL: custo, precoBRL: preco, preco2BRL: preco2, preco3BRL: preco3, estoque: estoque });
-    dadosFinais.usoUnicoEncomendado = formProdutoPDV.usoUnicoEncomendado; 
-    
-    if (!dadosFinais.id) dadosFinais.id = `PROD-BALCAO-${Date.now()}`;
-
-    if (produtoEmEdicaoPDV) {
-      setProdutos(produtos.map(p => p.id === produtoEmEdicaoPDV.id ? dadosFinais : p));
-      setItensVenda(itensVenda.map(item => item.id === produtoEmEdicaoPDV.id ? { ...item, ...dadosFinais, precoPraticadoBRL: preco } : item));
-    } else {
-      setProdutos([dadosFinais, ...produtos]);
-      setItemParaAdicionar(dadosFinais);
-      setQtdDigitadaRapida('1');
+  const [produtos, setProdutos] = useState(() => {
+    try {
+      const salvo = localStorage.getItem('zenos_produtos');
+      if (salvo) {
+        const parsed = JSON.parse(salvo);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (err) {
+      console.error("Erro crítico ao carregar produtos:", err);
     }
-    setModalProdutoPDVAberto(false);
-  };
+    return produtosIniciais.map((p, idx) => normalizarProduto(p, idx));
+  });
 
-  const lidarTecladoBusca = (e) => {
-    if (produtosFiltrados.length === 0 || termoBusca.trim() === '') return;
-    if (e.key === 'ArrowDown') { e.preventDefault(); setIndiceFocoBusca((prev) => (prev + 1) % produtosFiltrados.length); } 
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setIndiceFocoBusca((prev) => (prev - 1 + produtosFiltrados.length) % produtosFiltrados.length); } 
-    else if (e.key === 'Enter') { e.preventDefault(); const itemEscolhido = produtosFiltrados[indiceFocoBusca] || produtosFiltrados[0]; if (itemEscolhido) { setItemParaAdicionar(itemEscolhido); setQtdDigitadaRapida('1'); } } 
-    else if (e.key === 'Escape') { setTermoBusca(''); }
-  };
-
-  const confirmarAdicaoRapida = () => {
-    if (!itemParaAdicionar) return;
-    const qtdNum = Math.max(1, parseInt(qtdDigitadaRapida) || 1);
-    const precoBase = aplicarPrecoPorPerfilCliente(itemParaAdicionar, clienteSelecionadoPDV);
-
-    const indiceExistente = itensVenda.findIndex(i => i.nome === itemParaAdicionar.nome && i.sku === itemParaAdicionar.sku);
-
-    if (indiceExistente !== -1) {
-      const novaLista = [...itensVenda];
-      const qtdAtual = parseInt(novaLista[indiceExistente].qtd) || 0;
-      novaLista[indiceExistente] = { ...novaLista[indiceExistente], qtd: String(qtdAtual + qtdNum) };
-      setItensVenda(novaLista);
-    } else {
-      setItensVenda([ ...itensVenda, { 
-        ...itemParaAdicionar, 
-        id: `${itemParaAdicionar.id}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-        produtoOriginalId: itemParaAdicionar.id,
-        qtd: String(qtdNum), 
-        precoPraticadoBRL: precoBase, 
-        precoTexto: converterDeBRL(precoBase, moeda).toFixed(2) 
-      }]);
+  const [clientes, setClientes] = useState(() => {
+    try {
+      const salvo = localStorage.getItem('zenos_clientes');
+      if (salvo) {
+        const parsed = JSON.parse(salvo);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (err) {
+      console.error("Erro ao carregar clientes:", err);
     }
-    setItemParaAdicionar(null); setTermoBusca(''); 
-    if (inputBuscaRef.current) inputBuscaRef.current.focus();
+    return clientesIniciais.map(c => normalizarCliente(c));
+  });
+
+  const [historicoVendas, setHistoricoVendas] = useState(() => {
+    try {
+      const salvo = localStorage.getItem('zenos_historico_vendas');
+      if (salvo) {
+        const parsed = JSON.parse(salvo);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (err) {
+      console.error("Erro ao carregar vendas:", err);
+    }
+    return [];
+  });
+
+  const [caixaMovimentos, setCaixaMovimentos] = useState(() => {
+    try {
+      const salvo = localStorage.getItem('zenos_caixa_movs');
+      if (salvo) {
+        const parsed = JSON.parse(salvo);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (err) {
+      console.error("Erro ao carregar caixa:", err);
+    }
+    return [];
+  });
+
+  const [despesas, setDespesas] = useState(() => {
+    try {
+      const salvo = localStorage.getItem('zenos_despesas');
+      if (salvo) {
+        const parsed = JSON.parse(salvo);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (err) {
+      console.error("Erro ao carregar despesas:", err);
+    }
+    return [];
+  });
+
+  const solicitarDemoFirebase = async () => {
+    if (!userId) return;
+    try {
+      await setDoc(doc(db, "solicitacoes_demo", userId), {
+        email: usuarioAutenticado,
+        uid: userId,
+        dataSolicitacao: new Date().toISOString(),
+        status: 'pendente_analise'
+      }, { merge: true });
+      setDemoSolicitada(true);
+      alert('Solicitação de teste enviada com sucesso! A equipa comercial irá aprovar o seu acesso.');
+    } catch (err) {
+      console.error("Erro ao solicitar demo:", err);
+      alert(tx('Erro ao enviar solicitação. Tente novamente.', 'Error al enviar solicitud.', 'Error sending request.'));
+    }
   };
 
-  const removerItem = (id) => { setItensVenda(itensVenda.filter(item => item.id !== id)); };
-  const atualizarQtd = (id, valor) => { setItensVenda(itensVenda.map(item => item.id === id ? { ...item, qtd: String(Math.max(1, parseInt(valor) || 1)) } : item)); };
-  const lidarDigitacaoPreco = (id, valorDigitado) => { setItensVenda(itensVenda.map(item => item.id === id ? { ...item, precoTexto: valorDigitado, precoPraticadoBRL: converterParaBRL(parseFloat(valorDigitado.replace(',', '.')) || 0, moeda) } : item)); };
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        setUserId(user.uid);
+        setUsuarioAutenticado(user.email);
+        
+        try {
+          const docRef = doc(db, "lojas", user.uid);
+          const docSnap = await getDoc(docRef);
+          
+          if (docSnap.exists()) {
+            const dadosLoja = docSnap.data();
+            let status = dadosLoja.status || 'aguardando_pagamento';
+            
+            const dataCriacaoStr = dadosLoja.dataCriacao || dadosLoja.createdAt || new Date().toISOString();
+            const dataCriacao = new Date(dataCriacaoStr);
+            const agora = new Date();
+            const diffDias = (agora - dataCriacao) / (1000 * 60 * 60 * 24);
 
-  // 🛡️ MATEMÁTICA DA VENDA
-  const subtotalBrutoBRL = itensVenda.reduce((acc, item) => acc + (Math.max(0, parseInt(item.qtd) || 0) * (item.precoPraticadoBRL || 0)), 0);
-  const custoTotalBRL = itensVenda.reduce((acc, item) => acc + (Math.max(0, parseInt(item.qtd) || 0) * (item.custoBRL || 0)), 0);
-  const descBRL = converterParaBRL(parseFloat(String(descontoTexto).replace(',', '.')) || 0, moeda);
-  
-  const totalFinalBRL = Math.max(0, subtotalBrutoBRL - descBRL);
-  const lucroEstimadoBRL = totalFinalBRL - custoTotalBRL;
-  const margemLucroReal = totalFinalBRL > 0 ? (lucroEstimadoBRL / totalFinalBRL) * 100 : 0;
+            if (status === 'aguardando_pagamento' && diffDias <= 7) {
+              status = 'ativo';
+            }
+            setStatusLoja(status);
+          } else {
+            const novaDataCriacao = new Date().toISOString();
+            await setDoc(docRef, { email: user.email, status: 'ativo', dataCriacao: novaDataCriacao }, { merge: true });
+            setStatusLoja('ativo');
+          }
 
-  const regras = regrasDesconto || {};
-  const margemIdeal = regras.margemIdeal ?? 30; 
-  const margemMinima = regras.margemMinima ?? 15; 
-
-  let corSemafaro = '#34d399'; let bgSemafaro = 'rgba(16, 185, 129, 0.1)'; let borderSemafaro = 'rgba(16, 185, 129, 0.3)';
-  let textoSemafaro = tx(`🟢 Margem Saudável (> ${margemIdeal}%)`, `🟢 Margen Saludable`, `🟢 Healthy Margin`); 
-  let vendaBloqueadaPorMargem = false;
-
-  if (itensVenda.length > 0 && totalFinalBRL > 0) {
-    if (margemLucroReal < margemMinima) { 
-      corSemafaro = '#fb7185'; bgSemafaro = 'rgba(244, 63, 94, 0.15)'; borderSemafaro = 'rgba(244, 63, 94, 0.4)'; 
-      textoSemafaro = tx(`🔴 Margem Crítica / Prejuízo (< ${margemMinima}%)`, `🔴 Margen Crítico`, `🔴 Critical Margin`); 
-      if (patenteUsuario !== 'gerencia') vendaBloqueadaPorMargem = true; 
-    } 
-    else if (margemLucroReal < margemIdeal) { 
-      corSemafaro = '#fbbf24'; bgSemafaro = 'rgba(245, 158, 11, 0.15)'; borderSemafaro = 'rgba(245, 158, 11, 0.4)'; 
-      textoSemafaro = tx(`🟡 Margem Baixa/Em Alerta (< ${margemIdeal}%)`, `🟡 Alerta de Margen`, `🟡 Margin Alert`); 
-    }
-  } else if (itensVenda.length === 0) {
-    textoSemafaro = tx(`🟢 Aguardando Produtos...`, `🟢 Esperando Productos...`, `🟢 Waiting for Products...`);
-  }
-
-  const catalogoFormas = [
-    { id: 'dinheiro_brl', rotulo: tx('Dinheiro (R$)', 'Efectivo (R$)', 'Cash (R$)'), moedaOrigem: 'BRL', icone: '💵' }, 
-    { id: 'dinheiro_usd', rotulo: tx('Dólar ($)', 'Dólar ($)', 'Dollar ($)'), moedaOrigem: 'USD', icone: '💵' },
-    { id: 'dinheiro_pyg', rotulo: tx('Guarani (₲)', 'Guaraní (₲)', 'Guarani (₲)'), moedaOrigem: 'PYG', icone: '💵' }, 
-    { id: 'dinheiro_eur', rotulo: tx('Euro (€)', 'Euro (€)', 'Euro (€)'), moedaOrigem: 'EUR', icone: '💶' },
-    { id: 'pix', rotulo: 'Pix QR Code', moedaOrigem: 'BRL', icone: '⚡' }, 
-    { id: 'cartaoCredito', rotulo: tx('Cartão Crédito', 'Tarjeta Crédito', 'Credit Card'), moedaOrigem: 'BRL', icone: '💳' },
-    { id: 'cartaoDebito', rotulo: tx('Cartão Débito', 'Tarjeta Débito', 'Debit Card'), moedaOrigem: 'BRL', icone: '💳' }, 
-    { id: 'voucher', rotulo: 'Voucher', moedaOrigem: 'BRL', icone: '🎟️' },
-    { id: 'cheque', rotulo: 'Cheque', moedaOrigem: 'BRL', icone: '📝' }, 
-    { id: 'crediario', rotulo: tx('Crediário / Fiado', 'Fiado / Crédito', 'Store Credit'), moedaOrigem: 'BRL', icone: '📒' }
-  ];
-
-  // 🛡️ MATEMÁTICA DO TROCO E SALDOS
-  const totalPagoConvertidoBRL = pagamentosLancados.reduce((acc, p) => acc + (p.valorConvertidoBRL || 0), 0);
-  const saldoRestanteBRL = Math.max(0, totalFinalBRL - totalPagoConvertidoBRL);
-  
-  const totalDinheiroBRL = pagamentosLancados
-    .filter(p => p.formaId && p.formaId.startsWith('dinheiro'))
-    .reduce((acc, p) => acc + (p.valorConvertidoBRL || 0), 0);
-    
-  const valorExcedidoGlobal = totalPagoConvertidoBRL - totalFinalBRL;
-  const trocoTotalBRL = valorExcedidoGlobal > 0.01 ? Math.min(valorExcedidoGlobal, totalDinheiroBRL) : 0;
-
-  const podeFinalizarVenda = totalFinalBRL > 0 && totalPagoConvertidoBRL >= (totalFinalBRL - 0.05);
-
-  const abrirFechamento = () => {
-    if (vendaBloqueadaPorMargem) {
-      if (regras?.exigirSenhaVermelho ?? true) {
-        const senhaDigitada = window.prompt(tx(
-          `🔴 A margem de lucro caiu para ${margemLucroReal.toFixed(1)}% (Mínimo exigido: ${margemMinima}%).\nInsira a Senha da Gerência para liberar a venda:`, 
-          `🔴 ¡Margen por debajo del límite!\nIngrese la Contraseña de Gerencia:`, 
-          `🔴 Margin below limit!\nEnter Manager Password:`
-        ));
-        if (senhaDigitada !== (regras?.senhaGerente ?? '1234')) {
-          return alert(tx('⛔ Senha incorreta! Venda bloqueada.', '⛔ ¡Contraseña incorrecta!', '⛔ Wrong password!'));
+          const dadosLojaSnap = await getDoc(doc(db, "lojas", user.uid, "dados", "operacao"));
+          if (dadosLojaSnap.exists()) {
+            const d = dadosLojaSnap.data();
+            if (d.produtos) setProdutos(d.produtos.map(p => normalizarProduto(p)));
+            if (d.clientes) setClientes(d.clientes.map(c => normalizarCliente(c)));
+            if (d.historicoVendas) setHistoricoVendas(d.historicoVendas);
+            if (d.caixaMovimentos) setCaixaMovimentos(d.caixaMovimentos);
+            if (d.despesas) setDespesas(d.despesas);
+            if (d.regrasDesconto) setRegrasDesconto(d.regrasDesconto); 
+            if (d.vendedores) setVendedores(d.vendedores);
+          }
+        } catch (err) {
+          console.error("Erro ao carregar dados da nuvem:", err);
+          setStatusLoja('ativo');
         }
       } else {
-        return alert(tx(`⛔ Venda bloqueada!\nA margem de lucro (${margemLucroReal.toFixed(1)}%) está abaixo do mínimo exigido.`, '⛔ ¡Venta bloqueada!', '⛔ Sale blocked!'));
+        setUsuarioAutenticado(null);
+        setUserId(null);
+        setStatusLoja(null);
+        setOperadorAtivo(null);
       }
+      setCarregandoAuth(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const fazerLogout = async () => {
+    if(window.confirm(tx('Encerrar a sessão principal desta loja?', '¿Cerrar la sesión de esta tienda?', 'End session for this store?'))) {
+      await signOut(auth);
+      setMostrarPainelExecutivo(false); 
+      setOperadorAtivo(null);
+      setValoresTopoVisiveis(true);
+      setEcraAtual('hub');
     }
-    
-    if (itensVenda.length === 0 || totalFinalBRL <= 0) return alert(tx('Adicione produtos à venda.', 'Añada productos.', 'Add products.'));
-    setPagamentosLancados([]); 
-    setFormaSelecionada('dinheiro_brl');
-    setValorLancamentoInput(converterDeBRL(totalFinalBRL, 'BRL').toFixed(2));
-    setVendaSucesso(false); 
-    setModalFechamentoAberto(true);
   };
 
-  const adicionarPagamento = () => {
-    const valorNum = parseFloat(String(valorLancamentoInput).replace(',', '.')) || 0;
-    if (valorNum <= 0) return;
-    const configForma = catalogoFormas.find(f => f.id === formaSelecionada) || catalogoFormas[0];
-    const valorBRL = converterParaBRL(valorNum, configForma.moedaOrigem);
-
-    if (configForma.id === 'crediario') {
-      if (!clienteSelecionadoPDV) return alert(tx('Para Fiado, vincule o cliente na tela inicial do PDV!', 'Para fiado, vincule el cliente.', 'For Credit, link customer.'));
-      const novoDevedor = (parseFloat(clienteSelecionadoPDV.saldoDevedorBRL) || 0) + valorBRL;
-      if (novoDevedor > (parseFloat(clienteSelecionadoPDV.limiteCreditoBRL) || 0)) {
-        if (!window.confirm(tx(`O limite de ${fmt(clienteSelecionadoPDV.limiteCreditoBRL, 'BRL')} foi ultrapassado!\nAutorizar pagamento em fiado?`, `¡Límite superado!\n¿Autorizar?`, `Limit exceeded!\nAuthorize?`))) return;
-      }
-    }
-
-    const novaLista = [...pagamentosLancados, { 
-      id: Date.now(), 
-      formaId: configForma.id, 
-      rotulo: configForma.rotulo,
-      icone: configForma.icone,
-      moedaOrigem: configForma.moedaOrigem,
-      valorOriginal: valorNum, 
-      valorConvertidoBRL: valorBRL 
-    }];
-    setPagamentosLancados(novaLista);
-    const novoSaldo = Math.max(0, totalFinalBRL - novaLista.reduce((acc, p) => acc + p.valorConvertidoBRL, 0));
-    setValorLancamentoInput(novoSaldo > 0 ? converterDeBRL(novoSaldo, configForma.moedaOrigem).toFixed(2) : '');
+  const trocarOperador = () => {
+    setOperadorAtivo(null);
+    setEcraAtual('hub'); 
+    setMostrarPainelExecutivo(false); 
   };
 
-  // 🛡️ FUNÇÃO CONCLUIR VENDA TOTALMENTE BLINDADA
-  const concluirVenda = () => {
-    if (!podeFinalizarVenda) return;
-    
-    try {
-      const idsParaRemover = itensVenda
-        .filter(it => it.usoUnicoEncomendado || String(it.sku).toUpperCase().includes('ENCOMENDA'))
-        .map(it => String(it.produtoOriginalId || it.id));
-      
-      const novosProdutos = produtos.map(p => {
-        const qtdVendidaDesteProduto = itensVenda
-          .filter(i => String(i.produtoOriginalId || i.id) === String(p.id))
-          .reduce((soma, i) => soma + (parseInt(i.qtd) || 0), 0);
+  const processarLoginOperador = (operador) => {
+    setOperadorAtivo(operador);
+    setEcraAtual('hub'); 
+    setMostrarPainelExecutivo(false); 
+  };
 
-        if (qtdVendidaDesteProduto > 0 && p.tipoItem !== 'servico' && !idsParaRemover.includes(String(p.id))) {
-          return { ...p, estoque: Math.max(0, (parseInt(p.estoque) || 0) - qtdVendidaDesteProduto) };
+  useEffect(() => { 
+    localStorage.setItem('zenos_produtos', JSON.stringify(produtos)); 
+    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
+  }, [produtos, userId]);
+
+  useEffect(() => { 
+    localStorage.setItem('zenos_clientes', JSON.stringify(clientes)); 
+    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
+  }, [clientes, userId]);
+
+  useEffect(() => { 
+    localStorage.setItem('zenos_historico_vendas', JSON.stringify(historicoVendas)); 
+    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
+  }, [historicoVendas, userId]);
+
+  useEffect(() => { 
+    localStorage.setItem('zenos_caixa_movs', JSON.stringify(caixaMovimentos)); 
+    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
+  }, [caixaMovimentos, userId]);
+
+  useEffect(() => { 
+    localStorage.setItem('zenos_despesas', JSON.stringify(despesas)); 
+    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
+  }, [despesas, userId]);
+
+  useEffect(() => { 
+    localStorage.setItem('zenos_regras_desconto', JSON.stringify(regrasDesconto)); 
+    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
+  }, [regrasDesconto, userId]);
+
+  const t = (chave) => traducoes[idioma]?.[chave] || traducoes.pt[chave] || chave;
+  const tx = (pt, es, en) => { if (idioma === 'es') return es || pt; if (idioma === 'en') return en || pt; return pt; };
+
+  const converterDeBRL = (valor, codigo = moeda) => (Number(valor) || 0) * (taxasCambio[codigo] || 1);
+  const converterParaBRL = (valor, codigo = moeda) => (Number(valor) || 0) / (taxasCambio[codigo] || 1);
+  const fmt = (valor, codigo = moeda) => {
+    const val = converterDeBRL(valor, codigo);
+    const conf = moedasConfig[codigo] || moedasConfig.BRL;
+    try { return new Intl.NumberFormat(conf.locale, { style: 'currency', currency: conf.moeda, maximumFractionDigits: conf.moeda === 'PYG' ? 0 : 2 }).format(val); } catch { return `${conf.simbolo} ${Number(val).toFixed(2)}`; }
+  };
+
+  const salvarTaxasCambio = () => {
+    const rateUSD = parseFloat(taxasInput.USD.replace(',', '.')) || 5.40;
+    const rateEUR = parseFloat(taxasInput.EUR.replace(',', '.')) || 6.05;
+    const ratePYG = parseFloat(taxasInput.PYG.replace(',', '.')) || 1380;
+    setTaxasCambio({ BRL: 1.0, USD: rateUSD > 0 ? 1 / rateUSD : 0.185, EUR: rateEUR > 0 ? 1 / rateEUR : 0.165, PYG: ratePYG > 0 ? ratePYG : 1380.0 });
+    setModalCambioAberto(false);
+  };
+
+  const vendasValidas = historicoVendas.filter(v => v.estado !== 'cancelada');
+  const faturamentoTotalBRL = vendasValidas.reduce((acc, v) => acc + (v.totalBRL || 0), 0);
+  const lucroBrutoBRL = vendasValidas.reduce((acc, v) => acc + (v.lucroBRL || 0), 0);
+  const despesasPagasBRL = despesas.filter(d => d.status === 'paga').reduce((acc, d) => acc + (parseFloat(d.valorBRL) || 0), 0);
+  const lucroLiquidoRealBRL = lucroBrutoBRL - despesasPagasBRL;
+  const totalFiadoAbertoBRL = clientes.reduce((acc, c) => acc + (parseFloat(c.saldoDevedorBRL) || 0), 0);
+
+  const gerarCurvaABC = () => {
+    const mapa = {};
+    vendasValidas.forEach(v => {
+      v.itens.forEach(it => {
+        const id = it.id;
+        const qtdReal = (parseInt(it.qtd) || 0) - (parseInt(it.qtdDevolvida) || 0);
+        if (qtdReal > 0) {
+          if (!mapa[id]) mapa[id] = { nome: it.nome, sku: it.sku, qtd: 0, faturamentoBRL: 0 };
+          mapa[id].qtd += qtdReal;
+          mapa[id].faturamentoBRL += (qtdReal * parseFloat(it.precoPraticadoBRL || 0));
         }
-        return p;
-      }).filter(p => !idsParaRemover.includes(String(p.id))); 
+      });
+    });
+    return Object.values(mapa).sort((a, b) => b.faturamentoBRL - a.faturamentoBRL).slice(0, 5); 
+  };
+  const curvaABC = gerarCurvaABC();
 
-      let novosClientes = null;
-      const valorFiado = pagamentosLancados.filter(p => p.formaId === 'crediario').reduce((acc, p) => acc + p.valorConvertidoBRL, 0);
-      if (valorFiado > 0 && clienteSelecionadoPDV) {
-        novosClientes = clientes.map(c => c.id === clienteSelecionadoPDV.id ? { ...c, saldoDevedorBRL: (parseFloat(c.saldoDevedorBRL) || 0) + valorFiado } : c);
-      }
+  const entradasDinheiroVendasBRL = vendasValidas.reduce((acc, v) => {
+    const pagDinheiro = (v.pagamentos || []).filter(p => (p.rotulo || '').includes('Dinheiro') || (p.rotulo || '').includes('Efectivo') || (p.rotulo || '').includes('Cash')).reduce((sum, p) => sum + (p.valorConvertidoBRL || 0), 0);
+    return acc + pagDinheiro;
+  }, 0);
+  
+  const suprimentosBRL = caixaMovimentos.filter(m => m.tipo === 'suprimento').reduce((acc, m) => acc + m.valorBRL, 0);
+  const sangriasBRL = caixaMovimentos.filter(m => m.tipo === 'sangria').reduce((acc, m) => acc + m.valorBRL, 0);
+  const saldoCaixaFisicoBRL = entradasDinheiroVendasBRL + suprimentosBRL - sangriasBRL;
 
-      // Validação segura do operadorAtivo
-      let idSeguro = 'admin';
-      let nomeSeguro = 'Administrador';
-      
-      if (operadorAtivo && typeof operadorAtivo === 'object') {
-        if (operadorAtivo.id) idSeguro = operadorAtivo.id;
-        if (operadorAtivo.nome) nomeSeguro = operadorAtivo.nome;
-      }
+  const [modalCaixaAberto, setModalCaixaAberto] = useState(false);
+  const [tipoMovCaixa, setTipoMovCaixa] = useState('suprimento'); 
+  const [valorMovCaixa, setValorMovCaixa] = useState('');
+  const [descMovCaixa, setDescMovCaixa] = useState('');
 
-      const novaVenda = {
-        id: `VENDA-${1000 + (historicoVendas ? historicoVendas.length : 0) + 1}`,
-        dataHora: new Date().toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR'),
-        clienteId: clienteSelecionadoPDV ? clienteSelecionadoPDV.id : null,
-        clienteNome: clienteSelecionadoPDV ? clienteSelecionadoPDV.nome : tx('Consumidor Balcão', 'Consumidor', 'Walk-in'),
-        vendedorId: idSeguro,
-        vendedorNome: nomeSeguro,
-        itens: [...itensVenda], 
-        totalBRL: totalFinalBRL, 
-        lucroBRL: lucroEstimadoBRL,
-        trocoBRL: trocoTotalBRL,
-        pagamentos: [...pagamentosLancados],
-        detalhesPagamento: pagamentosLancados.map(p => `${p.rotulo}: ${p.valorOriginal.toFixed(2)}`).join(' • ') || tx('Dinheiro', 'Efectivo', 'Cash'),
-        estado: 'concluida'
-      };
-
-      setProdutos(novosProdutos);
-      if (novosClientes) {
-        setClientes(novosClientes);
-      }
-      if (typeof setHistoricoVendas === 'function') {
-        setHistoricoVendas([novaVenda, ...(historicoVendas || [])]);
-      }
-      
-      setVendaConcluidaObj(novaVenda);
-      setVendaSucesso(true);
-
-    } catch (err) {
-      console.error("Erro fatal ao finalizar venda:", err);
-      alert("Houve um erro interno ao processar a venda. Verifique a consola do navegador.");
+  const registrarMovimentoCaixa = () => {
+    const valBRL = converterParaBRL(parseFloat(valorMovCaixa.replace(',', '.')) || 0, moeda);
+    if (valBRL <= 0) return alert(tx('Insira um valor válido.', 'Ingrese un valor válido.', 'Enter a valid amount.'));
+    if (tipoMovCaixa === 'sangria' && valBRL > saldoCaixaFisicoBRL) {
+      if (!window.confirm(tx('O valor é maior que o saldo. Continuar?', 'El valor es mayor al saldo. ¿Continuar?', 'Value exceeds balance. Continue?'))) return;
     }
+    const novoMov = { id: Date.now(), dataHora: new Date().toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR'), tipo: tipoMovCaixa, valorBRL: valBRL, descricao: descMovCaixa || (tipoMovCaixa === 'suprimento' ? tx('Fundo de Troco', 'Fondo de Cambio', 'Float Fund') : tx('Retirada de Caixa', 'Retiro de Caja', 'Cash Withdrawal')) };
+    setCaixaMovimentos([novoMov, ...caixaMovimentos]);
+    setModalCaixaAberto(false);
+    setValorMovCaixa(''); setDescMovCaixa('');
   };
 
-  const executarImpressaoNativa = () => {
-    const elementoCupom = document.getElementById('area-cupom-pdv');
-    if (!elementoCupom) return;
-    const janelaImpressao = window.open('', '_blank', 'width=400,height=600');
-    if (!janelaImpressao) return alert('Bloqueador de pop-ups ativo. Permita pop-ups.');
-    janelaImpressao.document.write(`
-      <!DOCTYPE html><html><head><title>Cupom PDV</title><style>@page{margin:0;size:80mm auto;}body{font-family:monospace;font-size:12px;color:#000;background:#fff;margin:0;padding:10px;width:80mm;}table{width:100%;border-collapse:collapse;font-size:11px;}th,td{padding:3px 0;}</style></head>
-      <body>${elementoCupom.innerHTML}<script>window.onload=function(){window.focus();window.print();setTimeout(function(){window.close();},500);};</script></body></html>
-    `);
-    janelaImpressao.document.close();
+  const processarFechamentoCego = () => {
+    const valInformadoBRL = converterParaBRL(parseFloat(valorMovCaixa.replace(',', '.')) || 0, moeda);
+    const diferenca = valInformadoBRL - saldoCaixaFisicoBRL;
+    let msg = `=========================\n${tx('FECHAMENTO DE CAIXA', 'CIERRE DE CAJA', 'CASH CLOSEOUT')}\n=========================\n`;
+    msg += `${tx('Saldo Esperado:', 'Saldo Esperado:', 'Expected Balance:')} ${fmt(saldoCaixaFisicoBRL, 'BRL')}\n`;
+    msg += `${tx('Saldo Informado:', 'Saldo Informado:', 'Reported Balance:')} ${fmt(valInformadoBRL, 'BRL')}\n`;
+    msg += `${tx('Diferença:', 'Diferencia:', 'Difference:')} ${fmt(diferenca, 'BRL')}\n\n`;
+    if (Math.abs(diferenca) < 0.1) msg += `✅ ${tx('CAIXA BATEU!', '¡CAJA CUADRA!', 'DRAWER BALANCED!')}`;
+    else if (diferenca < 0) msg += `❌ ${tx('QUEBRA NEGATIVA', 'FALTANTE', 'SHORTAGE')}`;
+    else msg += `⚠️ ${tx('SOBRA NO CAIXA', 'SOBRANTE', 'OVERAGE')}`;
+    alert(msg);
+    setModalCaixaAberto(false);
+    setValorMovCaixa('');
   };
 
-  const limparParaNovaVenda = () => {
-    setItensVenda([]); setDescontoTexto('0'); setPagamentosLancados([]);
-    setClienteSelecionadoPDV(null); setNomeClienteVulso('');
-    setModalFechamentoAberto(false); setVendaSucesso(false); setVendaConcluidaObj(null);
+  // 🛡️ MOTOR DE PERMISSÕES RBAC
+  const temPermissao = (modulo) => {
+    if (!operadorAtivo) return false;
+    if (operadorAtivo.id === 'admin' || operadorAtivo.permissoes?.admin) return true;
+    return !!operadorAtivo.permissoes?.[modulo];
   };
+
+  const renderNavButton = (id, icone, texto, badge = null) => {
+    const ativo = ecraAtual === id;
+    return (
+      <button onClick={() => { setEcraAtual(id); setMenuNavAberto(false); }} style={{ width: '100%', backgroundColor: ativo ? (id === 'clientes' ? '#451a03' : id === 'produtos' ? '#082f49' : id === 'pdv' ? '#064e3b' : id === 'mesas' ? '#4c0519' : id === 'inteligencia' ? '#4c1d95' : id === 'comissoes' ? '#831843' : id === 'dashboardMobile' ? '#78350f' : '#1e1b4b') : 'transparent', color: ativo ? (id === 'clientes' ? '#fbbf24' : id === 'produtos' ? '#38bdf8' : id === 'pdv' ? '#34d399' : id === 'mesas' ? '#fda4af' : id === 'inteligencia' ? '#c084fc' : id === 'comissoes' ? '#f472b6' : id === 'dashboardMobile' ? '#fcd34d' : '#ffffff') : '#94a3b8', border: `1px solid ${ativo ? (id === 'clientes' ? '#d97706' : id === 'produtos' ? '#0284c7' : id === 'pdv' ? '#10b981' : id === 'mesas' ? '#e11d48' : id === 'inteligencia' ? '#a855f7' : id === 'comissoes' ? '#be185d' : id === 'dashboardMobile' ? '#d97706' : '#6366f1') : 'transparent'}`, borderRadius: '8px', padding: '12px 16px', fontSize: '14px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'all 0.2s' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><span style={{ fontSize: '18px' }}>{icone}</span><span>{texto}</span></div>
+        {badge && <span style={{ backgroundColor: badge.bg, color: badge.color, fontSize: '11px', padding: '2px 8px', borderRadius: '999px', fontWeight: 900 }}>{badge.text}</span>}
+      </button>
+    );
+  };
+
+  if (carregandoAuth) {
+    return (
+      <div style={{ minHeight: '100vh', backgroundColor: '#020617', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+          <ZeniteLogo aoClicar={() => {}} />
+          <span style={{ color: '#64748b', fontSize: '14px', fontWeight: 700, letterSpacing: '2px' }}>A INICIAR SISTEMA...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!usuarioAutenticado) {
+    return <LandingPage/>;
+  }
+
+  // 🛡️ BLOQUEIA A LOJA SE NINGUÉM ESTIVER LOGADO NO TERMINAL (SUB-LOGIN)
+  if (statusLoja === 'ativo' && !operadorAtivo) {
+    return (
+      <TerminalLogin 
+        vendedores={vendedores} 
+        onLoginSuccess={processarLoginOperador} 
+        onSairLoja={fazerLogout} 
+      />
+    );
+  }
+
+  if (statusLoja === 'aguardando_pagamento') {
+    return (
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', fontFamily: '"Inter", "Segoe UI", sans-serif', backgroundColor: '#050505', overflowY: 'auto', overflowX: 'hidden' }}>
+        <style>{`
+          ::-webkit-scrollbar { display: none; }
+          * { -ms-overflow-style: none; scrollbar-width: none; }
+          body, html { margin: 0; padding: 0; overflow: hidden; background-color: #050505; }
+        `}</style>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url("https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=2070&auto=format&fit=crop")', backgroundSize: 'cover', backgroundPosition: 'center', zIndex: 1 }}></div>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'linear-gradient(135deg, rgba(5,5,5,0.92) 0%, rgba(13,56,49,0.75) 100%)', zIndex: 2 }}></div>
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '0 20px', zIndex: 10, width: '100%', boxSizing: 'border-box' }}>
+          <div style={{ width: '100%', maxWidth: '450px', background: 'rgba(10, 10, 10, 0.6)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderRadius: '24px', border: '1px solid rgba(255, 255, 255, 0.08)', padding: 'clamp(30px, 5vh, 40px)', boxShadow: '0 30px 60px rgba(0,0,0,0.8)', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', boxSizing: 'border-box' }}>
+            <div style={{ width: '100%', display: 'flex', justifyContent: 'center', marginBottom: 'clamp(20px, 3vh, 30px)' }}>
+              <img src="/logo-zenos.png?v=4" alt="ZenOS Logo Oficial" style={{ width: '100%', maxWidth: '180px', height: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.6))' }} />
+            </div>
+            <h2 style={{ color: '#fbbf24', fontSize: 'clamp(20px, 3vh, 24px)', fontWeight: 900, margin: '0 0 12px 0' }}>Licença Pendente / Teste Expirado</h2>
+            <p style={{ color: '#a3a3a3', fontSize: 'clamp(13px, 1.5vh, 14px)', marginBottom: '24px', lineHeight: '1.6' }}>
+              O seu período de teste gratuito de 7 dias terminou ou a licença da loja aguarda ativação. Escolha um plano para desbloquear o terminal ZenOS de imediato.
+            </p>
+            <div style={{ backgroundColor: 'rgba(0,0,0,0.5)', padding: '20px', borderRadius: '12px', width: '100%', marginBottom: '24px', border: '1px solid rgba(255,255,255,0.05)', boxSizing: 'border-box' }}>
+              <p style={{ color: '#e5e5e5', fontSize: '13px', margin: '0 0 8px 0', fontWeight: 700 }}>Ativação Instantânea:</p>
+              <p style={{ color: '#14b8a6', fontSize: '15px', fontWeight: 900, margin: '0 0 8px 0' }}>ZenOS Cloud SaaS Enterprise</p>
+              <p style={{ color: '#888', fontSize: '12px', margin: 0, lineHeight: '1.5' }}>Aceda a relatórios avançados, gestão de filiais em tempo real e suporte prioritário.</p>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
+              <button onClick={() => setModalPlanosAberto(true)} style={{ background: 'linear-gradient(135deg, #0d9488 0%, #14b8a6 100%)', border: 'none', color: '#ffffff', padding: '14px 24px', borderRadius: '12px', fontSize: '14px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.3s', width: '100%', boxShadow: '0 4px 15px rgba(20, 184, 166, 0.3)' }}>Ver Opções de Planos</button>
+              
+              <button onClick={solicitarDemoFirebase} disabled={demoSolicitada} style={{ background: demoSolicitada ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.05)', border: `1px solid ${demoSolicitada ? '#10b981' : 'rgba(255, 255, 255, 0.15)'}`, color: demoSolicitada ? '#34d399' : '#ffffff', padding: '14px 24px', borderRadius: '12px', fontSize: '14px', fontWeight: 800, cursor: demoSolicitada ? 'default' : 'pointer', transition: 'all 0.3s', width: '100%' }}>
+                {demoSolicitada ? '✓ Solicitação de Demo Enviada!' : 'Solicitar Extensão de Teste'}
+              </button>
+
+              <button onClick={fazerLogout} style={{ background: 'transparent', border: '1px solid rgba(244, 63, 94, 0.3)', color: '#fb7185', padding: '14px 24px', borderRadius: '12px', fontSize: '14px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.3s', width: '100%', marginTop: '6px' }}>Sair e Voltar mais tarde</button>
+            </div>
+          </div>
+        </div>
+
+        {modalPlanosAberto && (
+          <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.9)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px', boxSizing: 'border-box' }}>
+            <div style={{ backgroundColor: '#0b1120', border: '1px solid #14b8a6', borderRadius: '24px', width: '100%', maxWidth: '900px', maxHeight: '92vh', overflowY: 'auto', padding: '32px', color: '#fff', boxSizing: 'border-box' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+                <div>
+                  <span style={{ fontSize: '11px', fontWeight: 900, color: '#14b8a6', letterSpacing: '1px', textTransform: 'uppercase' }}>ZenOS Cloud SaaS Enterprise</span>
+                  <h3 style={{ fontSize: '24px', fontWeight: 900, margin: '2px 0 0 0' }}>Escolha o Plano Ideal para o seu Negócio</h3>
+                </div>
+                <div style={{ display: 'flex', backgroundColor: '#020617', padding: '4px', borderRadius: '12px', border: '1px solid #1e293b' }}>
+                  <button onClick={() => setCicloPlano('mensal')} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', backgroundColor: cicloPlano === 'mensal' ? '#14b8a6' : 'transparent', color: cicloPlano === 'mensal' ? '#000' : '#94a3b8', fontWeight: 900, fontSize: '12px', cursor: 'pointer' }}>Mensal</button>
+                  <button onClick={() => setCicloPlano('anual')} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', backgroundColor: cicloPlano === 'anual' ? '#14b8a6' : 'transparent', color: cicloPlano === 'anual' ? '#000' : '#94a3b8', fontWeight: 900, fontSize: '12px', cursor: 'pointer' }}>Anual (-20% OFF)</button>
+                </div>
+                <button onClick={() => setModalPlanosAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#64748b', width: '36px', height: '36px', borderRadius: '10px', cursor: 'pointer', fontWeight: 900 }}>✕</button>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+                
+                <div style={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '20px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div>
+                    <h4 style={{ fontSize: '15px', fontWeight: 900, color: '#38bdf8', margin: '0 0 4px 0' }}>Básico</h4>
+                    <div style={{ fontSize: '22px', fontWeight: 900, color: '#fff' }}>
+                      {cicloPlano === 'anual' ? 'R$ 28,48' : 'R$ 35,00'}<span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>/mês</span>
+                    </div>
+                    <span style={{ fontSize: '10px', color: '#64748b' }}>{cicloPlano === 'anual' ? 'Cobrado anualmente' : 'Sem fidelidade'}</span>
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: '14px', fontSize: '12px', color: '#cbd5e1', lineHeight: '1.6', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <li>Até 100 Clientes</li>
+                    <li>Até 500 Produtos</li>
+                    <li>Controle de Vendas e Estoque</li>
+                    <li>Frente de Caixa PDV</li>
+                    <li>3 Usuários / Vendedores</li>
+                  </ul>
+                  <button onClick={() => alert('Para ativar o Plano Básico, contacte o suporte comercial ZenOS.')} style={{ width: '100%', padding: '10px', background: '#0284c7', border: 'none', color: '#fff', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', marginTop: 'auto', fontSize: '12px' }}>Selecionar Básico</button>
+                </div>
+
+                <div style={{ background: 'linear-gradient(135deg, rgba(13, 148, 136, 0.15), rgba(2, 6, 23, 0.9))', border: '1px solid #14b8a6', borderRadius: '20px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 10px 30px rgba(20, 184, 166, 0.15)', position: 'relative' }}>
+                  <div style={{ position: 'absolute', top: '-10px', right: '16px', backgroundColor: '#14b8a6', color: '#000', fontSize: '9px', fontWeight: 900, padding: '2px 8px', borderRadius: '999px', textTransform: 'uppercase' }}>Mais Popular</div>
+                  <div>
+                    <h4 style={{ fontSize: '15px', fontWeight: 900, color: '#14b8a6', margin: '0 0 4px 0' }}>Essencial</h4>
+                    <div style={{ fontSize: '22px', fontWeight: 900, color: '#fff' }}>
+                      {cicloPlano === 'anual' ? 'R$ 33,57' : 'R$ 44,90'}<span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>/mês</span>
+                    </div>
+                    <span style={{ fontSize: '10px', color: '#64748b' }}>{cicloPlano === 'anual' ? 'Cobrado anualmente' : 'Sem fidelidade'}</span>
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: '14px', fontSize: '12px', color: '#cbd5e1', lineHeight: '1.6', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <li>Clientes Ilimitados</li>
+                    <li>Até 2.000 Produtos</li>
+                    <li>Catálogo Digital Grátis</li>
+                    <li>Contagem e Inventário</li>
+                    <li>Contas a Pagar e Receber</li>
+                    <li>5 Usuários / Vendedores</li>
+                  </ul>
+                  <button onClick={() => alert('Para ativar o Plano Essencial, contacte o suporte comercial ZenOS.')} style={{ width: '100%', padding: '10px', background: 'linear-gradient(135deg, #0d9488, #14b8a6)', border: 'none', color: '#fff', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', marginTop: 'auto', fontSize: '12px', boxShadow: '0 4px 15px rgba(20,184,166,0.3)' }}>Selecionar Essencial</button>
+                </div>
+
+                <div style={{ backgroundColor: '#020617', border: '1px solid #6366f1', borderRadius: '20px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div>
+                    <h4 style={{ fontSize: '15px', fontWeight: 900, color: '#818cf8', margin: '0 0 4px 0' }}>Pro Avançado</h4>
+                    <div style={{ fontSize: '22px', fontWeight: 900, color: '#fff' }}>
+                      {cicloPlano === 'anual' ? 'R$ 43,75' : 'R$ 59,90'}<span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>/mês</span>
+                    </div>
+                    <span style={{ fontSize: '10px', color: '#64748b' }}>{cicloPlano === 'anual' ? 'Cobrado anualmente' : 'Sem fidelidade'}</span>
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: '14px', fontSize: '12px', color: '#cbd5e1', lineHeight: '1.6', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <li>Tudo Ilimitado (Clientes/Produtos)</li>
+                    <li>Controle de Ordens de Serviço</li>
+                    <li>Importação de XML e NFe</li>
+                    <li>Curva ABC & Inteligência</li>
+                    <li>Até 20 Usuários Simultâneos</li>
+                  </ul>
+                  <button onClick={() => alert('Para ativar o Plano Pro, contacte o suporte comercial ZenOS.')} style={{ width: '100%', padding: '10px', background: 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#fff', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', marginTop: 'auto', fontSize: '12px' }}>Selecionar Pro</button>
+                </div>
+
+                <div style={{ background: 'linear-gradient(135deg, rgba(217, 119, 6, 0.15), rgba(2, 6, 23, 0.9))', border: '1px solid #d97706', borderRadius: '20px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 10px 30px rgba(217, 119, 6, 0.15)' }}>
+                  <div>
+                    <span style={{ backgroundColor: '#d97706', color: '#000', fontSize: '9px', fontWeight: 900, padding: '2px 8px', borderRadius: '999px', textTransform: 'uppercase' }}>Redes / Franquias</span>
+                    <h4 style={{ fontSize: '15px', fontWeight: 900, color: '#fbbf24', margin: '4px 0 4px 0' }}>Multi-Filiais</h4>
+                    <div style={{ fontSize: '22px', fontWeight: 900, color: '#fff' }}>Sob Consulta</div>
+                    <span style={{ fontSize: '10px', color: '#fbbf24' }}>Conexão total de estoques</span>
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: '14px', fontSize: '12px', color: '#cbd5e1', lineHeight: '1.6', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <li><b>Estoque Unificado Multi-Filial:</b> Consulte em tempo real se o produto X está na Filial Centro ou Filial Shopping</li>
+                    <li>Painel Executivo Central (CEO)</li>
+                    <li>Usuários e Lojas Ilimitadas</li>
+                    <li>Gerente de Conta Dedicado 24/7</li>
+                  </ul>
+                  <button onClick={() => alert('Para contratar o Plano Multi-Filiais para a sua rede, um consultor ZenOS entrará em contacto.')} style={{ width: '100%', padding: '10px', background: 'linear-gradient(135deg, #d97706, #b45309)', border: 'none', color: '#fff', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', marginTop: 'auto', fontSize: '12px', boxShadow: '0 4px 15px rgba(217,119,6,0.3)' }}>Falar com Consultor</button>
+                </div>
+
+              </div>
+
+              <div style={{ textAlign: 'center' }}>
+                <button onClick={() => setModalPlanosAberto(false)} style={{ backgroundColor: 'transparent', border: 'none', color: '#94a3b8', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}>Fechar Tabela de Planos</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+      </div>
+    );
+  }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px', width: '100%', boxSizing: 'border-box' }}>
+    <div style={{ minHeight: '100vh', height: '100vh', backgroundColor: '#020617', color: '#e2e8f0', fontFamily: 'system-ui, sans-serif', padding: 0, margin: 0, overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch' }}>
       <style>{`
+        * { scrollbar-width: thin; scrollbar-color: #334155 #0b1120; box-sizing: border-box; }
+        *::-webkit-scrollbar { width: 6px; height: 6px; }
+        *::-webkit-scrollbar-track { background: #0b1120; }
+        *::-webkit-scrollbar-thumb { background-color: #334155; border-radius: 999px; }
         input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         input[type=number] { -moz-appearance: textfield; }
-        @media (max-width: 900px) {
-          .pdv-grid-main { grid-template-columns: 1fr !important; }
+        html, body { height: 100%; margin: 0; padding: 0; overflow-y: auto !important; background-color: #020617; }
+        @media (max-width: 768px) {
+          .mobile-stack { flex-direction: column !important; align-items: stretch !important; }
+          .mobile-stack > div { text-align: left !important; border-right: none !important; padding-right: 0 !important; margin-bottom: 12px; }
+          .mobile-padding { padding: 16px !important; }
+          .mobile-text-lg { font-size: 24px !important; }
         }
       `}</style>
       
-      {/* COLUNA ESQUERDA: CLIENTE, BUSCA E LISTA DE ITENS */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
-        
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ position: 'relative', flex: 1, minWidth: '220px' }}>
-            <div style={{ position: 'absolute', top: '14px', left: '16px', fontSize: '18px' }}>👤</div>
-            <input 
-              type="text" 
-              placeholder={tx('Consumidor Final (Digite o nome para avulso ou buscar fiado)...', 'Consumidor Final...', 'Walk-in Customer...')} 
-              value={nomeClienteVulso} 
-              onChange={(e) => { if (clienteSelecionadoPDV) setClienteSelecionadoPDV(null); setNomeClienteVulso(e.target.value); }} 
-              onFocus={() => setFocoInputCliente(true)} 
-              onBlur={() => setTimeout(() => setFocoInputCliente(false), 200)} 
-              style={{ width: '100%', padding: '16px 20px 16px 44px', backgroundColor: clienteSelecionadoPDV ? '#082f49' : '#0b1120', border: `1px solid ${clienteSelecionadoPDV ? '#0284c7' : '#1e293b'}`, borderRadius: '14px', color: clienteSelecionadoPDV ? '#38bdf8' : '#f8fafc', fontSize: '15px', fontWeight: clienteSelecionadoPDV ? 900 : 600, outline: 'none', boxSizing: 'border-box' }} 
-            />
-            {clienteSelecionadoPDV && (
-              <div style={{ position: 'absolute', top: '16px', right: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '11px', color: '#cbd5e1' }} className="hide-mobile">{tx('Fiado:', 'Deuda:', 'Debt:')} <strong style={{ color: clienteSelecionadoPDV.saldoDevedorBRL > 0 ? '#fb7185' : '#34d399' }}>{fmt(clienteSelecionadoPDV.saldoDevedorBRL, 'BRL')}</strong></span>
-                <button onClick={removerClienteDoPDV} style={{ backgroundColor: '#020617', border: 'none', color: '#f43f5e', fontSize: '14px', cursor: 'pointer', fontWeight: 900 }}>✕</button>
-              </div>
-            )}
-            {focoInputCliente && clientesSugeridos.length > 0 && (
-              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: '8px', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '14px', overflow: 'hidden', zIndex: 50, maxHeight: '200px', overflowY: 'auto', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
-                {clientesSugeridos.map(c => (
-                  <div key={c.id} onClick={() => selecionarClienteNoPDV(c)} style={{ padding: '12px 20px', borderBottom: '1px solid #1e293b', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div><strong style={{ color: '#f8fafc', fontSize: '14px' }}>{c.nome}</strong><br/><span style={{ color: '#64748b', fontSize: '11px' }}>Doc: {c.documento}</span></div><span style={{ color: '#38bdf8', fontSize: '11px', fontWeight: 800 }}>Vincular ➜</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          <button onClick={abrirCadastroClientePDV} style={{ padding: '16px 20px', backgroundColor: '#451a03', border: '1px solid #d97706', color: '#fbbf24', borderRadius: '14px', fontSize: '13px', fontWeight: 900, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 4px 15px rgba(217, 119, 6, 0.2)' }}>{tx('+ Cliente', '+ Cliente', '+ Client')}</button>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
-            <label style={{ fontSize: '12px', fontWeight: 900, color: '#38bdf8', letterSpacing: '1px', textTransform: 'uppercase' }}>{t('digiteProdutoLabel')}</label>
-            <button onClick={abrirCadastroProdutoPDV} style={{ backgroundColor: '#0369a1', border: 'none', color: '#fff', fontSize: '11px', fontWeight: 800, padding: '4px 10px', borderRadius: '6px', cursor: 'pointer' }}>{tx('+ Produto Balcão', '+ Producto Rápido', '+ Quick Product')}</button>
-          </div>
+      <header className="no-print" style={{ backgroundColor: '#0b1120', borderBottom: '1px solid #1e293b', padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 100, flexWrap: 'wrap', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <div style={{ position: 'relative' }}>
-            <input ref={inputBuscaRef} type="text" value={termoBusca} onChange={(e) => setTermoBusca(e.target.value)} onKeyDown={lidarTecladoBusca} placeholder={t('buscaPlaceholder')} style={{ width: '100%', backgroundColor: '#0b1120', border: '2px solid #0284c7', color: '#f8fafc', fontSize: '16px', borderRadius: '14px', padding: '16px 20px', outline: 'none', boxSizing: 'border-box' }} autoFocus />
-            {termoBusca.trim() !== '' && (
-              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: '8px', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '14px', overflow: 'hidden', zIndex: 50, maxHeight: '280px', overflowY: 'auto' }}>
-                {produtosFiltrados.length > 0 ? produtosFiltrados.map((prod, index) => {
-                  const estaFocado = index === indiceFocoBusca;
-                  return (
-                    <div key={prod.id} onClick={() => { setItemParaAdicionar(prod); setQtdDigitadaRapida('1'); }} onMouseEnter={() => setIndiceFocoBusca(index)} style={{ padding: '14px 20px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', backgroundColor: estaFocado ? '#1e1b4b' : 'transparent' }}>
-                      <div><div style={{ fontWeight: 700, color: '#f8fafc', fontSize: '15px' }}>{prod.nome} {(prod.usoUnicoEncomendado || String(prod.sku).includes('ENCOMENDA')) && <span style={{ color: '#fbbf24', fontSize: '11px' }}>({tx('Encomenda', 'Especial', 'Order')})</span>}</div><div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>SKU: {prod.sku} • Estoque: <strong style={{ color: '#38bdf8' }}>{prod.estoque} {prod.unidadeMedida}</strong></div></div>
-                      <div style={{ color: '#34d399', fontWeight: 900, fontSize: '16px' }}>{fmt(aplicarPrecoPorPerfilCliente(prod, clienteSelecionadoPDV))}</div>
-                    </div>
-                  );
-                }) : <div style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>{tx('Nenhum produto localizado', 'Ningún producto', 'No products found')}</div>}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', display: 'flex', flexDirection: 'column', minHeight: '300px' }}>
-          <div style={{ padding: '16px 20px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', letterSpacing: '1px', textTransform: 'uppercase' }}>{t('itensLancados')} ({itensVenda.length})</span>
-          </div>
-          <div style={{ padding: '8px', flex: 1, overflowY: 'auto', maxHeight: '400px' }}>
-            {itensVenda.length === 0 ? <div style={{ padding: '60px 20px', textAlign: 'center', color: '#475569', fontSize: '14px' }}>{t('nenhumItem')}</div> : itensVenda.map(item => (
-              <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderBottom: '1px solid #1e293b', gap: '8px', flexWrap: 'wrap' }}>
-                <div style={{ flex: '1 1 180px' }}>
-                  <div style={{ fontWeight: 700, color: '#f8fafc', fontSize: '14px' }}>{item.nome} {(item.usoUnicoEncomendado || String(item.sku).includes('ENCOMENDA')) && <span style={{ color: '#fbbf24', fontSize: '10px' }}>(⭐ {tx('Encomenda', 'Especial', 'Order')})</span>}</div>
-                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '4px' }}>
-                    <span style={{ fontSize: '10px', color: '#64748b', fontFamily: 'monospace' }}>SKU: {item.sku}</span>
-                    <span onClick={() => abrirEdicaoProdutoPDV(item)} style={{ fontSize: '11px', color: '#38bdf8', cursor: 'pointer', fontWeight: 600 }}>{tx('Editar', 'Editar', 'Edit')}</span>
-                    <span onClick={() => removerItem(item.id)} style={{ fontSize: '11px', color: '#f43f5e', cursor: 'pointer', fontWeight: 600 }}>{tx('Remover', 'Eliminar', 'Remove')}</span>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: 'auto' }}>
-                  <input type="number" value={item.qtd} onChange={(e) => atualizarQtd(item.id, e.target.value)} onFocus={(e) => e.target.select()} style={{ width: '45px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontWeight: 800, fontSize: '13px', textAlign: 'center', padding: '6px', outline: 'none' }} />
-                  <input type="text" value={item.precoTexto !== undefined ? item.precoTexto : converterDeBRL(item.precoPraticadoBRL, moeda).toFixed(2)} onChange={(e) => lidarDigitacaoPreco(item.id, e.target.value)} onFocus={(e) => e.target.select()} style={{ width: '75px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#34d399', fontWeight: 800, fontSize: '13px', textAlign: 'right', padding: '6px', outline: 'none' }} />
-                  <div style={{ width: '85px', textAlign: 'right', fontWeight: 900, color: '#34d399', fontSize: '15px' }}>{fmt(Math.max(0, parseInt(item.qtd) || 0) * (item.precoPraticadoBRL || 0))}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* COLUNA DIREITA: RESUMO E FINALIZAÇÃO DE VENDA */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
-        
-        <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
-          <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', letterSpacing: '1px', textTransform: 'uppercase' }}>{t('resumoVenda')}</span>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#cbd5e1' }}><span>{t('subtotal')}</span><span style={{ fontWeight: 700, color: '#fff' }}>{fmt(subtotalBrutoBRL)}</span></div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px', color: '#cbd5e1' }}>
-            <span>{t('descontoGlobal')}</span>
-            <input type="text" value={descontoTexto} onChange={(e) => setDescontoTexto(e.target.value)} onFocus={(e) => e.target.select()} style={{ width: '75px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', padding: '6px 8px', color: '#fbbf24', fontWeight: 800, fontSize: '14px', textAlign: 'right', outline: 'none' }} />
-          </div>
-          <div style={{ height: '1px', backgroundColor: '#1e293b', margin: '4px 0' }}></div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '14px', fontWeight: 700, color: '#94a3b8' }}>{t('totalPagar')}</span>
-            <span style={{ fontSize: '28px', fontWeight: 900, color: '#34d399', letterSpacing: '-1px' }}>{fmt(totalFinalBRL)}</span>
-          </div>
-        </div>
-
-        <div style={{ backgroundColor: bgSemafaro, border: `1px solid ${borderSemafaro}`, borderRadius: '16px', padding: '20px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 800, color: corSemafaro, textTransform: 'uppercase', marginBottom: '4px' }}>{tx('Semáforo de Lucratividade', 'Semáforo de Rentabilidad', 'Profitability Light')}</div>
-          <div style={{ fontSize: '13px', fontWeight: 800, color: corSemafaro }}>{textoSemafaro}</div>
-        </div>
-
-        <button onClick={abrirFechamento} style={{ background: vendaBloqueadaPorMargem ? '#334155' : 'linear-gradient(135deg, #4f46e5, #4338ca)', border: '1px solid #6366f1', color: '#fff', padding: '18px', borderRadius: '14px', fontSize: '15px', fontWeight: 900, cursor: vendaBloqueadaPorMargem ? 'not-allowed' : 'pointer', textAlign: 'center', boxShadow: '0 4px 15px rgba(79, 70, 229, 0.3)', width: '100%', boxSizing: 'border-box' }}>
-          [F10] {t('fecharVenda')} {vendaBloqueadaPorMargem ? '🔒' : ''}
-        </button>
-      </div>
-
-      {/* MODAL DE QUANTIDADE RÁPIDA */}
-      {itemParaAdicionar && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85), backdrop-filter: blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '16px' }}>
-          <div style={{ backgroundColor: '#0b1120', border: '1px solid #6366f1', borderRadius: '20px', width: '100%', maxWidth: '400px', padding: '28px', color: '#fff', textAlign: 'center' }}>
-            <h3 style={{ fontSize: '18px', fontWeight: 900, marginBottom: '16px' }}>{itemParaAdicionar.nome}</h3>
-            <input ref={inputQtdRapidaRef} type="number" value={qtdDigitadaRapida} onChange={e => setQtdDigitadaRapida(e.target.value)} onFocus={e=>e.target.select()} onKeyDown={e=>{if(e.key==='Enter') confirmarAdicaoRapida(); if(e.key==='Escape') setItemParaAdicionar(null);}} style={{ width: '80px', padding: '10px', fontSize: '20px', textAlign: 'center', backgroundColor: '#020617', border: '1px solid #6366f1', color: '#fff', borderRadius: '8px', marginBottom: '20px', outline: 'none' }} />
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setItemParaAdicionar(null)} style={{ flex: 1, padding: '12px', background: '#1e293b', border: 'none', color: '#fff', borderRadius: '8px', cursor: 'pointer', fontWeight: 800 }}>{tx('Cancelar', 'Cancelar', 'Cancel')}</button>
-              <button onClick={confirmarAdicaoRapida} style={{ flex: 2, padding: '12px', background: '#4f46e5', border: 'none', color: '#fff', borderRadius: '8px', cursor: 'pointer', fontWeight: 900 }}>{tx('Adicionar', 'Añadir', 'Add')}</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL DE CADASTRO DE CLIENTE */}
-      {modalClientePDVAberto && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1500, padding: '16px' }}>
-          <div style={{ backgroundColor: '#0b1120', border: '1px solid #d97706', borderRadius: '24px', width: '100%', maxWidth: '680px', maxHeight: '90vh', overflowY: 'auto', padding: '28px', color: '#fff', boxSizing: 'border-box' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <div><span style={{ fontSize: '11px', fontWeight: 800, color: '#fbbf24', letterSpacing: '1px', textTransform: 'uppercase' }}>{tx('Ficha de Cliente', 'Ficha de Cliente', 'Client Profile')}</span><h3 style={{ fontSize: '18px', fontWeight: 900, margin: '2px 0 0 0' }}>{tx('Cadastrar Novo Cliente no Balcão', 'Registrar Nuevo Cliente', 'New Walk-in Client')}</h3></div>
-              <button onClick={() => setModalClientePDVAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#64748b', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>✕</button>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px', marginBottom: '14px' }}>
-              <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Nome Completo / Razão Social', 'Nombre / Razón Social', 'Full Name')}</label><input type="text" value={formClientePDV.nome} onChange={(e) => setFormClientePDV({ ...formClientePDV, nome: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 700, fontSize: '13px', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
-              <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Perfil de Preço', 'Perfil de Precio', 'Price Profile')}</label><select value={formClientePDV.perfilPreco} onChange={(e) => setFormClientePDV({ ...formClientePDV, perfilPreco: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#38bdf8', fontSize: '12px', fontWeight: 800, padding: '10px', outline: 'none', boxSizing: 'border-box' }}><option value="preco1">{tx('Tabela Balcão', 'Precio Mostrador', 'Retail Price')}</option><option value="preco2">{tx('Tabela Pintor', 'Precio Pintor', 'Painter Price')}</option></select></div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '20px' }}>
-              <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Documento (CPF/RUC)', 'Documento (CI/RUC)', 'ID (TAX/SSN)')}</label><input type="text" value={formClientePDV.documento} onChange={(e) => setFormClientePDV({ ...formClientePDV, documento: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 700, fontSize: '13px', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
-              <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Telefone / WhatsApp', 'Teléfono / WhatsApp', 'Phone / WhatsApp')}</label><input type="text" value={formClientePDV.telefone} onChange={(e) => setFormClientePDV({ ...formClientePDV, telefone: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#34d399', fontWeight: 800, fontSize: '13px', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
-              <div><label style={{ fontSize: '11px', color: '#fbbf24', fontWeight: 800 }}>{tx('Limite Fiado (R$)', 'Límite Fiado ($)', 'Credit Limit ($)')}</label><input type="text" value={formClientePDV.limiteCreditoBRL} onChange={(e) => setFormClientePDV({ ...formClientePDV, limiteCreditoBRL: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #d97706', borderRadius: '8px', color: '#fbbf24', fontWeight: 900, fontSize: '14px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
-            </div>
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-              <button onClick={() => setModalClientePDVAberto(false)} style={{ flex: 1, backgroundColor: '#020617', border: '1px solid #1e293b', color: '#94a3b8', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}>{tx('Cancelar', 'Cancelar', 'Cancel')}</button>
-              <button onClick={salvarClientePDV} style={{ flex: 2, background: 'linear-gradient(135deg, #d97706, #b45309)', border: 'none', color: '#ffffff', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 900, cursor: 'pointer' }}>{tx('Salvar e Vincular à Venda', 'Guardar y Vincular', 'Save and Link')}</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL DE CADASTRO DE PRODUTO */}
-      {modalProdutoPDVAberto && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1500, padding: '16px' }}>
-          <div style={{ backgroundColor: '#0b1120', border: '1px solid #0284c7', borderRadius: '24px', width: '100%', maxWidth: '820px', maxHeight: '92vh', overflowY: 'auto', padding: '28px', color: '#fff', boxSizing: 'border-box' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <div><span style={{ fontSize: '11px', fontWeight: 800, color: '#38bdf8', letterSpacing: '1px', textTransform: 'uppercase' }}>Ficha Cadastral Universal • PDV Balcão</span><h3 style={{ fontSize: '18px', fontWeight: 900, margin: '2px 0 0 0' }}>{produtoEmEdicaoPDV ? `Editar: ${produtoEmEdicaoPDV.nome}` : tx('Cadastrar Novo Produto', 'Registrar Nuevo Producto', 'New Product')}</h3></div>
-              <button onClick={() => setModalProdutoPDVAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#64748b', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>✕</button>
-            </div>
-            <div style={{ backgroundColor: 'rgba(217, 119, 6, 0.15)', border: '1px solid rgba(217, 119, 6, 0.4)', borderRadius: '14px', padding: '14px 20px', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <input type="checkbox" id="checkUsoUnico" checked={formProdutoPDV.usoUnicoEncomendado} onChange={e => setFormProdutoPDV({...formProdutoPDV, usoUnicoEncomendado: e.target.checked})} style={{ width: '18px', height: '18px', cursor: 'pointer' }} />
-              <div><label htmlFor="checkUsoUnico" style={{ fontSize: '13px', fontWeight: 900, color: '#fbbf24', cursor: 'pointer' }}>{tx('⭐ Produto de Uso Único / Encomenda Especial', '⭐ Producto de Uso Único / Especial', '⭐ Single-Use / Special Order')}</label><p style={{ fontSize: '11px', color: '#cbd5e1', margin: '2px 0 0 0' }}>{tx('Se marcado, o sistema EXCLUIRÁ esse produto fisicamente da base de dados ao fechar a venda.', 'Si está marcado, el sistema ELIMINARÁ este producto al cerrar.', 'If checked, the system will DELETE this item upon sale completion.')}</p></div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px', marginBottom: '18px' }}>
-              {[{ id: 'mercadoria', rotulo: tx('Mercadoria', 'Mercancía', 'Retail'), icone: '📦' }, { id: 'materia_prima', rotulo: tx('Matéria-Prima', 'Materia Prima', 'Raw'), icone: '🧪' }, { id: 'kit', rotulo: 'Kit / Combo', icone: '🎁' }, { id: 'servico', rotulo: tx('Serviço', 'Servicio', 'Service'), icone: '🛠️' }].map(tipo => {
-                const ativo = formProdutoPDV.tipoItem === tipo.id;
-                return (<button key={tipo.id} type="button" onClick={() => setFormProdutoPDV({ ...formProdutoPDV, tipoItem: tipo.id })} style={{ backgroundColor: ativo ? '#082f49' : '#020617', border: `1px solid ${ativo ? '#0284c7' : '#1e293b'}`, color: ativo ? '#38bdf8' : '#94a3b8', borderRadius: '10px', padding: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}><span>{tipo.icone}</span><span>{tipo.rotulo}</span></button>);
-              })}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '18px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
-                <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>SKU</label><input type="text" value={formProdutoPDV.sku} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, sku: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 800, fontSize: '13px', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
-                <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Nome do Item</label><input type="text" value={formProdutoPDV.nome} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, nome: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 700, fontSize: '13px', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
-              </div>
-            </div>
-            <div style={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', padding: '16px 20px', marginBottom: '18px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', alignItems: 'center', marginBottom: '12px' }}>
-                <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>Custo (R$)</label><input type="text" value={formProdutoPDV.custoBRL} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, custoBRL: e.target.value })} style={{ width: '100%', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontWeight: 800, fontSize: '14px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
-                <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>Preço Venda (R$)</label><input type="text" value={formProdutoPDV.precoBRL} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, precoBRL: e.target.value })} style={{ width: '100%', backgroundColor: '#0b1120', border: '1px solid #34d399', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
-                <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>Estoque Inicial</label><input type="number" value={formProdutoPDV.estoque} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, estoque: e.target.value })} style={{ width: '100%', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#38bdf8', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-              <button onClick={() => setModalProdutoPDVAberto(false)} style={{ flex: 1, backgroundColor: '#020617', border: '1px solid #1e293b', color: '#94a3b8', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}>{tx('Cancelar', 'Cancelar', 'Cancel')}</button>
-              <button onClick={salvarProdutoPDV} style={{ flex: 2, background: 'linear-gradient(135deg, #0284c7, #0369a1)', border: 'none', color: '#ffffff', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 900, cursor: 'pointer' }}>{tx('Salvar e Lançar na Venda', 'Guardar e Incluir', 'Save and Add')}</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL DE FECHAMENTO DE CAIXA (CHECKOUT) */}
-      {modalFechamentoAberto && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1500, padding: '16px', boxSizing: 'border-box' }}>
-          <div style={{ backgroundColor: vendaSucesso ? '#ffffff' : '#0b1120', border: '1px solid #10b981', borderRadius: vendaSucesso ? '16px' : '24px', width: '100%', maxWidth: vendaSucesso ? '380px' : '750px', maxHeight: '95vh', overflowY: 'auto', padding: vendaSucesso ? '0' : '28px', color: vendaSucesso ? '#000' : '#fff', boxShadow: '0 25px 50px rgba(0,0,0,0.5)', boxSizing: 'border-box' }}>
-            {vendaSucesso ? (
-              <div>
-                <div id="area-cupom-pdv" style={{ padding: '20px', fontFamily: 'monospace', fontSize: '12px' }}>
-                  <div style={{ textAlign: 'center', marginBottom: '10px' }}>
-                    <h2 style={{ margin: '0 0 4px 0', fontSize: '16px' }}>ZÊNITE ATACADÃO DE TINTAS</h2>
-                    <div style={{ fontSize: '10px' }}>Cupom Não Fiscal - Uso Interno<br/>{vendaConcluidaObj?.dataHora}</div>
-                  </div>
-                  <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
-                  <div style={{ marginBottom: '8px', fontSize: '11px' }}>
-                    <strong>Cliente:</strong> {vendaConcluidaObj?.clienteNome}<br/>
-                    <strong>Operador:</strong> {vendaConcluidaObj?.vendedorNome}
-                  </div>
-                  <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
-                  <table style={{ width: '100%', textAlign: 'left', fontSize: '11px' }}>
-                    <thead><tr><th>Qtd</th><th>Item</th><th style={{ textAlign: 'right' }}>Vl. Un</th><th style={{ textAlign: 'right' }}>Total</th></tr></thead>
-                    <tbody>
-                      {vendaConcluidaObj?.itens.map((it, idx) => (
-                        <tr key={idx}><td>{it.qtd}</td><td>{it.nome.substring(0, 15)}</td><td style={{ textAlign: 'right' }}>{converterDeBRL(it.precoPraticadoBRL, moeda).toFixed(2)}</td><td style={{ textAlign: 'right' }}>{converterDeBRL((it.precoPraticadoBRL * it.qtd), moeda).toFixed(2)}</td></tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '14px' }}><span>TOTAL DA VENDA</span><span>{fmt(vendaConcluidaObj?.totalBRL)}</span></div>
-                  <div style={{ marginTop: '10px', fontSize: '11px' }}>
-                    <strong>Pagamentos:</strong><br/>
-                    {vendaConcluidaObj?.pagamentos.map((p, idx) => <div key={idx} style={{ display: 'flex', justifyContent: 'space-between' }}><span>{p.rotulo}</span><span>{p.valorOriginal.toFixed(2)}</span></div>)}
-                  </div>
-                  {vendaConcluidaObj?.trocoBRL > 0.01 && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginTop: '4px' }}><span>TROCO</span><span>{fmt(vendaConcluidaObj.trocoBRL)}</span></div>}
-                  <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
-                  <div style={{ textAlign: 'center', fontSize: '10px' }}>Obrigado pela preferência!<br/>Volte Sempre.</div>
-                </div>
-                <div className="no-print" style={{ padding: '20px', backgroundColor: '#f1f5f9', display: 'flex', gap: '10px', borderTop: '1px dashed #ccc', borderBottomLeftRadius: '16px', borderBottomRightRadius: '16px', flexWrap: 'wrap' }}>
-                  <button onClick={executarImpressaoNativa} style={{ flex: 1, padding: '12px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '14px' }}>🖨️ {tx('Imprimir', 'Imprimir', 'Print')}</button>
-                  <button onClick={limparParaNovaVenda} style={{ flex: 1, padding: '12px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '14px' }}>{tx('Nova Venda', 'Nueva Venta', 'New Sale')}</button>
-                </div>
-              </div>
-            ) : (
+            <button onClick={() => setMenuNavAberto(!menuNavAberto)} style={{ backgroundColor: menuNavAberto ? '#1e293b' : '#020617', border: '1px solid #334155', color: '#f8fafc', padding: '8px 12px', borderRadius: '10px', fontSize: '14px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.4)' }}>
+              <span style={{ fontSize: '18px' }}>☰</span><span className="hide-mobile">{tx('Menu', 'Menú', 'Menu')}</span>
+            </button>
+            {menuNavAberto && (
               <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                  <div>
-                    <span style={{ fontSize: '11px', fontWeight: 900, color: '#34d399', letterSpacing: '1px', textTransform: 'uppercase' }}>{tx('Fechamento de Caixa', 'Cierre de Caja', 'Checkout')}</span>
-                    <h3 style={{ fontSize: '18px', fontWeight: 900, margin: '4px 0 0 0' }}>{clienteSelecionadoPDV ? clienteSelecionadoPDV.nome : (nomeClienteVulso || tx('Consumidor Balcão', 'Consumidor', 'Walk-in'))}</h3>
-                  </div>
-                  <button onClick={() => setModalFechamentoAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #334155', color: '#94a3b8', borderRadius: '10px', width: '36px', height: '36px', cursor: 'pointer', fontWeight: 900 }}>✕</button>
-                </div>
-                
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', padding: '16px', gap: '12px', marginBottom: '20px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800 }}>{tx('Total', 'Total', 'Total')}</span>
-                    <div style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff' }}>{fmt(totalFinalBRL, 'BRL')}</div>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800 }}>{tx('Pago', 'Pagado', 'Paid')}</span>
-                    <div style={{ fontSize: '18px', fontWeight: 900, color: '#34d399' }}>{fmt(totalPagoConvertidoBRL, 'BRL')}</div>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800 }}>{saldoRestanteBRL > 0.01 ? tx('Falta', 'Falta', 'Due') : tx('Troco', 'Cambio', 'Change')}</span>
-                    <div style={{ fontSize: '18px', fontWeight: 900, color: saldoRestanteBRL > 0.01 ? '#fb7185' : (trocoTotalBRL > 0 ? '#fbbf24' : '#38bdf8') }}>
-                      {saldoRestanteBRL > 0.01 ? fmt(saldoRestanteBRL, 'BRL') : (trocoTotalBRL > 0 ? fmt(trocoTotalBRL, 'BRL') : 'QUITADO ✓')}
-                    </div>
-                  </div>
-                </div>
-                
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '10px', marginBottom: '16px' }}>
-                 <select 
-                    value={formaSelecionada} 
-                    onChange={e => {
-                      const novaForma = e.target.value;
-                      setFormaSelecionada(novaForma);
-                      const pendenteBRL = Math.max(0, totalFinalBRL - totalPagoConvertidoBRL);
-                      const conf = catalogoFormas.find(f => f.id === novaForma) || catalogoFormas[0];
-                      setValorLancamentoInput(pendenteBRL > 0 ? converterDeBRL(pendenteBRL, conf.moedaOrigem).toFixed(2) : '');
-                    }} 
-                    style={{ padding: '14px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '12px', color: '#f8fafc', fontSize: '14px', fontWeight: 800, outline: 'none', cursor: 'pointer', width: '100%', boxSizing: 'border-box' }}
-                  >
-                    {catalogoFormas.map(f => (
-                      <option key={f.id} value={f.id}>
-                        {f.icone} {f.rotulo}
-                      </option>
-                    ))}
-                  </select>
+                <div onClick={() => setMenuNavAberto(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }}></div>
+                <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '12px', backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', padding: '12px', zIndex: 50, display: 'flex', flexDirection: 'column', gap: '4px', width: '250px', boxShadow: '0 15px 40px rgba(0,0,0,0.8)' }}>
+                  <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 900, letterSpacing: '1px', textTransform: 'uppercase', padding: '8px 12px' }}>{t('modulosSistema')}</span>
                   
-                  <input 
-                    ref={inputValorLancamentoRef} 
-                    type="text" 
-                    value={valorLancamentoInput} 
-                    onChange={e => setValorLancamentoInput(e.target.value)} 
-                    onKeyDown={e => e.key === 'Enter' && adicionarPagamento()} 
-                    placeholder="0.00" 
-                    onFocus={e => e.target.select()}
-                    style={{ padding: '14px', backgroundColor: '#020617', border: '1px solid #10b981', borderRadius: '12px', color: '#34d399', fontSize: '18px', fontWeight: 900, textAlign: 'right', outline: 'none', boxSizing: 'border-box', width: '100%' }} 
-                  />
-                </div>
-                
-                <button 
-                  onClick={adicionarPagamento} 
-                  style={{ width: '100%', padding: '14px', background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '15px', marginBottom: '20px', boxShadow: '0 4px 15px rgba(16, 185, 129, 0.3)', boxSizing: 'border-box' }}
-                >
-                  + Lançar Pagamento
-                </button>
-                
-                <div style={{ maxHeight: '120px', overflowY: 'auto', marginBottom: '20px', background: '#020617', padding: '10px', borderRadius: '12px', border: '1px solid #1e293b' }}>
-                  {pagamentosLancados.length === 0 ? (
-                    <div style={{ textAlign: 'center', color: '#475569', fontSize: '12px', padding: '15px 0' }}>{tx('Nenhum pagamento lançado.', 'Ningún pago.', 'No payments.')}</div>
-                  ) : pagamentosLancados.map(p => (
-                    <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', fontSize: '13px', borderBottom: '1px solid #1e293b' }}>
-                      <span style={{ color: '#cbd5e1', fontWeight: 600 }}>{p.icone} {p.rotulo}</span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <strong style={{ color: '#fff', fontSize: '14px' }}>{p.valorOriginal.toFixed(2)}</strong>
-                        <button onClick={() => setPagamentosLancados(pagamentosLancados.filter(x => x.id !== p.id))} style={{ color: '#f43f5e', backgroundColor: 'rgba(244, 63, 94, 0.1)', border: 'none', borderRadius: '6px', width: '24px', height: '24px', cursor: 'pointer', fontWeight: 900 }}>✕</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                
-                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                  <button onClick={() => setModalFechamentoAberto(false)} style={{ flex: 1, padding: '14px', backgroundColor: '#020617', border: '1px solid #1e293b', color: '#cbd5e1', borderRadius: '12px', cursor: 'pointer', fontWeight: 800, fontSize: '13px' }}>{tx('Cancelar', 'Cancelar', 'Cancel')}</button>
-                  <button onClick={concluirVenda} disabled={!podeFinalizarVenda} style={{ flex: 2, padding: '14px', background: podeFinalizarVenda ? 'linear-gradient(135deg, #0284c7, #0369a1)' : '#1e293b', border: 'none', color: podeFinalizarVenda ? '#fff' : '#64748b', borderRadius: '12px', cursor: podeFinalizarVenda ? 'pointer' : 'not-allowed', fontWeight: 900, fontSize: '14px', boxShadow: podeFinalizarVenda ? '0 4px 15px rgba(2, 132, 199, 0.4)' : 'none' }}>{tx('Confirmar e Finalizar', 'Finalizar', 'Complete Sale')}</button>
+                  {renderNavButton('hub', '🏠', tx('Painel Inicial', 'Panel de Inicio', 'Home Dashboard'))}
+                  
+                  {temPermissao('pdv') && renderNavButton('pdv', '🛒', t('pdvBalcao'))}
+                  {temPermissao('mesas') && renderNavButton('mesas', '🍽️', tx('Mesas / Comandas', 'Mesas / Comandas', 'Tables / Tabs'))}
+                  {temPermissao('produtos') && renderNavButton('produtos', '📦', t('produtosEstoque'), { bg: '#0284c7', color: '#fff', text: produtos.length })}
+                  {temPermissao('clientes') && renderNavButton('clientes', '👥', t('clientesFiado'), totalFiadoAbertoBRL > 0 ? { bg: '#dc2626', color: '#fff', text: tx('Fiado', 'Deuda', 'Debt') } : null)}
+                  {temPermissao('vendas') && renderNavButton('vendas', '📑', t('vendasDevolucoes'))}
+                  
+                  {temPermissao('inteligencia') && renderNavButton('inteligencia', '📊', tx('Inteligência', 'Inteligencia', 'Intelligence'))}
+                  {temPermissao('admin') && renderNavButton('comissoes', '🤝', tx('Comissões', 'Comisiones', 'Commissions'))}
+                  {temPermissao('admin') && renderNavButton('dashboardMobile', '📱', tx('App Mobile (CEO)', 'App Mobile (CEO)', 'Mobile App (CEO)'))}
+                  {temPermissao('despesas') && renderNavButton('despesas', '💸', tx('Contas a Pagar', 'Cuentas a Pagar', 'Expenses'), { bg: '#e11d48', color: '#fff', text: despesas.filter(d=>d.status==='pendente').length || '0' })}
+                  {temPermissao('admin') && renderNavButton('configuracoes', '⚙️', tx('Configurações', 'Configuraciones', 'Settings'))}
+                  {temPermissao('admin') && renderNavButton('migracao', '📥', tx('Importar Dados', 'Importar Datos', 'Import Data'))}
                 </div>
               </>
             )}
+          </div>
+          <ZeniteLogo aoClicar={() => setEcraAtual('hub')} />
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', padding: '4px 8px', gap: '6px', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.5)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ fontSize: '12px' }}>{idioma === 'pt' ? '🇧🇷' : idioma === 'es' ? '🇪🇸' : '🇺🇸'}</span>
+                <select value={idioma} onChange={(e) => setIdioma(e.target.value)} style={{ backgroundColor: 'transparent', color: '#cbd5e1', fontSize: '11px', fontWeight: 800, border: 'none', outline: 'none', cursor: 'pointer' }}>
+                  <option value="pt" style={{ backgroundColor: '#0b1120', color: '#fff' }}>PT</option>
+                  <option value="es" style={{ backgroundColor: '#0b1120', color: '#fff' }}>ES</option>
+                  <option value="en" style={{ backgroundColor: '#0b1120', color: '#fff' }}>EN</option>
+                </select>
+              </div>
+              <div style={{ width: '1px', height: '14px', backgroundColor: '#334155' }}></div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ fontSize: '10px', color: '#818cf8', fontWeight: 900 }}>🌐</span>
+                <select value={moeda} onChange={(e) => setMoeda(e.target.value)} style={{ backgroundColor: 'transparent', color: '#34d399', fontSize: '11px', fontWeight: 900, border: 'none', outline: 'none', cursor: 'pointer' }}>
+                  <option value="BRL" style={{ backgroundColor: '#0b1120', color: '#fff' }}>BRL (R$)</option>
+                  <option value="USD" style={{ backgroundColor: '#0b1120', color: '#fff' }}>USD ($)</option>
+                  <option value="EUR" style={{ backgroundColor: '#0b1120', color: '#fff' }}>EUR (€)</option>
+                  <option value="PYG" style={{ backgroundColor: '#0b1120', color: '#fff' }}>PYG (₲)</option>
+                </select>
+              </div>
+              <div style={{ width: '1px', height: '14px', backgroundColor: '#334155' }}></div>
+              <button onClick={() => setModalCambioAberto(true)} title="Ajustar Cotações de Câmbio" style={{ backgroundColor: 'transparent', border: 'none', cursor: 'pointer', fontSize: '12px', padding: '0 2px' }}>⚙️</button>
+            </div>
+          </div>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '8px', padding: '6px 10px' }}>
+            <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 800 }} className="hide-mobile">Operador:</span>
+            <span style={{ color: patenteUsuario === 'gerencia' ? '#fbbf24' : '#818cf8', fontWeight: 900, fontSize: '12px' }}>{operadorAtivo.nome}</span>
+          </div>
+
+          <button onClick={trocarOperador} style={{ backgroundColor: 'rgba(99, 102, 241, 0.1)', border: '1px solid #6366f1', color: '#818cf8', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>Trocar Operador</button>
+        </div>
+      </header>
+
+      <main className="no-print" style={{ padding: '20px 16px', maxWidth: '1600px', margin: '0 auto', boxSizing: 'border-box' }}>
+        
+        {ecraAtual === 'hub' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            
+            <div className="mobile-padding" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', border: '1px solid #334155', borderRadius: '24px', padding: '32px', boxShadow: '0 20px 40px rgba(0,0,0,0.3)', flexWrap: 'wrap', gap: '20px' }}>
+              <div style={{ flex: '1 1 100%', minWidth: '250px' }}>
+                <span style={{ fontSize: '12px', color: '#38bdf8', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '2px' }}>ZenOS (Cloud)</span>
+                <h1 className="mobile-text-lg" style={{ fontSize: '32px', fontWeight: 900, color: '#ffffff', margin: '8px 0 4px 0', letterSpacing: '-0.5px' }}>{tx(`Olá, ${operadorAtivo.nome}!`, `¡Hola, ${operadorAtivo.nome}!`, `Hello, ${operadorAtivo.nome}!`)}</h1>
+                <span style={{ fontSize: '15px', color: '#94a3b8', fontWeight: 500 }}>{tx('Pronto para vender?', '¿Listo para vender?', 'Ready to sell?')}</span>
+              </div>
+              
+              <div className="mobile-stack" style={{ display: 'flex', gap: '24px', alignItems: 'center', width: '100%' }}>
+                <div style={{ textAlign: 'right', borderRight: '1px solid rgba(255,255,255,0.1)', paddingRight: '24px', flex: 1 }}>
+                  <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>{tx('Vendido Hoje', 'Vendido Hoy', 'Sold Today')}</span>
+                  <div style={{ fontSize: '26px', fontWeight: 900, color: '#34d399', marginTop: '4px', textShadow: '0 2px 10px rgba(52,211,153,0.2)' }}>{valoresTopoVisiveis ? fmt(faturamentoTotalBRL) : '*****'}</div>
+                </div>
+                <div style={{ textAlign: 'right', flex: 1 }}>
+                  <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>{tx('Fiado na Praça', 'Fiado a Cobrar', 'Pending Credit')}</span>
+                  <div style={{ fontSize: '26px', fontWeight: 900, color: totalFiadoAbertoBRL > 0 && valoresTopoVisiveis ? '#fb7185' : '#34d399', marginTop: '4px' }}>{valoresTopoVisiveis ? fmt(totalFiadoAbertoBRL) : '*****'}</div>
+                </div>
+                <button onClick={() => setValoresTopoVisiveis(!valoresTopoVisiveis)} title={tx('Ocultar/Mostrar Valores', 'Ocultar/Mostrar Valores', 'Toggle Values')} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#e2e8f0', fontSize: '20px', cursor: 'pointer', padding: '12px', outline: 'none', transition: 'all 0.3s' }}>
+                  {valoresTopoVisiveis ? '👁️' : '🙈'}
+                </button>
+              </div>
+            </div>
+
+            {temPermissao('inteligencia') && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                <div onClick={() => setMostrarPainelExecutivo(!mostrarPainelExecutivo)} style={{ background: mostrarPainelExecutivo ? '#0f172a' : 'linear-gradient(135deg, #1e293b, #0f172a)', border: `1px solid ${mostrarPainelExecutivo ? '#1e293b' : '#334155'}`, borderRadius: '20px', padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', transition: 'all 0.3s', boxShadow: mostrarPainelExecutivo ? 'none' : '0 10px 30px rgba(0,0,0,0.4)', flexWrap: 'wrap', gap: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>{mostrarPainelExecutivo ? '🙈' : '👁️'}</div>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}><h3 style={{ margin: 0, fontSize: '16px', color: mostrarPainelExecutivo ? '#94a3b8' : '#e2e8f0', fontWeight: 900 }}>Painel Executivo e Financeiro</h3></div>
+                  </div>
+                </div>
+
+                {mostrarPainelExecutivo && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', animation: 'fadeIn 0.5s ease-out' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                      <div style={{ backgroundColor: '#021e15', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '20px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><span style={{ fontSize: '20px' }}>💰</span><span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px' }}>Faturamento</span></div>
+                        <span style={{ fontSize: '24px', fontWeight: 900, color: '#f8fafc', marginTop: '12px' }}>{fmt(faturamentoTotalBRL)}</span>
+                      </div>
+                      <div style={{ backgroundColor: '#06283d', border: '1px solid rgba(14, 165, 233, 0.3)', borderRadius: '20px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><span style={{ fontSize: '20px' }}>💎</span><span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px' }}>Lucro Bruto</span></div>
+                        <span style={{ fontSize: '24px', fontWeight: 900, color: '#38bdf8', marginTop: '12px' }}>{fmt(lucroBrutoBRL)}</span>
+                      </div>
+                      <div style={{ backgroundColor: '#2e0a16', border: '1px solid rgba(244, 63, 94, 0.3)', borderRadius: '20px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><span style={{ fontSize: '20px' }}>💸</span><span style={{ fontSize: '11px', fontWeight: 800, color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '1px' }}>Despesas Pagas</span></div>
+                        <span style={{ fontSize: '24px', fontWeight: 900, color: '#fef3c7', marginTop: '12px' }}>{fmt(despesasPagasBRL)}</span>
+                      </div>
+                      <div style={{ background: 'linear-gradient(135deg, #064e3b 0%, #022c22 100%)', border: '1px solid rgba(16, 185, 129, 0.5)', borderRadius: '20px', padding: '20px', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(16,185,129,0.15)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><span style={{ fontSize: '20px' }}>🏆</span><span style={{ fontSize: '11px', fontWeight: 900, color: '#a7f3d0', textTransform: 'uppercase', letterSpacing: '1px' }}>Lucro Líquido Real</span></div>
+                        <span style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', marginTop: '12px', textShadow: '0 2px 10px rgba(0,0,0,0.3)' }}>{fmt(lucroLiquidoRealBRL)}</span>
+                      </div>
+                      <div style={{ backgroundColor: '#2b1404', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: '20px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><span style={{ fontSize: '20px' }}>📒</span><span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px' }}>Fiado na Praça</span></div>
+                        <span style={{ fontSize: '24px', fontWeight: 900, color: '#fb7185', marginTop: '12px' }}>{fmt(totalFiadoAbertoBRL)}</span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
+                      <div className="mobile-padding" style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '24px', padding: '32px', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '10px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}><span style={{ fontSize: '24px' }}>💵</span><h3 style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff', margin: 0 }}>Gestão de Caixa</h3></div>
+                          <span style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '8px 12px', borderRadius: '12px', fontSize: '12px', fontWeight: 900, border: '1px solid rgba(16, 185, 129, 0.3)' }}>Saldo: {fmt(saldoCaixaFisicoBRL)}</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '10px', marginBottom: '24px', flexWrap: 'wrap' }}>
+                          <button onClick={() => { setTipoMovCaixa('suprimento'); setModalCaixaAberto(true); }} style={{ flex: '1 1 calc(50% - 5px)', padding: '14px 10px', backgroundColor: '#021e15', border: '1px solid rgba(16, 185, 129, 0.5)', color: '#34d399', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '12px' }}>+ Entrada</button>
+                          <button onClick={() => { setTipoMovCaixa('sangria'); setModalCaixaAberto(true); }} style={{ flex: '1 1 calc(50% - 5px)', padding: '14px 10px', backgroundColor: '#2e0a16', border: '1px solid rgba(244, 63, 94, 0.5)', color: '#fb7185', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '12px' }}>- Saída</button>
+                          <button onClick={() => { setTipoMovCaixa('fechamento'); setModalCaixaAberto(true); }} style={{ flex: '1 1 100%', padding: '14px', background: 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#ffffff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '13px' }}>🔒 Fechar Caixa</button>
+                        </div>
+                        <div style={{ flex: 1, backgroundColor: '#020617', borderRadius: '12px', border: '1px solid #1e293b', padding: '16px', overflowY: 'auto', maxHeight: '250px' }}>
+                          <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '16px', display: 'block', letterSpacing: '1px' }}>Movimentações Internas</span>
+                          {caixaMovimentos.length === 0 ? <div style={{ color: '#475569', fontSize: '13px', textAlign: 'center', marginTop: '30px' }}>-</div> : (
+                            caixaMovimentos.map(m => (
+                              <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '13px' }}>
+                                <div><span style={{ color: '#e2e8f0', fontWeight: 700 }}>{m.tipo === 'suprimento' ? 'Entrada' : 'Saída'}: {m.descricao}</span><br/><span style={{ color: '#64748b', fontSize: '10px', marginTop: '4px', display: 'inline-block' }}>{m.dataHora} • {m.operador}</span></div>
+                                <span style={{ fontWeight: 900, color: m.tipo === 'suprimento' ? '#34d399' : '#fb7185', fontSize: '14px' }}>{m.tipo === 'suprimento' ? '+' : '-'}{fmt(m.valorBRL, 'BRL')}</span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mobile-padding" style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '24px', padding: '32px', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}><span style={{ fontSize: '24px' }}>📈</span><h3 style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff', margin: 0 }}>Curva ABC (Top 5)</h3></div>
+                        <div style={{ backgroundColor: '#020617', borderRadius: '12px', border: '1px solid #1e293b', padding: '4px 16px', flex: 1, overflowX: 'auto' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '280px' }}>
+                            <thead>
+                              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', color: '#64748b', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                                <th style={{ padding: '16px 0' }}>Item</th><th style={{ padding: '16px 0', textAlign: 'center' }}>Qtd</th><th style={{ padding: '16px 0', textAlign: 'right' }}>Faturamento</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {curvaABC.length === 0 ? <tr><td colSpan="3" style={{ textAlign: 'center', padding: '40px', color: '#475569', fontSize: '13px' }}>-</td></tr> : (
+                                curvaABC.map((item, index) => (
+                                  <tr key={index} style={{ borderBottom: index === curvaABC.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.05)' }}>
+                                    <td style={{ padding: '16px 0' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <span style={{ background: index === 0 ? 'linear-gradient(135deg, #fbbf24, #d97706)' : index === 1 ? 'linear-gradient(135deg, #94a3b8, #64748b)' : index === 2 ? 'linear-gradient(135deg, #b45309, #78350f)' : 'rgba(255,255,255,0.1)', color: index < 3 ? '#ffffff' : '#94a3b8', minWidth: '24px', height: '24px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 900 }}>{index + 1}</span>
+                                        <div style={{ display: 'flex', flexDirection: 'column' }}><span style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: 800 }}>{item.nome.substring(0, 20)}</span><span style={{ color: '#64748b', fontSize: '10px', marginTop: '2px' }}>{item.sku}</span></div>
+                                      </div>
+                                    </td>
+                                    <td style={{ textAlign: 'center', color: '#38bdf8', fontWeight: 900, fontSize: '13px' }}>{item.qtd} <span style={{fontSize: '10px', color: '#64748b'}}>UN</span></td>
+                                    <td style={{ textAlign: 'right', color: '#34d399', fontWeight: 900, fontSize: '14px' }}>{fmt(item.faturamentoBRL, 'BRL')}</td>
+                                  </tr>
+                                ))
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginTop: '16px', marginBottom: '8px' }}>
+              <div style={{ height: '1px', flex: 1, background: 'linear-gradient(to right, transparent, rgba(255,255,255,0.1))' }}></div>
+              <span style={{ fontSize: '11px', fontWeight: 900, color: '#64748b', textTransform: 'uppercase', letterSpacing: '2px', textAlign: 'center' }}>{tx('Acessos Operacionais', 'Accesos Operativos', 'Operational Access')}</span>
+              <div style={{ height: '1px', flex: 1, background: 'linear-gradient(to left, transparent, rgba(255,255,255,0.1))' }}></div>
+            </div>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '16px' }}>
+              
+              {temPermissao('pdv') && (
+                <div onClick={() => setEcraAtual('pdv')} style={{ backgroundColor: '#021e15', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '20px', padding: '24px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
+                  <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #10b981, #059669)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', boxShadow: '0 8px 20px rgba(16,185,129,0.4)' }}>🛒</div>
+                  <div><h2 style={{ fontSize: '15px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>PDV Balcão</h2><span style={{fontSize: '11px', color: '#94a3b8'}}>Frente de Caixa</span></div>
+                </div>
+              )}
+              
+              {temPermissao('mesas') && (
+                <div onClick={() => setEcraAtual('mesas')} style={{ backgroundColor: '#2e0a16', border: '1px solid rgba(225, 29, 72, 0.3)', borderRadius: '20px', padding: '24px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
+                  <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #e11d48, #be123c)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', boxShadow: '0 8px 20px rgba(225,29,72,0.4)' }}>🍽️</div>
+                  <div><h2 style={{ fontSize: '15px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>Mesas</h2><span style={{fontSize: '11px', color: '#94a3b8'}}>Pedidos/Comandas</span></div>
+                </div>
+              )}
+
+              {temPermissao('produtos') && (
+                <div onClick={() => setEcraAtual('produtos')} style={{ backgroundColor: '#052336', border: '1px solid rgba(2, 132, 199, 0.3)', borderRadius: '20px', padding: '24px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
+                  <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #0284c7, #0369a1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', boxShadow: '0 8px 20px rgba(2,132,199,0.4)' }}>📦</div>
+                  <div><h2 style={{ fontSize: '15px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>Catálogo</h2><span style={{fontSize: '11px', color: '#94a3b8'}}>Produtos e Estoque</span></div>
+                </div>
+              )}
+              
+              {temPermissao('clientes') && (
+                <div onClick={() => setEcraAtual('clientes')} style={{ backgroundColor: '#2b1604', border: '1px solid rgba(217, 119, 6, 0.3)', borderRadius: '20px', padding: '24px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
+                  <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #d97706, #b45309)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', boxShadow: '0 8px 20px rgba(217,119,6,0.4)' }}>👥</div>
+                  <div><h2 style={{ fontSize: '15px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>Clientes</h2><span style={{fontSize: '11px', color: '#94a3b8'}}>CRM e Fiados</span></div>
+                </div>
+              )}
+              
+              {temPermissao('vendas') && (
+                <div onClick={() => setEcraAtual('vendas')} style={{ backgroundColor: '#111030', border: '1px solid rgba(79, 70, 229, 0.3)', borderRadius: '20px', padding: '24px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
+                  <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #4f46e5, #4338ca)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', boxShadow: '0 8px 20px rgba(79,70,229,0.4)' }}>📑</div>
+                  <div><h2 style={{ fontSize: '15px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>{tx('Histórico', 'Historial', 'History')}</h2><span style={{fontSize: '11px', color: '#94a3b8'}}>Relatórios</span></div>
+                </div>
+              )}
+
+              {temPermissao('admin') && (
+                <>
+                  <div onClick={() => setEcraAtual('comissoes')} style={{ backgroundColor: '#2e071c', border: '1px solid rgba(219, 39, 119, 0.3)', borderRadius: '20px', padding: '24px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
+                    <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #db2777, #be185d)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', boxShadow: '0 8px 20px rgba(219,39,119,0.4)' }}>🤝</div>
+                    <div><h2 style={{ fontSize: '15px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>{tx('Comissões', 'Comisiones', 'Commissions')}</h2><span style={{fontSize: '11px', color: '#94a3b8'}}>Equipa</span></div>
+                  </div>
+
+                  <div onClick={() => setEcraAtual('dashboardMobile')} style={{ backgroundColor: '#2b1704', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: '20px', padding: '24px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(245,158,11,0.15)' }}>
+                    <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #f59e0b, #d97706)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', boxShadow: '0 8px 20px rgba(245,158,11,0.4)' }}>📱</div>
+                    <div><h2 style={{ fontSize: '15px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>App CEO</h2><span style={{fontSize: '11px', color: '#94a3b8'}}>Mobile</span></div>
+                  </div>
+                </>
+              )}
+              
+              {temPermissao('despesas') && (
+                <div onClick={() => setEcraAtual('despesas')} style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '20px', padding: '24px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
+                  <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #64748b, #475569)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', boxShadow: '0 8px 20px rgba(0,0,0,0.3)' }}>💸</div>
+                  <div><h2 style={{ fontSize: '15px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>{tx('Despesas', 'Gastos', 'Expenses')}</h2><span style={{fontSize: '11px', color: '#94a3b8'}}>A Pagar</span></div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {ecraAtual === 'pdv' && <PDV produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} patenteUsuario={patenteUsuario} idioma={idioma} regrasDesconto={regrasDesconto} operadorAtivo={operadorAtivo} />}
+        {ecraAtual === 'mesas' && <Mesas produtos={produtos} fmt={fmt} tx={tx} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} moeda={moeda} idioma={idioma} />}
+        {ecraAtual === 'produtos' && <Produtos produtos={produtos} setProdutos={setProdutos} moeda={moeda} fmt={fmt} t={t} tx={tx} />}
+        {ecraAtual === 'inteligencia' && <EstoqueInteligente produtos={produtos} fmt={fmt} />}
+        {ecraAtual === 'comissoes' && <Comissoes historicoVendas={historicoVendas} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} />}
+        {ecraAtual === 'dashboardMobile' && <DashboardMobile historicoVendas={historicoVendas} despesas={despesas} clientes={clientes} produtos={produtos} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} />}
+        {ecraAtual === 'clientes' && <Clientes clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} />}
+        {ecraAtual === 'vendas' && <Vendas historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} fmt={fmt} t={t} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterDeBRL={converterDeBRL} />}
+        {ecraAtual === 'migracao' && <Migracao produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} t={t} tx={tx} />}
+        {ecraAtual === 'configuracoes' && <Configuracoes produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} despesas={despesas} setDespesas={setDespesas} moeda={moeda} fmt={fmt} tx={tx} regrasDesconto={regrasDesconto} setRegrasDesconto={setRegrasDesconto} vendedores={vendedores} setVendedores={(novosVendedores) => { setVendedores(novosVendedores); localStorage.setItem('zenos_vendedores', JSON.stringify(novosVendedores)); if (userId) setDoc(doc(db, "lojas", userId, "dados", "operacao"), { vendedores: novosVendedores }, { merge: true }); }} />}
+        {ecraAtual === 'despesas' && <Despesas despesas={despesas} setDespesas={setDespesas} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterParaBRL={converterParaBRL} />}
+      </main>
+
+      {modalCambioAberto && (
+        <div className="no-print" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ backgroundColor: '#0b1120', border: '1px solid #6366f1', borderRadius: '24px', width: '90%', maxWidth: '420px', padding: '28px', color: '#fff' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div><span style={{ fontSize: '11px', fontWeight: 800, color: '#818cf8', letterSpacing: '1px', textTransform: 'uppercase' }}>ZenOS</span><h3 style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff', margin: '2px 0 0 0' }}>{t('cotacoesDia')}</h3></div>
+              <button onClick={() => setModalCambioAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#64748b', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>✕</button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#020617', padding: '12px 16px', borderRadius: '12px', border: '1px solid #1e293b' }}><span style={{ fontSize: '13px', fontWeight: 700, color: '#cbd5e1' }}>1 Dólar (USD) =</span><div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ color: '#64748b', fontSize: '12px' }}>R$</span><input type="text" value={taxasInput.USD} onChange={(e) => setTaxasInput({ ...taxasInput, USD: e.target.value })} onFocus={e=>e.target.select()} style={{ backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', width: '90px', padding: '6px', outline: 'none' }} /></div></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#020617', padding: '12px 16px', borderRadius: '12px', border: '1px solid #1e293b' }}><span style={{ fontSize: '13px', fontWeight: 700, color: '#cbd5e1' }}>1 Euro (EUR) =</span><div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ color: '#64748b', fontSize: '12px' }}>R$</span><input type="text" value={taxasInput.EUR} onChange={(e) => setTaxasInput({ ...taxasInput, EUR: e.target.value })} onFocus={e=>e.target.select()} style={{ backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', width: '90px', padding: '6px', outline: 'none' }} /></div></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#020617', padding: '12px 16px', borderRadius: '12px', border: '1px solid #1e293b' }}><span style={{ fontSize: '13px', fontWeight: 700, color: '#cbd5e1' }}>1 Real (BRL) =</span><div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><input type="text" value={taxasInput.PYG} onChange={(e) => setTaxasInput({ ...taxasInput, PYG: e.target.value })} onFocus={e=>e.target.select()} style={{ backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#38bdf8', fontWeight: 900, fontSize: '15px', textAlign: 'right', width: '90px', padding: '6px', outline: 'none' }} /><span style={{ color: '#64748b', fontSize: '12px' }}>₲</span></div></div>
+            </div>
+            <button onClick={salvarTaxasCambio} style={{ width: '100%', background: 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#ffffff', padding: '14px', borderRadius: '12px', fontSize: '14px', fontWeight: 900, cursor: 'pointer' }}>{tx('Salvar Câmbio', 'Guardar Cambio', 'Save Exchange')}</button>
+          </div>
+        </div>
+      )}
+
+      {modalCaixaAberto && (
+        <div className="no-print" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ backgroundColor: '#0b1120', border: `1px solid ${tipoMovCaixa === 'sangria' ? '#f43f5e' : tipoMovCaixa === 'suprimento' ? '#10b981' : '#6366f1'}`, borderRadius: '24px', width: '90%', maxWidth: '420px', padding: '28px', color: '#fff' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div>
+                <span style={{ fontSize: '11px', fontWeight: 800, color: tipoMovCaixa === 'sangria' ? '#fb7185' : tipoMovCaixa === 'suprimento' ? '#34d399' : '#818cf8', letterSpacing: '1px', textTransform: 'uppercase' }}>{tx('Gestão de Gaveta', 'Gestión de Gaveta', 'Drawer Mgt')}</span>
+                <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff', margin: '2px 0 0 0' }}>{tipoMovCaixa === 'sangria' ? tx('Registrar Sangria (-)', 'Registrar Sangría (-)', 'Cash Drop (-)') : tipoMovCaixa === 'suprimento' ? tx('Registrar Suprimento (+)', 'Registrar Suplemento (+)', 'Cash In (+)') : tx('Fechamento Cego de Caixa', 'Cierre Ciego de Caja', 'Blind Cash Closeout')}</h3>
+              </div>
+              <button onClick={() => setModalCaixaAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#64748b', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>✕</button>
+            </div>
+
+            {tipoMovCaixa === 'fechamento' ? (
+              <div style={{ marginBottom: '20px' }}>
+                <p style={{ fontSize: '13px', color: '#94a3b8', lineHeight: 1.5, marginBottom: '16px' }}>
+                  {tx('Conte as notas e moedas físicas na gaveta e digite o total exato abaixo.', 'Cuente el efectivo físico en la gaveta e ingrese el total exacto.', 'Count the physical cash in the drawer and enter the exact total below.')}
+                </p>
+                <label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800 }}>{tx('Valor Físico Contado', 'Valor Físico Contado', 'Counted Cash Value')} ({moeda}):</label>
+                <input type="text" value={valorMovCaixa} onChange={(e) => setValorMovCaixa(e.target.value)} placeholder="0.00" onFocus={e=>e.target.select()} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #4f46e5', borderRadius: '12px', color: '#fff', fontSize: '24px', fontWeight: 900, textAlign: 'center', padding: '16px', outline: 'none', marginTop: '8px', boxSizing: 'border-box' }} />
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '20px' }}>
+                <div>
+                  <label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800 }}>{tx('Valor a ', 'Valor a ', 'Amount to ')}{tipoMovCaixa === 'sangria' ? tx('retirar', 'retirar', 'drop') : tx('inserir', 'ingresar', 'add')} ({moeda}):</label>
+                  <input type="text" value={valorMovCaixa} onChange={(e) => setValorMovCaixa(e.target.value)} placeholder="0.00" onFocus={e=>e.target.select()} style={{ width: '100%', backgroundColor: '#020617', border: `1px solid ${tipoMovCaixa === 'sangria' ? '#f43f5e' : '#10b981'}`, borderRadius: '12px', color: tipoMovCaixa === 'sangria' ? '#fb7185' : '#34d399', fontSize: '24px', fontWeight: 900, textAlign: 'center', padding: '16px', outline: 'none', marginTop: '8px', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800 }}>{tx('Motivo / Descrição:', 'Motivo / Descripción:', 'Reason / Description:')}</label>
+                  <input type="text" value={descMovCaixa} onChange={(e) => setDescMovCaixa(e.target.value)} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontSize: '13px', padding: '12px', outline: 'none', marginTop: '8px', boxSizing: 'border-box' }} />
+                </div>
+              </div>
+            )}
+
+            <button onClick={tipoMovCaixa === 'fechamento' ? processarFechamentoCego : registrarMovimentoCaixa} style={{ width: '100%', background: tipoMovCaixa === 'sangria' ? 'linear-gradient(135deg, #e11d48, #be123c)' : tipoMovCaixa === 'suprimento' ? 'linear-gradient(135deg, #10b981, #059669)' : 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#ffffff', padding: '16px', borderRadius: '12px', fontSize: '14px', fontWeight: 900, cursor: 'pointer' }}>
+              {tipoMovCaixa === 'fechamento' ? tx('Auditar Caixa Cego', 'Auditar Caja', 'Audit Blind Box') : tx('Registrar na Gaveta', 'Registrar', 'Save Record')}
+            </button>
           </div>
         </div>
       )}
