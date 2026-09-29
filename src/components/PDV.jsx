@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { normalizarProduto, normalizarCliente } from '../data';
 
-export default function PDV({ produtos, setProdutos, clientes, setClientes, moeda, fmt, t, tx, converterDeBRL, converterParaBRL, historicoVendas, setHistoricoVendas, patenteUsuario, idioma, regrasDesconto, operadorAtivo }) {
+export default function PDV({ produtos, setProdutos, clientes, setClientes, moeda, fmt, t, tx, converterDeBRL, converterParaBRL, historicoVendas, setHistoricoVendas, patenteUsuario, idioma, regrasDesconto, operadorAtivo, sessaoAtiva }) {
   const [termoBusca, setTermoBusca] = useState('');
   const [indiceFocoBusca, setIndiceFocoBusca] = useState(0);
   const [itensVenda, setItensVenda] = useState([]);
@@ -25,11 +25,14 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
   const [pagamentosLancados, setPagamentosLancados] = useState([]);
   const [formaSelecionada, setFormaSelecionada] = useState('dinheiro_brl');
   const [valorLancamentoInput, setValorLancamentoInput] = useState('');
-  
   const [moedaTrocoEscolhida, setMoedaTrocoEscolhida] = useState('BRL');
   
   const [vendaSucesso, setVendaSucesso] = useState(false);
   const [vendaConcluidaObj, setVendaConcluidaObj] = useState(null);
+
+  // 🛡️ NOVO: Estados para a Fila de Pré-Pedidos
+  const [modalResgateAberto, setModalResgateAberto] = useState(false);
+  const [prePedidoEmAbertoId, setPrePedidoEmAbertoId] = useState(null);
 
   const inputBuscaRef = useRef(null);
   const inputQtdRapidaRef = useRef(null);
@@ -172,6 +175,18 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
   const atualizarQtd = (id, valor) => { setItensVenda(itensVenda.map(item => item.id === id ? { ...item, qtd: String(Math.max(1, parseInt(valor) || 1)) } : item)); };
   const lidarDigitacaoPreco = (id, valorDigitado) => { setItensVenda(itensVenda.map(item => item.id === id ? { ...item, precoTexto: valorDigitado, precoPraticadoBRL: converterParaBRL(parseFloat(valorDigitado.replace(',', '.')) || 0, moeda) } : item)); };
 
+  // 🛡️ NOVO: Lógica de Carregar o Pré-Pedido
+  const carregarPrePedido = (pedido) => {
+    setItensVenda(pedido.itens);
+    if (pedido.clienteId) {
+      const cli = clientes.find(c => c.id === pedido.clienteId);
+      if (cli) setClienteSelecionadoPDV(cli);
+    }
+    setNomeClienteVulso(pedido.clienteNome !== tx('Consumidor Balcão', 'Consumidor', 'Walk-in') ? pedido.clienteNome : '');
+    setPrePedidoEmAbertoId(pedido.id); // Guardamos a memória de que estamos a liquidar este pedido!
+    setModalResgateAberto(false);
+  };
+
   const subtotalBrutoBRL = itensVenda.reduce((acc, item) => acc + (Math.max(0, parseInt(item.qtd) || 0) * (item.precoPraticadoBRL || 0)), 0);
   const custoTotalBRL = itensVenda.reduce((acc, item) => acc + (Math.max(0, parseInt(item.qtd) || 0) * (item.custoBRL || 0)), 0);
   const descBRL = converterParaBRL(parseFloat(String(descontoTexto).replace(',', '.')) || 0, moeda);
@@ -224,21 +239,13 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
     
   const valorExcedidoGlobal = totalPagoConvertidoBRL - totalFinalBRL;
   const trocoTotalBRL = valorExcedidoGlobal > 0.01 ? Math.min(valorExcedidoGlobal, totalDinheiroBRL) : 0;
-
   const podeFinalizarVenda = totalFinalBRL > 0 && totalPagoConvertidoBRL >= (totalFinalBRL - 0.05);
 
-  useEffect(() => {
-    const lidarAtalhos = (e) => {
-      if (e.key === 'F10') {
-        e.preventDefault();
-        abrirFechamento();
-      }
-    };
-    window.addEventListener('keydown', lidarAtalhos);
-    return () => window.removeEventListener('keydown', lidarAtalhos);
-  });
-
   const abrirFechamento = () => {
+    if (!sessaoAtiva) {
+      return alert(tx('Atenção: O seu caixa está fechado! Você só pode fazer Pré-Pedidos ou Orçamentos. Para liquidar vendas, o Caixa tem de abrir o turno na Home.', '¡Caja cerrada!', 'Closed shift!'));
+    }
+
     if (vendaBloqueadaPorMargem) {
       if (regras?.exigirSenhaVermelho ?? true) {
         const senhaDigitada = window.prompt(tx(
@@ -262,6 +269,17 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
     setVendaSucesso(false); 
     setModalFechamentoAberto(true);
   };
+
+  useEffect(() => {
+    const lidarAtalhos = (e) => {
+      if (e.key === 'F10') {
+        e.preventDefault();
+        abrirFechamento();
+      }
+    };
+    window.addEventListener('keydown', lidarAtalhos);
+    return () => window.removeEventListener('keydown', lidarAtalhos);
+  });
 
   const adicionarPagamento = () => {
     const valorNum = parseFloat(String(valorLancamentoInput).replace(',', '.')) || 0;
@@ -291,9 +309,9 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
     setValorLancamentoInput(novoSaldo > 0 ? converterDeBRL(novoSaldo, configForma.moedaOrigem).toFixed(2) : '');
   };
 
-  // 🛡️ NOVO FLUXO: ORÇAMENTO E PRÉ-PEDIDO 
   const concluirTransacao = (tipoFinalizacao) => {
-    if (tipoFinalizacao === 'venda' && !podeFinalizarVenda) return;
+    // 🛡️ BARRICADA SEGURA: Venda real exige que a caixa física esteja aberta e paga.
+    if (tipoFinalizacao === 'venda' && (!podeFinalizarVenda || !sessaoAtiva)) return;
     
     try {
       const idsParaRemover = itensVenda
@@ -303,6 +321,7 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
       let novosProdutos = produtos;
       let novosClientes = null;
 
+      // 🛡️ SEGREGAÇÃO FINANCEIRA: O estoque SÓ desce se for "VENDA"
       if (tipoFinalizacao === 'venda') {
         novosProdutos = (produtos || []).map(p => {
           const qtdVendidaDesteProduto = itensVenda
@@ -330,7 +349,6 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
       const nomeSeguro = (operadorAtivo && operadorAtivo.nome) ? operadorAtivo.nome : 'Administrador';
 
       const docRotulo = tipoFinalizacao === 'venda' ? 'VENDA' : (tipoFinalizacao === 'pre_pedido' ? 'PRÉ-PEDIDO' : 'ORÇAMENTO');
-      // O estado define se entra no somatório financeiro do App.jsx ('concluida' soma, as outras não)
       const estadoFinal = tipoFinalizacao === 'venda' ? 'concluida' : (tipoFinalizacao === 'pre_pedido' ? 'pendente' : 'orcamento');
 
       const novaVenda = {
@@ -356,17 +374,23 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
         if (novosClientes) setClientes(novosClientes);
       }
       
-      const histAntigo = Array.isArray(historicoVendas) ? historicoVendas : [];
+      let novoHist = Array.isArray(historicoVendas) ? historicoVendas : [];
+      // 🛡️ LIMPEZA: Se a caixa resgatou um pré-pedido antigo e finalizou como venda, elimina o "pendente" para não duplicar na nuvem.
+      if (prePedidoEmAbertoId) {
+        novoHist = novoHist.filter(h => h.id !== prePedidoEmAbertoId);
+      }
+
       if (typeof setHistoricoVendas === 'function') {
-        setHistoricoVendas([novaVenda, ...histAntigo]);
+        setHistoricoVendas([novaVenda, ...novoHist]);
       }
       
       setVendaConcluidaObj(novaVenda);
       setVendaSucesso(true);
+      setModalFechamentoAberto(true); // OBRIGA A TELA DO RECIBO A ABRIR MESMO QUE SEJA ORÇAMENTO
 
     } catch (err) {
       console.error("Erro fatal ao finalizar documento:", err);
-      alert("Houve um erro interno ao processar a venda.");
+      alert("Houve um erro interno ao processar o documento.");
     }
   };
 
@@ -385,6 +409,7 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
   const limparParaNovaVenda = () => {
     setItensVenda([]); setDescontoTexto('0'); setPagamentosLancados([]);
     setClienteSelecionadoPDV(null); setNomeClienteVulso('');
+    setPrePedidoEmAbertoId(null); // Reseta a memória do resgate
     setModalFechamentoAberto(false); setVendaSucesso(false); setVendaConcluidaObj(null);
   };
 
@@ -398,6 +423,37 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
         }
       `}</style>
       
+      {/* 🛡️ MODAL DA FILA DO CAIXA: RESGATAR PRÉ-PEDIDOS */}
+      {modalResgateAberto && (
+        <div className="no-print" style={{ position: 'fixed', inset: 0, zIndex: 2000, backgroundColor: 'rgba(2,6,23,0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+          <div style={{ backgroundColor: '#0b1120', border: '1px solid #8b5cf6', borderRadius: '20px', width: '100%', maxWidth: '600px', padding: '24px', color: '#fff', maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 25px 50px rgba(0,0,0,0.5)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div>
+                <span style={{ fontSize: '11px', fontWeight: 900, color: '#c084fc', letterSpacing: '1px', textTransform: 'uppercase' }}>Fila do Caixa</span>
+                <h3 style={{ margin: '4px 0 0 0', color: '#ffffff', fontSize: '18px', fontWeight: 900 }}>📥 Resgatar Pré-Pedidos</h3>
+              </div>
+              <button onClick={() => setModalResgateAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #334155', color: '#94a3b8', borderRadius: '10px', width: '36px', height: '36px', cursor: 'pointer', fontWeight: 900 }}>✕</button>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {historicoVendas.filter(v => v.estado === 'pendente').length === 0 ? (
+                <div style={{ textAlign: 'center', color: '#475569', padding: '40px', backgroundColor: '#020617', borderRadius: '12px', border: '1px solid #1e293b' }}>Nenhum pré-pedido a aguardar pagamento no caixa.</div>
+              ) : (
+                historicoVendas.filter(v => v.estado === 'pendente').map(v => (
+                  <div key={v.id} onClick={() => carregarPrePedido(v)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', backgroundColor: '#1e1b4b', border: '1px solid #4c1d95', borderRadius: '12px', cursor: 'pointer', transition: 'transform 0.2s', boxShadow: '0 4px 10px rgba(76,29,149,0.2)' }}>
+                    <div>
+                      <strong style={{ display: 'block', color: '#e2e8f0', fontSize: '15px' }}>{v.clienteNome}</strong>
+                      <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', display: 'block' }}>Vendedor: <span style={{color: '#a78bfa', fontWeight: 800}}>{v.vendedorNome}</span> • {v.dataHora}</span>
+                    </div>
+                    <div style={{ fontWeight: 900, color: '#34d399', fontSize: '16px' }}>{fmt(v.totalBRL)}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* COLUNA ESQUERDA: CLIENTE, BUSCA E LISTA DE ITENS */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
         
@@ -502,13 +558,17 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
           <div style={{ fontSize: '13px', fontWeight: 800, color: corSemafaro }}>{textoSemafaro}</div>
         </div>
 
+        {/* 🛡️ OPÇÕES DE GERAÇÃO (Orçamento, Pré-Pedido, Venda, Resgate) */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button onClick={() => { if(itensVenda.length===0) return; concluirTransacao('orcamento'); }} style={{ flex: 1, padding: '12px', background: 'transparent', border: '1px solid #475569', color: '#94a3b8', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', fontSize: '12px' }}>
-              🖨️ Orçamento Livre
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <button onClick={() => { if(itensVenda.length===0) return; concluirTransacao('orcamento'); }} style={{ flex: 1, minWidth: '90px', padding: '12px', background: 'transparent', border: '1px solid #475569', color: '#94a3b8', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', fontSize: '12px' }}>
+              🖨️ Orçamento
             </button>
-            <button onClick={() => { if(itensVenda.length===0) return; concluirTransacao('pre_pedido'); }} style={{ flex: 1, padding: '12px', background: '#021e15', border: '1px solid #10b981', color: '#34d399', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', fontSize: '12px' }}>
-              📝 Fazer Pré-Pedido
+            <button onClick={() => { if(itensVenda.length===0) return; concluirTransacao('pre_pedido'); }} style={{ flex: 1, minWidth: '90px', padding: '12px', background: '#021e15', border: '1px solid #10b981', color: '#34d399', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', fontSize: '12px' }}>
+              📝 Pré-Pedido
+            </button>
+            <button onClick={() => setModalResgateAberto(true)} style={{ flex: 1, minWidth: '90px', padding: '12px', background: 'linear-gradient(135deg, #5b21b6, #4c1d95)', border: '1px solid #7c3aed', color: '#ddd6fe', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', fontSize: '12px' }}>
+              📥 Resgatar
             </button>
           </div>
           
@@ -593,7 +653,7 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
         </div>
       )}
 
-      {/* MODAL DE FECHAMENTO (CHECKOUT - CAIXA E DOCUMENTOS) */}
+      {/* 🛡️ MODAL DE SUCESSO / TELA DO RECIBO (UNIFICADA) E TELA DO CAIXA */}
       {modalFechamentoAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1500, padding: '16px', boxSizing: 'border-box' }}>
           <div style={{ backgroundColor: vendaSucesso ? '#ffffff' : '#0b1120', border: '1px solid #10b981', borderRadius: vendaSucesso ? '16px' : '24px', width: '100%', maxWidth: vendaSucesso ? '380px' : '750px', maxHeight: '95vh', overflowY: 'auto', padding: vendaSucesso ? '0' : '28px', color: vendaSucesso ? '#000' : '#fff', boxShadow: '0 25px 50px rgba(0,0,0,0.5)', boxSizing: 'border-box' }}>
@@ -639,7 +699,7 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
                 </div>
                 <div className="no-print" style={{ padding: '20px', backgroundColor: '#f1f5f9', display: 'flex', gap: '10px', borderTop: '1px dashed #ccc', borderBottomLeftRadius: '16px', borderBottomRightRadius: '16px', flexWrap: 'wrap' }}>
                   <button onClick={executarImpressaoNativa} style={{ flex: 1, padding: '12px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '14px' }}>🖨️ {tx('Imprimir', 'Imprimir', 'Print')}</button>
-                  <button onClick={limparParaNovaVenda} style={{ flex: 1, padding: '12px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '14px' }}>{tx('Nova Venda', 'Nueva Venta', 'New Sale')}</button>
+                  <button onClick={limparParaNovaVenda} style={{ flex: 1, padding: '12px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '14px' }}>{tx('Novo Atendimento', 'Nueva Venta', 'New Sale')}</button>
                 </div>
               </div>
             ) : (
