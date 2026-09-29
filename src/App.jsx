@@ -112,7 +112,7 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
     const preco = parseFloat(String(formProdutoPDV.precoBRL).replace(',', '.')) || 0;
     const preco2 = formProdutoPDV.habilitarPreco2 ? (parseFloat(String(formProdutoPDV.preco2BRL).replace(',', '.')) || 0) : 0;
     const preco3 = formProdutoPDV.habilitarPreco3 ? (parseFloat(String(formProdutoPDV.preco3BRL).replace(',', '.')) || 0) : 0;
-    const estoque = parseInt(formProdutoPDV.estoque) || 0;
+    const estoque = parseInt(String(formProdutoPDV.estoque)) || 0;
 
     const dadosFinais = normalizarProduto({ ...formProdutoPDV, custoBRL: custo, precoBRL: preco, preco2BRL: preco2, preco3BRL: preco3, estoque: estoque });
     dadosFinais.usoUnicoEncomendado = formProdutoPDV.usoUnicoEncomendado; 
@@ -165,9 +165,10 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
   };
 
   const removerItem = (id) => { setItensVenda(itensVenda.filter(item => item.id !== id)); };
-  const atualizarQtd = (id, valor) => { setItensVenda(itensVenda.map(item => item.id === id ? { ...item, qtd: valor } : item)); };
+  const atualizarQtd = (id, valor) => { setItensVenda(itensVenda.map(item => item.id === id ? { ...item, qtd: String(Math.max(1, parseInt(valor) || 1)) } : item)); };
   const lidarDigitacaoPreco = (id, valorDigitado) => { setItensVenda(itensVenda.map(item => item.id === id ? { ...item, precoTexto: valorDigitado, precoPraticadoBRL: converterParaBRL(parseFloat(valorDigitado.replace(',', '.')) || 0, moeda) } : item)); };
 
+  // 🛡️ MATEMÁTICA DA VENDA
   const subtotalBrutoBRL = itensVenda.reduce((acc, item) => acc + (Math.max(0, parseInt(item.qtd) || 0) * (item.precoPraticadoBRL || 0)), 0);
   const custoTotalBRL = itensVenda.reduce((acc, item) => acc + (Math.max(0, parseInt(item.qtd) || 0) * (item.custoBRL || 0)), 0);
   const descBRL = converterParaBRL(parseFloat(String(descontoTexto).replace(',', '.')) || 0, moeda);
@@ -211,11 +212,10 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
     { id: 'crediario', rotulo: tx('Crediário / Fiado', 'Fiado / Crédito', 'Store Credit'), moedaOrigem: 'BRL', icone: '📒' }
   ];
 
-  // 🛡️ MATEMÁTICA BLINDADA DO TROCO E SALDOS
+  // 🛡️ MATEMÁTICA DO TROCO E SALDOS
   const totalPagoConvertidoBRL = pagamentosLancados.reduce((acc, p) => acc + (p.valorConvertidoBRL || 0), 0);
   const saldoRestanteBRL = Math.max(0, totalFinalBRL - totalPagoConvertidoBRL);
   
-  // O troco só é devolvido se o pagamento envolver "dinheiro" físico
   const totalDinheiroBRL = pagamentosLancados
     .filter(p => p.formaId && p.formaId.startsWith('dinheiro'))
     .reduce((acc, p) => acc + (p.valorConvertidoBRL || 0), 0);
@@ -223,7 +223,6 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
   const valorExcedidoGlobal = totalPagoConvertidoBRL - totalFinalBRL;
   const trocoTotalBRL = valorExcedidoGlobal > 0.01 ? Math.min(valorExcedidoGlobal, totalDinheiroBRL) : 0;
 
-  // Botão ativa se faltarem menos de 5 cêntimos (previne bloqueios de dízimas cambiais)
   const podeFinalizarVenda = totalFinalBRL > 0 && totalPagoConvertidoBRL >= (totalFinalBRL - 0.05);
 
   const abrirFechamento = () => {
@@ -265,8 +264,8 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
     }
 
     const novaLista = [...pagamentosLancados, { 
-      id: Date.now(), // ID único para o React List
-      formaId: configForma.id, // IMPORTANTE: Identificador fixo para a matemática do caixa (ex: 'pix', 'dinheiro_brl')
+      id: Date.now(), 
+      formaId: configForma.id, 
       rotulo: configForma.rotulo,
       icone: configForma.icone,
       moedaOrigem: configForma.moedaOrigem,
@@ -278,17 +277,15 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
     setValorLancamentoInput(novoSaldo > 0 ? converterDeBRL(novoSaldo, configForma.moedaOrigem).toFixed(2) : '');
   };
 
-  // 🛡️ TRANSAÇÃO DE VENDA BLINDADA
+  // 🛡️ FUNÇÃO CONCLUIR VENDA TOTALMENTE BLINDADA
   const concluirVenda = () => {
     if (!podeFinalizarVenda) return;
     
     try {
-      // 1. Prepara a remoção de itens únicos
       const idsParaRemover = itensVenda
         .filter(it => it.usoUnicoEncomendado || String(it.sku).toUpperCase().includes('ENCOMENDA'))
         .map(it => String(it.produtoOriginalId || it.id));
       
-      // 2. Calcula dedução de estoque real
       const novosProdutos = produtos.map(p => {
         const qtdVendidaDesteProduto = itensVenda
           .filter(i => String(i.produtoOriginalId || i.id) === String(p.id))
@@ -300,19 +297,23 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
         return p;
       }).filter(p => !idsParaRemover.includes(String(p.id))); 
 
-      // 3. Verifica se tem Fiado para somar na conta do cliente
       let novosClientes = null;
       const valorFiado = pagamentosLancados.filter(p => p.formaId === 'crediario').reduce((acc, p) => acc + p.valorConvertidoBRL, 0);
       if (valorFiado > 0 && clienteSelecionadoPDV) {
         novosClientes = clientes.map(c => c.id === clienteSelecionadoPDV.id ? { ...c, saldoDevedorBRL: (parseFloat(c.saldoDevedorBRL) || 0) + valorFiado } : c);
       }
 
-      // 4. Cria o Recibo Seguro (Mesmo que o Operador seja nulo)
-      const nomeSeguro = operadorAtivo?.nome || 'Administrador';
-      const idSeguro = operadorAtivo?.id || 'admin';
+      // Validação segura do operadorAtivo
+      let idSeguro = 'admin';
+      let nomeSeguro = 'Administrador';
+      
+      if (operadorAtivo && typeof operadorAtivo === 'object') {
+        if (operadorAtivo.id) idSeguro = operadorAtivo.id;
+        if (operadorAtivo.nome) nomeSeguro = operadorAtivo.nome;
+      }
 
       const novaVenda = {
-        id: `VENDA-${1000 + historicoVendas.length + 1}`,
+        id: `VENDA-${1000 + (historicoVendas ? historicoVendas.length : 0) + 1}`,
         dataHora: new Date().toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR'),
         clienteId: clienteSelecionadoPDV ? clienteSelecionadoPDV.id : null,
         clienteNome: clienteSelecionadoPDV ? clienteSelecionadoPDV.nome : tx('Consumidor Balcão', 'Consumidor', 'Walk-in'),
@@ -327,10 +328,13 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
         estado: 'concluida'
       };
 
-      // 5. EFETUA AS MUDANÇAS DE ESTADO TODAS DE UMA VEZ (Transação Completa)
       setProdutos(novosProdutos);
-      if (novosClientes) setClientes(novosClientes);
-      setHistoricoVendas([novaVenda, ...historicoVendas]);
+      if (novosClientes) {
+        setClientes(novosClientes);
+      }
+      if (typeof setHistoricoVendas === 'function') {
+        setHistoricoVendas([novaVenda, ...(historicoVendas || [])]);
+      }
       
       setVendaConcluidaObj(novaVenda);
       setVendaSucesso(true);
@@ -607,7 +611,6 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
                   <button onClick={() => setModalFechamentoAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #334155', color: '#94a3b8', borderRadius: '10px', width: '36px', height: '36px', cursor: 'pointer', fontWeight: 900 }}>✕</button>
                 </div>
                 
-                {/* 🛡️ GRELHA VISUAL DO TROCO CORRIGIDA E ADAPTATIVA */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', padding: '16px', gap: '12px', marginBottom: '20px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800 }}>{tx('Total', 'Total', 'Total')}</span>
