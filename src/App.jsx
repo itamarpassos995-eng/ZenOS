@@ -17,7 +17,7 @@ import Comissoes from './components/Comissoes';
 import Mesas from './components/Mesas';
 import DashboardMobile from './components/DashboardMobile';
 import Configuracoes from './components/Configuracoes';
-import GestaoCaixas from './components/GestaoCaixas';
+import GestaoCaixas from './components/GestaoCaixas'; // ADICIONADO NOVO COMPONENTE
 
 const CURRENT_SCHEMA_VERSION = 1;
 
@@ -104,7 +104,7 @@ export default function App() {
   const [taxasInput, setTaxasInput] = useState({ USD: '5.40', EUR: '6.05', PYG: '1380' });
   const [modalCambioAberto, setModalCambioAberto] = useState(false);
 
-  // 🛡️ REGRAS DO SEMÁFORO DE DESCONTO
+  // 🛡️ REGRAS DO SEMÁFORO DE DESCONTO E NOVO ESTADO DE CAIXAS INDEPENDENTES
   const [regrasDesconto, setRegrasDesconto] = useState(() => {
     try {
       const salvo = localStorage.getItem('zenos_regras_desconto');
@@ -113,6 +113,14 @@ export default function App() {
       console.error("Erro ao carregar regras de desconto:", err);
     }
     return { verdeMax: 5, amareloMax: 12, exigirSenhaVermelho: true, senhaGerente: '1234' }; // Padrões de fábrica
+  });
+
+  const [sessoesCaixa, setSessoesCaixa] = useState(() => {
+    try {
+      const salvo = localStorage.getItem('zenos_sessoes_caixa');
+      if (salvo) return JSON.parse(salvo);
+    } catch (err) {}
+    return [];
   });
 
   const [produtos, setProdutos] = useState(() => {
@@ -236,6 +244,7 @@ export default function App() {
             if (d.despesas) setDespesas(d.despesas);
             if (d.regrasDesconto) setRegrasDesconto(d.regrasDesconto); 
             if (d.vendedores) setVendedores(d.vendedores);
+            if (d.sessoesCaixa) setSessoesCaixa(d.sessoesCaixa); // 🛡️ Restaura os turnos
           }
         } catch (err) {
           console.error("Erro ao carregar dados da nuvem:", err);
@@ -275,41 +284,47 @@ export default function App() {
   };
 
   // 🛡️ VERCEL FIX: As tags abaixo obrigam o Vercel a ignorar os falsos avisos de "missing dependencies"
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
     localStorage.setItem('zenos_produtos', JSON.stringify(produtos)); 
-    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
   }, [produtos, userId]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
     localStorage.setItem('zenos_clientes', JSON.stringify(clientes)); 
-    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
   }, [clientes, userId]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
     localStorage.setItem('zenos_historico_vendas', JSON.stringify(historicoVendas)); 
-    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
   }, [historicoVendas, userId]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
     localStorage.setItem('zenos_caixa_movs', JSON.stringify(caixaMovimentos)); 
-    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
   }, [caixaMovimentos, userId]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
     localStorage.setItem('zenos_despesas', JSON.stringify(despesas)); 
-    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
   }, [despesas, userId]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
     localStorage.setItem('zenos_regras_desconto', JSON.stringify(regrasDesconto)); 
-    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
   }, [regrasDesconto, userId]);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { 
+    localStorage.setItem('zenos_sessoes_caixa', JSON.stringify(sessoesCaixa)); 
+    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
+  }, [sessoesCaixa, userId]);
 
   const t = (chave) => traducoes[idioma]?.[chave] || traducoes.pt[chave] || chave;
   const tx = (pt, es, en) => { if (idioma === 'es') return es || pt; if (idioma === 'en') return en || pt; return pt; };
@@ -354,32 +369,52 @@ export default function App() {
   };
   const curvaABC = gerarCurvaABC();
 
-  const entradasDinheiroVendasBRL = vendasValidas.reduce((acc, v) => {
-    // 🛡️ CORREÇÃO PIX E TROCO (Garante que só conta dinheiro físico real)
-    const pagDinheiroBruto = (v.pagamentos || [])
-      .filter(p => p.formaId && p.formaId.startsWith('dinheiro'))
-      .reduce((sum, p) => sum + (p.valorConvertidoBRL || 0), 0);
-    const trocoDaVenda = v.trocoBRL || 0;
-    const entradaRealNaGaveta = Math.max(0, pagDinheiroBruto - trocoDaVenda);
-    return acc + entradaRealNaGaveta;
+  // 🛡️ MOTOR DE TURNOS INDEPENDENTES DE CAIXA
+  const idVendedorAtual = (operadorAtivo && operadorAtivo.id) ? operadorAtivo.id : 'admin';
+  const sessaoAtiva = sessoesCaixa.find(s => s.operadorId === idVendedorAtual && s.status === 'aberta');
+  const timestampSessao = sessaoAtiva ? parseInt(sessaoAtiva.id.split('-')[1]) : 0;
+
+  // Filtramos Vendas e Movimentações APENAS deste turno atual!
+  const vendasDestaSessao = sessaoAtiva ? vendasValidas.filter(v => v.vendedorId === idVendedorAtual && parseInt(v.id.split('-')[1]) >= timestampSessao) : [];
+  const movsSessao = sessaoAtiva ? caixaMovimentos.filter(m => m.sessaoId === sessaoAtiva.id) : [];
+
+  const entradasSessaoBRL = vendasDestaSessao.reduce((acc, v) => {
+    const pagDinheiro = (v.pagamentos || []).filter(p => p.formaId && p.formaId.startsWith('dinheiro')).reduce((sum, p) => sum + (p.valorConvertidoBRL || 0), 0);
+    return acc + Math.max(0, pagDinheiro - (v.trocoBRL || 0));
   }, 0);
-  
-  const suprimentosBRL = caixaMovimentos.filter(m => m.tipo === 'suprimento').reduce((acc, m) => acc + m.valorBRL, 0);
-  const sangriasBRL = caixaMovimentos.filter(m => m.tipo === 'sangria').reduce((acc, m) => acc + m.valorBRL, 0);
-  const saldoCaixaFisicoBRL = entradasDinheiroVendasBRL + suprimentosBRL - sangriasBRL;
+
+  const suprimentosSessaoBRL = movsSessao.filter(m => m.tipo === 'suprimento').reduce((acc, m) => acc + m.valorBRL, 0);
+  const sangriasSessaoBRL = movsSessao.filter(m => m.tipo === 'sangria').reduce((acc, m) => acc + m.valorBRL, 0);
+  const saldoSessaoFisicoBRL = (sessaoAtiva?.saldoInicial || 0) + entradasSessaoBRL + suprimentosSessaoBRL - sangriasSessaoBRL;
 
   const [modalCaixaAberto, setModalCaixaAberto] = useState(false);
   const [tipoMovCaixa, setTipoMovCaixa] = useState('suprimento'); 
   const [valorMovCaixa, setValorMovCaixa] = useState('');
   const [descMovCaixa, setDescMovCaixa] = useState('');
 
+  const abrirTurnoDeCaixa = () => {
+    const saldoIni = converterParaBRL(parseFloat(valorMovCaixa.replace(',', '.')) || 0, moeda);
+    const novaSessao = {
+      id: `SESSAO-${Date.now()}`,
+      operadorId: idVendedorAtual,
+      operadorNome: operadorAtivo?.nome || 'Administrador',
+      saldoInicial: saldoIni,
+      status: 'aberta',
+      abertura: new Date().toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR')
+    };
+    setSessoesCaixa([novaSessao, ...sessoesCaixa]);
+    setModalCaixaAberto(false);
+    setValorMovCaixa('');
+  };
+
   const registrarMovimentoCaixa = () => {
+    if (!sessaoAtiva) return alert(tx('Precisa de abrir o turno de caixa primeiro.', 'Debe abrir turno primero.', 'Must open shift first.'));
     const valBRL = converterParaBRL(parseFloat(valorMovCaixa.replace(',', '.')) || 0, moeda);
     if (valBRL <= 0) return alert(tx('Insira um valor válido.', 'Ingrese un valor válido.', 'Enter a valid amount.'));
-    if (tipoMovCaixa === 'sangria' && valBRL > saldoCaixaFisicoBRL) {
-      if (!window.confirm(tx('O valor é maior que o saldo. Continuar?', 'El valor es mayor al saldo. ¿Continuar?', 'Value exceeds balance. Continue?'))) return;
+    if (tipoMovCaixa === 'sangria' && valBRL > saldoSessaoFisicoBRL) {
+      if (!window.confirm(tx('O valor é maior que o saldo da SUA gaveta. Continuar?', 'El valor es mayor al saldo. ¿Continuar?', 'Value exceeds balance. Continue?'))) return;
     }
-    const novoMov = { id: Date.now(), dataHora: new Date().toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR'), tipo: tipoMovCaixa, valorBRL: valBRL, descricao: descMovCaixa || (tipoMovCaixa === 'suprimento' ? tx('Fundo de Troco', 'Fondo de Cambio', 'Float Fund') : tx('Retirada de Caixa', 'Retiro de Caja', 'Cash Withdrawal')) };
+    const novoMov = { id: Date.now(), sessaoId: sessaoAtiva.id, dataHora: new Date().toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR'), tipo: tipoMovCaixa, valorBRL: valBRL, descricao: descMovCaixa || (tipoMovCaixa === 'suprimento' ? tx('Reforço de Fundo', 'Refuerzo de Caja', 'Float Fund') : tx('Retirada de Caixa', 'Retiro de Caja', 'Cash Withdrawal')), operador: operadorAtivo?.nome };
     setCaixaMovimentos([novoMov, ...caixaMovimentos]);
     setModalCaixaAberto(false);
     setValorMovCaixa(''); setDescMovCaixa('');
@@ -387,14 +422,26 @@ export default function App() {
 
   const processarFechamentoCego = () => {
     const valInformadoBRL = converterParaBRL(parseFloat(valorMovCaixa.replace(',', '.')) || 0, moeda);
-    const diferenca = valInformadoBRL - saldoCaixaFisicoBRL;
-    let msg = `=========================\n${tx('FECHAMENTO DE CAIXA', 'CIERRE DE CAJA', 'CASH CLOSEOUT')}\n=========================\n`;
-    msg += `${tx('Saldo Esperado:', 'Saldo Esperado:', 'Expected Balance:')} ${fmt(saldoCaixaFisicoBRL, 'BRL')}\n`;
-    msg += `${tx('Saldo Informado:', 'Saldo Informado:', 'Reported Balance:')} ${fmt(valInformadoBRL, 'BRL')}\n`;
+    const diferenca = valInformadoBRL - saldoSessaoFisicoBRL;
+    
+    // Fecha o turno
+    const sessoesAtualizadas = sessoesCaixa.map(s => {
+      if (s.id === sessaoAtiva.id) {
+        return { ...s, status: 'fechada', fechamento: new Date().toISOString(), saldoInformado: valInformadoBRL, diferenca: diferenca, saldoSistema: saldoSessaoFisicoBRL };
+      }
+      return s;
+    });
+    setSessoesCaixa(sessoesAtualizadas);
+
+    let msg = `=========================\n${tx('FECHO DE TURNO', 'CIERRE DE TURNO', 'SHIFT CLOSE')}\n=========================\n`;
+    msg += `Operador: ${sessaoAtiva.operadorNome}\n\n`;
+    msg += `${tx('Saldo Sistema:', 'Saldo Sistema:', 'System Bal:')} ${fmt(saldoSessaoFisicoBRL, 'BRL')}\n`;
+    msg += `${tx('Saldo Informado:', 'Informado:', 'Reported:')} ${fmt(valInformadoBRL, 'BRL')}\n`;
     msg += `${tx('Diferença:', 'Diferencia:', 'Difference:')} ${fmt(diferenca, 'BRL')}\n\n`;
-    if (Math.abs(diferenca) < 0.1) msg += `✅ ${tx('CAIXA BATEU!', '¡CAJA CUADRA!', 'DRAWER BALANCED!')}`;
-    else if (diferenca < 0) msg += `❌ ${tx('QUEBRA NEGATIVA', 'FALTANTE', 'SHORTAGE')}`;
-    else msg += `⚠️ ${tx('SOBRA NO CAIXA', 'SOBRANTE', 'OVERAGE')}`;
+    if (Math.abs(diferenca) < 0.1) msg += `✅ ${tx('CAIXA CERTINHO!', '¡PERFECTO!', 'PERFECT!')}`;
+    else if (diferenca < 0) msg += `❌ QUEBRA NEGATIVA (Faltou dinheiro)`;
+    else msg += `⚠️ SOBRA DE CAIXA`;
+    
     alert(msg);
     setModalCaixaAberto(false);
     setValorMovCaixa('');
@@ -410,7 +457,7 @@ export default function App() {
   const renderNavButton = (id, icone, texto, badge = null) => {
     const ativo = ecraAtual === id;
     return (
-      <button onClick={() => { setEcraAtual(id); setMenuNavAberto(false); }} style={{ width: '100%', backgroundColor: ativo ? (id === 'clientes' ? '#451a03' : id === 'produtos' ? '#082f49' : id === 'pdv' ? '#064e3b' : id === 'mesas' ? '#4c0519' : id === 'inteligencia' ? '#4c1d95' : id === 'comissoes' ? '#831843' : id === 'dashboardMobile' ? '#78350f' : '#1e1b4b') : 'transparent', color: ativo ? (id === 'clientes' ? '#fbbf24' : id === 'produtos' ? '#38bdf8' : id === 'pdv' ? '#34d399' : id === 'mesas' ? '#fda4af' : id === 'inteligencia' ? '#c084fc' : id === 'comissoes' ? '#f472b6' : id === 'dashboardMobile' ? '#fcd34d' : '#ffffff') : '#94a3b8', border: `1px solid ${ativo ? (id === 'clientes' ? '#d97706' : id === 'produtos' ? '#0284c7' : id === 'pdv' ? '#10b981' : id === 'mesas' ? '#e11d48' : id === 'inteligencia' ? '#a855f7' : id === 'comissoes' ? '#be185d' : id === 'dashboardMobile' ? '#d97706' : '#6366f1') : 'transparent'}`, borderRadius: '8px', padding: '12px 16px', fontSize: '14px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'all 0.2s' }}>
+      <button onClick={() => { setEcraAtual(id); setMenuNavAberto(false); }} style={{ width: '100%', backgroundColor: ativo ? (id === 'clientes' ? '#451a03' : id === 'produtos' ? '#082f49' : id === 'pdv' ? '#064e3b' : id === 'mesas' ? '#4c0519' : id === 'inteligencia' ? '#4c1d95' : id === 'comissoes' ? '#831843' : id === 'dashboardMobile' ? '#78350f' : id === 'auditoria_caixas' ? '#3f6212' : '#1e1b4b') : 'transparent', color: ativo ? (id === 'clientes' ? '#fbbf24' : id === 'produtos' ? '#38bdf8' : id === 'pdv' ? '#34d399' : id === 'mesas' ? '#fda4af' : id === 'inteligencia' ? '#c084fc' : id === 'comissoes' ? '#f472b6' : id === 'dashboardMobile' ? '#fcd34d' : id === 'auditoria_caixas' ? '#a3e635' : '#ffffff') : '#94a3b8', border: `1px solid ${ativo ? (id === 'clientes' ? '#d97706' : id === 'produtos' ? '#0284c7' : id === 'pdv' ? '#10b981' : id === 'mesas' ? '#e11d48' : id === 'inteligencia' ? '#a855f7' : id === 'comissoes' ? '#be185d' : id === 'dashboardMobile' ? '#d97706' : id === 'auditoria_caixas' ? '#65a30d' : '#6366f1') : 'transparent'}`, borderRadius: '8px', padding: '12px 16px', fontSize: '14px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'all 0.2s' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><span style={{ fontSize: '18px' }}>{icone}</span><span>{texto}</span></div>
         {badge && <span style={{ backgroundColor: badge.bg, color: badge.color, fontSize: '11px', padding: '2px 8px', borderRadius: '999px', fontWeight: 900 }}>{badge.text}</span>}
       </button>
@@ -478,7 +525,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* MODAL DE PLANOS */}
         {modalPlanosAberto && (
           <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.9)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px', boxSizing: 'border-box' }}>
             <div style={{ backgroundColor: '#0b1120', border: '1px solid #14b8a6', borderRadius: '24px', width: '100%', maxWidth: '900px', maxHeight: '92vh', overflowY: 'auto', padding: '32px', color: '#fff', boxSizing: 'border-box' }}>
@@ -613,7 +659,6 @@ export default function App() {
                   
                   {renderNavButton('hub', '🏠', tx('Painel Inicial', 'Panel de Inicio', 'Home Dashboard'))}
                   
-                  {/* 🛡️ PERMISSÕES APLICADAS AO MENU LATERAL */}
                   {temPermissao('pdv') && renderNavButton('pdv', '🛒', t('pdvBalcao'))}
                   {temPermissao('mesas') && renderNavButton('mesas', '🍽️', tx('Mesas / Comandas', 'Mesas / Comandas', 'Tables / Tabs'))}
                   {temPermissao('produtos') && renderNavButton('produtos', '📦', t('produtosEstoque'), { bg: '#0284c7', color: '#fff', text: produtos.length })}
@@ -625,6 +670,7 @@ export default function App() {
                   {temPermissao('admin') && renderNavButton('dashboardMobile', '📱', tx('App Mobile (CEO)', 'App Mobile (CEO)', 'Mobile App (CEO)'))}
                   {temPermissao('despesas') && renderNavButton('despesas', '💸', tx('Contas a Pagar', 'Cuentas a Pagar', 'Expenses'), { bg: '#e11d48', color: '#fff', text: despesas.filter(d=>d.status==='pendente').length || '0' })}
                   {temPermissao('admin') && renderNavButton('configuracoes', '⚙️', tx('Configurações', 'Configuraciones', 'Settings'))}
+                  {temPermissao('admin') && renderNavButton('auditoria_caixas', '🏦', tx('Auditoria de Caixas', 'Auditoría de Cajas', 'Drawer Audit'))}
                   {temPermissao('admin') && renderNavButton('migracao', '📥', tx('Importar Dados', 'Importar Datos', 'Import Data'))}
                 </div>
               </>
@@ -695,7 +741,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* 🛡️ PERMISSÕES APLICADAS AO PAINEL EXECUTIVO */}
             {temPermissao('inteligencia') && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                 <div onClick={() => setMostrarPainelExecutivo(!mostrarPainelExecutivo)} style={{ background: mostrarPainelExecutivo ? '#0f172a' : 'linear-gradient(135deg, #1e293b, #0f172a)', border: `1px solid ${mostrarPainelExecutivo ? '#1e293b' : '#334155'}`, borderRadius: '20px', padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', transition: 'all 0.3s', boxShadow: mostrarPainelExecutivo ? 'none' : '0 10px 30px rgba(0,0,0,0.4)', flexWrap: 'wrap', gap: '16px' }}>
@@ -733,25 +778,37 @@ export default function App() {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
                       <div className="mobile-padding" style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '24px', padding: '32px', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '10px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}><span style={{ fontSize: '24px' }}>💵</span><h3 style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff', margin: 0 }}>Gestão de Caixa</h3></div>
-                          <span style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '8px 12px', borderRadius: '12px', fontSize: '12px', fontWeight: 900, border: '1px solid rgba(16, 185, 129, 0.3)' }}>Saldo: {fmt(saldoCaixaFisicoBRL)}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}><span style={{ fontSize: '24px' }}>💵</span><h3 style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff', margin: 0 }}>Meu Turno de Caixa</h3></div>
+                          <span style={{ backgroundColor: sessaoAtiva ? 'rgba(16, 185, 129, 0.1)' : 'rgba(244, 63, 94, 0.1)', color: sessaoAtiva ? '#10b981' : '#f43f5e', padding: '8px 12px', borderRadius: '12px', fontSize: '12px', fontWeight: 900, border: `1px solid ${sessaoAtiva ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)'}` }}>
+                            {sessaoAtiva ? `Aberto • Saldo: ${fmt(saldoSessaoFisicoBRL)}` : 'FECHADO'}
+                          </span>
                         </div>
-                        <div style={{ display: 'flex', gap: '10px', marginBottom: '24px', flexWrap: 'wrap' }}>
-                          <button onClick={() => { setTipoMovCaixa('suprimento'); setModalCaixaAberto(true); }} style={{ flex: '1 1 calc(50% - 5px)', padding: '14px 10px', backgroundColor: '#021e15', border: '1px solid rgba(16, 185, 129, 0.5)', color: '#34d399', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '12px' }}>+ Entrada</button>
-                          <button onClick={() => { setTipoMovCaixa('sangria'); setModalCaixaAberto(true); }} style={{ flex: '1 1 calc(50% - 5px)', padding: '14px 10px', backgroundColor: '#2e0a16', border: '1px solid rgba(244, 63, 94, 0.5)', color: '#fb7185', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '12px' }}>- Saída</button>
-                          <button onClick={() => { setTipoMovCaixa('fechamento'); setModalCaixaAberto(true); }} style={{ flex: '1 1 100%', padding: '14px', background: 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#ffffff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '13px' }}>🔒 Fechar Caixa</button>
-                        </div>
-                        <div style={{ flex: 1, backgroundColor: '#020617', borderRadius: '12px', border: '1px solid #1e293b', padding: '16px', overflowY: 'auto', maxHeight: '250px' }}>
-                          <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '16px', display: 'block', letterSpacing: '1px' }}>Movimentações Internas</span>
-                          {caixaMovimentos.length === 0 ? <div style={{ color: '#475569', fontSize: '13px', textAlign: 'center', marginTop: '30px' }}>-</div> : (
-                            caixaMovimentos.map(m => (
-                              <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '13px' }}>
-                                <div><span style={{ color: '#e2e8f0', fontWeight: 700 }}>{m.tipo === 'suprimento' ? 'Entrada' : 'Saída'}: {m.descricao}</span><br/><span style={{ color: '#64748b', fontSize: '10px', marginTop: '4px', display: 'inline-block' }}>{m.dataHora} • {m.operador}</span></div>
-                                <span style={{ fontWeight: 900, color: m.tipo === 'suprimento' ? '#34d399' : '#fb7185', fontSize: '14px' }}>{m.tipo === 'suprimento' ? '+' : '-'}{fmt(m.valorBRL, 'BRL')}</span>
-                              </div>
-                            ))
-                          )}
-                        </div>
+                        
+                        {!sessaoAtiva ? (
+                          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                            <span style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '16px' }}>Você precisa de abrir o seu turno com um fundo de troco para começar a vender.</span>
+                            <button onClick={() => { setTipoMovCaixa('abertura'); setModalCaixaAberto(true); }} style={{ padding: '14px 24px', background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', color: '#ffffff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '14px', boxShadow: '0 4px 15px rgba(16, 185, 129, 0.3)' }}>🔓 Abrir Turno de Caixa</button>
+                          </div>
+                        ) : (
+                          <>
+                            <div style={{ display: 'flex', gap: '10px', marginBottom: '24px', flexWrap: 'wrap' }}>
+                              <button onClick={() => { setTipoMovCaixa('suprimento'); setModalCaixaAberto(true); }} style={{ flex: '1 1 calc(50% - 5px)', padding: '14px 10px', backgroundColor: '#021e15', border: '1px solid rgba(16, 185, 129, 0.5)', color: '#34d399', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '12px' }}>+ Entrada (Reforço)</button>
+                              <button onClick={() => { setTipoMovCaixa('sangria'); setModalCaixaAberto(true); }} style={{ flex: '1 1 calc(50% - 5px)', padding: '14px 10px', backgroundColor: '#2e0a16', border: '1px solid rgba(244, 63, 94, 0.5)', color: '#fb7185', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '12px' }}>- Saída (Sangria)</button>
+                              <button onClick={() => { setTipoMovCaixa('fechamento'); setModalCaixaAberto(true); }} style={{ flex: '1 1 100%', padding: '14px', background: 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#ffffff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '13px' }}>🔒 Encerrar Turno</button>
+                            </div>
+                            <div style={{ flex: 1, backgroundColor: '#020617', borderRadius: '12px', border: '1px solid #1e293b', padding: '16px', overflowY: 'auto', maxHeight: '250px' }}>
+                              <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '16px', display: 'block', letterSpacing: '1px' }}>Movimentações Deste Turno</span>
+                              {movsSessao.length === 0 ? <div style={{ color: '#475569', fontSize: '13px', textAlign: 'center', marginTop: '30px' }}>-</div> : (
+                                movsSessao.map(m => (
+                                  <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '13px' }}>
+                                    <div><span style={{ color: '#e2e8f0', fontWeight: 700 }}>{m.tipo === 'suprimento' ? 'Entrada' : 'Saída'}: {m.descricao}</span><br/><span style={{ color: '#64748b', fontSize: '10px', marginTop: '4px', display: 'inline-block' }}>{m.dataHora}</span></div>
+                                    <span style={{ fontWeight: 900, color: m.tipo === 'suprimento' ? '#34d399' : '#fb7185', fontSize: '14px' }}>{m.tipo === 'suprimento' ? '+' : '-'}{fmt(m.valorBRL, 'BRL')}</span>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </>
+                        )}
                       </div>
 
                       <div className="mobile-padding" style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '24px', padding: '32px', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
@@ -797,7 +854,7 @@ export default function App() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '16px' }}>
               
               {temPermissao('pdv') && (
-                <div onClick={() => setEcraAtual('pdv')} style={{ backgroundColor: '#021e15', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '20px', padding: '24px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
+                <div onClick={() => sessaoAtiva ? setEcraAtual('pdv') : alert(tx('Para vender, abra primeiro o seu Turno de Caixa no painel financeiro!', '¡Abra su turno de caja primero!', 'Open your cash shift first!'))} style={{ backgroundColor: '#021e15', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '20px', padding: '24px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
                   <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #10b981, #059669)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', boxShadow: '0 8px 20px rgba(16,185,129,0.4)' }}>🛒</div>
                   <div><h2 style={{ fontSize: '15px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>PDV Balcão</h2><span style={{fontSize: '11px', color: '#94a3b8'}}>Frente de Caixa</span></div>
                 </div>
@@ -865,6 +922,7 @@ export default function App() {
         {ecraAtual === 'vendas' && <Vendas historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} fmt={fmt} t={t} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterDeBRL={converterDeBRL} />}
         {ecraAtual === 'migracao' && <Migracao produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} t={t} tx={tx} />}
         {ecraAtual === 'configuracoes' && <Configuracoes produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} despesas={despesas} setDespesas={setDespesas} moeda={moeda} fmt={fmt} tx={tx} regrasDesconto={regrasDesconto} setRegrasDesconto={setRegrasDesconto} vendedores={vendedores} setVendedores={(novosVendedores) => { setVendedores(novosVendedores); localStorage.setItem('zenos_vendedores', JSON.stringify(novosVendedores)); if (userId) setDoc(doc(db, "lojas", userId, "dados", "operacao"), { vendedores: novosVendedores }, { merge: true }); }} />}
+        {ecraAtual === 'auditoria_caixas' && <GestaoCaixas sessoesCaixa={sessoesCaixa} fmt={fmt} tx={tx} />}
         {ecraAtual === 'despesas' && <Despesas despesas={despesas} setDespesas={setDespesas} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterParaBRL={converterParaBRL} />}
       </main>
 
@@ -891,12 +949,12 @@ export default function App() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div>
                 <span style={{ fontSize: '11px', fontWeight: 800, color: tipoMovCaixa === 'sangria' ? '#fb7185' : tipoMovCaixa === 'suprimento' ? '#34d399' : '#818cf8', letterSpacing: '1px', textTransform: 'uppercase' }}>{tx('Gestão de Gaveta', 'Gestión de Gaveta', 'Drawer Mgt')}</span>
-                <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff', margin: '2px 0 0 0' }}>{tipoMovCaixa === 'sangria' ? tx('Registrar Sangria (-)', 'Registrar Sangría (-)', 'Cash Drop (-)') : tipoMovCaixa === 'suprimento' ? tx('Registrar Suprimento (+)', 'Registrar Suplemento (+)', 'Cash In (+)') : tx('Fechamento Cego de Caixa', 'Cierre Ciego de Caja', 'Blind Cash Closeout')}</h3>
+                <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff', margin: '2px 0 0 0' }}>{tipoMovCaixa === 'sangria' ? tx('Registrar Sangria (-)', 'Registrar Sangría (-)', 'Cash Drop (-)') : tipoMovCaixa === 'suprimento' ? tx('Registrar Suprimento (+)', 'Registrar Suplemento (+)', 'Cash In (+)') : tipoMovCaixa === 'abertura' ? tx('Abertura de Turno', 'Apertura de Caja', 'Open Shift') : tx('Fechamento Cego de Caixa', 'Cierre Ciego de Caja', 'Blind Cash Closeout')}</h3>
               </div>
               <button onClick={() => setModalCaixaAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#64748b', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>✕</button>
             </div>
 
-            {tipoMovCaixa === 'fechamento' ? (
+            {tipoMovCaixa === 'fechamento' || tipoMovCaixa === 'abertura' ? (
               <div style={{ marginBottom: '20px' }}>
                 <p style={{ fontSize: '13px', color: '#94a3b8', lineHeight: 1.5, marginBottom: '16px' }}>
                   {tx('Conte as notas e moedas físicas na gaveta e digite o total exato abaixo.', 'Cuente el efectivo físico en la gaveta e ingrese el total exacto.', 'Count the physical cash in the drawer and enter the exact total below.')}
@@ -917,8 +975,8 @@ export default function App() {
               </div>
             )}
 
-            <button onClick={tipoMovCaixa === 'fechamento' ? processarFechamentoCego : registrarMovimentoCaixa} style={{ width: '100%', background: tipoMovCaixa === 'sangria' ? 'linear-gradient(135deg, #e11d48, #be123c)' : tipoMovCaixa === 'suprimento' ? 'linear-gradient(135deg, #10b981, #059669)' : 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#ffffff', padding: '16px', borderRadius: '12px', fontSize: '14px', fontWeight: 900, cursor: 'pointer' }}>
-              {tipoMovCaixa === 'fechamento' ? tx('Auditar Caixa Cego', 'Auditar Caja', 'Audit Blind Box') : tx('Registrar na Gaveta', 'Registrar', 'Save Record')}
+            <button onClick={tipoMovCaixa === 'fechamento' ? processarFechamentoCego : (tipoMovCaixa === 'abertura' ? abrirTurnoDeCaixa : registrarMovimentoCaixa)} style={{ width: '100%', background: tipoMovCaixa === 'sangria' ? 'linear-gradient(135deg, #e11d48, #be123c)' : tipoMovCaixa === 'suprimento' ? 'linear-gradient(135deg, #10b981, #059669)' : 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#ffffff', padding: '16px', borderRadius: '12px', fontSize: '14px', fontWeight: 900, cursor: 'pointer' }}>
+              {tipoMovCaixa === 'fechamento' ? tx('Auditar Caixa Cego', 'Auditar Caja', 'Audit Blind Box') : (tipoMovCaixa === 'abertura' ? tx('Abrir Turno com Saldo', 'Abrir Turno', 'Open Shift') : tx('Registrar na Gaveta', 'Registrar', 'Save Record'))}
             </button>
           </div>
         </div>
