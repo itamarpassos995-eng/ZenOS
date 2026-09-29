@@ -345,7 +345,18 @@ export default function App() {
   };
   const curvaABC = gerarCurvaABC();
 
-  const entradasDinheiroVendasBRL = vendasValidas.reduce((acc, v) => {
+ const entradasDinheiroVendasBRL = vendasValidas.reduce((acc, v) => {
+    // 🛡️ CORREÇÃO PIX: Só soma se o pagamento for estritamente da família "Dinheiro" (dinheiro_brl, dinheiro_usd, etc.)
+    const pagDinheiroBruto = (v.pagamentos || [])
+      .filter(p => p.formaId && p.formaId.startsWith('dinheiro'))
+      .reduce((sum, p) => sum + (p.valorConvertidoBRL || 0), 0);
+    
+    // 🛡️ CORREÇÃO TROCO: Se o cliente deu R$ 300 e a venda era R$ 280, subtraímos os R$ 20 de troco da gaveta!
+    const trocoDaVenda = v.trocoBRL || 0;
+    const entradaRealNaGaveta = Math.max(0, pagDinheiroBruto - trocoDaVenda);
+
+    return acc + entradaRealNaGaveta;
+  }, 0);
     const pagDinheiro = (v.pagamentos || []).filter(p => (p.rotulo || '').includes('Dinheiro') || (p.rotulo || '').includes('Efectivo') || (p.rotulo || '').includes('Cash')).reduce((sum, p) => sum + (p.valorConvertidoBRL || 0), 0);
     return acc + pagDinheiro;
   }, 0);
