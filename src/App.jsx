@@ -17,6 +17,7 @@ import Comissoes from './components/Comissoes';
 import Mesas from './components/Mesas';
 import DashboardMobile from './components/DashboardMobile';
 import Configuracoes from './components/Configuracoes';
+import GestaoCaixas from './components/GestaoCaixas';
 
 const CURRENT_SCHEMA_VERSION = 1;
 
