@@ -52,7 +52,17 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
 
   useEffect(() => { setIndiceFocoBusca(0); }, [termoBusca]);
   useEffect(() => { if (itemParaAdicionar && inputQtdRapidaRef.current) { inputQtdRapidaRef.current.focus(); inputQtdRapidaRef.current.select(); } }, [itemParaAdicionar]);
-
+// 🛡️ RESTAURAR ATALHOS DE TECLADO
+  useEffect(() => {
+    const lidarAtalhos = (e) => {
+      if (e.key === 'F10') {
+        e.preventDefault();
+        abrirFechamento();
+      }
+    };
+    window.addEventListener('keydown', lidarAtalhos);
+    return () => window.removeEventListener('keydown', lidarAtalhos);
+  });
   const aplicarPrecoPorPerfilCliente = (prod, cliente) => {
     if (!prod) return 0;
     if (cliente && cliente.perfilPreco === 'preco2' && prod.habilitarPreco2 && prod.preco2BRL > 0) return prod.preco2BRL;
@@ -279,17 +289,16 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
   };
 
   // 🛡️ TRANSAÇÃO DE VENDA BLINDADA
+// 🛡️ TRANSAÇÃO DE VENDA TOTALMENTE BLINDADA
   const concluirVenda = () => {
     if (!podeFinalizarVenda) return;
     
     try {
-      // 1. Prepara a remoção de itens únicos
       const idsParaRemover = itensVenda
         .filter(it => it.usoUnicoEncomendado || String(it.sku).toUpperCase().includes('ENCOMENDA'))
         .map(it => String(it.produtoOriginalId || it.id));
       
-      // 2. Calcula dedução de estoque real
-      const novosProdutos = produtos.map(p => {
+      const novosProdutos = (produtos || []).map(p => {
         const qtdVendidaDesteProduto = itensVenda
           .filter(i => String(i.produtoOriginalId || i.id) === String(p.id))
           .reduce((soma, i) => soma + (parseInt(i.qtd) || 0), 0);
@@ -300,19 +309,23 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
         return p;
       }).filter(p => !idsParaRemover.includes(String(p.id))); 
 
-      // 3. Verifica se tem Fiado para somar na conta do cliente
       let novosClientes = null;
-      const valorFiado = pagamentosLancados.filter(p => p.formaId === 'crediario').reduce((acc, p) => acc + p.valorConvertidoBRL, 0);
+      const valorFiado = pagamentosLancados.filter(p => p.formaId === 'crediario').reduce((acc, p) => acc + (parseFloat(p.valorConvertidoBRL) || 0), 0);
+      
       if (valorFiado > 0 && clienteSelecionadoPDV) {
-        novosClientes = clientes.map(c => c.id === clienteSelecionadoPDV.id ? { ...c, saldoDevedorBRL: (parseFloat(c.saldoDevedorBRL) || 0) + valorFiado } : c);
+        novosClientes = (clientes || []).map(c => 
+          String(c.id) === String(clienteSelecionadoPDV.id) 
+            ? { ...c, saldoDevedorBRL: (parseFloat(c.saldoDevedorBRL) || 0) + valorFiado } 
+            : c
+        );
       }
 
-      // 4. Cria o Recibo Seguro (Mesmo que o Operador seja nulo)
-      const nomeSeguro = operadorAtivo?.nome || 'Administrador';
-      const idSeguro = operadorAtivo?.id || 'admin';
+      // Validação de segurança para impedir "crashes" de utilizadores
+      const idSeguro = (operadorAtivo && operadorAtivo.id) ? operadorAtivo.id : 'admin';
+      const nomeSeguro = (operadorAtivo && operadorAtivo.nome) ? operadorAtivo.nome : 'Administrador';
 
       const novaVenda = {
-        id: `VENDA-${1000 + historicoVendas.length + 1}`,
+        id: `VENDA-${Date.now()}`,
         dataHora: new Date().toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR'),
         clienteId: clienteSelecionadoPDV ? clienteSelecionadoPDV.id : null,
         clienteNome: clienteSelecionadoPDV ? clienteSelecionadoPDV.nome : tx('Consumidor Balcão', 'Consumidor', 'Walk-in'),
@@ -323,21 +336,27 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
         lucroBRL: lucroEstimadoBRL,
         trocoBRL: trocoTotalBRL,
         pagamentos: [...pagamentosLancados],
-        detalhesPagamento: pagamentosLancados.map(p => `${p.rotulo}: ${p.valorOriginal.toFixed(2)}`).join(' • ') || tx('Dinheiro', 'Efectivo', 'Cash'),
+        detalhesPagamento: pagamentosLancados.map(p => `${p.rotulo}: ${(parseFloat(p.valorOriginal)||0).toFixed(2)}`).join(' • ') || tx('Dinheiro', 'Efectivo', 'Cash'),
         estado: 'concluida'
       };
 
-      // 5. EFETUA AS MUDANÇAS DE ESTADO TODAS DE UMA VEZ (Transação Completa)
+      // ⚠️ ATUALIZA TUDO AO MESMO TEMPO (Evita que o saldo suba se o talão não for gerado)
       setProdutos(novosProdutos);
-      if (novosClientes) setClientes(novosClientes);
-      setHistoricoVendas([novaVenda, ...historicoVendas]);
+      if (novosClientes) {
+        setClientes(novosClientes);
+      }
+      
+      const histAntigo = Array.isArray(historicoVendas) ? historicoVendas : [];
+      if (typeof setHistoricoVendas === 'function') {
+        setHistoricoVendas([novaVenda, ...histAntigo]);
+      }
       
       setVendaConcluidaObj(novaVenda);
-      setVendaSucesso(true);
+      setVendaSucesso(true); // AGORA A TELA DO TALÃO APARECE COM SUCESSO
 
     } catch (err) {
       console.error("Erro fatal ao finalizar venda:", err);
-      alert("Houve um erro interno ao processar a venda. Verifique a consola do navegador.");
+      alert("Erro na operação. A venda foi abortada em segurança para proteger os estoques e fiados.");
     }
   };
 
