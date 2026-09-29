@@ -285,11 +285,20 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
     const configForma = catalogoFormas.find(f => f.id === formaSelecionada) || catalogoFormas[0];
     const valorBRL = converterParaBRL(valorNum, configForma.moedaOrigem);
 
-    if (configForma.id === 'crediario') {
-      if (!clienteSelecionadoPDV) return alert(tx('Para Fiado, vincule o cliente na tela inicial do PDV!', 'Para fiado, vincule el cliente.', 'For Credit, link customer.'));
+  if (configForma.id === 'crediario') {
+      if (!clienteSelecionadoPDV) return alert("Para Fiado, vincule o cliente na tela inicial do PDV!");
+
+      const limite = parseFloat(clienteSelecionadoPDV.limiteCreditoBRL) || 0;
+      
+      // TRAVA 1: Se o cliente não tem limite ou o limite é zero
+      if (limite <= 0) {
+        return alert("⛔ Venda Bloqueada: Este cliente não possui limite de crédito cadastrado ou o limite é zero.");
+      }
+
+      // TRAVA 2: Se a compra ultrapassar o limite (Sem opção de confirmar)
       const novoDevedor = (parseFloat(clienteSelecionadoPDV.saldoDevedorBRL) || 0) + valorBRL;
-      if (novoDevedor > (parseFloat(clienteSelecionadoPDV.limiteCreditoBRL) || 0)) {
-        if (!window.confirm(tx(`O limite de ${fmt(clienteSelecionadoPDV.limiteCreditoBRL, 'BRL')} foi ultrapassado!\nAutorizar pagamento em fiado?`, `¡Límite superado!\n¿Autorizar?`, `Limit exceeded!\nAuthorize?`))) return;
+      if (novoDevedor > limite) {
+        return alert(`⛔ Venda Bloqueada: O limite do cliente é ${fmt(limite, 'BRL')}. Com esta compra, a dívida iria para ${fmt(novoDevedor, 'BRL')}.`);
       }
     }
 
@@ -666,10 +675,20 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
                 return (<button key={tipo.id} type="button" onClick={() => setFormProdutoPDV({ ...formProdutoPDV, tipoItem: tipo.id })} style={{ backgroundColor: ativo ? '#082f49' : '#020617', border: `1px solid ${ativo ? '#0284c7' : '#1e293b'}`, color: ativo ? '#38bdf8' : '#94a3b8', borderRadius: '10px', padding: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}><span>{tipo.icone}</span><span>{tipo.rotulo}</span></button>);
               })}
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '18px' }}>
+           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '18px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
                 <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>SKU</label><input type="text" value={formProdutoPDV.sku} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, sku: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 800, fontSize: '13px', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
                 <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Nome do Item</label><input type="text" value={formProdutoPDV.nome} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, nome: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 700, fontSize: '13px', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+                <div>
+                  <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Grupo / Categoria (Livre)</label>
+                  <input type="text" placeholder="Ex: Tintas, Pincéis..." value={formProdutoPDV.grupo || ''} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, grupo: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 700, fontSize: '13px', padding: '10px', outline: 'none', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Fornecedor / Marca</label>
+                  <input type="text" placeholder="Ex: Suvinil, Tigre..." value={formProdutoPDV.fornecedor || ''} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, fornecedor: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 700, fontSize: '13px', padding: '10px', outline: 'none', boxSizing: 'border-box' }} />
+                </div>
               </div>
             </div>
             <div style={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', padding: '16px 20px', marginBottom: '18px' }}>
