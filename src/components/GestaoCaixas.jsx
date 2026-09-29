@@ -1,4 +1,3 @@
-// src/components/GestaoCaixas.jsx
 import React from 'react';
 
 export default function GestaoCaixas({ sessoesCaixa, fmt, tx }) {
