@@ -17,8 +17,33 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
   const [selDespesas, setSelDespesas] = useState(false);
   const [selTudo, setSelTudo] = useState(false);
 
+  // 🏢 NOVO: ESTADOS PARA IDENTIDADE DA LOJA
+  const [nomeLojaInput, setNomeLojaInput] = useState(() => localStorage.getItem('zenos_nome_loja') || '');
+  const [salvandoNome, setSalvandoNome] = useState(false);
+
   const handleSelTudo = (val) => {
     setSelTudo(val); setSelProdutos(val); setSelClientes(val); setSelVendas(val); setSelCaixa(val); setSelDespesas(val);
+  };
+
+  // 🏢 NOVO: MOTOR DE SALVAMENTO DE NOME DA LOJA
+  const salvarNomeLoja = async () => {
+    if (!nomeLojaInput.trim()) return;
+    setSalvandoNome(true);
+    try {
+      localStorage.setItem('zenos_nome_loja', nomeLojaInput);
+      const user = auth.currentUser;
+      if (user) {
+        await setDoc(doc(db, "lojas", user.uid, "dados", "configuracoes"), { 
+          nomeLoja: nomeLojaInput 
+        }, { merge: true });
+      }
+      alert(tx ? tx('Nome da loja atualizado com sucesso!', '¡Nombre actualizado con éxito!', 'Store name successfully updated!') : 'Nome atualizado!');
+      window.location.reload(); 
+    } catch (err) {
+      console.error("Erro ao salvar nome:", err);
+      alert("Erro ao salvar. Verifique a conexão.");
+    }
+    setSalvandoNome(false);
   };
 
   // 🛡️ AQUI ESTAVA O ERRO DA TELA PRETA (ESTADOS QUE FALTAVAM)
@@ -97,6 +122,43 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
       <div>
         <h2 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>Configurações do Sistema</h2>
         <span style={{ fontSize: '13px', color: '#64748b' }}>Gestão de equipa, rentabilidade e segurança</span>
+      </div>
+
+      {/* 🏢 NOVO: CARTÃO IDENTIDADE DA LOJA */}
+      <div style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 10px 30px rgba(0,0,0,0.2)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ fontSize: '20px' }}>🏢</span>
+          <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff', margin: 0 }}>
+            {tx ? tx('Identidade da Loja', 'Identidad de la Tienda', 'Store Identity') : 'Identidade da Loja'}
+          </h3>
+        </div>
+        
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxWidth: '500px' }}>
+          <label style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>
+            {tx ? tx('Nome Fantasia / Razão Social', 'Nombre Comercial', 'Store Name') : 'Nome da Loja'}
+          </label>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <input 
+              type="text" 
+              value={nomeLojaInput} 
+              onChange={(e) => setNomeLojaInput(e.target.value)}
+              placeholder={tx ? tx('Ex: Zênite Atacadão', 'Ej: Zênite Atacadão', 'Ex: Zênite Store') : 'Ex: Minha Loja'}
+              style={{ flex: 1, minWidth: '200px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '12px', color: '#f8fafc', fontSize: '14px', fontWeight: 700, padding: '12px 16px', outline: 'none', transition: 'border-color 0.2s' }}
+              onFocus={(e) => e.target.style.borderColor = '#6366f1'}
+              onBlur={(e) => e.target.style.borderColor = '#334155'}
+            />
+            <button 
+              onClick={salvarNomeLoja}
+              disabled={salvandoNome}
+              style={{ background: 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#ffffff', padding: '12px 24px', borderRadius: '12px', fontSize: '14px', fontWeight: 900, cursor: salvandoNome ? 'not-allowed' : 'pointer', opacity: salvandoNome ? 0.7 : 1, transition: 'opacity 0.2s', whiteSpace: 'nowrap' }}
+            >
+              {salvandoNome ? 'A Guardar...' : (tx ? tx('Guardar Alterações', 'Guardar Cambios', 'Save Changes') : 'Guardar')}
+            </button>
+          </div>
+          <span style={{ fontSize: '11px', color: '#64748b' }}>
+            {tx ? tx('Este nome aparecerá no menu lateral e nos recibos impressos.', 'Este nombre aparecerá en el menú y recibos.', 'This name will appear on the menu and receipts.') : 'Aparece no menu e recibos.'}
+          </span>
+        </div>
       </div>
 
       {/* 🛡️ SEMÁFORO DE LUCRATIVIDADE DA VENDA */}
@@ -261,7 +323,7 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
       {/* ZONA DE PERIGO */}
       <div style={{ backgroundColor: '#2e0a16', border: '1px solid rgba(244, 63, 94, 0.4)', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '20px' }}>⚠️</span><h3 style={{ fontSize: '18px', fontWeight: 900, color: '#fb7185', margin: 0 }}>Zona de Perigo • Limpeza</h3>
+          <span style={{ fontSize: '20px' }}>⚠️️</span><h3 style={{ fontSize: '18px', fontWeight: 900, color: '#fb7185', margin: 0 }}>Zona de Perigo • Limpeza</h3>
         </div>
         <div>
           <button onClick={() => { setEtapaAviso(1); setSenhaAdmin(''); handleSelTudo(false); setModalResetAberto(true); }} type="button" style={{ backgroundColor: '#e11d48', border: 'none', color: '#fff', padding: '12px 24px', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', fontSize: '13px' }}>🗑️ Gerir Restauração</button>
