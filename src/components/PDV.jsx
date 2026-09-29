@@ -227,6 +227,17 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
 
   const podeFinalizarVenda = totalFinalBRL > 0 && totalPagoConvertidoBRL >= (totalFinalBRL - 0.05);
 
+  useEffect(() => {
+    const lidarAtalhos = (e) => {
+      if (e.key === 'F10') {
+        e.preventDefault();
+        abrirFechamento();
+      }
+    };
+    window.addEventListener('keydown', lidarAtalhos);
+    return () => window.removeEventListener('keydown', lidarAtalhos);
+  });
+
   const abrirFechamento = () => {
     if (vendaBloqueadaPorMargem) {
       if (regras?.exigirSenhaVermelho ?? true) {
@@ -251,17 +262,6 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
     setVendaSucesso(false); 
     setModalFechamentoAberto(true);
   };
-
-  useEffect(() => {
-    const lidarAtalhos = (e) => {
-      if (e.key === 'F10') {
-        e.preventDefault();
-        abrirFechamento();
-      }
-    };
-    window.addEventListener('keydown', lidarAtalhos);
-    return () => window.removeEventListener('keydown', lidarAtalhos);
-  });
 
   const adicionarPagamento = () => {
     const valorNum = parseFloat(String(valorLancamentoInput).replace(',', '.')) || 0;
@@ -330,7 +330,8 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
       const nomeSeguro = (operadorAtivo && operadorAtivo.nome) ? operadorAtivo.nome : 'Administrador';
 
       const docRotulo = tipoFinalizacao === 'venda' ? 'VENDA' : (tipoFinalizacao === 'pre_pedido' ? 'PRÉ-PEDIDO' : 'ORÇAMENTO');
-      const comissaoPendente = tipoFinalizacao === 'pre_pedido'; 
+      // O estado define se entra no somatório financeiro do App.jsx ('concluida' soma, as outras não)
+      const estadoFinal = tipoFinalizacao === 'venda' ? 'concluida' : (tipoFinalizacao === 'pre_pedido' ? 'pendente' : 'orcamento');
 
       const novaVenda = {
         id: `${docRotulo}-${Date.now()}`,
@@ -346,9 +347,8 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
         moedaTrocoInfo: tipoFinalizacao === 'venda' && trocoTotalBRL > 0.01 ? `${moedaTrocoEscolhida}` : null,
         pagamentos: tipoFinalizacao === 'venda' ? [...pagamentosLancados] : [],
         detalhesPagamento: tipoFinalizacao === 'venda' ? (pagamentosLancados.map(p => `${p.rotulo}: ${(parseFloat(p.valorOriginal)||0).toFixed(2)}`).join(' • ') || tx('Dinheiro', 'Efectivo', 'Cash')) : docRotulo,
-        estado: tipoFinalizacao === 'venda' ? 'concluida' : 'pendente',
-        tipoDocumento: tipoFinalizacao,
-        comissaoPendente: comissaoPendente
+        estado: estadoFinal,
+        tipoDocumento: tipoFinalizacao
       };
 
       if (tipoFinalizacao === 'venda') {
@@ -502,7 +502,6 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
           <div style={{ fontSize: '13px', fontWeight: 800, color: corSemafaro }}>{textoSemafaro}</div>
         </div>
 
-        {/* 🛡️ OPÇÕES DE GERAÇÃO (Orçamento, Pré-Pedido, Venda) */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div style={{ display: 'flex', gap: '10px' }}>
             <button onClick={() => { if(itensVenda.length===0) return; concluirTransacao('orcamento'); }} style={{ flex: 1, padding: '12px', background: 'transparent', border: '1px solid #475569', color: '#94a3b8', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', fontSize: '12px' }}>
@@ -594,7 +593,7 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
         </div>
       )}
 
-      {/* MODAL DE FECHAMENTO (CHECKOUT - CAIXA) */}
+      {/* MODAL DE FECHAMENTO (CHECKOUT - CAIXA E DOCUMENTOS) */}
       {modalFechamentoAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1500, padding: '16px', boxSizing: 'border-box' }}>
           <div style={{ backgroundColor: vendaSucesso ? '#ffffff' : '#0b1120', border: '1px solid #10b981', borderRadius: vendaSucesso ? '16px' : '24px', width: '100%', maxWidth: vendaSucesso ? '380px' : '750px', maxHeight: '95vh', overflowY: 'auto', padding: vendaSucesso ? '0' : '28px', color: vendaSucesso ? '#000' : '#fff', boxShadow: '0 25px 50px rgba(0,0,0,0.5)', boxSizing: 'border-box' }}>
