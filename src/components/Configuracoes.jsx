@@ -17,33 +17,57 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
   const [selDespesas, setSelDespesas] = useState(false);
   const [selTudo, setSelTudo] = useState(false);
 
-  // 🏢 NOVO: ESTADOS PARA IDENTIDADE DA LOJA
-  const [nomeLojaInput, setNomeLojaInput] = useState(() => localStorage.getItem('zenos_nome_loja') || '');
-  const [salvandoNome, setSalvandoNome] = useState(false);
+  // 🏢 NOVO: ESTADOS PARA PERFIL COMPLETO E FISCAL DA LOJA
+  const [perfilLoja, setPerfilLoja] = useState(() => {
+    try {
+      const salvo = localStorage.getItem('zenos_perfil_loja');
+      if (salvo) return JSON.parse(salvo);
+    } catch (err) {}
+    return {
+      nomeFantasia: localStorage.getItem('zenos_nome_loja') || '',
+      razaoSocial: '',
+      pais: 'BR', // BR, PY ou OUTRO
+      documento1: '', // CNPJ ou RUC
+      documento2: '', // IE ou Timbrado
+      telefone: '',
+      endereco: '',
+      cidade: '',
+      rodapeRecibo: 'Obrigado pela preferência! Volte sempre.'
+    };
+  });
+  const [salvandoPerfil, setSalvandoPerfil] = useState(false);
 
   const handleSelTudo = (val) => {
     setSelTudo(val); setSelProdutos(val); setSelClientes(val); setSelVendas(val); setSelCaixa(val); setSelDespesas(val);
   };
 
-  // 🏢 NOVO: MOTOR DE SALVAMENTO DE NOME DA LOJA
-  const salvarNomeLoja = async () => {
-    if (!nomeLojaInput.trim()) return;
-    setSalvandoNome(true);
+  const lidarMudancaPerfil = (campo, valor) => {
+    setPerfilLoja(prev => ({ ...prev, [campo]: valor }));
+  };
+
+  // 🏢 NOVO: MOTOR DE SALVAMENTO DO PERFIL FISCAL (Nuvem e Local)
+  const salvarPerfilLoja = async () => {
+    if (!perfilLoja.nomeFantasia.trim()) return alert(tx ? tx('O Nome Fantasia é obrigatório.', 'El Nombre Comercial es obligatorio.', 'Store Name is required.') : 'Nome obrigatório.');
+    setSalvandoPerfil(true);
     try {
-      localStorage.setItem('zenos_nome_loja', nomeLojaInput);
+      // Guarda o objeto completo para o sistema fiscal
+      localStorage.setItem('zenos_perfil_loja', JSON.stringify(perfilLoja));
+      // Mantém esta chave isolada para retrocompatibilidade com o menu no App.jsx
+      localStorage.setItem('zenos_nome_loja', perfilLoja.nomeFantasia); 
+      
       const user = auth.currentUser;
       if (user) {
         await setDoc(doc(db, "lojas", user.uid, "dados", "configuracoes"), { 
-          nomeLoja: nomeLojaInput 
+          perfilLoja: perfilLoja 
         }, { merge: true });
       }
-      alert(tx ? tx('Nome da loja atualizado com sucesso!', '¡Nombre actualizado con éxito!', 'Store name successfully updated!') : 'Nome atualizado!');
+      alert(tx ? tx('Dados fiscais da loja atualizados com sucesso!', '¡Datos fiscales actualizados con éxito!', 'Fiscal data successfully updated!') : 'Dados atualizados!');
       window.location.reload(); 
     } catch (err) {
-      console.error("Erro ao salvar nome:", err);
-      alert("Erro ao salvar. Verifique a conexão.");
+      console.error("Erro ao guardar perfil:", err);
+      alert("Erro ao guardar. Verifique a conexão.");
     }
-    setSalvandoNome(false);
+    setSalvandoPerfil(false);
   };
 
   // 🛡️ AQUI ESTAVA O ERRO DA TELA PRETA (ESTADOS QUE FALTAVAM)
@@ -124,40 +148,75 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
         <span style={{ fontSize: '13px', color: '#64748b' }}>Gestão de equipa, rentabilidade e segurança</span>
       </div>
 
-      {/* 🏢 NOVO: CARTÃO IDENTIDADE DA LOJA */}
-      <div style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 10px 30px rgba(0,0,0,0.2)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '20px' }}>🏢</span>
-          <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff', margin: 0 }}>
-            {tx ? tx('Identidade da Loja', 'Identidad de la Tienda', 'Store Identity') : 'Identidade da Loja'}
-          </h3>
+      {/* 🏢 NOVO: CARTÃO IDENTIDADE E DADOS FISCAIS DA LOJA */}
+      <div style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.2)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '20px' }}>🏛️</span>
+            <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff', margin: 0 }}>
+              {tx ? tx('Dados da Empresa e Fiscal', 'Datos de la Empresa y Fiscal', 'Company & Fiscal Data') : 'Dados da Empresa'}
+            </h3>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#020617', padding: '4px 8px', borderRadius: '10px', border: '1px solid #334155' }}>
+            <span style={{ fontSize: '16px' }}>{perfilLoja.pais === 'BR' ? '🇧🇷' : perfilLoja.pais === 'PY' ? '🇵🇾' : '🌐'}</span>
+            <select value={perfilLoja.pais} onChange={(e) => lidarMudancaPerfil('pais', e.target.value)} style={{ backgroundColor: 'transparent', color: '#f8fafc', fontSize: '12px', fontWeight: 900, border: 'none', outline: 'none', cursor: 'pointer' }}>
+              <option value="BR">Brasil (BR)</option>
+              <option value="PY">Paraguay (PY)</option>
+              <option value="OUTRO">Outro (Global)</option>
+            </select>
+          </div>
         </div>
         
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxWidth: '500px' }}>
-          <label style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>
-            {tx ? tx('Nome Fantasia / Razão Social', 'Nombre Comercial', 'Store Name') : 'Nome da Loja'}
-          </label>
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-            <input 
-              type="text" 
-              value={nomeLojaInput} 
-              onChange={(e) => setNomeLojaInput(e.target.value)}
-              placeholder={tx ? tx('Ex: Zênite Atacadão', 'Ej: Zênite Atacadão', 'Ex: Zênite Store') : 'Ex: Minha Loja'}
-              style={{ flex: 1, minWidth: '200px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '12px', color: '#f8fafc', fontSize: '14px', fontWeight: 700, padding: '12px 16px', outline: 'none', transition: 'border-color 0.2s' }}
-              onFocus={(e) => e.target.style.borderColor = '#6366f1'}
-              onBlur={(e) => e.target.style.borderColor = '#334155'}
-            />
-            <button 
-              onClick={salvarNomeLoja}
-              disabled={salvandoNome}
-              style={{ background: 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#ffffff', padding: '12px 24px', borderRadius: '12px', fontSize: '14px', fontWeight: 900, cursor: salvandoNome ? 'not-allowed' : 'pointer', opacity: salvandoNome ? 0.7 : 1, transition: 'opacity 0.2s', whiteSpace: 'nowrap' }}
-            >
-              {salvandoNome ? 'A Guardar...' : (tx ? tx('Guardar Alterações', 'Guardar Cambios', 'Save Changes') : 'Guardar')}
-            </button>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+          {/* Nome e Razão Social */}
+          <div>
+            <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>Nome Fantasia (Loja)</label>
+            <input type="text" value={perfilLoja.nomeFantasia} onChange={(e) => lidarMudancaPerfil('nomeFantasia', e.target.value)} placeholder="Ex: Zênite Atacadão" style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#f8fafc', padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
           </div>
-          <span style={{ fontSize: '11px', color: '#64748b' }}>
-            {tx ? tx('Este nome aparecerá no menu lateral e nos recibos impressos.', 'Este nombre aparecerá en el menú y recibos.', 'This name will appear on the menu and receipts.') : 'Aparece no menu e recibos.'}
-          </span>
+          <div>
+            <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>{perfilLoja.pais === 'PY' ? 'Razón Social' : 'Razão Social (Legal)'}</label>
+            <input type="text" value={perfilLoja.razaoSocial} onChange={(e) => lidarMudancaPerfil('razaoSocial', e.target.value)} placeholder="Ex: Zênite Tintas LTDA" style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#f8fafc', padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
+          </div>
+
+          {/* Documentos Dinâmicos */}
+          <div>
+            <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>{perfilLoja.pais === 'BR' ? 'CNPJ' : perfilLoja.pais === 'PY' ? 'RUC' : 'NIF / Documento Fiscal'}</label>
+            <input type="text" value={perfilLoja.documento1} onChange={(e) => lidarMudancaPerfil('documento1', e.target.value)} placeholder={perfilLoja.pais === 'BR' ? '00.000.000/0001-00' : '8000000-1'} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#38bdf8', fontWeight: 900, padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
+          </div>
+          <div>
+            <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>{perfilLoja.pais === 'BR' ? 'Inscrição Estadual (IE)' : perfilLoja.pais === 'PY' ? 'Timbrado Fiscal' : 'Registo Comercial'}</label>
+            <input type="text" value={perfilLoja.documento2} onChange={(e) => lidarMudancaPerfil('documento2', e.target.value)} placeholder={perfilLoja.pais === 'PY' ? '12345678' : 'Isento ou Número'} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#f8fafc', padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
+          </div>
+
+          {/* Contacto e Localização */}
+          <div>
+            <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>Telemóvel / WhatsApp</label>
+            <input type="text" value={perfilLoja.telefone} onChange={(e) => lidarMudancaPerfil('telefone', e.target.value)} placeholder="+55 11 99999-9999" style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#34d399', fontWeight: 900, padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
+          </div>
+          <div>
+            <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>Cidade / Região</label>
+            <input type="text" value={perfilLoja.cidade} onChange={(e) => lidarMudancaPerfil('cidade', e.target.value)} placeholder="Ex: São Paulo - SP" style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#f8fafc', padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
+          </div>
+          
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>Endereço Completo (Para Recibos)</label>
+            <input type="text" value={perfilLoja.endereco} onChange={(e) => lidarMudancaPerfil('endereco', e.target.value)} placeholder="Rua das Tintas, 123 - Centro" style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#f8fafc', padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
+          </div>
+
+          <div style={{ gridColumn: '1 / -1', borderTop: '1px dashed #334155', paddingTop: '16px' }}>
+            <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>Mensagem de Rodapé (Impressões)</label>
+            <input type="text" value={perfilLoja.rodapeRecibo} onChange={(e) => lidarMudancaPerfil('rodapeRecibo', e.target.value)} placeholder="Ex: Volte sempre! Siga o nosso Instagram @loja" style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#cbd5e1', padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+          <button 
+            onClick={salvarPerfilLoja}
+            disabled={salvandoPerfil}
+            style={{ background: 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#ffffff', padding: '14px 32px', borderRadius: '12px', fontSize: '14px', fontWeight: 900, cursor: salvandoPerfil ? 'not-allowed' : 'pointer', opacity: salvandoPerfil ? 0.7 : 1, transition: 'all 0.2s', boxShadow: '0 4px 15px rgba(79, 70, 229, 0.4)' }}
+          >
+            {salvandoPerfil ? 'A Guardar...' : (tx ? tx('Guardar Informações Fiscais', 'Guardar Datos Fiscales', 'Save Fiscal Data') : 'Guardar Informações Fiscais')}
+          </button>
         </div>
       </div>
 
@@ -271,7 +330,7 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                 <input type="checkbox" disabled={novoVendedorPermissoes.admin} checked={novoVendedorPermissoes.admin || novoVendedorPermissoes.mesas} onChange={e => setNovoVendedorPermissoes({...novoVendedorPermissoes, mesas: e.target.checked})} style={{ width: '16px', height: '16px', accentColor: '#10b981' }} />
-                🍽️ Gestão de Mesas/Comandas
+                🍽️️ Gestão de Mesas/Comandas
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                 <input type="checkbox" disabled={novoVendedorPermissoes.admin} checked={novoVendedorPermissoes.admin || novoVendedorPermissoes.produtos} onChange={e => setNovoVendedorPermissoes({...novoVendedorPermissoes, produtos: e.target.checked})} style={{ width: '16px', height: '16px', accentColor: '#0284c7' }} />
@@ -323,7 +382,7 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
       {/* ZONA DE PERIGO */}
       <div style={{ backgroundColor: '#2e0a16', border: '1px solid rgba(244, 63, 94, 0.4)', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '20px' }}>⚠️️</span><h3 style={{ fontSize: '18px', fontWeight: 900, color: '#fb7185', margin: 0 }}>Zona de Perigo • Limpeza</h3>
+          <span style={{ fontSize: '20px' }}>⚠️</span><h3 style={{ fontSize: '18px', fontWeight: 900, color: '#fb7185', margin: 0 }}>Zona de Perigo • Limpeza</h3>
         </div>
         <div>
           <button onClick={() => { setEtapaAviso(1); setSenhaAdmin(''); handleSelTudo(false); setModalResetAberto(true); }} type="button" style={{ backgroundColor: '#e11d48', border: 'none', color: '#fff', padding: '12px 24px', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', fontSize: '13px' }}>🗑️ Gerir Restauração</button>
