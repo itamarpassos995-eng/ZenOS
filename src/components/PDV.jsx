@@ -246,7 +246,7 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
     setVendaSucesso(false); setModalFechamentoAberto(true);
   };
 
-  const adicionarPagamento = () => {
+ const adicionarPagamento = () => {
     const valorNum = parseFloat(String(valorLancamentoInput).replace(',', '.')) || 0;
     if (valorNum <= 0) return;
     const configForma = catalogoFormas.find(f => f.id === formaSelecionada) || catalogoFormas[0];
@@ -260,23 +260,33 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
       }
     }
 
-    const novaLista = [...pagamentosLancados, { id: Date.now(), ...configForma, valorOriginal: valorNum, valorConvertidoBRL: valorBRL }];
+    // 🛡️ CORREÇÃO: Usamos um ID único para a lista, e guardamos a "formaId" (ex: pix, dinheiro_brl) para os relatórios e cálculo de caixa.
+    const novaLista = [...pagamentosLancados, { 
+      ...configForma, 
+      idUnicoTabela: Date.now(), 
+      formaId: configForma.id, 
+      valorOriginal: valorNum, 
+      valorConvertidoBRL: valorBRL 
+    }];
     setPagamentosLancados(novaLista);
     const novoSaldo = Math.max(0, totalFinalBRL - novaLista.reduce((acc, p) => acc + p.valorConvertidoBRL, 0));
     setValorLancamentoInput(novoSaldo > 0 ? converterDeBRL(novoSaldo, configForma.moedaOrigem).toFixed(2) : '');
   };
-
-  const concluirVenda = () => {
+ const concluirVenda = () => {
     if (!podeFinalizarVenda) return;
     
     const idsParaRemover = itensVenda
       .filter(it => it.usoUnicoEncomendado || String(it.sku).toUpperCase().includes('ENCOMENDA'))
-      .map(it => String(it.id));
+      .map(it => String(it.produtoOriginalId)); // Correção: Procurar pelo ID original
     
+    // 🛡️ CORREÇÃO DO ESTOQUE: Agora agrupa todas as quantidades do mesmo produto original no carrinho
     const novosProdutos = produtos.map(p => {
-      const itemVendido = itensVenda.find(i => String(i.id) === String(p.id));
-      if (itemVendido && p.tipoItem !== 'servico' && !idsParaRemover.includes(String(p.id))) {
-        return { ...p, estoque: Math.max(0, (parseInt(p.estoque) || 0) - (parseInt(itemVendido.qtd) || 0)) };
+      const qtdVendidaDesteProduto = itensVenda
+        .filter(i => String(i.produtoOriginalId) === String(p.id))
+        .reduce((soma, i) => soma + (parseInt(i.qtd) || 0), 0);
+
+      if (qtdVendidaDesteProduto > 0 && p.tipoItem !== 'servico' && !idsParaRemover.includes(String(p.id))) {
+        return { ...p, estoque: Math.max(0, (parseInt(p.estoque) || 0) - qtdVendidaDesteProduto) };
       }
       return p;
     }).filter(p => !idsParaRemover.includes(String(p.id))); 
@@ -291,12 +301,18 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
       localStorage.setItem('zenos_clientes', JSON.stringify(novosClientes));
     }
 
+    // 🛡️ CORREÇÃO DO TROCO E VALOR FINAL: A venda crava o total real (ex: 280) e regista o troco (ex: 20) separadamente.
     const novaVenda = {
       id: `VENDA-${1000 + historicoVendas.length + 1}`,
       dataHora: new Date().toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR'),
       clienteId: clienteSelecionadoPDV ? clienteSelecionadoPDV.id : null,
       clienteNome: clienteSelecionadoPDV ? clienteSelecionadoPDV.nome : tx('Consumidor Balcão', 'Consumidor', 'Walk-in'),
-      itens: [...itensVenda], totalBRL: totalFinalBRL, lucroBRL: lucroEstimadoBRL,
+      vendedorId: operadorAtivo?.id || 'admin',
+      vendedorNome: operadorAtivo?.nome || 'Administrador',
+      itens: [...itensVenda], 
+      totalBRL: totalFinalBRL, // 280.00
+      lucroBRL: lucroEstimadoBRL,
+      trocoBRL: trocoTotalBRL, // Guarda os 20.00 de troco!
       pagamentos: [...pagamentosLancados],
       detalhesPagamento: pagamentosLancados.map(p => `${p.rotulo}: ${p.valorOriginal.toFixed(2)}`).join(' • ') || tx('Dinheiro', 'Efectivo', 'Cash'),
       estado: 'concluida'
@@ -309,7 +325,6 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
     setVendaConcluidaObj(novaVenda);
     setVendaSucesso(true);
   };
-
   const executarImpressaoNativa = () => {
     const elementoCupom = document.getElementById('area-cupom-pdv');
     if (!elementoCupom) return;
