@@ -160,9 +160,9 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#020617', padding: '4px 8px', borderRadius: '10px', border: '1px solid #334155' }}>
             <span style={{ fontSize: '16px' }}>{perfilLoja.pais === 'BR' ? '🇧🇷' : perfilLoja.pais === 'PY' ? '🇵🇾' : '🌐'}</span>
             <select value={perfilLoja.pais} onChange={(e) => lidarMudancaPerfil('pais', e.target.value)} style={{ backgroundColor: 'transparent', color: '#f8fafc', fontSize: '12px', fontWeight: 900, border: 'none', outline: 'none', cursor: 'pointer' }}>
-              <option value="BR">Brasil (BR)</option>
-              <option value="PY">Paraguay (PY)</option>
-              <option value="OUTRO">Outro (Global)</option>
+              <option value="BR" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>Brasil (BR)</option>
+              <option value="PY" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>Paraguay (PY)</option>
+              <option value="OUTRO" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>Outro (Global)</option>
             </select>
           </div>
         </div>
@@ -330,7 +330,7 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                 <input type="checkbox" disabled={novoVendedorPermissoes.admin} checked={novoVendedorPermissoes.admin || novoVendedorPermissoes.mesas} onChange={e => setNovoVendedorPermissoes({...novoVendedorPermissoes, mesas: e.target.checked})} style={{ width: '16px', height: '16px', accentColor: '#10b981' }} />
-                🍽️️ Gestão de Mesas/Comandas
+                🍽 Gestão de Mesas/Comandas
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                 <input type="checkbox" disabled={novoVendedorPermissoes.admin} checked={novoVendedorPermissoes.admin || novoVendedorPermissoes.produtos} onChange={e => setNovoVendedorPermissoes({...novoVendedorPermissoes, produtos: e.target.checked})} style={{ width: '16px', height: '16px', accentColor: '#0284c7' }} />
