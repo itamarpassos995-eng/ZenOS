@@ -26,7 +26,6 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
   const [formaSelecionada, setFormaSelecionada] = useState('dinheiro_brl');
   const [valorLancamentoInput, setValorLancamentoInput] = useState('');
   
-  // NOVO: Qual a moeda que o operador escolheu para devolver o troco?
   const [moedaTrocoEscolhida, setMoedaTrocoEscolhida] = useState('BRL');
   
   const [vendaSucesso, setVendaSucesso] = useState(false);
@@ -216,11 +215,9 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
     { id: 'crediario', rotulo: tx('Crediário / Fiado', 'Fiado / Crédito', 'Store Credit'), moedaOrigem: 'BRL', icone: '📒' }
   ];
 
-  // 🛡️ MATEMÁTICA DO TROCO E SALDOS
   const totalPagoConvertidoBRL = pagamentosLancados.reduce((acc, p) => acc + (p.valorConvertidoBRL || 0), 0);
   const saldoRestanteBRL = Math.max(0, totalFinalBRL - totalPagoConvertidoBRL);
   
-  // O troco pode ser devolvido se pagarem em dinheiro
   const totalDinheiroBRL = pagamentosLancados
     .filter(p => p.formaId && p.formaId.startsWith('dinheiro'))
     .reduce((acc, p) => acc + (p.valorConvertidoBRL || 0), 0);
@@ -228,23 +225,7 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
   const valorExcedidoGlobal = totalPagoConvertidoBRL - totalFinalBRL;
   const trocoTotalBRL = valorExcedidoGlobal > 0.01 ? Math.min(valorExcedidoGlobal, totalDinheiroBRL) : 0;
 
-  // Mostra a conversão do troco na moeda escolhida pelo operador
-  const trocoNaMoedaEscolhida = converterDeBRL(trocoTotalBRL, moedaTrocoEscolhida);
-  const configMoedaTroco = moedasConfig[moedaTrocoEscolhida];
-
   const podeFinalizarVenda = totalFinalBRL > 0 && totalPagoConvertidoBRL >= (totalFinalBRL - 0.05);
-
-  // F10 reativado
-  useEffect(() => {
-    const lidarAtalhos = (e) => {
-      if (e.key === 'F10') {
-        e.preventDefault();
-        abrirFechamento();
-      }
-    };
-    window.addEventListener('keydown', lidarAtalhos);
-    return () => window.removeEventListener('keydown', lidarAtalhos);
-  });
 
   const abrirFechamento = () => {
     if (vendaBloqueadaPorMargem) {
@@ -265,11 +246,22 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
     if (itensVenda.length === 0 || totalFinalBRL <= 0) return alert(tx('Adicione produtos à venda.', 'Añada productos.', 'Add products.'));
     setPagamentosLancados([]); 
     setFormaSelecionada('dinheiro_brl');
-    setMoedaTrocoEscolhida(moeda); // Troco padrão na moeda principal do sistema
+    setMoedaTrocoEscolhida(moeda);
     setValorLancamentoInput(converterDeBRL(totalFinalBRL, 'BRL').toFixed(2));
     setVendaSucesso(false); 
     setModalFechamentoAberto(true);
   };
+
+  useEffect(() => {
+    const lidarAtalhos = (e) => {
+      if (e.key === 'F10') {
+        e.preventDefault();
+        abrirFechamento();
+      }
+    };
+    window.addEventListener('keydown', lidarAtalhos);
+    return () => window.removeEventListener('keydown', lidarAtalhos);
+  });
 
   const adicionarPagamento = () => {
     const valorNum = parseFloat(String(valorLancamentoInput).replace(',', '.')) || 0;
@@ -299,10 +291,7 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
     setValorLancamentoInput(novoSaldo > 0 ? converterDeBRL(novoSaldo, configForma.moedaOrigem).toFixed(2) : '');
   };
 
-  // 🛡️ NOVO FLUXO: ORÇAMENTO E PRÉ-PEDIDO (NÃO DESCONTA ESTOQUE NEM FIADO)
   const concluirTransacao = (tipoFinalizacao) => {
-    // tipoFinalizacao: 'orcamento', 'pre_pedido', ou 'venda'
-    
     if (tipoFinalizacao === 'venda' && !podeFinalizarVenda) return;
     
     try {
@@ -313,7 +302,6 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
       let novosProdutos = produtos;
       let novosClientes = null;
 
-      // SÓ DESCONTA O ESTOQUE E GERA DÍVIDA SE FOR UMA "VENDA" REAL COM PAGAMENTO
       if (tipoFinalizacao === 'venda') {
         novosProdutos = (produtos || []).map(p => {
           const qtdVendidaDesteProduto = itensVenda
@@ -340,9 +328,8 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
       const idSeguro = (operadorAtivo && operadorAtivo.id) ? operadorAtivo.id : 'admin';
       const nomeSeguro = (operadorAtivo && operadorAtivo.nome) ? operadorAtivo.nome : 'Administrador';
 
-      // 🛡️ DADOS DO DOCUMENTO
       const docRotulo = tipoFinalizacao === 'venda' ? 'VENDA' : (tipoFinalizacao === 'pre_pedido' ? 'PRÉ-PEDIDO' : 'ORÇAMENTO');
-      const comissaoPendente = tipoFinalizacao === 'pre_pedido'; // Comissão fica congelada até virar venda no caixa
+      const comissaoPendente = tipoFinalizacao === 'pre_pedido'; 
 
       const novaVenda = {
         id: `${docRotulo}-${Date.now()}`,
@@ -355,15 +342,14 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
         totalBRL: totalFinalBRL, 
         lucroBRL: lucroEstimadoBRL,
         trocoBRL: tipoFinalizacao === 'venda' ? trocoTotalBRL : 0,
-        moedaTrocoInfo: tipoFinalizacao === 'venda' && trocoTotalBRL > 0.01 ? `${configMoedaTroco.simbolo} ${trocoNaMoedaEscolhida.toFixed(2)}` : null,
+        moedaTrocoInfo: tipoFinalizacao === 'venda' && trocoTotalBRL > 0.01 ? `${moedaTrocoEscolhida}` : null,
         pagamentos: tipoFinalizacao === 'venda' ? [...pagamentosLancados] : [],
         detalhesPagamento: tipoFinalizacao === 'venda' ? (pagamentosLancados.map(p => `${p.rotulo}: ${(parseFloat(p.valorOriginal)||0).toFixed(2)}`).join(' • ') || tx('Dinheiro', 'Efectivo', 'Cash')) : docRotulo,
-        estado: tipoFinalizacao === 'venda' ? 'concluida' : 'pendente', // Pré-pedidos ficam pendentes
+        estado: tipoFinalizacao === 'venda' ? 'concluida' : 'pendente',
         tipoDocumento: tipoFinalizacao,
         comissaoPendente: comissaoPendente
       };
 
-      // Atualiza base de dados
       if (tipoFinalizacao === 'venda') {
         setProdutos(novosProdutos);
         if (novosClientes) setClientes(novosClientes);
@@ -494,6 +480,7 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
         </div>
       </div>
 
+      {/* COLUNA DIREITA: RESUMO E FINALIZAÇÃO DE VENDA */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
         
         <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
@@ -515,7 +502,6 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
           <div style={{ fontSize: '13px', fontWeight: 800, color: corSemafaro }}>{textoSemafaro}</div>
         </div>
 
-        {/* 🛡️ OPÇÕES DE GERAÇÃO (Orçamento, Pré-Pedido, Venda) */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div style={{ display: 'flex', gap: '10px' }}>
             <button onClick={() => { if(itensVenda.length===0) return; concluirTransacao('orcamento'); }} style={{ flex: 1, padding: '12px', background: 'transparent', border: '1px solid #475569', color: '#94a3b8', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', fontSize: '12px' }}>
@@ -533,7 +519,7 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
       </div>
 
       {itemParaAdicionar && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85), backdrop-filter: blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '16px' }}>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '16px' }}>
           <div style={{ backgroundColor: '#0b1120', border: '1px solid #6366f1', borderRadius: '20px', width: '100%', maxWidth: '400px', padding: '28px', color: '#fff', textAlign: 'center' }}>
             <h3 style={{ fontSize: '18px', fontWeight: 900, marginBottom: '16px' }}>{itemParaAdicionar.nome}</h3>
             <input ref={inputQtdRapidaRef} type="number" value={qtdDigitadaRapida} onChange={e => setQtdDigitadaRapida(e.target.value)} onFocus={e=>e.target.select()} onKeyDown={e=>{if(e.key==='Enter') confirmarAdicaoRapida(); if(e.key==='Escape') setItemParaAdicionar(null);}} style={{ width: '80px', padding: '10px', fontSize: '20px', textAlign: 'center', backgroundColor: '#020617', border: '1px solid #6366f1', color: '#fff', borderRadius: '8px', marginBottom: '20px', outline: 'none' }} />
@@ -641,7 +627,7 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
                         <strong>Pagamentos (Liquidados):</strong><br/>
                         {vendaConcluidaObj?.pagamentos.map((p, idx) => <div key={idx} style={{ display: 'flex', justifyContent: 'space-between' }}><span>{p.rotulo}</span><span>{p.valorOriginal.toFixed(2)}</span></div>)}
                       </div>
-                      {vendaConcluidaObj?.trocoBRL > 0.01 && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginTop: '4px', backgroundColor: '#e2e8f0', padding: '2px' }}><span>TROCO (${vendaConcluidaObj.moedaTrocoInfo})</span><span>{fmt(vendaConcluidaObj.trocoBRL)}</span></div>}
+                      {vendaConcluidaObj?.trocoBRL > 0.01 && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginTop: '4px', backgroundColor: '#e2e8f0', padding: '2px' }}><span>TROCO ({vendaConcluidaObj.moedaTrocoInfo})</span><span>{fmt(vendaConcluidaObj.trocoBRL)}</span></div>}
                     </>
                   )}
                   {vendaConcluidaObj?.tipoDocumento === 'pre_pedido' && (
@@ -681,7 +667,7 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
                       <div style={{ fontSize: '18px', fontWeight: 900, color: '#fb7185' }}>{fmt(saldoRestanteBRL, 'BRL')}</div>
                     ) : (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <div style={{ fontSize: '18px', fontWeight: 900, color: trocoTotalBRL > 0 ? '#fbbf24' : '#38bdf8' }}>{trocoTotalBRL > 0 ? `${configMoedaTroco.simbolo} ${trocoNaMoedaEscolhida.toFixed(2)}` : 'QUITADO ✓'}</div>
+                        <div style={{ fontSize: '18px', fontWeight: 900, color: trocoTotalBRL > 0 ? '#fbbf24' : '#38bdf8' }}>{trocoTotalBRL > 0 ? `${converterDeBRL(trocoTotalBRL, moedaTrocoEscolhida).toFixed(2)}` : 'QUITADO ✓'}</div>
                         {trocoTotalBRL > 0 && (
                           <select value={moedaTrocoEscolhida} onChange={(e) => setMoedaTrocoEscolhida(e.target.value)} style={{ backgroundColor: '#0f172a', color: '#fbbf24', border: '1px solid #334155', borderRadius: '4px', fontSize: '11px', outline: 'none', cursor: 'pointer', padding: '2px' }}>
                             <option value="BRL">BRL</option><option value="USD">USD</option><option value="EUR">EUR</option><option value="PYG">PYG</option>
