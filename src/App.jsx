@@ -501,7 +501,7 @@ export default function App() {
     ? historicoVendas 
     : historicoVendas.filter(v => String(v.vendedorId) === String(operadorAtivo?.id));
 
-  const renderNavButton = (id, icone, texto, badge = null) => {
+ const renderNavButton = (id, icone, texto, badge = null) => {
     const ativo = ecraAtual === id;
     
     const lidarComClique = () => {
@@ -515,13 +515,32 @@ export default function App() {
     };
 
     return (
-      <button onClick={lidarComClique} style={{ width: '100%', backgroundColor: ativo ? (id === 'clientes' ? '#451a03' : id === 'produtos' ? '#082f49' : id === 'pdv' ? '#064e3b' : id === 'mesas' ? '#4c0519' : id === 'inteligencia' ? '#4c1d95' : id === 'comissoes' ? '#831843' : id === 'dashboardMobile' ? '#78350f' : id === 'auditoria_caixas' ? '#3f6212' : '#1e1b4b') : 'transparent', color: ativo ? (id === 'clientes' ? '#fbbf24' : id === 'produtos' ? '#38bdf8' : id === 'pdv' ? '#34d399' : id === 'mesas' ? '#fda4af' : id === 'inteligencia' ? '#c084fc' : id === 'comissoes' ? '#f472b6' : id === 'dashboardMobile' ? '#fcd34d' : id === 'auditoria_caixas' ? '#a3e635' : '#ffffff') : '#94a3b8', border: `1px solid ${ativo ? (id === 'clientes' ? '#d97706' : id === 'produtos' ? '#0284c7' : id === 'pdv' ? '#10b981' : id === 'mesas' ? '#e11d48' : id === 'inteligencia' ? '#a855f7' : id === 'comissoes' ? '#be185d' : id === 'dashboardMobile' ? '#d97706' : id === 'auditoria_caixas' ? '#65a30d' : '#6366f1') : 'transparent'}`, borderRadius: '8px', padding: '12px 16px', fontSize: '14px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'all 0.2s' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><span style={{ fontSize: '18px' }}>{icone}</span><span>{texto}</span></div>
-        {badge && <span style={{ backgroundColor: badge.bg, color: badge.color, fontSize: '11px', padding: '2px 8px', borderRadius: '999px', fontWeight: 900 }}>{badge.text}</span>}
+      <button onClick={lidarComClique} style={{
+        width: '100%',
+        backgroundColor: ativo ? 'rgba(99, 102, 241, 0.1)' : 'transparent',
+        color: ativo ? '#ffffff' : '#94a3b8',
+        border: 'none',
+        borderLeft: ativo ? '4px solid #6366f1' : '4px solid transparent',
+        borderRadius: '0 8px 8px 0',
+        padding: '10px 12px',
+        fontSize: '14px',
+        fontWeight: ativo ? 700 : 500,
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        transition: 'all 0.2s ease-in-out',
+        marginBottom: '2px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {/* O segredo do alinhamento: largura fixa (24px) e centralização para o ícone */}
+          <span style={{ fontSize: '18px', width: '24px', textAlign: 'center', filter: ativo ? 'grayscale(0%)' : 'grayscale(100%) opacity(0.6)' }}>{icone}</span>
+          <span style={{ letterSpacing: '0.3px' }}>{texto}</span>
+        </div>
+        {badge && <span style={{ backgroundColor: badge.bg, color: badge.color, fontSize: '11px', padding: '2px 8px', borderRadius: '999px', fontWeight: 800, boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>{badge.text}</span>}
       </button>
     );
   };
-
   if (carregandoAuth) {
     return (
       <div style={{ minHeight: '100vh', backgroundColor: '#020617', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -563,19 +582,42 @@ export default function App() {
             <button onClick={() => setMenuNavAberto(!menuNavAberto)} style={{ backgroundColor: menuNavAberto ? '#1e293b' : '#020617', border: '1px solid #334155', color: '#f8fafc', padding: '8px 12px', borderRadius: '10px', fontSize: '14px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.4)' }}>
               <span style={{ fontSize: '18px' }}>☰</span><span className="hide-mobile">{tx('Menu', 'Menú', 'Menu')}</span>
             </button>
-            {menuNavAberto && (
+          {menuNavAberto && (
               <>
-                <div onClick={() => setMenuNavAberto(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }}></div>
-                <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '12px', backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', padding: '12px', zIndex: 50, display: 'flex', flexDirection: 'column', gap: '4px', width: '250px', boxShadow: '0 15px 40px rgba(0,0,0,0.8)' }}>
-                  <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 900, letterSpacing: '1px', textTransform: 'uppercase', padding: '8px 12px' }}>{t('modulosSistema')}</span>
+                {/* Overlay com leve desfoque para dar destaque ao menu */}
+                <div onClick={() => setMenuNavAberto(false)} style={{ position: 'fixed', inset: 0, zIndex: 40, backgroundColor: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(2px)' }}></div>
+                
+                <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '12px', backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '16px', padding: '16px 12px', zIndex: 50, display: 'flex', flexDirection: 'column', gap: '4px', width: '280px', boxShadow: '0 20px 40px rgba(0,0,0,0.8)' }}>
+                  
+                  {/* NOVO: Bloco de Perfil da Loja (Nível Executivo) */}
+                  <div style={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '12px', padding: '12px', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ width: '40px', height: '40px', backgroundColor: '#1e293b', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
+                        🏢
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                        <span style={{ fontSize: '14px', fontWeight: 800, color: '#f8fafc', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>Zênite Atacadão</span>
+                        <span style={{ fontSize: '11px', color: '#94a3b8', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{usuarioAutenticado || 'loja@zenos.com'}</span>
+                      </div>
+                    </div>
+                    <div style={{ height: '1px', backgroundColor: '#1e293b' }}></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>ID: {userId ? userId.substring(0, 8).toUpperCase() : '---'}</span>
+                      <span style={{ fontSize: '10px', backgroundColor: 'rgba(52, 211, 153, 0.1)', color: '#34d399', padding: '2px 6px', borderRadius: '4px', fontWeight: 800, textTransform: 'uppercase' }}>{patenteUsuario}</span>
+                    </div>
+                  </div>
+
+                  <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', padding: '4px 12px 8px 12px' }}>{t('modulosSistema')}</span>
                   
                   {renderNavButton('hub', '🏠', tx('Painel Inicial', 'Panel de Inicio', 'Home Dashboard'))}
-                  
                   {temPermissao('pdv') && renderNavButton('pdv', '🛒', t('pdvBalcao'))}
                   {temPermissao('mesas') && renderNavButton('mesas', '🍽️', tx('Mesas / Comandas', 'Mesas / Comandas', 'Tables / Tabs'))}
                   {temPermissao('produtos') && renderNavButton('produtos', '📦', t('produtosEstoque'), { bg: '#0284c7', color: '#fff', text: produtos.length })}
                   {temPermissao('clientes') && renderNavButton('clientes', '👥', t('clientesFiado'), totalFiadoAbertoBRL > 0 ? { bg: '#dc2626', color: '#fff', text: tx('Fiado', 'Deuda', 'Debt') } : null)}
                   {temPermissao('vendas') && renderNavButton('vendas', '📑', t('vendasDevolucoes'))}
+                  
+                  {/* Linha separadora sutil */}
+                  <div style={{ height: '1px', backgroundColor: '#1e293b', margin: '8px 12px' }}></div>
                   
                   {temPermissao('inteligencia') && renderNavButton('inteligencia', '📊', tx('Inteligência', 'Inteligencia', 'Intelligence'))}
                   {temPermissao('admin') && renderNavButton('comissoes', '🤝', tx('Comissões', 'Comisiones', 'Commissions'))}
