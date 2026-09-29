@@ -420,29 +420,91 @@ export default function App() {
     setValorMovCaixa(''); setDescMovCaixa('');
   };
 
+ // 🛡️ FECHAMENTO DE TURNO COM IMPRESSÃO TÉRMICA
   const processarFechamentoCego = () => {
     const valInformadoBRL = converterParaBRL(parseFloat(valorMovCaixa.replace(',', '.')) || 0, moeda);
     const diferenca = valInformadoBRL - saldoSessaoFisicoBRL;
     
-    // Fecha o turno
+    const dataFechoISO = new Date().toISOString();
+    const dataFechoLocal = new Date().toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR');
+    
+    // Fecha o turno na DB
     const sessoesAtualizadas = sessoesCaixa.map(s => {
       if (s.id === sessaoAtiva.id) {
-        return { ...s, status: 'fechada', fechamento: new Date().toISOString(), saldoInformado: valInformadoBRL, diferenca: diferenca, saldoSistema: saldoSessaoFisicoBRL };
+        return { ...s, status: 'fechada', fechamento: dataFechoISO, saldoInformado: valInformadoBRL, diferenca: diferenca, saldoSistema: saldoSessaoFisicoBRL };
       }
       return s;
     });
     setSessoesCaixa(sessoesAtualizadas);
 
-    let msg = `=========================\n${tx('FECHO DE TURNO', 'CIERRE DE TURNO', 'SHIFT CLOSE')}\n=========================\n`;
-    msg += `Operador: ${sessaoAtiva.operadorNome}\n\n`;
-    msg += `${tx('Saldo Sistema:', 'Saldo Sistema:', 'System Bal:')} ${fmt(saldoSessaoFisicoBRL, 'BRL')}\n`;
-    msg += `${tx('Saldo Informado:', 'Informado:', 'Reported:')} ${fmt(valInformadoBRL, 'BRL')}\n`;
-    msg += `${tx('Diferença:', 'Diferencia:', 'Difference:')} ${fmt(diferenca, 'BRL')}\n\n`;
-    if (Math.abs(diferenca) < 0.1) msg += `✅ ${tx('CAIXA CERTINHO!', '¡PERFECTO!', 'PERFECT!')}`;
-    else if (diferenca < 0) msg += `❌ QUEBRA NEGATIVA (Faltou dinheiro)`;
-    else msg += `⚠️ SOBRA DE CAIXA`;
-    
-    alert(msg);
+    // Resumo de Entradas por Moeda/Forma (para a Impressão)
+    const resumoEntradas = vendasDestaSessao.reduce((res, v) => {
+      (v.pagamentos || []).forEach(p => {
+        if (!res[p.rotulo]) res[p.rotulo] = 0;
+        res[p.rotulo] += p.valorOriginal;
+      });
+      return res;
+    }, {});
+
+    const temQuebra = Math.abs(diferenca) > 0.05;
+    const descQuebra = temQuebra ? (diferenca < 0 ? 'FALTA DE CAIXA (QUEBRA NEGATIVA)' : 'SOBRA DE CAIXA (QUEBRA POSITIVA)') : 'CAIXA CONCILIADO CORRETAMENTE';
+
+    // 🖨️ GERA O HTML DO TALÃO DE FECHO PARA IMPRESSÃO (FECHO Z)
+    const reciboFechoHTML = `
+      <div style="font-family: monospace; font-size: 12px; width: 100%; text-align: left;">
+        <div style="text-align: center; margin-bottom: 10px;">
+          <h2 style="margin: 0; font-size: 14px;">FECHAMENTO DE TURNO (FECHO Z)</h2>
+          <div>ZÊNITE ATACADÃO DE TINTAS</div>
+        </div>
+        <div style="border-bottom: 1px dashed #000; margin: 10px 0;"></div>
+        <div><strong>Operador:</strong> ${sessaoAtiva.operadorNome}</div>
+        <div><strong>Abertura:</strong> ${sessaoAtiva.abertura}</div>
+        <div><strong>Fecho:</strong> ${dataFechoLocal}</div>
+        <div style="border-bottom: 1px dashed #000; margin: 10px 0;"></div>
+        
+        <div style="margin-bottom: 5px;"><strong>>> MOVIMENTOS DE GAVETA</strong></div>
+        <div style="display: flex; justify-content: space-between;"><span>Fundo Inicial:</span><span>${fmt(sessaoAtiva.saldoInicial || 0, 'BRL')}</span></div>
+        <div style="display: flex; justify-content: space-between;"><span>Suprimentos (Reforço):</span><span>${fmt(suprimentosSessaoBRL, 'BRL')}</span></div>
+        <div style="display: flex; justify-content: space-between;"><span>Sangrias (Retirada):</span><span>${fmt(sangriasSessaoBRL, 'BRL')}</span></div>
+        
+        <div style="border-bottom: 1px dashed #000; margin: 10px 0;"></div>
+        <div style="margin-bottom: 5px;"><strong>>> ENTRADAS DE VENDAS</strong></div>
+        ${Object.entries(resumoEntradas).map(([forma, valor]) => `<div style="display: flex; justify-content: space-between;"><span>${forma}:</span><span>${valor.toFixed(2)}</span></div>`).join('')}
+        
+        <div style="border-bottom: 1px dashed #000; margin: 10px 0;"></div>
+        <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 14px;"><span>SALDO ESPERADO (GAVETA):</span><span>${fmt(saldoSessaoFisicoBRL, 'BRL')}</span></div>
+        <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 14px;"><span>SALDO INFORMADO:</span><span>${fmt(valInformadoBRL, 'BRL')}</span></div>
+        
+        <div style="border-bottom: 1px dashed #000; margin: 10px 0;"></div>
+        <div style="text-align: center; font-weight: bold; font-size: 12px; margin-top: 10px; color: ${temQuebra ? '#000' : '#000'};">
+          DIFERENÇA: ${fmt(diferenca, 'BRL')}<br/>
+          ${descQuebra}
+        </div>
+        
+        <div style="margin-top: 40px; text-align: center;">
+          _________________________________<br/>
+          Assinatura do Operador<br/>
+          ${sessaoAtiva.operadorNome}
+        </div>
+        <div style="margin-top: 40px; text-align: center;">
+          _________________________________<br/>
+          Conferência da Gerência
+        </div>
+      </div>
+    `;
+
+    // ABRE A JANELA DO SISTEMA PARA IMPRIMIR IMEDIATAMENTE
+    const janelaImpressao = window.open('', '_blank', 'width=400,height=600');
+    if (janelaImpressao) {
+      janelaImpressao.document.write(`
+        <!DOCTYPE html><html><head><title>Fecho de Turno</title><style>@page{margin:0;size:80mm auto;}body{margin:0;padding:10px;width:80mm;}</style></head>
+        <body>${reciboFechoHTML}<script>window.onload=function(){window.focus();window.print();setTimeout(function(){window.close();},500);};</script></body></html>
+      `);
+      janelaImpressao.document.close();
+    } else {
+      alert("Bloqueador de pop-ups ativo. O talão de fecho não pôde ser impresso. Permita pop-ups para o ZenOS.");
+    }
+
     setModalCaixaAberto(false);
     setValorMovCaixa('');
   };
@@ -454,27 +516,27 @@ export default function App() {
     return !!operadorAtivo.permissoes?.[modulo];
   };
 
-  const renderNavButton = (id, icone, texto, badge = null) => {
+ const renderNavButton = (id, icone, texto, badge = null) => {
     const ativo = ecraAtual === id;
+    
+    const lidarComClique = () => {
+      // 🛡️ O BLOQUEIO DE SEGURANÇA NO MENU: Não deixa aceder ao PDV sem caixa aberto!
+      if (id === 'pdv' && !sessaoAtiva) {
+        alert(tx('Acesso Bloqueado: Para iniciar vendas, abra primeiro o seu Turno de Caixa no painel financeiro!', '¡Debe abrir turno de caja primero!', 'You must open a shift first!'));
+        setEcraAtual('hub'); // Atira de volta para a Home
+      } else {
+        setEcraAtual(id);
+      }
+      setMenuNavAberto(false);
+    };
+
     return (
-      <button onClick={() => { setEcraAtual(id); setMenuNavAberto(false); }} style={{ width: '100%', backgroundColor: ativo ? (id === 'clientes' ? '#451a03' : id === 'produtos' ? '#082f49' : id === 'pdv' ? '#064e3b' : id === 'mesas' ? '#4c0519' : id === 'inteligencia' ? '#4c1d95' : id === 'comissoes' ? '#831843' : id === 'dashboardMobile' ? '#78350f' : id === 'auditoria_caixas' ? '#3f6212' : '#1e1b4b') : 'transparent', color: ativo ? (id === 'clientes' ? '#fbbf24' : id === 'produtos' ? '#38bdf8' : id === 'pdv' ? '#34d399' : id === 'mesas' ? '#fda4af' : id === 'inteligencia' ? '#c084fc' : id === 'comissoes' ? '#f472b6' : id === 'dashboardMobile' ? '#fcd34d' : id === 'auditoria_caixas' ? '#a3e635' : '#ffffff') : '#94a3b8', border: `1px solid ${ativo ? (id === 'clientes' ? '#d97706' : id === 'produtos' ? '#0284c7' : id === 'pdv' ? '#10b981' : id === 'mesas' ? '#e11d48' : id === 'inteligencia' ? '#a855f7' : id === 'comissoes' ? '#be185d' : id === 'dashboardMobile' ? '#d97706' : id === 'auditoria_caixas' ? '#65a30d' : '#6366f1') : 'transparent'}`, borderRadius: '8px', padding: '12px 16px', fontSize: '14px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'all 0.2s' }}>
+      <button onClick={lidarComClique} style={{ width: '100%', backgroundColor: ativo ? (id === 'clientes' ? '#451a03' : id === 'produtos' ? '#082f49' : id === 'pdv' ? '#064e3b' : id === 'mesas' ? '#4c0519' : id === 'inteligencia' ? '#4c1d95' : id === 'comissoes' ? '#831843' : id === 'dashboardMobile' ? '#78350f' : id === 'auditoria_caixas' ? '#3f6212' : '#1e1b4b') : 'transparent', color: ativo ? (id === 'clientes' ? '#fbbf24' : id === 'produtos' ? '#38bdf8' : id === 'pdv' ? '#34d399' : id === 'mesas' ? '#fda4af' : id === 'inteligencia' ? '#c084fc' : id === 'comissoes' ? '#f472b6' : id === 'dashboardMobile' ? '#fcd34d' : id === 'auditoria_caixas' ? '#a3e635' : '#ffffff') : '#94a3b8', border: `1px solid ${ativo ? (id === 'clientes' ? '#d97706' : id === 'produtos' ? '#0284c7' : id === 'pdv' ? '#10b981' : id === 'mesas' ? '#e11d48' : id === 'inteligencia' ? '#a855f7' : id === 'comissoes' ? '#be185d' : id === 'dashboardMobile' ? '#d97706' : id === 'auditoria_caixas' ? '#65a30d' : '#6366f1') : 'transparent'}`, borderRadius: '8px', padding: '12px 16px', fontSize: '14px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'all 0.2s' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><span style={{ fontSize: '18px' }}>{icone}</span><span>{texto}</span></div>
         {badge && <span style={{ backgroundColor: badge.bg, color: badge.color, fontSize: '11px', padding: '2px 8px', borderRadius: '999px', fontWeight: 900 }}>{badge.text}</span>}
       </button>
     );
   };
-
-  if (carregandoAuth) {
-    return (
-      <div style={{ minHeight: '100vh', backgroundColor: '#020617', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
-          <ZeniteLogo aoClicar={() => {}} />
-          <span style={{ color: '#64748b', fontSize: '14px', fontWeight: 700, letterSpacing: '2px' }}>A INICIAR SISTEMA...</span>
-        </div>
-      </div>
-    );
-  }
-
   if (!usuarioAutenticado) {
     return <LandingPage/>;
   }
