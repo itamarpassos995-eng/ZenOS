@@ -50,19 +50,11 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
       })
     : [];
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { setIndiceFocoBusca(0); }, [termoBusca]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (itemParaAdicionar && inputQtdRapidaRef.current) { inputQtdRapidaRef.current.focus(); inputQtdRapidaRef.current.select(); } }, [itemParaAdicionar]);
-// 🛡️ RESTAURAR ATALHOS DE TECLADO
-  useEffect(() => {
-    const lidarAtalhos = (e) => {
-      if (e.key === 'F10') {
-        e.preventDefault();
-        abrirFechamento();
-      }
-    };
-    window.addEventListener('keydown', lidarAtalhos);
-    return () => window.removeEventListener('keydown', lidarAtalhos);
-  });
+
   const aplicarPrecoPorPerfilCliente = (prod, cliente) => {
     if (!prod) return 0;
     if (cliente && cliente.perfilPreco === 'preco2' && prod.habilitarPreco2 && prod.preco2BRL > 0) return prod.preco2BRL;
@@ -122,7 +114,7 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
     const preco = parseFloat(String(formProdutoPDV.precoBRL).replace(',', '.')) || 0;
     const preco2 = formProdutoPDV.habilitarPreco2 ? (parseFloat(String(formProdutoPDV.preco2BRL).replace(',', '.')) || 0) : 0;
     const preco3 = formProdutoPDV.habilitarPreco3 ? (parseFloat(String(formProdutoPDV.preco3BRL).replace(',', '.')) || 0) : 0;
-    const estoque = parseInt(formProdutoPDV.estoque) || 0;
+    const estoque = parseInt(String(formProdutoPDV.estoque)) || 0;
 
     const dadosFinais = normalizarProduto({ ...formProdutoPDV, custoBRL: custo, precoBRL: preco, preco2BRL: preco2, preco3BRL: preco3, estoque: estoque });
     dadosFinais.usoUnicoEncomendado = formProdutoPDV.usoUnicoEncomendado; 
@@ -175,7 +167,7 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
   };
 
   const removerItem = (id) => { setItensVenda(itensVenda.filter(item => item.id !== id)); };
-  const atualizarQtd = (id, valor) => { setItensVenda(itensVenda.map(item => item.id === id ? { ...item, qtd: valor } : item)); };
+  const atualizarQtd = (id, valor) => { setItensVenda(itensVenda.map(item => item.id === id ? { ...item, qtd: String(Math.max(1, parseInt(valor) || 1)) } : item)); };
   const lidarDigitacaoPreco = (id, valorDigitado) => { setItensVenda(itensVenda.map(item => item.id === id ? { ...item, precoTexto: valorDigitado, precoPraticadoBRL: converterParaBRL(parseFloat(valorDigitado.replace(',', '.')) || 0, moeda) } : item)); };
 
   const subtotalBrutoBRL = itensVenda.reduce((acc, item) => acc + (Math.max(0, parseInt(item.qtd) || 0) * (item.precoPraticadoBRL || 0)), 0);
@@ -221,11 +213,9 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
     { id: 'crediario', rotulo: tx('Crediário / Fiado', 'Fiado / Crédito', 'Store Credit'), moedaOrigem: 'BRL', icone: '📒' }
   ];
 
-  // 🛡️ MATEMÁTICA BLINDADA DO TROCO E SALDOS
   const totalPagoConvertidoBRL = pagamentosLancados.reduce((acc, p) => acc + (p.valorConvertidoBRL || 0), 0);
   const saldoRestanteBRL = Math.max(0, totalFinalBRL - totalPagoConvertidoBRL);
   
-  // O troco só é devolvido se o pagamento envolver "dinheiro" físico
   const totalDinheiroBRL = pagamentosLancados
     .filter(p => p.formaId && p.formaId.startsWith('dinheiro'))
     .reduce((acc, p) => acc + (p.valorConvertidoBRL || 0), 0);
@@ -233,7 +223,6 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
   const valorExcedidoGlobal = totalPagoConvertidoBRL - totalFinalBRL;
   const trocoTotalBRL = valorExcedidoGlobal > 0.01 ? Math.min(valorExcedidoGlobal, totalDinheiroBRL) : 0;
 
-  // Botão ativa se faltarem menos de 5 cêntimos (previne bloqueios de dízimas cambiais)
   const podeFinalizarVenda = totalFinalBRL > 0 && totalPagoConvertidoBRL >= (totalFinalBRL - 0.05);
 
   const abrirFechamento = () => {
@@ -260,6 +249,18 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
     setModalFechamentoAberto(true);
   };
 
+  // 🛡️ REATIVAR A TECLA F10 EM TEMPO REAL
+  useEffect(() => {
+    const lidarAtalhos = (e) => {
+      if (e.key === 'F10') {
+        e.preventDefault();
+        abrirFechamento();
+      }
+    };
+    window.addEventListener('keydown', lidarAtalhos);
+    return () => window.removeEventListener('keydown', lidarAtalhos);
+  });
+
   const adicionarPagamento = () => {
     const valorNum = parseFloat(String(valorLancamentoInput).replace(',', '.')) || 0;
     if (valorNum <= 0) return;
@@ -275,8 +276,8 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
     }
 
     const novaLista = [...pagamentosLancados, { 
-      id: Date.now(), // ID único para o React List
-      formaId: configForma.id, // IMPORTANTE: Identificador fixo para a matemática do caixa (ex: 'pix', 'dinheiro_brl')
+      id: Date.now(), 
+      formaId: configForma.id, 
       rotulo: configForma.rotulo,
       icone: configForma.icone,
       moedaOrigem: configForma.moedaOrigem,
@@ -288,8 +289,6 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
     setValorLancamentoInput(novoSaldo > 0 ? converterDeBRL(novoSaldo, configForma.moedaOrigem).toFixed(2) : '');
   };
 
-  // 🛡️ TRANSAÇÃO DE VENDA BLINDADA
-// 🛡️ TRANSAÇÃO DE VENDA TOTALMENTE BLINDADA
   const concluirVenda = () => {
     if (!podeFinalizarVenda) return;
     
@@ -320,7 +319,6 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
         );
       }
 
-      // Validação de segurança para impedir "crashes" de utilizadores
       const idSeguro = (operadorAtivo && operadorAtivo.id) ? operadorAtivo.id : 'admin';
       const nomeSeguro = (operadorAtivo && operadorAtivo.nome) ? operadorAtivo.nome : 'Administrador';
 
@@ -340,7 +338,6 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
         estado: 'concluida'
       };
 
-      // ⚠️ ATUALIZA TUDO AO MESMO TEMPO (Evita que o saldo suba se o talão não for gerado)
       setProdutos(novosProdutos);
       if (novosClientes) {
         setClientes(novosClientes);
@@ -352,7 +349,7 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
       }
       
       setVendaConcluidaObj(novaVenda);
-      setVendaSucesso(true); // AGORA A TELA DO TALÃO APARECE COM SUCESSO
+      setVendaSucesso(true);
 
     } catch (err) {
       console.error("Erro fatal ao finalizar venda:", err);
@@ -471,7 +468,6 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
         </div>
       </div>
 
-      {/* COLUNA DIREITA: RESUMO E FINALIZAÇÃO DE VENDA */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
         
         <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
@@ -498,9 +494,8 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
         </button>
       </div>
 
-      {/* MODAL DE QUANTIDADE RÁPIDA */}
       {itemParaAdicionar && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85), backdrop-filter: blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '16px' }}>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '16px' }}>
           <div style={{ backgroundColor: '#0b1120', border: '1px solid #6366f1', borderRadius: '20px', width: '100%', maxWidth: '400px', padding: '28px', color: '#fff', textAlign: 'center' }}>
             <h3 style={{ fontSize: '18px', fontWeight: 900, marginBottom: '16px' }}>{itemParaAdicionar.nome}</h3>
             <input ref={inputQtdRapidaRef} type="number" value={qtdDigitadaRapida} onChange={e => setQtdDigitadaRapida(e.target.value)} onFocus={e=>e.target.select()} onKeyDown={e=>{if(e.key==='Enter') confirmarAdicaoRapida(); if(e.key==='Escape') setItemParaAdicionar(null);}} style={{ width: '80px', padding: '10px', fontSize: '20px', textAlign: 'center', backgroundColor: '#020617', border: '1px solid #6366f1', color: '#fff', borderRadius: '8px', marginBottom: '20px', outline: 'none' }} />
@@ -512,7 +507,6 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
         </div>
       )}
 
-      {/* MODAL DE CADASTRO DE CLIENTE */}
       {modalClientePDVAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1500, padding: '16px' }}>
           <div style={{ backgroundColor: '#0b1120', border: '1px solid #d97706', borderRadius: '24px', width: '100%', maxWidth: '680px', maxHeight: '90vh', overflowY: 'auto', padding: '28px', color: '#fff', boxSizing: 'border-box' }}>
@@ -537,7 +531,6 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
         </div>
       )}
 
-      {/* MODAL DE CADASTRO DE PRODUTO */}
       {modalProdutoPDVAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1500, padding: '16px' }}>
           <div style={{ backgroundColor: '#0b1120', border: '1px solid #0284c7', borderRadius: '24px', width: '100%', maxWidth: '820px', maxHeight: '92vh', overflowY: 'auto', padding: '28px', color: '#fff', boxSizing: 'border-box' }}>
@@ -576,7 +569,6 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
         </div>
       )}
 
-      {/* MODAL DE FECHAMENTO DE CAIXA (CHECKOUT) */}
       {modalFechamentoAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1500, padding: '16px', boxSizing: 'border-box' }}>
           <div style={{ backgroundColor: vendaSucesso ? '#ffffff' : '#0b1120', border: '1px solid #10b981', borderRadius: vendaSucesso ? '16px' : '24px', width: '100%', maxWidth: vendaSucesso ? '380px' : '750px', maxHeight: '95vh', overflowY: 'auto', padding: vendaSucesso ? '0' : '28px', color: vendaSucesso ? '#000' : '#fff', boxShadow: '0 25px 50px rgba(0,0,0,0.5)', boxSizing: 'border-box' }}>
@@ -626,7 +618,6 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
                   <button onClick={() => setModalFechamentoAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #334155', color: '#94a3b8', borderRadius: '10px', width: '36px', height: '36px', cursor: 'pointer', fontWeight: 900 }}>✕</button>
                 </div>
                 
-                {/* 🛡️ GRELHA VISUAL DO TROCO CORRIGIDA E ADAPTATIVA */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', padding: '16px', gap: '12px', marginBottom: '20px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800 }}>{tx('Total', 'Total', 'Total')}</span>
