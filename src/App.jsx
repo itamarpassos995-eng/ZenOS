@@ -654,20 +654,32 @@ export default function App() {
           <ZenosLogo aoClicar={() => setEcraAtual('hub')} />
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          
+          {/* 🗣️ NOVO: SELETOR DE IDIOMA GLOBAL */}
+          <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', padding: '4px 8px', gap: '6px', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.5)' }}>
+            <span style={{ fontSize: '12px' }}>🗣️️</span>
+            <select value={idioma} onChange={(e) => setIdioma(e.target.value)} style={{ backgroundColor: 'transparent', color: '#f8fafc', fontSize: '11px', fontWeight: 900, border: 'none', outline: 'none', cursor: 'pointer' }}>
+              <option value="pt" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>Português (PT)</option>
+              <option value="es" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>Español (ES)</option>
+              <option value="en" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>English (EN)</option>
+            </select>
+          </div>
+
+          {/* 🌐 SELETOR DE MOEDAS (Já existente) */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', padding: '4px 8px', gap: '6px', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.5)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ fontSize: '10px', color: '#818cf8', fontWeight: 900 }}>🌐</span>
+                <span style={{ fontSize: '10px', color: '#818cf8', fontWeight: 900 }}>💵</span>
                 <select value={moeda} onChange={(e) => setMoeda(e.target.value)} style={{ backgroundColor: 'transparent', color: '#34d399', fontSize: '11px', fontWeight: 900, border: 'none', outline: 'none', cursor: 'pointer' }}>
-                  <option value="BRL" style={{ backgroundColor: '#0b1120', color: '#fff' }}>BRL (R$)</option>
-                  <option value="USD" style={{ backgroundColor: '#0b1120', color: '#fff' }}>USD ($)</option>
-                  <option value="EUR" style={{ backgroundColor: '#0b1120', color: '#fff' }}>EUR (€)</option>
-                  <option value="PYG" style={{ backgroundColor: '#0b1120', color: '#fff' }}>PYG (₲)</option>
+                  <option value="BRL" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>BRL (R$)</option>
+                  <option value="USD" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>USD ($)</option>
+                  <option value="EUR" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>EUR (€)</option>
+                  <option value="PYG" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>PYG (₲)</option>
                 </select>
               </div>
               <div style={{ width: '1px', height: '14px', backgroundColor: '#334155' }}></div>
-              <button onClick={() => setModalCambioAberto(true)} title="Ajustar Cotações de Câmbio" style={{ backgroundColor: 'transparent', border: 'none', cursor: 'pointer', fontSize: '12px', padding: '0 2px' }}>⚙️</button>
+              <button onClick={() => setModalCambioAberto(true)} title={tx('Ajustar Cotações', 'Ajustar Cotizaciones', 'Adjust Rates')} style={{ backgroundColor: 'transparent', border: 'none', cursor: 'pointer', fontSize: '12px', padding: '0 2px' }}>⚙️</button>
             </div>
           </div>
           
@@ -675,7 +687,7 @@ export default function App() {
             <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 800 }} className="hide-mobile">Operador:</span>
             <span style={{ color: patenteUsuario === 'gerencia' ? '#fbbf24' : '#818cf8', fontWeight: 900, fontSize: '12px' }}>{operadorAtivo?.nome || 'Admin'}</span>
           </div>
-          <button onClick={trocarOperador} style={{ backgroundColor: 'rgba(99, 102, 241, 0.1)', border: '1px solid #6366f1', color: '#818cf8', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>Trocar Operador</button>
+          <button onClick={trocarOperador} style={{ backgroundColor: 'rgba(99, 102, 241, 0.1)', border: '1px solid #6366f1', color: '#818cf8', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>{tx('Trocar Operador', 'Cambiar Operador', 'Switch User')}</button>
         </div>
       </header>
 
