@@ -9,6 +9,7 @@ import LandingPage from './components/LandingPage';
 import Produtos from './components/Produtos';
 import Clientes from './components/Clientes';
 import PDV from './components/PDV';
+import PDVCompras from './components/PDVCompras';
 import Vendas from './components/Vendas';
 import Migracao from './components/Migracao';
 import Despesas from './components/Despesas';
@@ -175,6 +176,27 @@ export default function App() {
     } catch (err) {}
     return [];
   });
+  const [historicoCompras, setHistoricoCompras] = useState(() => {
+    try {
+      const salvo = localStorage.getItem('zenos_historico_compras');
+      if (salvo) {
+        const parsed = JSON.parse(salvo);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (err) {}
+    return [];
+  });
+
+  const [fornecedores, setFornecedores] = useState(() => {
+    try {
+      const salvo = localStorage.getItem('zenos_fornecedores');
+      if (salvo) {
+        const parsed = JSON.parse(salvo);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (err) {}
+    return [];
+  });
 
   const solicitarDemoFirebase = async () => {
     if (!userId) return;
@@ -221,6 +243,8 @@ export default function App() {
             if (d.historicoVendas) setHistoricoVendas(d.historicoVendas);
             if (d.caixaMovimentos) setCaixaMovimentos(d.caixaMovimentos);
             if (d.despesas) setDespesas(d.despesas);
+            if (d.historicoCompras) setHistoricoCompras(d.historicoCompras);
+            if (d.fornecedores) setFornecedores(d.fornecedores);
             if (d.regrasDesconto) setRegrasDesconto(d.regrasDesconto); 
             if (d.vendedores) setVendedores(d.vendedores);
             if (d.sessoesCaixa) setSessoesCaixa(d.sessoesCaixa);
@@ -298,6 +322,20 @@ export default function App() {
     localStorage.setItem('zenos_despesas', JSON.stringify(despesas)); 
     if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(()=>{}); }
   }, [despesas, userId, nuvemSincronizada]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  
+  useEffect(() => { 
+    if (!nuvemSincronizada) return;
+    localStorage.setItem('zenos_historico_compras', JSON.stringify(historicoCompras)); 
+    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa, historicoCompras, fornecedores }, { merge: true }).catch(()=>{}); }
+  }, [historicoCompras, userId, nuvemSincronizada]);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { 
+    if (!nuvemSincronizada) return;
+    localStorage.setItem('zenos_fornecedores', JSON.stringify(fornecedores)); 
+    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa, historicoCompras, fornecedores }, { merge: true }).catch(()=>{}); }
+  }, [fornecedores, userId, nuvemSincronizada]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
@@ -632,6 +670,7 @@ export default function App() {
                   
                   {renderNavButton('hub', '🏠', tx('Painel Inicial', 'Panel de Inicio', 'Home Dashboard'))}
                   {temPermissao('pdv') && renderNavButton('pdv', '🛒', t('pdvBalcao'))}
+                 {temPermissao('produtos') && renderNavButton('compras', '📥', tx('Entrada / Compras', 'Entrada / Compras', 'Purchases / Stock In'))}
                   {temPermissao('mesas') && renderNavButton('mesas', '🍽️', tx('Mesas / Comandas', 'Mesas / Comandas', 'Tables / Tabs'))}
                   {temPermissao('produtos') && renderNavButton('produtos', '📦', t('produtosEstoque'), { bg: '#0284c7', color: '#fff', text: produtos.length })}
                   {temPermissao('clientes') && renderNavButton('clientes', '👥', t('clientesFiado'), totalFiadoAbertoBRL > 0 ? { bg: '#dc2626', color: '#fff', text: tx('Fiado', 'Deuda', 'Debt') } : null)}
@@ -833,6 +872,12 @@ export default function App() {
                   <div><h2 style={{ fontSize: '15px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>PDV Balcão</h2><span style={{fontSize: '11px', color: '#94a3b8'}}>Frente de Caixa / Pré-pedidos</span></div>
                 </div>
               )}
+              {temPermissao('produtos') && (
+                <div onClick={() => setEcraAtual('compras')} style={{ backgroundColor: '#2b1404', border: '1px solid rgba(249, 115, 22, 0.3)', borderRadius: '20px', padding: '24px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
+                  <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #f97316, #ea580c)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', boxShadow: '0 8px 20px rgba(249,115,22,0.4)' }}>📥</div>
+                  <div><h2 style={{ fontSize: '15px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>PDV Compras</h2><span style={{fontSize: '11px', color: '#94a3b8'}}>Entrada rápida de estoque</span></div>
+                </div>
+              )}
               
               {temPermissao('mesas') && (
                 <div onClick={() => setEcraAtual('mesas')} style={{ backgroundColor: '#2e0a16', border: '1px solid rgba(225, 29, 72, 0.3)', borderRadius: '20px', padding: '24px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
@@ -887,6 +932,7 @@ export default function App() {
         )}
 
         {ecraAtual === 'pdv' && <PDV produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} patenteUsuario={patenteUsuario} idioma={idioma} regrasDesconto={regrasDesconto} operadorAtivo={operadorAtivo} sessaoAtiva={sessaoAtiva} />}
+        {ecraAtual === 'compras' && <PDVCompras produtos={produtos} setProdutos={setProdutos} fornecedores={fornecedores} setFornecedores={setFornecedores} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoCompras={historicoCompras} setHistoricoCompras={setHistoricoCompras} operadorAtivo={operadorAtivo} />}
         {ecraAtual === 'mesas' && <Mesas produtos={produtos} fmt={fmt} tx={tx} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} moeda={moeda} idioma={idioma} />}
         {ecraAtual === 'produtos' && <Produtos produtos={produtos} setProdutos={setProdutos} moeda={moeda} fmt={fmt} t={t} tx={tx} />}
         {ecraAtual === 'inteligencia' && <EstoqueInteligente produtos={produtos} fmt={fmt} />}
