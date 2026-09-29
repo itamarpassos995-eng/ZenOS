@@ -512,8 +512,8 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
             )}
             {focoInputCliente && clientesSugeridos.length > 0 && (
               <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: '8px', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '14px', overflow: 'hidden', zIndex: 50, maxHeight: '200px', overflowY: 'auto', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
-                {clientesSugeridos.map(c => (
-                  <div key={c.id} onClick={() => selecionarClienteNoPDV(c)} style={{ padding: '12px 20px', borderBottom: '1px solid #1e293b', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                {clientesSugeridos.map((c, index) => (
+  <div key={c.id || `cli-antigo-${index}`} onMouseDown={(e) => { e.preventDefault(); selecionarClienteNoPDV(c); }} style={{ padding: '12px 20px', borderBottom: '1px solid #1e293b', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div><strong style={{ color: '#f8fafc', fontSize: '14px' }}>{c.nome}</strong><br/><span style={{ color: '#64748b', fontSize: '11px' }}>Doc: {c.documento}</span></div><span style={{ color: '#38bdf8', fontSize: '11px', fontWeight: 800 }}>Vincular ➜</span>
                   </div>
                 ))}
