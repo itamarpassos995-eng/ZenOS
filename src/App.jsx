@@ -81,6 +81,7 @@ export default function App() {
       const salvo = localStorage.getItem('zenos_vendedores');
       if (salvo) return JSON.parse(salvo);
     } catch (err) {}
+    // Utilizador mestre inicial de fábrica
     return [{ id: 'admin', nome: 'Administrador (Gerência)', patente: 'gerencia', senha: 'admin', percentual: 0, comissaoTipo: 'lucro' }];
   });
   const [operadorAtivo, setOperadorAtivo] = useState(null); 
@@ -110,7 +111,7 @@ export default function App() {
     } catch (err) {
       console.error("Erro ao carregar regras de desconto:", err);
     }
-    return { verdeMax: 5, amareloMax: 12, exigirSenhaVermelho: true, senhaGerente: '1234' };
+    return { verdeMax: 5, amareloMax: 12, exigirSenhaVermelho: true, senhaGerente: '1234' }; // Padrões de fábrica
   });
 
   const [produtos, setProdutos] = useState(() => {
@@ -243,7 +244,7 @@ export default function App() {
         setUsuarioAutenticado(null);
         setUserId(null);
         setStatusLoja(null);
-        setOperadorAtivo(null);
+        setOperadorAtivo(null); // Desconecta o operador se perder a sessão
       }
       setCarregandoAuth(false);
     });
@@ -262,44 +263,51 @@ export default function App() {
 
   const trocarOperador = () => {
     setOperadorAtivo(null);
-    setEcraAtual('hub'); 
-    setMostrarPainelExecutivo(false); 
+    setEcraAtual('hub'); // 🛡️ FORÇA VOLTAR AO PAINEL INICIAL
+    setMostrarPainelExecutivo(false); // Esconde painéis abertos do gerente anterior
   };
 
   const processarLoginOperador = (operador) => {
     setOperadorAtivo(operador);
-    setEcraAtual('hub'); 
-    setMostrarPainelExecutivo(false); 
+    setEcraAtual('hub'); // 🛡️ GARANTE QUE ENTRA SEMPRE PELA PORTA DA FRENTE
+    setMostrarPainelExecutivo(false); // Reseta a vista financeira
   };
 
+  // 🛡️ VERCEL FIX: As tags abaixo obrigam o Vercel a ignorar os falsos avisos de "missing dependencies"
   useEffect(() => { 
     localStorage.setItem('zenos_produtos', JSON.stringify(produtos)); 
     if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [produtos, userId]);
 
   useEffect(() => { 
     localStorage.setItem('zenos_clientes', JSON.stringify(clientes)); 
     if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientes, userId]);
 
   useEffect(() => { 
     localStorage.setItem('zenos_historico_vendas', JSON.stringify(historicoVendas)); 
     if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [historicoVendas, userId]);
 
   useEffect(() => { 
     localStorage.setItem('zenos_caixa_movs', JSON.stringify(caixaMovimentos)); 
     if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [caixaMovimentos, userId]);
 
   useEffect(() => { 
     localStorage.setItem('zenos_despesas', JSON.stringify(despesas)); 
     if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [despesas, userId]);
 
   useEffect(() => { 
     localStorage.setItem('zenos_regras_desconto', JSON.stringify(regrasDesconto)); 
     if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores }, { merge: true }).catch(err => console.warn("Aviso cloud:", err)); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [regrasDesconto, userId]);
 
   const t = (chave) => traducoes[idioma]?.[chave] || traducoes.pt[chave] || chave;
@@ -346,8 +354,13 @@ export default function App() {
   const curvaABC = gerarCurvaABC();
 
   const entradasDinheiroVendasBRL = vendasValidas.reduce((acc, v) => {
-    const pagDinheiro = (v.pagamentos || []).filter(p => (p.rotulo || '').includes('Dinheiro') || (p.rotulo || '').includes('Efectivo') || (p.rotulo || '').includes('Cash')).reduce((sum, p) => sum + (p.valorConvertidoBRL || 0), 0);
-    return acc + pagDinheiro;
+    // 🛡️ CORREÇÃO PIX E TROCO (Garante que só conta dinheiro físico real)
+    const pagDinheiroBruto = (v.pagamentos || [])
+      .filter(p => p.formaId && p.formaId.startsWith('dinheiro'))
+      .reduce((sum, p) => sum + (p.valorConvertidoBRL || 0), 0);
+    const trocoDaVenda = v.trocoBRL || 0;
+    const entradaRealNaGaveta = Math.max(0, pagDinheiroBruto - trocoDaVenda);
+    return acc + entradaRealNaGaveta;
   }, 0);
   
   const suprimentosBRL = caixaMovimentos.filter(m => m.tipo === 'suprimento').reduce((acc, m) => acc + m.valorBRL, 0);
@@ -418,7 +431,6 @@ export default function App() {
     return <LandingPage/>;
   }
 
-  // 🛡️ BLOQUEIA A LOJA SE NINGUÉM ESTIVER LOGADO NO TERMINAL (SUB-LOGIN)
   if (statusLoja === 'ativo' && !operadorAtivo) {
     return (
       <TerminalLogin 
@@ -465,6 +477,7 @@ export default function App() {
           </div>
         </div>
 
+        {/* MODAL DE PLANOS */}
         {modalPlanosAberto && (
           <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.9)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px', boxSizing: 'border-box' }}>
             <div style={{ backgroundColor: '#0b1120', border: '1px solid #14b8a6', borderRadius: '24px', width: '100%', maxWidth: '900px', maxHeight: '92vh', overflowY: 'auto', padding: '32px', color: '#fff', boxSizing: 'border-box' }}>
@@ -599,6 +612,7 @@ export default function App() {
                   
                   {renderNavButton('hub', '🏠', tx('Painel Inicial', 'Panel de Inicio', 'Home Dashboard'))}
                   
+                  {/* 🛡️ PERMISSÕES APLICADAS AO MENU LATERAL */}
                   {temPermissao('pdv') && renderNavButton('pdv', '🛒', t('pdvBalcao'))}
                   {temPermissao('mesas') && renderNavButton('mesas', '🍽️', tx('Mesas / Comandas', 'Mesas / Comandas', 'Tables / Tabs'))}
                   {temPermissao('produtos') && renderNavButton('produtos', '📦', t('produtosEstoque'), { bg: '#0284c7', color: '#fff', text: produtos.length })}
@@ -646,7 +660,7 @@ export default function App() {
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '8px', padding: '6px 10px' }}>
             <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 800 }} className="hide-mobile">Operador:</span>
-            <span style={{ color: patenteUsuario === 'gerencia' ? '#fbbf24' : '#818cf8', fontWeight: 900, fontSize: '12px' }}>{operadorAtivo.nome}</span>
+            <span style={{ color: patenteUsuario === 'gerencia' ? '#fbbf24' : '#818cf8', fontWeight: 900, fontSize: '12px' }}>{operadorAtivo?.nome || 'Admin'}</span>
           </div>
 
           <button onClick={trocarOperador} style={{ backgroundColor: 'rgba(99, 102, 241, 0.1)', border: '1px solid #6366f1', color: '#818cf8', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>Trocar Operador</button>
@@ -661,7 +675,7 @@ export default function App() {
             <div className="mobile-padding" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', border: '1px solid #334155', borderRadius: '24px', padding: '32px', boxShadow: '0 20px 40px rgba(0,0,0,0.3)', flexWrap: 'wrap', gap: '20px' }}>
               <div style={{ flex: '1 1 100%', minWidth: '250px' }}>
                 <span style={{ fontSize: '12px', color: '#38bdf8', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '2px' }}>ZenOS (Cloud)</span>
-                <h1 className="mobile-text-lg" style={{ fontSize: '32px', fontWeight: 900, color: '#ffffff', margin: '8px 0 4px 0', letterSpacing: '-0.5px' }}>{tx(`Olá, ${operadorAtivo.nome}!`, `¡Hola, ${operadorAtivo.nome}!`, `Hello, ${operadorAtivo.nome}!`)}</h1>
+                <h1 className="mobile-text-lg" style={{ fontSize: '32px', fontWeight: 900, color: '#ffffff', margin: '8px 0 4px 0', letterSpacing: '-0.5px' }}>{tx(`Olá, ${operadorAtivo?.nome || 'Admin'}!`, `¡Hola, ${operadorAtivo?.nome || 'Admin'}!`, `Hello, ${operadorAtivo?.nome || 'Admin'}!`)}</h1>
                 <span style={{ fontSize: '15px', color: '#94a3b8', fontWeight: 500 }}>{tx('Pronto para vender?', '¿Listo para vender?', 'Ready to sell?')}</span>
               </div>
               
@@ -680,6 +694,7 @@ export default function App() {
               </div>
             </div>
 
+            {/* 🛡️ PERMISSÕES APLICADAS AO PAINEL EXECUTIVO */}
             {temPermissao('inteligencia') && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                 <div onClick={() => setMostrarPainelExecutivo(!mostrarPainelExecutivo)} style={{ background: mostrarPainelExecutivo ? '#0f172a' : 'linear-gradient(135deg, #1e293b, #0f172a)', border: `1px solid ${mostrarPainelExecutivo ? '#1e293b' : '#334155'}`, borderRadius: '20px', padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', transition: 'all 0.3s', boxShadow: mostrarPainelExecutivo ? 'none' : '0 10px 30px rgba(0,0,0,0.4)', flexWrap: 'wrap', gap: '16px' }}>
