@@ -370,7 +370,6 @@ export default function App() {
   const [modalCaixaAberto, setModalCaixaAberto] = useState(false);
   const [tipoMovCaixa, setTipoMovCaixa] = useState('suprimento'); 
   
-  // 🛡️ NOVO GESTOR DE GAVETA MULTIMOEDAS
   const [valoresMovCaixa, setValoresMovCaixa] = useState({ BRL: '', USD: '', EUR: '', PYG: '' });
   const [descMovCaixa, setDescMovCaixa] = useState('');
 
@@ -389,7 +388,7 @@ export default function App() {
       operadorId: idVendedorAtual,
       operadorNome: operadorAtivo?.nome || 'Administrador',
       saldoInicial: saldoIni,
-      detalheAbertura: { ...valoresMovCaixa }, // Guarda as moedas inseridas ao abrir
+      detalheAbertura: { ...valoresMovCaixa },
       status: 'aberta',
       abertura: new Date().toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR')
     };
@@ -416,7 +415,6 @@ export default function App() {
     resetarValoresCaixa(); setDescMovCaixa('');
   };
 
-  // 🛡️ FECHAMENTO DE TURNO COM IMPRESSÃO TÉRMICA E EXTRATO DE MOEDAS
   const processarFechamentoCego = () => {
     const valInformadoBRL = calcularTotalMovBRL();
     const diferenca = valInformadoBRL - saldoSessaoFisicoBRL;
@@ -458,13 +456,13 @@ export default function App() {
         <div style="border-bottom: 1px dashed #000; margin: 10px 0;"></div>
         
         <div style="margin-bottom: 5px;"><strong>>> MOVIMENTOS DE GAVETA</strong></div>
-        <div style="display: flex; justify-content: space-between;"><span>Fundo Inicial:</span><span>${fmt(sessaoAtiva.saldoInicial || 0, 'BRL')}</span></div>
+        <div style="display: flex; justify-content: space-between;"><span>Fundo Inicial (BRL):</span><span>${fmt(sessaoAtiva.saldoInicial || 0, 'BRL')}</span></div>
         <div style="display: flex; justify-content: space-between;"><span>Suprimentos (Reforço):</span><span>${fmt(suprimentosSessaoBRL, 'BRL')}</span></div>
         <div style="display: flex; justify-content: space-between;"><span>Sangrias (Retirada):</span><span>${fmt(sangriasSessaoBRL, 'BRL')}</span></div>
         
         <div style="border-bottom: 1px dashed #000; margin: 10px 0;"></div>
         <div style="margin-bottom: 5px;"><strong>>> ENTRADAS DE VENDAS</strong></div>
-        ${Object.entries(resumoEntradas).map(([forma, valor]) => `<div style="display: flex; justify-content: space-between;"><span>${forma}:</span><span>${valor.toFixed(2)}</span></div>`).join('')}
+        ${Object.keys(resumoEntradas).length > 0 ? Object.entries(resumoEntradas).map(([forma, valor]) => `<div style="display: flex; justify-content: space-between;"><span>${forma}:</span><span>${valor.toFixed(2)}</span></div>`).join('') : '<div style="text-align: center;">Nenhuma venda</div>'}
         
         <div style="border-bottom: 1px dashed #000; margin: 10px 0;"></div>
         <div style="margin-bottom: 5px;"><strong>>> GAVETA FÍSICA (MOEDAS CONTADAS)</strong></div>
@@ -517,7 +515,6 @@ export default function App() {
     const ativo = ecraAtual === id;
     
     const lidarComClique = () => {
-      // 🛡️ O BLOQUEIO DE SEGURANÇA NO MENU: Não deixa aceder ao PDV sem caixa aberto!
       if (id === 'pdv' && !sessaoAtiva) {
         alert(tx('Acesso Bloqueado: Para iniciar vendas, abra primeiro o seu Turno de Caixa no painel financeiro!', '¡Debe abrir turno de caja primero!', 'You must open a shift first!'));
         setEcraAtual('hub');
@@ -987,7 +984,7 @@ export default function App() {
         {ecraAtual === 'mesas' && <Mesas produtos={produtos} fmt={fmt} tx={tx} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} moeda={moeda} idioma={idioma} />}
         {ecraAtual === 'produtos' && <Produtos produtos={produtos} setProdutos={setProdutos} moeda={moeda} fmt={fmt} t={t} tx={tx} />}
         {ecraAtual === 'inteligencia' && <EstoqueInteligente produtos={produtos} fmt={fmt} />}
-        {ecraAtual === 'comissoes' && <Comissoes historicoVendas={historicoVendas} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} />}
+        {ecraAtual === 'comissoes' && <Comissoes historicoVendas={historicoVendas} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} operadorAtivo={operadorAtivo} />}
         {ecraAtual === 'dashboardMobile' && <DashboardMobile historicoVendas={historicoVendas} despesas={despesas} clientes={clientes} produtos={produtos} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} />}
         {ecraAtual === 'clientes' && <Clientes clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} />}
         {ecraAtual === 'vendas' && <Vendas historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} fmt={fmt} t={t} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterDeBRL={converterDeBRL} />}
