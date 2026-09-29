@@ -26,6 +26,9 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
   const [formaSelecionada, setFormaSelecionada] = useState('dinheiro_brl');
   const [valorLancamentoInput, setValorLancamentoInput] = useState('');
   
+  // NOVO: Qual a moeda que o operador escolheu para devolver o troco?
+  const [moedaTrocoEscolhida, setMoedaTrocoEscolhida] = useState('BRL');
+  
   const [vendaSucesso, setVendaSucesso] = useState(false);
   const [vendaConcluidaObj, setVendaConcluidaObj] = useState(null);
 
@@ -213,9 +216,11 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
     { id: 'crediario', rotulo: tx('Crediário / Fiado', 'Fiado / Crédito', 'Store Credit'), moedaOrigem: 'BRL', icone: '📒' }
   ];
 
+  // 🛡️ MATEMÁTICA DO TROCO E SALDOS
   const totalPagoConvertidoBRL = pagamentosLancados.reduce((acc, p) => acc + (p.valorConvertidoBRL || 0), 0);
   const saldoRestanteBRL = Math.max(0, totalFinalBRL - totalPagoConvertidoBRL);
   
+  // O troco pode ser devolvido se pagarem em dinheiro
   const totalDinheiroBRL = pagamentosLancados
     .filter(p => p.formaId && p.formaId.startsWith('dinheiro'))
     .reduce((acc, p) => acc + (p.valorConvertidoBRL || 0), 0);
@@ -223,7 +228,23 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
   const valorExcedidoGlobal = totalPagoConvertidoBRL - totalFinalBRL;
   const trocoTotalBRL = valorExcedidoGlobal > 0.01 ? Math.min(valorExcedidoGlobal, totalDinheiroBRL) : 0;
 
+  // Mostra a conversão do troco na moeda escolhida pelo operador
+  const trocoNaMoedaEscolhida = converterDeBRL(trocoTotalBRL, moedaTrocoEscolhida);
+  const configMoedaTroco = moedasConfig[moedaTrocoEscolhida];
+
   const podeFinalizarVenda = totalFinalBRL > 0 && totalPagoConvertidoBRL >= (totalFinalBRL - 0.05);
+
+  // F10 reativado
+  useEffect(() => {
+    const lidarAtalhos = (e) => {
+      if (e.key === 'F10') {
+        e.preventDefault();
+        abrirFechamento();
+      }
+    };
+    window.addEventListener('keydown', lidarAtalhos);
+    return () => window.removeEventListener('keydown', lidarAtalhos);
+  });
 
   const abrirFechamento = () => {
     if (vendaBloqueadaPorMargem) {
@@ -244,22 +265,11 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
     if (itensVenda.length === 0 || totalFinalBRL <= 0) return alert(tx('Adicione produtos à venda.', 'Añada productos.', 'Add products.'));
     setPagamentosLancados([]); 
     setFormaSelecionada('dinheiro_brl');
+    setMoedaTrocoEscolhida(moeda); // Troco padrão na moeda principal do sistema
     setValorLancamentoInput(converterDeBRL(totalFinalBRL, 'BRL').toFixed(2));
     setVendaSucesso(false); 
     setModalFechamentoAberto(true);
   };
-
-  // 🛡️ REATIVAR A TECLA F10 EM TEMPO REAL
-  useEffect(() => {
-    const lidarAtalhos = (e) => {
-      if (e.key === 'F10') {
-        e.preventDefault();
-        abrirFechamento();
-      }
-    };
-    window.addEventListener('keydown', lidarAtalhos);
-    return () => window.removeEventListener('keydown', lidarAtalhos);
-  });
 
   const adicionarPagamento = () => {
     const valorNum = parseFloat(String(valorLancamentoInput).replace(',', '.')) || 0;
@@ -289,41 +299,53 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
     setValorLancamentoInput(novoSaldo > 0 ? converterDeBRL(novoSaldo, configForma.moedaOrigem).toFixed(2) : '');
   };
 
-  const concluirVenda = () => {
-    if (!podeFinalizarVenda) return;
+  // 🛡️ NOVO FLUXO: ORÇAMENTO E PRÉ-PEDIDO (NÃO DESCONTA ESTOQUE NEM FIADO)
+  const concluirTransacao = (tipoFinalizacao) => {
+    // tipoFinalizacao: 'orcamento', 'pre_pedido', ou 'venda'
+    
+    if (tipoFinalizacao === 'venda' && !podeFinalizarVenda) return;
     
     try {
       const idsParaRemover = itensVenda
         .filter(it => it.usoUnicoEncomendado || String(it.sku).toUpperCase().includes('ENCOMENDA'))
         .map(it => String(it.produtoOriginalId || it.id));
       
-      const novosProdutos = (produtos || []).map(p => {
-        const qtdVendidaDesteProduto = itensVenda
-          .filter(i => String(i.produtoOriginalId || i.id) === String(p.id))
-          .reduce((soma, i) => soma + (parseInt(i.qtd) || 0), 0);
-
-        if (qtdVendidaDesteProduto > 0 && p.tipoItem !== 'servico' && !idsParaRemover.includes(String(p.id))) {
-          return { ...p, estoque: Math.max(0, (parseInt(p.estoque) || 0) - qtdVendidaDesteProduto) };
-        }
-        return p;
-      }).filter(p => !idsParaRemover.includes(String(p.id))); 
-
+      let novosProdutos = produtos;
       let novosClientes = null;
-      const valorFiado = pagamentosLancados.filter(p => p.formaId === 'crediario').reduce((acc, p) => acc + (parseFloat(p.valorConvertidoBRL) || 0), 0);
-      
-      if (valorFiado > 0 && clienteSelecionadoPDV) {
-        novosClientes = (clientes || []).map(c => 
-          String(c.id) === String(clienteSelecionadoPDV.id) 
-            ? { ...c, saldoDevedorBRL: (parseFloat(c.saldoDevedorBRL) || 0) + valorFiado } 
-            : c
-        );
+
+      // SÓ DESCONTA O ESTOQUE E GERA DÍVIDA SE FOR UMA "VENDA" REAL COM PAGAMENTO
+      if (tipoFinalizacao === 'venda') {
+        novosProdutos = (produtos || []).map(p => {
+          const qtdVendidaDesteProduto = itensVenda
+            .filter(i => String(i.produtoOriginalId || i.id) === String(p.id))
+            .reduce((soma, i) => soma + (parseInt(i.qtd) || 0), 0);
+
+          if (qtdVendidaDesteProduto > 0 && p.tipoItem !== 'servico' && !idsParaRemover.includes(String(p.id))) {
+            return { ...p, estoque: Math.max(0, (parseInt(p.estoque) || 0) - qtdVendidaDesteProduto) };
+          }
+          return p;
+        }).filter(p => !idsParaRemover.includes(String(p.id))); 
+
+        const valorFiado = pagamentosLancados.filter(p => p.formaId === 'crediario').reduce((acc, p) => acc + (parseFloat(p.valorConvertidoBRL) || 0), 0);
+        
+        if (valorFiado > 0 && clienteSelecionadoPDV) {
+          novosClientes = (clientes || []).map(c => 
+            String(c.id) === String(clienteSelecionadoPDV.id) 
+              ? { ...c, saldoDevedorBRL: (parseFloat(c.saldoDevedorBRL) || 0) + valorFiado } 
+              : c
+          );
+        }
       }
 
       const idSeguro = (operadorAtivo && operadorAtivo.id) ? operadorAtivo.id : 'admin';
       const nomeSeguro = (operadorAtivo && operadorAtivo.nome) ? operadorAtivo.nome : 'Administrador';
 
+      // 🛡️ DADOS DO DOCUMENTO
+      const docRotulo = tipoFinalizacao === 'venda' ? 'VENDA' : (tipoFinalizacao === 'pre_pedido' ? 'PRÉ-PEDIDO' : 'ORÇAMENTO');
+      const comissaoPendente = tipoFinalizacao === 'pre_pedido'; // Comissão fica congelada até virar venda no caixa
+
       const novaVenda = {
-        id: `VENDA-${Date.now()}`,
+        id: `${docRotulo}-${Date.now()}`,
         dataHora: new Date().toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR'),
         clienteId: clienteSelecionadoPDV ? clienteSelecionadoPDV.id : null,
         clienteNome: clienteSelecionadoPDV ? clienteSelecionadoPDV.nome : tx('Consumidor Balcão', 'Consumidor', 'Walk-in'),
@@ -332,15 +354,19 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
         itens: [...itensVenda], 
         totalBRL: totalFinalBRL, 
         lucroBRL: lucroEstimadoBRL,
-        trocoBRL: trocoTotalBRL,
-        pagamentos: [...pagamentosLancados],
-        detalhesPagamento: pagamentosLancados.map(p => `${p.rotulo}: ${(parseFloat(p.valorOriginal)||0).toFixed(2)}`).join(' • ') || tx('Dinheiro', 'Efectivo', 'Cash'),
-        estado: 'concluida'
+        trocoBRL: tipoFinalizacao === 'venda' ? trocoTotalBRL : 0,
+        moedaTrocoInfo: tipoFinalizacao === 'venda' && trocoTotalBRL > 0.01 ? `${configMoedaTroco.simbolo} ${trocoNaMoedaEscolhida.toFixed(2)}` : null,
+        pagamentos: tipoFinalizacao === 'venda' ? [...pagamentosLancados] : [],
+        detalhesPagamento: tipoFinalizacao === 'venda' ? (pagamentosLancados.map(p => `${p.rotulo}: ${(parseFloat(p.valorOriginal)||0).toFixed(2)}`).join(' • ') || tx('Dinheiro', 'Efectivo', 'Cash')) : docRotulo,
+        estado: tipoFinalizacao === 'venda' ? 'concluida' : 'pendente', // Pré-pedidos ficam pendentes
+        tipoDocumento: tipoFinalizacao,
+        comissaoPendente: comissaoPendente
       };
 
-      setProdutos(novosProdutos);
-      if (novosClientes) {
-        setClientes(novosClientes);
+      // Atualiza base de dados
+      if (tipoFinalizacao === 'venda') {
+        setProdutos(novosProdutos);
+        if (novosClientes) setClientes(novosClientes);
       }
       
       const histAntigo = Array.isArray(historicoVendas) ? historicoVendas : [];
@@ -352,8 +378,8 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
       setVendaSucesso(true);
 
     } catch (err) {
-      console.error("Erro fatal ao finalizar venda:", err);
-      alert("Erro na operação. A venda foi abortada em segurança para proteger os estoques e fiados.");
+      console.error("Erro fatal ao finalizar documento:", err);
+      alert("Houve um erro interno ao processar a venda.");
     }
   };
 
@@ -363,7 +389,7 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
     const janelaImpressao = window.open('', '_blank', 'width=400,height=600');
     if (!janelaImpressao) return alert('Bloqueador de pop-ups ativo. Permita pop-ups.');
     janelaImpressao.document.write(`
-      <!DOCTYPE html><html><head><title>Cupom PDV</title><style>@page{margin:0;size:80mm auto;}body{font-family:monospace;font-size:12px;color:#000;background:#fff;margin:0;padding:10px;width:80mm;}table{width:100%;border-collapse:collapse;font-size:11px;}th,td{padding:3px 0;}</style></head>
+      <!DOCTYPE html><html><head><title>Cupom</title><style>@page{margin:0;size:80mm auto;}body{font-family:monospace;font-size:12px;color:#000;background:#fff;margin:0;padding:10px;width:80mm;}table{width:100%;border-collapse:collapse;font-size:11px;}th,td{padding:3px 0;}</style></head>
       <body>${elementoCupom.innerHTML}<script>window.onload=function(){window.focus();window.print();setTimeout(function(){window.close();},500);};</script></body></html>
     `);
     janelaImpressao.document.close();
@@ -489,13 +515,25 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
           <div style={{ fontSize: '13px', fontWeight: 800, color: corSemafaro }}>{textoSemafaro}</div>
         </div>
 
-        <button onClick={abrirFechamento} style={{ background: vendaBloqueadaPorMargem ? '#334155' : 'linear-gradient(135deg, #4f46e5, #4338ca)', border: '1px solid #6366f1', color: '#fff', padding: '18px', borderRadius: '14px', fontSize: '15px', fontWeight: 900, cursor: vendaBloqueadaPorMargem ? 'not-allowed' : 'pointer', textAlign: 'center', boxShadow: '0 4px 15px rgba(79, 70, 229, 0.3)', width: '100%', boxSizing: 'border-box' }}>
-          [F10] {t('fecharVenda')} {vendaBloqueadaPorMargem ? '🔒' : ''}
-        </button>
+        {/* 🛡️ OPÇÕES DE GERAÇÃO (Orçamento, Pré-Pedido, Venda) */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button onClick={() => { if(itensVenda.length===0) return; concluirTransacao('orcamento'); }} style={{ flex: 1, padding: '12px', background: 'transparent', border: '1px solid #475569', color: '#94a3b8', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', fontSize: '12px' }}>
+              🖨️ Orçamento Livre
+            </button>
+            <button onClick={() => { if(itensVenda.length===0) return; concluirTransacao('pre_pedido'); }} style={{ flex: 1, padding: '12px', background: '#021e15', border: '1px solid #10b981', color: '#34d399', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', fontSize: '12px' }}>
+              📝 Fazer Pré-Pedido
+            </button>
+          </div>
+          
+          <button onClick={abrirFechamento} style={{ background: vendaBloqueadaPorMargem ? '#334155' : 'linear-gradient(135deg, #4f46e5, #4338ca)', border: '1px solid #6366f1', color: '#fff', padding: '18px', borderRadius: '14px', fontSize: '15px', fontWeight: 900, cursor: vendaBloqueadaPorMargem ? 'not-allowed' : 'pointer', textAlign: 'center', boxShadow: '0 4px 15px rgba(79, 70, 229, 0.3)', width: '100%', boxSizing: 'border-box' }}>
+            [F10] Receber no Caixa {vendaBloqueadaPorMargem ? '🔒' : ''}
+          </button>
+        </div>
       </div>
 
       {itemParaAdicionar && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '16px' }}>
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85), backdrop-filter: blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '16px' }}>
           <div style={{ backgroundColor: '#0b1120', border: '1px solid #6366f1', borderRadius: '20px', width: '100%', maxWidth: '400px', padding: '28px', color: '#fff', textAlign: 'center' }}>
             <h3 style={{ fontSize: '18px', fontWeight: 900, marginBottom: '16px' }}>{itemParaAdicionar.nome}</h3>
             <input ref={inputQtdRapidaRef} type="number" value={qtdDigitadaRapida} onChange={e => setQtdDigitadaRapida(e.target.value)} onFocus={e=>e.target.select()} onKeyDown={e=>{if(e.key==='Enter') confirmarAdicaoRapida(); if(e.key==='Escape') setItemParaAdicionar(null);}} style={{ width: '80px', padding: '10px', fontSize: '20px', textAlign: 'center', backgroundColor: '#020617', border: '1px solid #6366f1', color: '#fff', borderRadius: '8px', marginBottom: '20px', outline: 'none' }} />
@@ -569,6 +607,7 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
         </div>
       )}
 
+      {/* MODAL DE FECHAMENTO (CHECKOUT - CAIXA) */}
       {modalFechamentoAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1500, padding: '16px', boxSizing: 'border-box' }}>
           <div style={{ backgroundColor: vendaSucesso ? '#ffffff' : '#0b1120', border: '1px solid #10b981', borderRadius: vendaSucesso ? '16px' : '24px', width: '100%', maxWidth: vendaSucesso ? '380px' : '750px', maxHeight: '95vh', overflowY: 'auto', padding: vendaSucesso ? '0' : '28px', color: vendaSucesso ? '#000' : '#fff', boxShadow: '0 25px 50px rgba(0,0,0,0.5)', boxSizing: 'border-box' }}>
@@ -577,7 +616,7 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
                 <div id="area-cupom-pdv" style={{ padding: '20px', fontFamily: 'monospace', fontSize: '12px' }}>
                   <div style={{ textAlign: 'center', marginBottom: '10px' }}>
                     <h2 style={{ margin: '0 0 4px 0', fontSize: '16px' }}>ZÊNITE ATACADÃO DE TINTAS</h2>
-                    <div style={{ fontSize: '10px' }}>Cupom Não Fiscal - Uso Interno<br/>{vendaConcluidaObj?.dataHora}</div>
+                    <div style={{ fontSize: '10px' }}>{vendaConcluidaObj?.tipoDocumento === 'venda' ? 'Cupom de Venda Não Fiscal' : vendaConcluidaObj?.tipoDocumento === 'pre_pedido' ? 'TICKET DE PRÉ-PEDIDO (NÃO PAGO)' : 'ORÇAMENTO SEM VALOR FISCAL'}<br/>{vendaConcluidaObj?.dataHora}</div>
                   </div>
                   <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
                   <div style={{ marginBottom: '8px', fontSize: '11px' }}>
@@ -594,12 +633,21 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
                     </tbody>
                   </table>
                   <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '14px' }}><span>TOTAL DA VENDA</span><span>{fmt(vendaConcluidaObj?.totalBRL)}</span></div>
-                  <div style={{ marginTop: '10px', fontSize: '11px' }}>
-                    <strong>Pagamentos:</strong><br/>
-                    {vendaConcluidaObj?.pagamentos.map((p, idx) => <div key={idx} style={{ display: 'flex', justifyContent: 'space-between' }}><span>{p.rotulo}</span><span>{p.valorOriginal.toFixed(2)}</span></div>)}
-                  </div>
-                  {vendaConcluidaObj?.trocoBRL > 0.01 && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginTop: '4px' }}><span>TROCO</span><span>{fmt(vendaConcluidaObj.trocoBRL)}</span></div>}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '14px' }}><span>TOTAL A PAGAR</span><span>{fmt(vendaConcluidaObj?.totalBRL)}</span></div>
+                  
+                  {vendaConcluidaObj?.tipoDocumento === 'venda' && (
+                    <>
+                      <div style={{ marginTop: '10px', fontSize: '11px' }}>
+                        <strong>Pagamentos (Liquidados):</strong><br/>
+                        {vendaConcluidaObj?.pagamentos.map((p, idx) => <div key={idx} style={{ display: 'flex', justifyContent: 'space-between' }}><span>{p.rotulo}</span><span>{p.valorOriginal.toFixed(2)}</span></div>)}
+                      </div>
+                      {vendaConcluidaObj?.trocoBRL > 0.01 && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginTop: '4px', backgroundColor: '#e2e8f0', padding: '2px' }}><span>TROCO (${vendaConcluidaObj.moedaTrocoInfo})</span><span>{fmt(vendaConcluidaObj.trocoBRL)}</span></div>}
+                    </>
+                  )}
+                  {vendaConcluidaObj?.tipoDocumento === 'pre_pedido' && (
+                    <div style={{ marginTop: '15px', textAlign: 'center', fontSize: '14px', fontWeight: 'bold', border: '1px solid #000', padding: '5px' }}>AGUARDANDO PAGAMENTO NO CAIXA</div>
+                  )}
+
                   <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
                   <div style={{ textAlign: 'center', fontSize: '10px' }}>Obrigado pela preferência!<br/>Volte Sempre.</div>
                 </div>
@@ -628,10 +676,19 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
                     <div style={{ fontSize: '18px', fontWeight: 900, color: '#34d399' }}>{fmt(totalPagoConvertidoBRL, 'BRL')}</div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800 }}>{saldoRestanteBRL > 0.01 ? tx('Falta', 'Falta', 'Due') : tx('Troco', 'Cambio', 'Change')}</span>
-                    <div style={{ fontSize: '18px', fontWeight: 900, color: saldoRestanteBRL > 0.01 ? '#fb7185' : (trocoTotalBRL > 0 ? '#fbbf24' : '#38bdf8') }}>
-                      {saldoRestanteBRL > 0.01 ? fmt(saldoRestanteBRL, 'BRL') : (trocoTotalBRL > 0 ? fmt(trocoTotalBRL, 'BRL') : 'QUITADO ✓')}
-                    </div>
+                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800 }}>{saldoRestanteBRL > 0.01 ? tx('Falta', 'Falta', 'Due') : tx('Troco na Moeda:', 'Cambio en:', 'Change in:')}</span>
+                    {saldoRestanteBRL > 0.01 ? (
+                      <div style={{ fontSize: '18px', fontWeight: 900, color: '#fb7185' }}>{fmt(saldoRestanteBRL, 'BRL')}</div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <div style={{ fontSize: '18px', fontWeight: 900, color: trocoTotalBRL > 0 ? '#fbbf24' : '#38bdf8' }}>{trocoTotalBRL > 0 ? `${configMoedaTroco.simbolo} ${trocoNaMoedaEscolhida.toFixed(2)}` : 'QUITADO ✓'}</div>
+                        {trocoTotalBRL > 0 && (
+                          <select value={moedaTrocoEscolhida} onChange={(e) => setMoedaTrocoEscolhida(e.target.value)} style={{ backgroundColor: '#0f172a', color: '#fbbf24', border: '1px solid #334155', borderRadius: '4px', fontSize: '11px', outline: 'none', cursor: 'pointer', padding: '2px' }}>
+                            <option value="BRL">BRL</option><option value="USD">USD</option><option value="EUR">EUR</option><option value="PYG">PYG</option>
+                          </select>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
                 
@@ -689,7 +746,7 @@ export default function PDV({ produtos, setProdutos, clientes, setClientes, moed
                 
                 <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                   <button onClick={() => setModalFechamentoAberto(false)} style={{ flex: 1, padding: '14px', backgroundColor: '#020617', border: '1px solid #1e293b', color: '#cbd5e1', borderRadius: '12px', cursor: 'pointer', fontWeight: 800, fontSize: '13px' }}>{tx('Cancelar', 'Cancelar', 'Cancel')}</button>
-                  <button onClick={concluirVenda} disabled={!podeFinalizarVenda} style={{ flex: 2, padding: '14px', background: podeFinalizarVenda ? 'linear-gradient(135deg, #0284c7, #0369a1)' : '#1e293b', border: 'none', color: podeFinalizarVenda ? '#fff' : '#64748b', borderRadius: '12px', cursor: podeFinalizarVenda ? 'pointer' : 'not-allowed', fontWeight: 900, fontSize: '14px', boxShadow: podeFinalizarVenda ? '0 4px 15px rgba(2, 132, 199, 0.4)' : 'none' }}>{tx('Confirmar e Finalizar', 'Finalizar', 'Complete Sale')}</button>
+                  <button onClick={() => concluirTransacao('venda')} disabled={!podeFinalizarVenda} style={{ flex: 2, padding: '14px', background: podeFinalizarVenda ? 'linear-gradient(135deg, #0284c7, #0369a1)' : '#1e293b', border: 'none', color: podeFinalizarVenda ? '#fff' : '#64748b', borderRadius: '12px', cursor: podeFinalizarVenda ? 'pointer' : 'not-allowed', fontWeight: 900, fontSize: '14px', boxShadow: podeFinalizarVenda ? '0 4px 15px rgba(2, 132, 199, 0.4)' : 'none' }}>{tx('Liquidar no Caixa', 'Finalizar', 'Pay & Close')}</button>
                 </div>
               </>
             )}
