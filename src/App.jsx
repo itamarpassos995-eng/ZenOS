@@ -582,7 +582,7 @@ export default function App() {
             <button onClick={() => setMenuNavAberto(!menuNavAberto)} style={{ backgroundColor: menuNavAberto ? '#1e293b' : '#020617', border: '1px solid #334155', color: '#f8fafc', padding: '8px 12px', borderRadius: '10px', fontSize: '14px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.4)' }}>
               <span style={{ fontSize: '18px' }}>☰</span><span className="hide-mobile">{tx('Menu', 'Menú', 'Menu')}</span>
             </button>
-         {menuNavAberto && (
+        {menuNavAberto && (
               <>
                 {/* Overlay com leve desfoque para dar destaque ao menu */}
                 <div onClick={() => setMenuNavAberto(false)} style={{ position: 'fixed', inset: 0, zIndex: 40, backgroundColor: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(2px)' }}></div>
@@ -592,8 +592,8 @@ export default function App() {
                   top: '100%', 
                   left: 0, 
                   marginTop: '12px', 
-                  backgroundColor: '#1e293b', /* NOVO: Cor mais clara (Slate 800) para destacar do fundo */
-                  border: '1px solid #334155', /* Borda também mais clara */
+                  backgroundColor: '#1e293b', 
+                  border: '1px solid #334155', 
                   borderRadius: '16px', 
                   padding: '16px 12px', 
                   zIndex: 50, 
@@ -602,19 +602,23 @@ export default function App() {
                   gap: '4px', 
                   width: '280px', 
                   boxShadow: '0 20px 40px rgba(0,0,0,0.8)',
-                  maxHeight: 'calc(100vh - 90px)', /* NOVO: Limita a altura para nunca passar do limite da tela */
-                  overflowY: 'auto' /* NOVO: Ativa a rolagem mestre caso o conteúdo seja maior que a tela */
+                  maxHeight: 'calc(100vh - 90px)', 
+                  overflowY: 'auto' 
                 }}>
                   
-                  {/* Bloco de Perfil da Loja */}
+                  {/* Bloco de Perfil da Loja (Dinâmico) */}
                   <div style={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '12px', padding: '12px', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <div style={{ width: '40px', height: '40px', backgroundColor: '#1e293b', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
                         🏢
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                        <span style={{ fontSize: '14px', fontWeight: 800, color: '#f8fafc', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>Zênite Atacadão</span>
-                        <span style={{ fontSize: '11px', color: '#cbd5e1', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{usuarioAutenticado || 'loja@zenos.com'}</span>
+                        <span style={{ fontSize: '14px', fontWeight: 800, color: '#f8fafc', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', textTransform: 'capitalize' }}>
+                          {localStorage.getItem('zenos_nome_loja') || (usuarioAutenticado ? usuarioAutenticado.split('@')[0].replace(/[._-]/g, ' ') : 'Minha Loja')}
+                        </span>
+                        <span style={{ fontSize: '11px', color: '#cbd5e1', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                          {usuarioAutenticado || 'loja@zenos.com'}
+                        </span>
                       </div>
                     </div>
                     <div style={{ height: '1px', backgroundColor: '#334155' }}></div>
