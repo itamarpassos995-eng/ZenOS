@@ -530,7 +530,59 @@ export default function PDVCompras({
           </div>
         </div>
       )}
+{/* MODAL CADASTRO FORNECEDOR (IGUAL À IMAGEM) */}
+      {modalFornecedorAberto && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1500, padding: '16px' }}>
+          <div style={{ backgroundColor: '#0b1120', border: '1px solid #7e22ce', borderRadius: '24px', width: '100%', maxWidth: '600px', padding: '28px', color: '#fff', maxHeight: '90vh', overflowY: 'auto', boxSizing: 'border-box' }}>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <div>
+                <span style={{ fontSize: '11px', fontWeight: 800, color: '#a855f7', textTransform: 'uppercase', letterSpacing: '1px' }}>Ficha Cadastral</span>
+                <h3 style={{ margin: '4px 0 0 0', fontSize: '20px', fontWeight: 900 }}>Novo Fornecedor</h3>
+              </div>
+              <button onClick={() => setModalFornecedorAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#64748b', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+            </div>
 
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px', marginBottom: '24px' }}>
+              <div>
+                <label style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 800 }}>Nome / Razão Social *</label>
+                <input type="text" value={formFornecedor.nome || ''} onChange={e => setFormFornecedor({...formFornecedor, nome: e.target.value})} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '10px', color: '#fff', padding: '14px', outline: 'none', marginTop: '6px', boxSizing: 'border-box' }} />
+              </div>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 800 }}>{moeda === 'PYG' ? 'RUC / C.I' : 'CNPJ / CPF'}</label>
+                  <input type="text" value={formFornecedor.documento || ''} onChange={e => setFormFornecedor({...formFornecedor, documento: e.target.value})} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '10px', color: '#fff', padding: '14px', outline: 'none', marginTop: '6px', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 800 }}>País / Regra Fiscal</label>
+                  <select value={formFornecedor.pais || (moeda === 'PYG' ? 'PY' : 'BR')} onChange={e => setFormFornecedor({...formFornecedor, pais: e.target.value})} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '10px', color: '#a855f7', padding: '14px', outline: 'none', marginTop: '6px', boxSizing: 'border-box', fontWeight: 900 }}>
+                    <option value="BR">Brasil (CNPJ/CPF)</option>
+                    <option value="PY">Paraguay (RUC)</option>
+                    <option value="OUTROS">Exterior / Outros</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 800 }}>Telefone / WhatsApp</label>
+                  <input type="text" value={formFornecedor.telefone || ''} onChange={e => setFormFornecedor({...formFornecedor, telefone: e.target.value})} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '10px', color: '#fff', padding: '14px', outline: 'none', marginTop: '6px', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 800 }}>Cidade / Estado</label>
+                  <input type="text" value={formFornecedor.cidade || ''} onChange={e => setFormFornecedor({...formFornecedor, cidade: e.target.value})} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '10px', color: '#fff', padding: '14px', outline: 'none', marginTop: '6px', boxSizing: 'border-box' }} />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button onClick={() => setModalFornecedorAberto(false)} style={{ flex: 1, padding: '16px', backgroundColor: '#1e293b', border: 'none', color: '#f8fafc', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', fontSize: '14px' }}>Cancelar</button>
+              <button onClick={salvarFornecedor} style={{ flex: 2, background: 'linear-gradient(135deg, #9333ea, #7e22ce)', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '14px' }}>Salvar Fornecedor</button>
+            </div>
+          </div>
+        </div>
+      )}
       {modalFechamentoAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1500, padding: '16px', boxSizing: 'border-box' }}>
           <div style={{ backgroundColor: '#0b1120', border: '1px solid #ea580c', borderRadius: '24px', width: '100%', maxWidth: '750px', maxHeight: '95vh', overflowY: 'auto', padding: '28px', color: '#fff', boxShadow: '0 25px 50px rgba(0,0,0,0.5)', boxSizing: 'border-box' }}>
