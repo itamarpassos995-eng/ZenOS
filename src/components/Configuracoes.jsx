@@ -399,39 +399,39 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
                   <span style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800, textTransform: 'uppercase', marginBottom: '12px', display: 'block' }}>Ajustar Acessos Deste Usuário:</span>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
-                      <input type="checkbox" checked={v.permissoes?.admin} onChange={e => atualizarPermissaoVendedor(v.id, 'admin', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#e11d48' }} />
+                      <input type="checkbox" checked={v.permissoes?.admin || false} onChange={e => atualizarPermissaoVendedor(v.id, 'admin', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#e11d48' }} />
                       <span style={{ color: '#fb7185', fontWeight: 900 }}>Administrador (Acesso Total)</span>
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
-                      <input type="checkbox" disabled={v.permissoes?.admin} checked={v.permissoes?.admin || v.permissoes?.pdv} onChange={e => atualizarPermissaoVendedor(v.id, 'pdv', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#10b981' }} />
+                      <input type="checkbox" disabled={v.permissoes?.admin || false} checked={v.permissoes?.admin || v.permissoes?.pdv || false} onChange={e => atualizarPermissaoVendedor(v.id, 'pdv', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#10b981' }} />
                       🛒 Operar PDV (Vendas)
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
-                      <input type="checkbox" disabled={v.permissoes?.admin} checked={v.permissoes?.admin || v.permissoes?.mesas} onChange={e => atualizarPermissaoVendedor(v.id, 'mesas', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#10b981' }} />
+                      <input type="checkbox" disabled={v.permissoes?.admin || false} checked={v.permissoes?.admin || v.permissoes?.mesas || false} onChange={e => atualizarPermissaoVendedor(v.id, 'mesas', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#10b981' }} />
                       🍽 Gestão de Mesas
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
-                      <input type="checkbox" disabled={v.permissoes?.admin} checked={v.permissoes?.admin || v.permissoes?.produtos} onChange={e => atualizarPermissaoVendedor(v.id, 'produtos', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#0284c7' }} />
+                      <input type="checkbox" disabled={v.permissoes?.admin || false} checked={v.permissoes?.admin || v.permissoes?.produtos || false} onChange={e => atualizarPermissaoVendedor(v.id, 'produtos', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#0284c7' }} />
                       📦 Produtos e Compras
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
-                      <input type="checkbox" disabled={v.permissoes?.admin} checked={v.permissoes?.admin || v.permissoes?.clientes} onChange={e => atualizarPermissaoVendedor(v.id, 'clientes', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#d97706' }} />
+                      <input type="checkbox" disabled={v.permissoes?.admin || false} checked={v.permissoes?.admin || v.permissoes?.clientes || false} onChange={e => atualizarPermissaoVendedor(v.id, 'clientes', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#d97706' }} />
                       👥 Clientes e Fiados
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
-                      <input type="checkbox" disabled={v.permissoes?.admin} checked={v.permissoes?.admin || v.permissoes?.caixa} onChange={e => atualizarPermissaoVendedor(v.id, 'caixa', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#8b5cf6' }} />
+                      <input type="checkbox" disabled={v.permissoes?.admin || false} checked={v.permissoes?.admin || v.permissoes?.caixa || false} onChange={e => atualizarPermissaoVendedor(v.id, 'caixa', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#8b5cf6' }} />
                       💵 Movimentar Caixa
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
-                      <input type="checkbox" disabled={v.permissoes?.admin} checked={v.permissoes?.admin || v.permissoes?.vendas} onChange={e => atualizarPermissaoVendedor(v.id, 'vendas', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#8b5cf6' }} />
+                      <input type="checkbox" disabled={v.permissoes?.admin || false} checked={v.permissoes?.admin || v.permissoes?.vendas || false} onChange={e => atualizarPermissaoVendedor(v.id, 'vendas', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#8b5cf6' }} />
                       📑 Ver Histórico
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
-                      <input type="checkbox" disabled={v.permissoes?.admin} checked={v.permissoes?.admin || v.permissoes?.despesas} onChange={e => atualizarPermissaoVendedor(v.id, 'despesas', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#8b5cf6' }} />
+                      <input type="checkbox" disabled={v.permissoes?.admin || false} checked={v.permissoes?.admin || v.permissoes?.despesas || false} onChange={e => atualizarPermissaoVendedor(v.id, 'despesas', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#8b5cf6' }} />
                       💸 Lançar Despesas
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
-                      <input type="checkbox" disabled={v.permissoes?.admin} checked={v.permissoes?.admin || v.permissoes?.inteligencia} onChange={e => atualizarPermissaoVendedor(v.id, 'inteligencia', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#a855f7' }} />
+                      <input type="checkbox" disabled={v.permissoes?.admin || false} checked={v.permissoes?.admin || v.permissoes?.inteligencia || false} onChange={e => atualizarPermissaoVendedor(v.id, 'inteligencia', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#a855f7' }} />
                       📊 Painel Executivo
                     </label>
                   </div>
