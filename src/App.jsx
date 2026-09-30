@@ -548,10 +548,24 @@ export default function App() {
 // RESTAURAÇÃO: TELA DE BLOQUEIO ORIGINAL ZENOS (PADRÃO PREMIUM) E PLANOS
   if (statusLoja !== 'ativo') {
     return (
-      <div style={{ minHeight: '100vh', backgroundColor: '#020617', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: 'system-ui, sans-serif', backgroundImage: 'radial-gradient(circle at 50% 0%, #1e293b 0%, #020617 70%)' }}>
+      <div style={{ 
+        minHeight: '100vh', 
+        backgroundColor: '#020617', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        padding: '20px', 
+        fontFamily: 'system-ui, sans-serif', 
+        // AQUI: A Mágica do Marketing Visual (Fundo com Gráficos + Gradiente Escuro para leitura)
+        backgroundImage: 'linear-gradient(to bottom, rgba(15, 23, 42, 0.85), rgba(2, 6, 23, 0.98)), url("/bg-dashboard.png")',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+        backgroundAttachment: 'fixed'
+      }}>
         
         {/* CARTÃO DE BLOQUEIO - DESIGN ORIGINAL RESTAURADO */}
-        <div style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '24px', padding: '40px 24px', maxWidth: '420px', width: '100%', textAlign: 'center', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
+        <div style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '24px', padding: '40px 24px', maxWidth: '420px', width: '100%', textAlign: 'center', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.8)' }}>
           
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
             <img src="/logo-zenos.png?v=4" alt="ZenOS" style={{ height: '60px', width: 'auto', filter: 'drop-shadow(0 0 15px rgba(251, 191, 36, 0.2))' }} />
