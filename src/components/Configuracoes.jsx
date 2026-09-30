@@ -17,7 +17,6 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
   const [selDespesas, setSelDespesas] = useState(false);
   const [selTudo, setSelTudo] = useState(false);
 
-  // 🏢 NOVO: ESTADOS PARA PERFIL COMPLETO E FISCAL DA LOJA
   const [perfilLoja, setPerfilLoja] = useState(() => {
     try {
       const salvo = localStorage.getItem('zenos_perfil_loja');
@@ -26,9 +25,9 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
     return {
       nomeFantasia: localStorage.getItem('zenos_nome_loja') || '',
       razaoSocial: '',
-      pais: 'BR', // BR, PY ou OUTRO
-      documento1: '', // CNPJ ou RUC
-      documento2: '', // IE ou Timbrado
+      pais: 'BR', 
+      documento1: '', 
+      documento2: '', 
       telefone: '',
       endereco: '',
       cidade: '',
@@ -36,6 +35,9 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
     };
   });
   const [salvandoPerfil, setSalvandoPerfil] = useState(false);
+
+  // ESTADO PARA EDIÇÃO DE PERMISSÕES
+  const [vendedorEmEdicaoId, setVendedorEmEdicaoId] = useState(null);
 
   const handleSelTudo = (val) => {
     setSelTudo(val); setSelProdutos(val); setSelClientes(val); setSelVendas(val); setSelCaixa(val); setSelDespesas(val);
@@ -45,14 +47,11 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
     setPerfilLoja(prev => ({ ...prev, [campo]: valor }));
   };
 
-  // 🏢 NOVO: MOTOR DE SALVAMENTO DO PERFIL FISCAL (Nuvem e Local)
   const salvarPerfilLoja = async () => {
     if (!perfilLoja.nomeFantasia.trim()) return alert(tx ? tx('O Nome Fantasia é obrigatório.', 'El Nombre Comercial es obligatorio.', 'Store Name is required.') : 'Nome obrigatório.');
     setSalvandoPerfil(true);
     try {
-      // Guarda o objeto completo para o sistema fiscal
       localStorage.setItem('zenos_perfil_loja', JSON.stringify(perfilLoja));
-      // Mantém esta chave isolada para retrocompatibilidade com o menu no App.jsx
       localStorage.setItem('zenos_nome_loja', perfilLoja.nomeFantasia); 
       
       const user = auth.currentUser;
@@ -70,7 +69,6 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
     setSalvandoPerfil(false);
   };
 
-  // 🛡️ AQUI ESTAVA O ERRO DA TELA PRETA (ESTADOS QUE FALTAVAM)
   const [novoVendedorNome, setNovoVendedorNome] = useState('');
   const [novoVendedorCargo, setNovoVendedorCargo] = useState('');
   const [novoVendedorSenha, setNovoVendedorSenha] = useState('');
@@ -94,7 +92,6 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
 
     if (setVendedores) setVendedores([...(vendedores || []), nv]);
     
-    // Limpar o formulário após salvar
     setNovoVendedorNome('');
     setNovoVendedorCargo('');
     setNovoVendedorSenha('');
@@ -108,6 +105,25 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
     if (!vendedores || vendedores.length <= 1) return alert('Você não pode excluir o último utilizador do sistema.');
     if(window.confirm('Tem a certeza que deseja excluir este utilizador?')) {
       if (setVendedores) setVendedores(vendedores.filter(v => String(v.id) !== String(idParaRemover)));
+    }
+  };
+
+  // 🛡️ ATUALIZA AS PERMISSÕES DE UM VENDEDOR JÁ EXISTENTE
+  const atualizarPermissaoVendedor = (idVendedor, campoPermissao, valorCheckbox) => {
+    if (setVendedores) {
+      const novaLista = vendedores.map(v => {
+        if (v.id === idVendedor) {
+          return {
+            ...v,
+            permissoes: {
+              ...(v.permissoes || {}),
+              [campoPermissao]: valorCheckbox
+            }
+          };
+        }
+        return v;
+      });
+      setVendedores(novaLista);
     }
   };
 
@@ -148,7 +164,6 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
         <span style={{ fontSize: '13px', color: '#64748b' }}>Gestão de equipa, rentabilidade e segurança</span>
       </div>
 
-      {/* 🏢 NOVO: CARTÃO IDENTIDADE E DADOS FISCAIS DA LOJA */}
       <div style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.2)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -168,7 +183,6 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
         </div>
         
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
-          {/* Nome e Razão Social */}
           <div>
             <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>Nome Fantasia (Loja)</label>
             <input type="text" value={perfilLoja.nomeFantasia} onChange={(e) => lidarMudancaPerfil('nomeFantasia', e.target.value)} placeholder="Ex: Zênite Atacadão" style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#f8fafc', padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
@@ -178,7 +192,6 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
             <input type="text" value={perfilLoja.razaoSocial} onChange={(e) => lidarMudancaPerfil('razaoSocial', e.target.value)} placeholder="Ex: Zênite Tintas LTDA" style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#f8fafc', padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
           </div>
 
-          {/* Documentos Dinâmicos */}
           <div>
             <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>{perfilLoja.pais === 'BR' ? 'CNPJ' : perfilLoja.pais === 'PY' ? 'RUC' : 'NIF / Documento Fiscal'}</label>
             <input type="text" value={perfilLoja.documento1} onChange={(e) => lidarMudancaPerfil('documento1', e.target.value)} placeholder={perfilLoja.pais === 'BR' ? '00.000.000/0001-00' : '8000000-1'} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#38bdf8', fontWeight: 900, padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
@@ -188,7 +201,6 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
             <input type="text" value={perfilLoja.documento2} onChange={(e) => lidarMudancaPerfil('documento2', e.target.value)} placeholder={perfilLoja.pais === 'PY' ? '12345678' : 'Isento ou Número'} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#f8fafc', padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
           </div>
 
-          {/* Contacto e Localização */}
           <div>
             <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>Telemóvel / WhatsApp</label>
             <input type="text" value={perfilLoja.telefone} onChange={(e) => lidarMudancaPerfil('telefone', e.target.value)} placeholder="+55 11 99999-9999" style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#34d399', fontWeight: 900, padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
@@ -220,7 +232,6 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
         </div>
       </div>
 
-      {/* 🛡️ SEMÁFORO DE LUCRATIVIDADE DA VENDA */}
       <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{ fontSize: '20px' }}>🚥</span>
@@ -286,7 +297,6 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
         </div>
       </div>
 
-      {/* 🛡️ GESTÃO DE EQUIPA E PERMISSÕES GRANULARES (RBAC) */}
       <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{ fontSize: '20px' }}>🔐</span><h3 style={{ fontSize: '18px', fontWeight: 900, color: '#fff', margin: 0 }}>Gestão de Equipa e Controlo de Acessos</h3>
@@ -295,7 +305,6 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
           Crie utilizadores, defina cargos customizados e marque exatamente quais os módulos do sistema cada um pode aceder.
         </p>
 
-        {/* FORMULÁRIO DE CRIAÇÃO */}
         <div style={{ backgroundColor: '#020617', padding: '20px', borderRadius: '16px', border: '1px solid #334155', display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
             <div>
@@ -361,25 +370,79 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
           <button onClick={adicionarVendedor} type="button" style={{ backgroundColor: '#4f46e5', border: 'none', color: '#fff', padding: '14px', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', fontSize: '14px', boxShadow: '0 4px 15px rgba(79, 70, 229, 0.3)' }}>+ Adicionar Utilizador ao Sistema</button>
         </div>
 
-        {/* LISTA DE UTILIZADORES */}
+        {/* LISTA DE UTILIZADORES COM EDIÇÃO DE PERMISSÃO */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>Utilizadores Cadastrados ({vendedores?.length || 0})</span>
           {vendedores?.map(v => (
-            <div key={v.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#020617', padding: '16px', borderRadius: '12px', border: '1px solid #1e293b', flexWrap: 'wrap', gap: '10px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ color: '#f8fafc', fontWeight: 900, fontSize: '15px' }}>{v.nome}</span>
-                  <span style={{ fontSize: '10px', backgroundColor: v.permissoes?.admin ? 'rgba(244, 63, 94, 0.2)' : 'rgba(56, 189, 248, 0.2)', color: v.permissoes?.admin ? '#fb7185' : '#38bdf8', padding: '2px 8px', borderRadius: '6px', fontWeight: 800 }}>{v.cargo || 'Operador'}</span>
+            <div key={v.id} style={{ display: 'flex', flexDirection: 'column', backgroundColor: '#020617', padding: '16px', borderRadius: '12px', border: '1px solid #1e293b', gap: '16px' }}>
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ color: '#f8fafc', fontWeight: 900, fontSize: '15px' }}>{v.nome}</span>
+                    <span style={{ fontSize: '10px', backgroundColor: v.permissoes?.admin ? 'rgba(244, 63, 94, 0.2)' : 'rgba(56, 189, 248, 0.2)', color: v.permissoes?.admin ? '#fb7185' : '#38bdf8', padding: '2px 8px', borderRadius: '6px', fontWeight: 800 }}>{v.cargo || 'Operador'}</span>
+                  </div>
+                  <span style={{ fontSize: '11px', color: '#94a3b8' }}>PIN: <strong style={{ color: '#fff' }}>{v.senha}</strong> • Comissão: <strong style={{ color: '#34d399' }}>{v.percentual}%</strong></span>
                 </div>
-                <span style={{ fontSize: '11px', color: '#94a3b8' }}>PIN: <strong style={{ color: '#fff' }}>{v.senha}</strong> • Comissão: <strong style={{ color: '#34d399' }}>{v.percentual}%</strong></span>
+                
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button onClick={() => setVendedorEmEdicaoId(vendedorEmEdicaoId === v.id ? null : v.id)} style={{ backgroundColor: '#1e293b', border: 'none', color: '#cbd5e1', borderRadius: '8px', padding: '8px 12px', cursor: 'pointer', fontWeight: 800, fontSize: '12px' }}>
+                    {vendedorEmEdicaoId === v.id ? 'Ocultar Permissões' : '✏️ Editar Permissões'}
+                  </button>
+                  <button onClick={() => removerVendedor(v.id)} style={{ backgroundColor: 'rgba(244, 63, 94, 0.1)', border: '1px solid rgba(244, 63, 94, 0.3)', color: '#fb7185', borderRadius: '8px', padding: '8px 12px', cursor: 'pointer', fontWeight: 800, fontSize: '12px' }}>Remover</button>
+                </div>
               </div>
-              <button onClick={() => removerVendedor(v.id)} style={{ backgroundColor: 'rgba(244, 63, 94, 0.1)', border: '1px solid rgba(244, 63, 94, 0.3)', color: '#fb7185', borderRadius: '8px', padding: '8px 12px', cursor: 'pointer', fontWeight: 800, fontSize: '12px' }}>Remover Acesso</button>
+
+              {/* BLOCO QUE EXPANDE PARA EDITAR PERMISSÕES */}
+              {vendedorEmEdicaoId === v.id && (
+                <div style={{ borderTop: '1px dashed #334155', paddingTop: '16px', animation: 'fadeIn 0.3s' }}>
+                  <span style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800, textTransform: 'uppercase', marginBottom: '12px', display: 'block' }}>Ajustar Acessos Deste Usuário:</span>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
+                      <input type="checkbox" checked={v.permissoes?.admin} onChange={e => atualizarPermissaoVendedor(v.id, 'admin', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#e11d48' }} />
+                      <span style={{ color: '#fb7185', fontWeight: 900 }}>Administrador (Acesso Total)</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
+                      <input type="checkbox" disabled={v.permissoes?.admin} checked={v.permissoes?.admin || v.permissoes?.pdv} onChange={e => atualizarPermissaoVendedor(v.id, 'pdv', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#10b981' }} />
+                      🛒 Operar PDV (Vendas)
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
+                      <input type="checkbox" disabled={v.permissoes?.admin} checked={v.permissoes?.admin || v.permissoes?.mesas} onChange={e => atualizarPermissaoVendedor(v.id, 'mesas', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#10b981' }} />
+                      🍽 Gestão de Mesas
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
+                      <input type="checkbox" disabled={v.permissoes?.admin} checked={v.permissoes?.admin || v.permissoes?.produtos} onChange={e => atualizarPermissaoVendedor(v.id, 'produtos', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#0284c7' }} />
+                      📦 Produtos e Compras
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
+                      <input type="checkbox" disabled={v.permissoes?.admin} checked={v.permissoes?.admin || v.permissoes?.clientes} onChange={e => atualizarPermissaoVendedor(v.id, 'clientes', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#d97706' }} />
+                      👥 Clientes e Fiados
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
+                      <input type="checkbox" disabled={v.permissoes?.admin} checked={v.permissoes?.admin || v.permissoes?.caixa} onChange={e => atualizarPermissaoVendedor(v.id, 'caixa', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#8b5cf6' }} />
+                      💵 Movimentar Caixa
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
+                      <input type="checkbox" disabled={v.permissoes?.admin} checked={v.permissoes?.admin || v.permissoes?.vendas} onChange={e => atualizarPermissaoVendedor(v.id, 'vendas', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#8b5cf6' }} />
+                      📑 Ver Histórico
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
+                      <input type="checkbox" disabled={v.permissoes?.admin} checked={v.permissoes?.admin || v.permissoes?.despesas} onChange={e => atualizarPermissaoVendedor(v.id, 'despesas', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#8b5cf6' }} />
+                      💸 Lançar Despesas
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
+                      <input type="checkbox" disabled={v.permissoes?.admin} checked={v.permissoes?.admin || v.permissoes?.inteligencia} onChange={e => atualizarPermissaoVendedor(v.id, 'inteligencia', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#a855f7' }} />
+                      📊 Painel Executivo
+                    </label>
+                  </div>
+                </div>
+              )}
+
             </div>
           ))}
         </div>
       </div>
 
-      {/* ZONA DE PERIGO */}
       <div style={{ backgroundColor: '#2e0a16', border: '1px solid rgba(244, 63, 94, 0.4)', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{ fontSize: '20px' }}>⚠️</span><h3 style={{ fontSize: '18px', fontWeight: 900, color: '#fb7185', margin: 0 }}>Zona de Perigo • Limpeza</h3>
