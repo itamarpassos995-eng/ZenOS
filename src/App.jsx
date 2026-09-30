@@ -26,33 +26,12 @@ const CURRENT_SCHEMA_VERSION = 1;
 function executarMigracaoDeDados() {
   try {
     const versaoSalva = parseInt(localStorage.getItem('zenos_schema_version') || '0', 10);
-
     if (versaoSalva < CURRENT_SCHEMA_VERSION) {
-      console.info(`[ZenOS Migration] Atualizando base de dados local da v${versaoSalva} para v${CURRENT_SCHEMA_VERSION}...`);
-
-      const prodLocal = localStorage.getItem('zenos_produtos');
-      if (prodLocal) {
-        const parsed = JSON.parse(prodLocal);
-        if (Array.isArray(parsed)) {
-          const normalizados = parsed.map((p, idx) => normalizarProduto(p, idx));
-          localStorage.setItem('zenos_produtos', JSON.stringify(normalizados));
-        }
-      }
-
-      const clienteLocal = localStorage.getItem('zenos_clientes');
-      if (clienteLocal) {
-        const parsed = JSON.parse(clienteLocal);
-        if (Array.isArray(parsed)) {
-          const normalizados = parsed.map(c => normalizarCliente(c));
-          localStorage.setItem('zenos_clientes', JSON.stringify(normalizados));
-        }
-      }
-
+      console.info(`[ZenOS Migration] Atualizando base de dados local para v${CURRENT_SCHEMA_VERSION}...`);
       localStorage.setItem('zenos_schema_version', CURRENT_SCHEMA_VERSION.toString());
-      console.info("[ZenOS Migration] Migração concluída com sucesso. Dados preservados.");
     }
   } catch (err) {
-    console.error("[ZenOS Migration Error] Falha ao executar migração de schema:", err);
+    console.error("[ZenOS Migration Error] Falha:", err);
   }
 }
 
@@ -78,16 +57,11 @@ export default function App() {
   const [statusLoja, setStatusLoja] = useState(null);
   const [carregandoAuth, setCarregandoAuth] = useState(true);
   
-  // 🔒 NOVO: MOTOR DE SINCRONIZAÇÃO (TRANCA DE DADOS)
+  // 🔒 MOTOR DE SINCRONIZAÇÃO (TRANCA DE DADOS)
   const [nuvemSincronizada, setNuvemSincronizada] = useState(false);
 
-  const [vendedores, setVendedores] = useState(() => {
-    try {
-      const salvo = localStorage.getItem('zenos_vendedores');
-      if (salvo) return JSON.parse(salvo);
-    } catch (err) {}
-    return [{ id: 'admin', nome: 'Administrador (Gerência)', patente: 'gerencia', senha: 'admin', percentual: 0, comissaoTipo: 'lucro' }];
-  });
+  // 🛡️ Inicialização Limpa: Não puxar do cache genérico na inicialização
+  const [vendedores, setVendedores] = useState([]);
   const [operadorAtivo, setOperadorAtivo] = useState(null); 
   const patenteUsuario = operadorAtivo?.patente || 'vendedor'; 
 
@@ -107,97 +81,16 @@ export default function App() {
   const [taxasInput, setTaxasInput] = useState({ USD: '5.40', EUR: '6.05', PYG: '1380' });
   const [modalCambioAberto, setModalCambioAberto] = useState(false);
 
-  const [regrasDesconto, setRegrasDesconto] = useState(() => {
-    try {
-      const salvo = localStorage.getItem('zenos_regras_desconto');
-      if (salvo) return JSON.parse(salvo);
-    } catch (err) {}
-    return { verdeMax: 5, amareloMax: 12, exigirSenhaVermelho: true, senhaGerente: '1234' };
-  });
-
-  const [sessoesCaixa, setSessoesCaixa] = useState(() => {
-    try {
-      const salvo = localStorage.getItem('zenos_sessoes_caixa');
-      if (salvo) return JSON.parse(salvo);
-    } catch (err) {}
-    return [];
-  });
-
-  const [produtos, setProdutos] = useState(() => {
-    try {
-      const salvo = localStorage.getItem('zenos_produtos');
-      if (salvo) {
-        const parsed = JSON.parse(salvo);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch (err) {}
-    return produtosIniciais.map((p, idx) => normalizarProduto(p, idx));
-  });
-
-  const [clientes, setClientes] = useState(() => {
-    try {
-      const salvo = localStorage.getItem('zenos_clientes');
-      if (salvo) {
-        const parsed = JSON.parse(salvo);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch (err) {}
-    return clientesIniciais.map(c => normalizarCliente(c));
-  });
-
-  const [historicoVendas, setHistoricoVendas] = useState(() => {
-    try {
-      const salvo = localStorage.getItem('zenos_historico_vendas');
-      if (salvo) {
-        const parsed = JSON.parse(salvo);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (err) {}
-    return [];
-  });
-
-  const [caixaMovimentos, setCaixaMovimentos] = useState(() => {
-    try {
-      const salvo = localStorage.getItem('zenos_caixa_movs');
-      if (salvo) {
-        const parsed = JSON.parse(salvo);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (err) {}
-    return [];
-  });
-
-  const [despesas, setDespesas] = useState(() => {
-    try {
-      const salvo = localStorage.getItem('zenos_despesas');
-      if (salvo) {
-        const parsed = JSON.parse(salvo);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (err) {}
-    return [];
-  });
-  const [historicoCompras, setHistoricoCompras] = useState(() => {
-    try {
-      const salvo = localStorage.getItem('zenos_historico_compras');
-      if (salvo) {
-        const parsed = JSON.parse(salvo);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (err) {}
-    return [];
-  });
-
-  const [fornecedores, setFornecedores] = useState(() => {
-    try {
-      const salvo = localStorage.getItem('zenos_fornecedores');
-      if (salvo) {
-        const parsed = JSON.parse(salvo);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (err) {}
-    return [];
-  });
+  // Variáveis Nascem Vazias (Isolamento de Memória RAM)
+  const [regrasDesconto, setRegrasDesconto] = useState({ verdeMax: 5, amareloMax: 12, exigirSenhaVermelho: true, senhaGerente: '1234' });
+  const [sessoesCaixa, setSessoesCaixa] = useState([]);
+  const [produtos, setProdutos] = useState([]);
+  const [clientes, setClientes] = useState([]);
+  const [historicoVendas, setHistoricoVendas] = useState([]);
+  const [caixaMovimentos, setCaixaMovimentos] = useState([]);
+  const [despesas, setDespesas] = useState([]);
+  const [historicoCompras, setHistoricoCompras] = useState([]);
+  const [fornecedores, setFornecedores] = useState([]);
 
   const solicitarDemoFirebase = async () => {
     if (!userId) return;
@@ -212,7 +105,7 @@ export default function App() {
     }
   };
 
-  // 🔒 ATUALIZADO: MOTOR DE DESCARGA E TRANCA DE SOBRESCRITA (DOWNLOAD-FIRST)
+  // 🔒 ATUALIZADO: MOTOR CLOUD-FIRST (A nuvem é a fonte absoluta da verdade)
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -238,28 +131,62 @@ export default function App() {
 
           const dadosLojaSnap = await getDoc(doc(db, "lojas", user.uid, "dados", "operacao"));
           if (dadosLojaSnap.exists()) {
+            // SE A LOJA TEM DADOS NA NUVEM, PUXA TUDO DAQUI!
             const d = dadosLojaSnap.data();
-            if (d.produtos) setProdutos(d.produtos.map(p => normalizarProduto(p)));
-            if (d.clientes) setClientes(d.clientes.map(c => normalizarCliente(c)));
-            if (d.historicoVendas) setHistoricoVendas(d.historicoVendas);
-            if (d.caixaMovimentos) setCaixaMovimentos(d.caixaMovimentos);
-            if (d.despesas) setDespesas(d.despesas);
-            if (d.historicoCompras) setHistoricoCompras(d.historicoCompras);
-            if (d.fornecedores) setFornecedores(d.fornecedores);
-            if (d.regrasDesconto) setRegrasDesconto(d.regrasDesconto); 
-            if (d.vendedores) setVendedores(d.vendedores);
-            if (d.sessoesCaixa) setSessoesCaixa(d.sessoesCaixa);
+            setProdutos(d.produtos ? d.produtos.map(p => normalizarProduto(p)) : produtosIniciais.map((p, idx) => normalizarProduto(p, idx)));
+            setClientes(d.clientes ? d.clientes.map(c => normalizarCliente(c)) : clientesIniciais.map(c => normalizarCliente(c)));
+            setHistoricoVendas(d.historicoVendas || []);
+            setCaixaMovimentos(d.caixaMovimentos || []);
+            setDespesas(d.despesas || []);
+            setHistoricoCompras(d.historicoCompras || []);
+            setFornecedores(d.fornecedores || []);
+            setRegrasDesconto(d.regrasDesconto || { verdeMax: 5, amareloMax: 12, exigirSenhaVermelho: true, senhaGerente: '1234' }); 
+            setVendedores(d.vendedores && d.vendedores.length > 0 ? d.vendedores : [{ id: 'admin', nome: 'Administrador (Gerência)', patente: 'gerencia', senha: 'admin', percentual: 0, comissaoTipo: 'lucro' }]);
+            setSessoesCaixa(d.sessoesCaixa || []);
+          } else {
+            // CONTA NOVA (ZERADA): Ignorar qualquer lixo local e forçar arrays vazios/padrão
+            setProdutos(produtosIniciais.map((p, idx) => normalizarProduto(p, idx)));
+            setClientes(clientesIniciais.map(c => normalizarCliente(c)));
+            setHistoricoVendas([]);
+            setCaixaMovimentos([]);
+            setDespesas([]);
+            setHistoricoCompras([]);
+            setFornecedores([]);
+            setSessoesCaixa([]);
+            setVendedores([{ id: 'admin', nome: 'Administrador (Gerência)', patente: 'gerencia', senha: 'admin', percentual: 0, comissaoTipo: 'lucro' }]);
           }
         } catch (err) { 
           setStatusLoja('ativo'); 
+          // FALLBACK OFFLINE SEGURO: Puxa o cache isolado ou o legado genérico se for a primeira vez offline
+          try {
+            const puxar = (chave) => {
+              const val = localStorage.getItem(`zenos_${user.uid}_${chave}`);
+              if (val) return JSON.parse(val);
+              const legado = localStorage.getItem(`zenos_${chave}`);
+              if (legado) return JSON.parse(legado);
+              return null;
+            };
+            
+            const p = puxar('produtos'); if(p) setProdutos(p); else setProdutos(produtosIniciais.map((x, idx) => normalizarProduto(x, idx)));
+            const c = puxar('clientes'); if(c) setClientes(c); else setClientes(clientesIniciais.map(x => normalizarCliente(x)));
+            const hv = puxar('historico_vendas'); if(hv) setHistoricoVendas(hv);
+            const cm = puxar('caixa_movs'); if(cm) setCaixaMovimentos(cm);
+            const d = puxar('despesas'); if(d) setDespesas(d);
+            const hc = puxar('historico_compras'); if(hc) setHistoricoCompras(hc);
+            const f = puxar('fornecedores'); if(f) setFornecedores(f);
+            const sc = puxar('sessoes_caixa'); if(sc) setSessoesCaixa(sc);
+            const rd = puxar('regras_desconto'); if(rd) setRegrasDesconto(rd); else setRegrasDesconto({ verdeMax: 5, amareloMax: 12, exigirSenhaVermelho: true, senhaGerente: '1234' });
+            const vd = puxar('vendedores'); if(vd) setVendedores(vd); else setVendedores([{ id: 'admin', nome: 'Administrador (Gerência)', patente: 'gerencia', senha: 'admin', percentual: 0, comissaoTipo: 'lucro' }]);
+          } catch(e){}
         } finally {
-          // 🔒 AQUI A TRANCA É ABERTA: O sistema leu a nuvem e injetou no estado local com sucesso. Agora ele permite os salvamentos.
+          // Destranca o sistema para permitir salvamentos
           setNuvemSincronizada(true);
         }
       } else {
-        // Zera tudo e tranca o sistema novamente
+        // SEM USUÁRIO (DESLOGADO): Destrói os dados locais da memória RAM
         setUsuarioAutenticado(null); setUserId(null); setStatusLoja(null); setOperadorAtivo(null);
         setNuvemSincronizada(false);
+        setProdutos([]); setClientes([]); setHistoricoVendas([]); setCaixaMovimentos([]); setDespesas([]); setHistoricoCompras([]); setFornecedores([]); setSessoesCaixa([]); setVendedores([]);
       }
       setCarregandoAuth(false);
     });
@@ -269,6 +196,10 @@ export default function App() {
   const fazerLogout = async () => {
     if(window.confirm(tx('Encerrar a sessão principal desta loja?', '¿Cerrar sesión?', 'End session?'))) {
       await signOut(auth);
+      // LIMPEZA ABSOLUTA DE MEMÓRIA NO LOGOUT
+      setNuvemSincronizada(false);
+      setProdutos([]); setClientes([]); setHistoricoVendas([]); setCaixaMovimentos([]); setDespesas([]); setHistoricoCompras([]); setFornecedores([]); setSessoesCaixa([]); setVendedores([]);
+      
       setMostrarPainelExecutivo(false); 
       setOperadorAtivo(null);
       setValoresTopoVisiveis(true);
@@ -288,68 +219,68 @@ export default function App() {
     setMostrarPainelExecutivo(false);
   };
 
-  // 🔒 ATUALIZADO: TODOS OS GATILHOS ESTÃO AGORA PROTEGIDOS PELA TRANCA "nuvemSincronizada"
+  // 🔒 ATUALIZADO: SINCRONIZAÇÃO CIRÚRGICA (Envia apenas o que mudou usando chave segura)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
-    if (!nuvemSincronizada) return;
-    localStorage.setItem('zenos_produtos', JSON.stringify(produtos)); 
-    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(()=>{}); }
+    if (!nuvemSincronizada || !userId) return;
+    localStorage.setItem(`zenos_${userId}_produtos`, JSON.stringify(produtos)); 
+    setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos }, { merge: true }).catch(()=>{}); 
   }, [produtos, userId, nuvemSincronizada]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
-    if (!nuvemSincronizada) return;
-    localStorage.setItem('zenos_clientes', JSON.stringify(clientes)); 
-    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(()=>{}); }
+    if (!nuvemSincronizada || !userId) return;
+    localStorage.setItem(`zenos_${userId}_clientes`, JSON.stringify(clientes)); 
+    setDoc(doc(db, "lojas", userId, "dados", "operacao"), { clientes }, { merge: true }).catch(()=>{}); 
   }, [clientes, userId, nuvemSincronizada]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
-    if (!nuvemSincronizada) return;
-    localStorage.setItem('zenos_historico_vendas', JSON.stringify(historicoVendas)); 
-    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(()=>{}); }
+    if (!nuvemSincronizada || !userId) return;
+    localStorage.setItem(`zenos_${userId}_historico_vendas`, JSON.stringify(historicoVendas)); 
+    setDoc(doc(db, "lojas", userId, "dados", "operacao"), { historicoVendas }, { merge: true }).catch(()=>{}); 
   }, [historicoVendas, userId, nuvemSincronizada]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
-    if (!nuvemSincronizada) return;
-    localStorage.setItem('zenos_caixa_movs', JSON.stringify(caixaMovimentos)); 
-    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(()=>{}); }
+    if (!nuvemSincronizada || !userId) return;
+    localStorage.setItem(`zenos_${userId}_caixa_movs`, JSON.stringify(caixaMovimentos)); 
+    setDoc(doc(db, "lojas", userId, "dados", "operacao"), { caixaMovimentos }, { merge: true }).catch(()=>{}); 
   }, [caixaMovimentos, userId, nuvemSincronizada]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
-    if (!nuvemSincronizada) return;
-    localStorage.setItem('zenos_despesas', JSON.stringify(despesas)); 
-    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(()=>{}); }
+    if (!nuvemSincronizada || !userId) return;
+    localStorage.setItem(`zenos_${userId}_despesas`, JSON.stringify(despesas)); 
+    setDoc(doc(db, "lojas", userId, "dados", "operacao"), { despesas }, { merge: true }).catch(()=>{}); 
   }, [despesas, userId, nuvemSincronizada]);
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  
   useEffect(() => { 
-    if (!nuvemSincronizada) return;
-    localStorage.setItem('zenos_historico_compras', JSON.stringify(historicoCompras)); 
-    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa, historicoCompras, fornecedores }, { merge: true }).catch(()=>{}); }
+    if (!nuvemSincronizada || !userId) return;
+    localStorage.setItem(`zenos_${userId}_historico_compras`, JSON.stringify(historicoCompras)); 
+    setDoc(doc(db, "lojas", userId, "dados", "operacao"), { historicoCompras }, { merge: true }).catch(()=>{}); 
   }, [historicoCompras, userId, nuvemSincronizada]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
-    if (!nuvemSincronizada) return;
-    localStorage.setItem('zenos_fornecedores', JSON.stringify(fornecedores)); 
-    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa, historicoCompras, fornecedores }, { merge: true }).catch(()=>{}); }
+    if (!nuvemSincronizada || !userId) return;
+    localStorage.setItem(`zenos_${userId}_fornecedores`, JSON.stringify(fornecedores)); 
+    setDoc(doc(db, "lojas", userId, "dados", "operacao"), { fornecedores }, { merge: true }).catch(()=>{}); 
   }, [fornecedores, userId, nuvemSincronizada]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
-    if (!nuvemSincronizada) return;
-    localStorage.setItem('zenos_regras_desconto', JSON.stringify(regrasDesconto)); 
-    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(()=>{}); }
+    if (!nuvemSincronizada || !userId) return;
+    localStorage.setItem(`zenos_${userId}_regras_desconto`, JSON.stringify(regrasDesconto)); 
+    setDoc(doc(db, "lojas", userId, "dados", "operacao"), { regrasDesconto }, { merge: true }).catch(()=>{}); 
   }, [regrasDesconto, userId, nuvemSincronizada]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
-    if (!nuvemSincronizada) return;
-    localStorage.setItem('zenos_sessoes_caixa', JSON.stringify(sessoesCaixa)); 
-    if (userId) { setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos, clientes, historicoVendas, caixaMovimentos, despesas, regrasDesconto, vendedores, sessoesCaixa }, { merge: true }).catch(()=>{}); }
+    if (!nuvemSincronizada || !userId) return;
+    localStorage.setItem(`zenos_${userId}_sessoes_caixa`, JSON.stringify(sessoesCaixa)); 
+    setDoc(doc(db, "lojas", userId, "dados", "operacao"), { sessoesCaixa }, { merge: true }).catch(()=>{}); 
   }, [sessoesCaixa, userId, nuvemSincronizada]);
 
   const t = (chave) => traducoes[idioma]?.[chave] || traducoes.pt[chave] || chave;
@@ -371,7 +302,6 @@ export default function App() {
     setModalCambioAberto(false);
   };
 
-  // 🛡️ MOTOR FINANCEIRO BLINDADO: Só soma vendas que foram 100% liquidadas ("concluida").
   const vendasValidas = historicoVendas.filter(v => v.estado === 'concluida');
   
   const faturamentoTotalBRL = vendasValidas.reduce((acc, v) => acc + (v.totalBRL || 0), 0);
@@ -671,7 +601,7 @@ export default function App() {
                   
                   {renderNavButton('hub', '🏠', tx('Painel Inicial', 'Panel de Inicio', 'Home Dashboard'))}
                   {temPermissao('pdv') && renderNavButton('pdv', '🛒', t('pdvBalcao'))}
-                 {temPermissao('produtos') && renderNavButton('compras', '📥', tx('Entrada / Compras', 'Entrada / Compras', 'Purchases / Stock In'))}
+                  {temPermissao('produtos') && renderNavButton('compras', '📥', tx('Entrada / Compras', 'Entrada / Compras', 'Purchases / Stock In'))}
                   {temPermissao('mesas') && renderNavButton('mesas', '🍽️', tx('Mesas / Comandas', 'Mesas / Comandas', 'Tables / Tabs'))}
                   {temPermissao('produtos') && renderNavButton('produtos', '📦', t('produtosEstoque'), { bg: '#0284c7', color: '#fff', text: produtos.length })}
                   {temPermissao('clientes') && renderNavButton('clientes', '👥', t('clientesFiado'), totalFiadoAbertoBRL > 0 ? { bg: '#dc2626', color: '#fff', text: tx('Fiado', 'Deuda', 'Debt') } : null)}
@@ -751,7 +681,7 @@ export default function App() {
                   <div style={{ fontSize: '26px', fontWeight: 900, color: totalFiadoAbertoBRL > 0 && valoresTopoVisiveis ? '#fb7185' : '#34d399', marginTop: '4px' }}>{valoresTopoVisiveis ? fmt(totalFiadoAbertoBRL) : '*****'}</div>
                 </div>
                 <button onClick={() => setValoresTopoVisiveis(!valoresTopoVisiveis)} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#e2e8f0', fontSize: '20px', cursor: 'pointer', padding: '12px', outline: 'none', transition: 'all 0.3s' }}>
-                  {valoresTopoVisiveis ? '👁️' : '🙈'}
+                  {valoresTopoVisiveis ? '👁️️' : '🙈'}
                 </button>
               </div>
             </div>
@@ -944,7 +874,7 @@ export default function App() {
         {ecraAtual === 'clientes' && <Clientes clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} />}
         {ecraAtual === 'vendas' && <Vendas historicoVendas={historicoVisivelParaOperador} setHistoricoVendas={setHistoricoVendas} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} fmt={fmt} t={t} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterDeBRL={converterDeBRL} />}
         {ecraAtual === 'migracao' && <Migracao produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} t={t} tx={tx} />}
-        {ecraAtual === 'configuracoes' && <Configuracoes produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} despesas={despesas} setDespesas={setDespesas} moeda={moeda} fmt={fmt} tx={tx} regrasDesconto={regrasDesconto} setRegrasDesconto={setRegrasDesconto} vendedores={vendedores} setVendedores={(novosVendedores) => { setVendedores(novosVendedores); localStorage.setItem('zenos_vendedores', JSON.stringify(novosVendedores)); if (userId) setDoc(doc(db, "lojas", userId, "dados", "operacao"), { vendedores: novosVendedores }, { merge: true }); }} />}
+        {ecraAtual === 'configuracoes' && <Configuracoes produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} despesas={despesas} setDespesas={setDespesas} moeda={moeda} fmt={fmt} tx={tx} regrasDesconto={regrasDesconto} setRegrasDesconto={setRegrasDesconto} vendedores={vendedores} setVendedores={(novosVendedores) => { setVendedores(novosVendedores); localStorage.setItem(`zenos_${userId}_vendedores`, JSON.stringify(novosVendedores)); if (userId) setDoc(doc(db, "lojas", userId, "dados", "operacao"), { vendedores: novosVendedores }, { merge: true }); }} />}
         {ecraAtual === 'auditoria_caixas' && <GestaoCaixas sessoesCaixa={sessoesCaixa} fmt={fmt} tx={tx} />}
         {ecraAtual === 'despesas' && <Despesas despesas={despesas} setDespesas={setDespesas} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterParaBRL={converterParaBRL} />}
       </main>
