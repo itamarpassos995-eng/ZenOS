@@ -7,6 +7,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import LandingPage from './components/LandingPage';
 
 import Produtos from './components/Produtos';
+import Fornecedores from './components/Fornecedores';
 import Clientes from './components/Clientes';
 import PDV from './components/PDV';
 import PDVCompras from './components/PDVCompras';
@@ -674,6 +675,7 @@ export default function App() {
                   {temPermissao('mesas') && renderNavButton('mesas', '🍽️', tx('Mesas / Comandas', 'Mesas / Comandas', 'Tables / Tabs'))}
                   {temPermissao('produtos') && renderNavButton('produtos', '📦', t('produtosEstoque'), { bg: '#0284c7', color: '#fff', text: produtos.length })}
                   {temPermissao('clientes') && renderNavButton('clientes', '👥', t('clientesFiado'), totalFiadoAbertoBRL > 0 ? { bg: '#dc2626', color: '#fff', text: tx('Fiado', 'Deuda', 'Debt') } : null)}
+                  {temPermissao('produtos') && renderNavButton('fornecedores', '🏭', tx('Fornecedores', 'Proveedores', 'Suppliers'))}
                   {temPermissao('vendas') && renderNavButton('vendas', '📑', t('vendasDevolucoes'))}
                   
                   <div style={{ height: '1px', backgroundColor: '#334155', margin: '8px 12px' }}></div>
@@ -932,7 +934,8 @@ export default function App() {
         )}
 
         {ecraAtual === 'pdv' && <PDV produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} patenteUsuario={patenteUsuario} idioma={idioma} regrasDesconto={regrasDesconto} operadorAtivo={operadorAtivo} sessaoAtiva={sessaoAtiva} />}
-        {ecraAtual === 'compras' && <PDVCompras produtos={produtos} setProdutos={setProdutos} fornecedores={fornecedores} setFornecedores={setFornecedores} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoCompras={historicoCompras} setHistoricoCompras={setHistoricoCompras} operadorAtivo={operadorAtivo} />}
+        {ecraAtual === 'compras' && <PDVCompras produtos={produtos} setProdutos={setProdutos} fornecedores={fornecedores} setFornecedores={setFornecedores} despesas={despesas} setDespesas={setDespesas} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoCompras={historicoCompras} setHistoricoCompras={setHistoricoCompras} operadorAtivo={operadorAtivo} />}
+        {ecraAtual === 'fornecedores' && <Fornecedores fornecedores={fornecedores} setFornecedores={setFornecedores} moeda={moeda} tx={tx} />}
         {ecraAtual === 'mesas' && <Mesas produtos={produtos} fmt={fmt} tx={tx} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} moeda={moeda} idioma={idioma} />}
         {ecraAtual === 'produtos' && <Produtos produtos={produtos} setProdutos={setProdutos} moeda={moeda} fmt={fmt} t={t} tx={tx} />}
         {ecraAtual === 'inteligencia' && <EstoqueInteligente produtos={produtos} fmt={fmt} />}
