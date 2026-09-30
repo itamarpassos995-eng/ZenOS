@@ -545,7 +545,55 @@ export default function App() {
   if (statusLoja === 'ativo' && !operadorAtivo) {
     return <TerminalLogin vendedores={vendedores} onLoginSuccess={processarLoginOperador} onSairLoja={fazerLogout} />;
   }
+// RESTAURAÇÃO: TELA DE BLOQUEIO DE 7 DIAS E PLANOS
+  if (statusLoja !== 'ativo') {
+    return (
+      <div style={{ minHeight: '100vh', backgroundColor: '#020617', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '20px', padding: '20px', fontFamily: 'system-ui, sans-serif' }}>
+        <ZenosLogo aoClicar={() => {}} />
+        <div style={{ backgroundColor: '#0f172a', border: '1px solid #e11d48', borderRadius: '24px', padding: '32px', maxWidth: '420px', textAlign: 'center', color: '#fff', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
+          <span style={{ fontSize: '48px' }}>⏳</span>
+          <h2 style={{ color: '#fb7185', fontWeight: 900, margin: '16px 0 8px 0' }}>Tempo de Teste Expirado</h2>
+          <p style={{ color: '#94a3b8', fontSize: '14px', lineHeight: 1.6, marginBottom: '24px' }}>
+            Os seus 7 dias de acesso chegaram ao fim. Escolha o seu plano ({cicloPlano}) ou solicite mais tempo de testes para continuar a utilizar o ZenOS.
+          </p>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <button onClick={() => setModalPlanosAberto(true)} style={{ padding: '14px', background: 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 15px rgba(79, 70, 229, 0.3)' }}>
+              Ver Planos Disponíveis
+            </button>
+            
+            <button 
+              onClick={solicitarDemoFirebase} 
+              disabled={demoSolicitada}
+              style={{ padding: '14px', backgroundColor: demoSolicitada ? '#064e3b' : '#020617', border: `1px solid ${demoSolicitada ? '#10b981' : '#334155'}`, color: demoSolicitada ? '#34d399' : '#cbd5e1', borderRadius: '12px', fontWeight: 800, cursor: demoSolicitada ? 'not-allowed' : 'pointer' }}
+            >
+              {demoSolicitada ? 'Solicitação em Análise ✓' : 'Solicitar Mais Dias de Teste'}
+            </button>
+            
+            <button onClick={() => signOut(auth)} style={{ background: 'transparent', color: '#64748b', border: 'none', cursor: 'pointer', fontWeight: 800, fontSize: '13px', marginTop: '8px' }}>
+              Sair do Sistema
+            </button>
+          </div>
+        </div>
 
+        {/* MODAL DE PLANOS */}
+        {modalPlanosAberto && (
+          <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.9)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+            <div style={{ backgroundColor: '#020617', border: '1px solid #334155', padding: '32px', borderRadius: '24px', textAlign: 'center', color: '#fff', maxWidth: '400px', width: '100%' }}>
+              <span style={{ fontSize: '32px' }}>💎</span>
+              <h3 style={{ margin: '8px 0 16px 0', fontSize: '20px', fontWeight: 900 }}>Planos ZenOS</h3>
+              <p style={{ color: '#94a3b8', marginBottom: '24px', fontSize: '14px', lineHeight: 1.5 }}>
+                Entre em contato com o nosso suporte para ativar a licença da sua loja no plano <strong>{cicloPlano}</strong>.
+              </p>
+              <button onClick={() => setModalPlanosAberto(false)} style={{ padding: '12px 24px', borderRadius: '10px', backgroundColor: '#1e293b', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 800, width: '100%' }}>
+                Voltar
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
   return (
     <div style={{ minHeight: '100vh', height: '100vh', backgroundColor: '#020617', color: '#e2e8f0', fontFamily: 'system-ui, sans-serif', padding: 0, margin: 0, overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch' }}>
       <style>{`
