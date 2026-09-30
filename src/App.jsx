@@ -125,7 +125,7 @@ export default function App() {
             setStatusLoja(status);
           } else {
             const novaDataCriacao = new Date().toISOString();
-            await setDoc(docRef, { email: user.email, status: 'ativo', dataCriacao: novaDataCriacao }, { merge: true });
+            await setDoc(docRef, { email: user.email, status: 'aguardando_pagamento', dataCriacao: novaDataCriacao }, { merge: true });
             setStatusLoja('ativo');
           }
 
