@@ -557,7 +557,7 @@ export default function App() {
         padding: '20px', 
         fontFamily: 'system-ui, sans-serif', 
         // AQUI: A Mágica do Marketing Visual (Fundo com Gráficos + Gradiente Escuro para leitura)
-        backgroundImage: 'linear-gradient(to bottom, rgba(15, 23, 42, 0.85), rgba(2, 6, 23, 0.98)), url("/bg-dashboard.png")',
+        backgroundImage: 'linear-gradient(to bottom, rgba(15, 23, 42, 0.85), rgba(2, 6, 23, 0.98)), url("https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=1920&auto=format&fit=crop")',
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',
