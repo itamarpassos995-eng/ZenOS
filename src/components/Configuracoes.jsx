@@ -4,7 +4,7 @@ import { doc, setDoc } from 'firebase/firestore';
 import { EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { produtosIniciais, clientesIniciais, normalizarProduto, normalizarCliente } from '../data';
 
-export default function Configuracoes({ produtos, setProdutos, clientes, setClientes, historicoVendas, setHistoricoVendas, caixaMovimentos, setCaixaMovimentos, despesas, setDespesas, moeda, fmt, tx, regrasDesconto, setRegrasDesconto, vendedores, setVendedores }) {
+export default function Configuracoes({ produtos, setProdutos, clientes, setClientes, historicoVendas, setHistoricoVendas, caixaMovimentos, setCaixaMovimentos, despesas, setDespesas, tx, regrasDesconto, setRegrasDesconto, vendedores, setVendedores }) {
   const [modalResetAberto, setModalResetAberto] = useState(false);
   const [senhaAdmin, setSenhaAdmin] = useState('');
   const [etapaAviso, setEtapaAviso] = useState(1);
@@ -339,7 +339,7 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                 <input type="checkbox" disabled={novoVendedorPermissoes.admin} checked={novoVendedorPermissoes.admin || novoVendedorPermissoes.mesas} onChange={e => setNovoVendedorPermissoes({...novoVendedorPermissoes, mesas: e.target.checked})} style={{ width: '16px', height: '16px', accentColor: '#10b981' }} />
-                🍽 Gestão de Mesas/Comandas
+                🍽 Gestão de Mesas
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                 <input type="checkbox" disabled={novoVendedorPermissoes.admin} checked={novoVendedorPermissoes.admin || novoVendedorPermissoes.produtos} onChange={e => setNovoVendedorPermissoes({...novoVendedorPermissoes, produtos: e.target.checked})} style={{ width: '16px', height: '16px', accentColor: '#0284c7' }} />
@@ -347,23 +347,23 @@ export default function Configuracoes({ produtos, setProdutos, clientes, setClie
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                 <input type="checkbox" disabled={novoVendedorPermissoes.admin} checked={novoVendedorPermissoes.admin || novoVendedorPermissoes.clientes} onChange={e => setNovoVendedorPermissoes({...novoVendedorPermissoes, clientes: e.target.checked})} style={{ width: '16px', height: '16px', accentColor: '#d97706' }} />
-                👥 Gerir Clientes e Fiados
+                👥 Clientes e Fiados
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                 <input type="checkbox" disabled={novoVendedorPermissoes.admin} checked={novoVendedorPermissoes.admin || novoVendedorPermissoes.caixa} onChange={e => setNovoVendedorPermissoes({...novoVendedorPermissoes, caixa: e.target.checked})} style={{ width: '16px', height: '16px', accentColor: '#8b5cf6' }} />
-                💵 Movimentar Caixa (Entradas/Saídas)
+                💵 Movimentar Caixa
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                 <input type="checkbox" disabled={novoVendedorPermissoes.admin} checked={novoVendedorPermissoes.admin || novoVendedorPermissoes.vendas} onChange={e => setNovoVendedorPermissoes({...novoVendedorPermissoes, vendas: e.target.checked})} style={{ width: '16px', height: '16px', accentColor: '#8b5cf6' }} />
-                📑 Ver Histórico de Vendas Geral
+                📑 Ver Histórico
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                 <input type="checkbox" disabled={novoVendedorPermissoes.admin} checked={novoVendedorPermissoes.admin || novoVendedorPermissoes.despesas} onChange={e => setNovoVendedorPermissoes({...novoVendedorPermissoes, despesas: e.target.checked})} style={{ width: '16px', height: '16px', accentColor: '#8b5cf6' }} />
-                💸 Lançar Contas e Despesas
+                💸 Lançar Despesas
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                 <input type="checkbox" disabled={novoVendedorPermissoes.admin} checked={novoVendedorPermissoes.admin || novoVendedorPermissoes.inteligencia} onChange={e => setNovoVendedorPermissoes({...novoVendedorPermissoes, inteligencia: e.target.checked})} style={{ width: '16px', height: '16px', accentColor: '#a855f7' }} />
-                📊 Painel Executivo / Dashboard
+                📊 Painel Executivo
               </label>
             </div>
           </div>
