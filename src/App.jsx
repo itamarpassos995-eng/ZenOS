@@ -545,49 +545,65 @@ export default function App() {
   if (statusLoja === 'ativo' && !operadorAtivo) {
     return <TerminalLogin vendedores={vendedores} onLoginSuccess={processarLoginOperador} onSairLoja={fazerLogout} />;
   }
-// RESTAURAÇÃO: TELA DE BLOQUEIO DE 7 DIAS E PLANOS
+// RESTAURAÇÃO: TELA DE BLOQUEIO ORIGINAL ZENOS (PADRÃO PREMIUM) E PLANOS
   if (statusLoja !== 'ativo') {
     return (
-      <div style={{ minHeight: '100vh', backgroundColor: '#020617', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '20px', padding: '20px', fontFamily: 'system-ui, sans-serif' }}>
-        <ZenosLogo aoClicar={() => {}} />
-        <div style={{ backgroundColor: '#0f172a', border: '1px solid #e11d48', borderRadius: '24px', padding: '32px', maxWidth: '420px', textAlign: 'center', color: '#fff', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
-          <span style={{ fontSize: '48px' }}>⏳</span>
-          <h2 style={{ color: '#fb7185', fontWeight: 900, margin: '16px 0 8px 0' }}>Tempo de Teste Expirado</h2>
-          <p style={{ color: '#94a3b8', fontSize: '14px', lineHeight: 1.6, marginBottom: '24px' }}>
-            Os seus 7 dias de acesso chegaram ao fim. Escolha o seu plano ({cicloPlano}) ou solicite mais tempo de testes para continuar a utilizar o ZenOS.
-          </p>
+      <div style={{ minHeight: '100vh', backgroundColor: '#020617', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: 'system-ui, sans-serif', backgroundImage: 'radial-gradient(circle at 50% 0%, #1e293b 0%, #020617 70%)' }}>
+        
+        {/* CARTÃO DE BLOQUEIO - DESIGN ORIGINAL RESTAURADO */}
+        <div style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '24px', padding: '40px 24px', maxWidth: '420px', width: '100%', textAlign: 'center', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
           
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
+            <img src="/logo-zenos.png?v=4" alt="ZenOS" style={{ height: '60px', width: 'auto', filter: 'drop-shadow(0 0 15px rgba(251, 191, 36, 0.2))' }} />
+          </div>
+
+          <h2 style={{ color: '#fbbf24', fontSize: '24px', fontWeight: 900, margin: '0 0 16px 0', lineHeight: 1.2 }}>
+            Licença Pendente /<br/>Teste Expirado
+          </h2>
+
+          <p style={{ color: '#94a3b8', fontSize: '13px', lineHeight: 1.6, marginBottom: '24px' }}>
+            O seu período de teste gratuito de 7 dias terminou ou a licença da loja aguarda ativação. Escolha um plano para desbloquear o terminal ZenOS de imediato.
+          </p>
+
+          {/* INNER CARD - CLOUD SAAS ENTERPRISE */}
+          <div style={{ backgroundColor: '#020617', borderRadius: '16px', padding: '20px', marginBottom: '24px', border: '1px solid #1e293b' }}>
+            <span style={{ display: 'block', color: '#cbd5e1', fontSize: '12px', fontWeight: 700, marginBottom: '8px' }}>Ativação Instantânea:</span>
+            <span style={{ display: 'block', color: '#2dd4bf', fontSize: '16px', fontWeight: 900, marginBottom: '8px' }}>ZenOS Cloud SaaS Enterprise</span>
+            <span style={{ display: 'block', color: '#64748b', fontSize: '11px', lineHeight: 1.5 }}>Aceda a relatórios avançados, gestão de filiais em tempo real e suporte prioritário.</span>
+          </div>
+
+          {/* BOTÕES */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <button onClick={() => setModalPlanosAberto(true)} style={{ padding: '14px', background: 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 15px rgba(79, 70, 229, 0.3)' }}>
-              Ver Planos Disponíveis
+            <button onClick={() => setModalPlanosAberto(true)} style={{ padding: '16px', background: 'linear-gradient(135deg, #2dd4bf, #0f766e)', border: 'none', color: '#ffffff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '14px', boxShadow: '0 4px 15px rgba(45, 212, 191, 0.3)', transition: 'all 0.2s' }}>
+              Ver Opções de Planos
             </button>
-            
+
             <button 
               onClick={solicitarDemoFirebase} 
               disabled={demoSolicitada}
-              style={{ padding: '14px', backgroundColor: demoSolicitada ? '#064e3b' : '#020617', border: `1px solid ${demoSolicitada ? '#10b981' : '#334155'}`, color: demoSolicitada ? '#34d399' : '#cbd5e1', borderRadius: '12px', fontWeight: 800, cursor: demoSolicitada ? 'not-allowed' : 'pointer' }}
+              style={{ padding: '16px', backgroundColor: '#1e293b', border: '1px solid #334155', color: demoSolicitada ? '#34d399' : '#e2e8f0', borderRadius: '12px', fontWeight: 800, cursor: demoSolicitada ? 'not-allowed' : 'pointer', fontSize: '14px', transition: 'all 0.2s' }}
             >
-              {demoSolicitada ? 'Solicitação em Análise ✓' : 'Solicitar Mais Dias de Teste'}
+              {demoSolicitada ? 'Solicitação em Análise ✓' : 'Solicitar Extensão de Teste'}
             </button>
-            
-            <button onClick={() => signOut(auth)} style={{ background: 'transparent', color: '#64748b', border: 'none', cursor: 'pointer', fontWeight: 800, fontSize: '13px', marginTop: '8px' }}>
-              Sair do Sistema
+
+            <button onClick={() => signOut(auth)} style={{ background: 'transparent', color: '#f43f5e', border: 'none', cursor: 'pointer', fontWeight: 800, fontSize: '13px', padding: '10px' }}>
+              Sair e Voltar mais tarde
             </button>
           </div>
         </div>
 
-     {/* MODAL DE PLANOS RESTAURADO COM TABELA COMPLETA E PREÇOS REAIS */}
+        {/* MODAL DE PLANOS RESTAURADO COM TABELA COMPLETA E PREÇOS */}
         {modalPlanosAberto && (
           <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.95)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', backdropFilter: 'blur(5px)' }}>
             <div style={{ backgroundColor: '#0b1120', border: '1px solid #334155', padding: '32px', borderRadius: '24px', textAlign: 'center', color: '#fff', maxWidth: '900px', width: '100%', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)', maxHeight: '90vh', overflowY: 'auto' }}>
               <span style={{ fontSize: '40px' }}>💎</span>
               <h3 style={{ margin: '12px 0 8px 0', fontSize: '24px', fontWeight: 900, color: '#f8fafc' }}>Escolha o seu Plano ZenOS</h3>
               <p style={{ color: '#94a3b8', marginBottom: '24px', fontSize: '14px', lineHeight: 1.5 }}>
-                Selecione o plano ideal para a sua operação e o ciclo de faturamento.
+                Selecione o plano ideal para a sua operação e o ciclo de faturação.
               </p>
 
               {/* SELETORES DE CICLO */}
-              <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '32px', backgroundColor: '#020617', padding: '6px', borderRadius: '12px', width: 'fit-content', margin: '0 auto 32px auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '32px', backgroundColor: '#020617', padding: '6px', borderRadius: '12px', width: 'fit-content', margin: '0 auto 32px auto', flexWrap: 'wrap' }}>
                 <button onClick={() => setCicloPlano('mensal')} style={{ backgroundColor: cicloPlano === 'mensal' ? '#4f46e5' : 'transparent', color: cicloPlano === 'mensal' ? '#fff' : '#94a3b8', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' }}>Mensal</button>
                 <button onClick={() => setCicloPlano('semestral')} style={{ backgroundColor: cicloPlano === 'semestral' ? '#4f46e5' : 'transparent', color: cicloPlano === 'semestral' ? '#fff' : '#94a3b8', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' }}>Semestral (-10%)</button>
                 <button onClick={() => setCicloPlano('anual')} style={{ backgroundColor: cicloPlano === 'anual' ? '#4f46e5' : 'transparent', color: cicloPlano === 'anual' ? '#fff' : '#94a3b8', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' }}>Anual (Desconto Máx)</button>
@@ -611,18 +627,18 @@ export default function App() {
                     <li>✓ 1 Operador</li>
                     <li>✓ PDV Frente de Caixa</li>
                     <li>✓ Gestão de Produtos</li>
-                    <li>✓ Controle de Fiado</li>
+                    <li>✓ Controlo de Fiado</li>
                   </ul>
-                  <button onClick={() => { window.open(`https://wa.me/SEUNUMEROAQUI?text=Olá,%20quero%20assinar%20o%20plano%20Básico%20${cicloPlano}.`, '_blank'); }} style={{ width: '100%', padding: '12px', borderRadius: '10px', backgroundColor: '#1e293b', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 800 }}>Assinar Básico</button>
+                  <button onClick={() => { window.open(`https://wa.me/5511999999999?text=Olá,%20quero%20assinar%20o%20plano%20Básico%20${cicloPlano}.`, '_blank'); }} style={{ width: '100%', padding: '12px', borderRadius: '10px', backgroundColor: '#1e293b', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 800 }}>Assinar Básico</button>
                 </div>
 
                 {/* Essencial (Mais Popular) */}
-                <div style={{ backgroundColor: '#0f172a', border: '2px solid #6366f1', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', position: 'relative', transform: 'scale(1.02)' }}>
-                  <span style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#6366f1', color: '#fff', fontSize: '10px', fontWeight: 900, padding: '4px 12px', borderRadius: '12px', textTransform: 'uppercase' }}>Mais Popular</span>
-                  <h4 style={{ margin: '0 0 4px 0', color: '#818cf8', fontSize: '18px', fontWeight: 800 }}>Essencial</h4>
+                <div style={{ backgroundColor: '#0f172a', border: '2px solid #2dd4bf', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', position: 'relative', transform: 'scale(1.02)' }}>
+                  <span style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#2dd4bf', color: '#020617', fontSize: '10px', fontWeight: 900, padding: '4px 12px', borderRadius: '12px', textTransform: 'uppercase' }}>Mais Popular</span>
+                  <h4 style={{ margin: '0 0 4px 0', color: '#2dd4bf', fontSize: '18px', fontWeight: 800 }}>Essencial</h4>
                   <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: '#94a3b8' }}>A operação completa.</p>
                   <div style={{ marginBottom: '20px' }}>
-                    <span style={{ fontSize: '14px', color: '#818cf8', fontWeight: 700 }}>R$</span>
+                    <span style={{ fontSize: '14px', color: '#2dd4bf', fontWeight: 700 }}>R$</span>
                     <span style={{ fontSize: '32px', color: '#fff', fontWeight: 900 }}>
                       {cicloPlano === 'mensal' ? '44,90' : cicloPlano === 'semestral' ? '40,41' : '33,57'}
                     </span>
@@ -630,11 +646,11 @@ export default function App() {
                   </div>
                   <ul style={{ padding: 0, margin: '0 0 24px 0', listStyle: 'none', fontSize: '13px', color: '#cbd5e1', display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
                     <li>✓ Múltiplos Operadores</li>
-                    <li>✓ Controle de Permissões</li>
+                    <li>✓ Controlo de Permissões</li>
                     <li>✓ Painel Executivo / Dashboard</li>
                     <li>✓ Gestão de Despesas</li>
                   </ul>
-                  <button onClick={() => { window.open(`https://wa.me/SEUNUMEROAQUI?text=Olá,%20quero%20assinar%20o%20plano%20Essencial%20${cicloPlano}.`, '_blank'); }} style={{ width: '100%', padding: '12px', borderRadius: '10px', background: 'linear-gradient(135deg, #4f46e5, #4338ca)', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 900, boxShadow: '0 4px 15px rgba(79, 70, 229, 0.4)' }}>Assinar Essencial</button>
+                  <button onClick={() => { window.open(`https://wa.me/5511999999999?text=Olá,%20quero%20assinar%20o%20plano%20Essencial%20${cicloPlano}.`, '_blank'); }} style={{ width: '100%', padding: '12px', borderRadius: '10px', background: 'linear-gradient(135deg, #2dd4bf, #0d9488)', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 900, boxShadow: '0 4px 15px rgba(45, 212, 191, 0.4)' }}>Assinar Essencial</button>
                 </div>
 
                 {/* Pro Avançado */}
@@ -654,16 +670,16 @@ export default function App() {
                     <li>✓ Relatórios Avançados</li>
                     <li>✓ Suporte Prioritário</li>
                   </ul>
-                  <button onClick={() => { window.open(`https://wa.me/SEUNUMEROAQUI?text=Olá,%20quero%20assinar%20o%20plano%20Pro%20Avançado%20${cicloPlano}.`, '_blank'); }} style={{ width: '100%', padding: '12px', borderRadius: '10px', backgroundColor: '#1e293b', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 800 }}>Assinar Pro</button>
+                  <button onClick={() => { window.open(`https://wa.me/5511999999999?text=Olá,%20quero%20assinar%20o%20plano%20Pro%20Avançado%20${cicloPlano}.`, '_blank'); }} style={{ width: '100%', padding: '12px', borderRadius: '10px', backgroundColor: '#1e293b', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 800 }}>Assinar Pro</button>
                 </div>
               </div>
 
               {/* Botões Inferiores */}
-              <div style={{ display: 'flex', gap: '16px' }}>
-                <button onClick={() => setModalPlanosAberto(false)} style={{ flex: 1, padding: '16px', borderRadius: '12px', backgroundColor: '#1e293b', color: '#f8fafc', border: 'none', cursor: 'pointer', fontWeight: 800, fontSize: '14px' }}>
+              <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                <button onClick={() => setModalPlanosAberto(false)} style={{ flex: 1, minWidth: '200px', padding: '16px', borderRadius: '12px', backgroundColor: '#1e293b', color: '#f8fafc', border: 'none', cursor: 'pointer', fontWeight: 800, fontSize: '14px' }}>
                   Voltar para Bloqueio
                 </button>
-                <button onClick={() => { window.open('https://wa.me/SEUNUMEROAQUI?text=Olá,%20gostaria%20de%20saber%20sobre%20o%20plano%20Multi-Filiais.', '_blank'); }} style={{ flex: 1, padding: '16px', borderRadius: '12px', backgroundColor: '#020617', border: '1px solid #334155', color: '#38bdf8', cursor: 'pointer', fontWeight: 900, fontSize: '14px' }}>
+                <button onClick={() => { window.open('https://wa.me/5511999999999?text=Olá,%20gostaria%20de%20saber%20sobre%20o%20plano%20Multi-Filiais.', '_blank'); }} style={{ flex: 1, minWidth: '200px', padding: '16px', borderRadius: '12px', backgroundColor: '#020617', border: '1px solid #334155', color: '#38bdf8', cursor: 'pointer', fontWeight: 900, fontSize: '14px' }}>
                   🏢 Consultar Plano Multi-Filiais
                 </button>
               </div>
