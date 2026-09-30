@@ -1,20 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-// IMPORTANTE: Certifique-se de que normalizarProduto e normalizarFornecedor existem no seu '../data'
-// Se não tiver normalizarFornecedor, use a mesma do cliente ou crie uma básica.
 import { normalizarProduto } from '../data'; 
 
 export default function PDVCompras({ 
   produtos, setProdutos, 
-  fornecedores, setFornecedores, // Passar a lista de fornecedores aqui
+  fornecedores, setFornecedores,
+  despesas, setDespesas,
   moeda, fmt, t, tx, converterDeBRL, converterParaBRL, 
-  historicoCompras, setHistoricoCompras, // Passar histórico de compras aqui
+  historicoCompras, setHistoricoCompras, 
   operadorAtivo 
 }) {
   const [termoBusca, setTermoBusca] = useState('');
   const [indiceFocoBusca, setIndiceFocoBusca] = useState(0);
   const [itensCompra, setItensCompra] = useState([]);
   const [descontoTexto, setDescontoTexto] = useState('0');
-  const [acrescimoTexto, setAcrescimoTexto] = useState('0'); // Compras costumam ter frete/impostos
+  const [acrescimoTexto, setAcrescimoTexto] = useState('0'); 
   
   const [nomeFornecedorVulso, setNomeFornecedorVulso] = useState('');
   const [fornecedorSelecionado, setFornecedorSelecionado] = useState(null);
@@ -42,7 +41,6 @@ export default function PDVCompras({
   const inputQtdRapidaRef = useRef(null);
   const inputValorLancamentoRef = useRef(null);
 
-  // Filtros
   const termosProd = termoBusca.toLowerCase().trim().split(/\s+/).filter(Boolean);
   const produtosFiltrados = produtos.filter(prod => {
     if (!prod) return false;
@@ -61,7 +59,6 @@ export default function PDVCompras({
   useEffect(() => { setIndiceFocoBusca(0); }, [termoBusca]);
   useEffect(() => { if (itemParaAdicionar && inputQtdRapidaRef.current) { inputQtdRapidaRef.current.focus(); inputQtdRapidaRef.current.select(); } }, [itemParaAdicionar]);
 
-  // AÇÕES DE FORNECEDOR
   const selecionarFornecedor = (f) => {
     setFornecedorSelecionado(f); setNomeFornecedorVulso(f.nome); setFocoInputFornecedor(false);
   };
@@ -82,7 +79,6 @@ export default function PDVCompras({
     setModalFornecedorAberto(false);
   };
 
-  // AÇÕES DE PRODUTO (Mesma janela do PDV com adição de Grupo e Marca)
   const abrirCadastroProduto = () => {
     setProdutoEmEdicao(null); 
     setFormProduto(normalizarProduto({ sku: `NOVO-${Date.now().toString().slice(-5)}` }));
@@ -117,7 +113,6 @@ export default function PDVCompras({
     setModalProdutoAberto(false);
   };
 
-  // AÇÕES DO CARRINHO DE COMPRAS
   const lidarTecladoBusca = (e) => {
     if (produtosFiltrados.length === 0 || termoBusca.trim() === '') return;
     if (e.key === 'ArrowDown') { e.preventDefault(); setIndiceFocoBusca((prev) => (prev + 1) % produtosFiltrados.length); } 
@@ -155,17 +150,25 @@ export default function PDVCompras({
   const atualizarQtd = (id, valor) => { setItensCompra(itensCompra.map(item => item.id === id ? { ...item, qtd: String(Math.max(1, parseInt(valor) || 1)) } : item)); };
   const lidarDigitacaoCusto = (id, valorDigitado) => { setItensCompra(itensCompra.map(item => item.id === id ? { ...item, custoTexto: valorDigitado, custoPraticadoBRL: converterParaBRL(parseFloat(valorDigitado.replace(',', '.')) || 0, moeda) } : item)); };
 
-  // MATEMÁTICA DA NOTA
   const subtotalBrutoBRL = itensCompra.reduce((acc, item) => acc + (Math.max(0, parseInt(item.qtd) || 0) * (item.custoPraticadoBRL || 0)), 0);
   const descBRL = converterParaBRL(parseFloat(String(descontoTexto).replace(',', '.')) || 0, moeda);
-  const acrescBRL = converterParaBRL(parseFloat(String(acrescimoTexto).replace(',', '.')) || 0, moeda); // Frete/Impostos
+  const acrescBRL = converterParaBRL(parseFloat(String(acrescimoTexto).replace(',', '.')) || 0, moeda); 
   const totalFinalBRL = Math.max(0, (subtotalBrutoBRL + acrescBRL) - descBRL);
 
   const catalogoFormasPagamento = [
-    { id: 'boleto', rotulo: 'Boleto / A Prazo (Contas a Pagar)', moedaOrigem: 'BRL', icone: '📄' },
-    { id: 'dinheiro', rotulo: 'Dinheiro (Caixa)', moedaOrigem: 'BRL', icone: '💵' }, 
-    { id: 'pix', rotulo: 'Pix (Transferência)', moedaOrigem: 'BRL', icone: '⚡' }, 
+    { id: 'boleto', rotulo: 'Boleto / Faturado', moedaOrigem: 'BRL', icone: '📄', aPrazo: true },
+    { id: 'prazo', rotulo: 'Fiado / Crediário', moedaOrigem: 'BRL', icone: '📒', aPrazo: true },
+    { id: 'cheque', rotulo: 'Cheque Pré-Datado', moedaOrigem: 'BRL', icone: '📝', aPrazo: true },
+    { id: 'cartao_credito', rotulo: 'Cartão de Crédito', moedaOrigem: 'BRL', icone: '💳', aPrazo: true },
+    { id: 'dinheiro', rotulo: 'Dinheiro (Pagto Imediato)', moedaOrigem: 'BRL', icone: '💵', aPrazo: false }, 
+    { id: 'pix', rotulo: 'Pix (Pagto Imediato)', moedaOrigem: 'BRL', icone: '⚡', aPrazo: false }, 
   ];
+
+  const [qtdParcelas, setQtdParcelas] = useState(1);
+  const [intervaloDias, setIntervaloDias] = useState(30);
+  const [dataPrimeiroVenc, setDataPrimeiroVenc] = useState(() => new Date().toISOString().split('T')[0]);
+
+  const configAtualForma = catalogoFormasPagamento.find(f => f.id === formaSelecionada) || catalogoFormasPagamento[0];
 
   const totalPagoConvertidoBRL = pagamentosLancados.reduce((acc, p) => acc + (p.valorConvertidoBRL || 0), 0);
   const saldoRestanteBRL = Math.max(0, totalFinalBRL - totalPagoConvertidoBRL);
@@ -179,6 +182,7 @@ export default function PDVCompras({
     }
     setPagamentosLancados([]); 
     setFormaSelecionada('boleto');
+    setQtdParcelas(1);
     setValorLancamentoInput(converterDeBRL(totalFinalBRL, 'BRL').toFixed(2));
     setCompraSucesso(false); 
     setModalFechamentoAberto(true);
@@ -198,28 +202,61 @@ export default function PDVCompras({
     const configForma = catalogoFormasPagamento.find(f => f.id === formaSelecionada) || catalogoFormasPagamento[0];
     const valorBRL = converterParaBRL(valorNum, configForma.moedaOrigem);
 
-    const novaLista = [...pagamentosLancados, { 
-      id: Date.now(), formaId: configForma.id, rotulo: configForma.rotulo, icone: configForma.icone,
-      moedaOrigem: configForma.moedaOrigem, valorOriginal: valorNum, valorConvertidoBRL: valorBRL 
-    }];
+    let novosPagamentos = [];
+
+    if (configForma.aPrazo) {
+      const parcelas = Math.max(1, parseInt(qtdParcelas) || 1);
+      const valorParcelaBRL = valorBRL / parcelas;
+      const valorParcelaOriginal = valorNum / parcelas;
+      
+      let dataBase = new Date(dataPrimeiroVenc);
+      dataBase.setMinutes(dataBase.getMinutes() + dataBase.getTimezoneOffset());
+
+      for (let i = 0; i < parcelas; i++) {
+        let dataVenc = new Date(dataBase);
+        dataVenc.setDate(dataVenc.getDate() + (i * parseInt(intervaloDias)));
+        
+        novosPagamentos.push({
+          id: Date.now() + i,
+          formaId: configForma.id,
+          rotulo: `${configForma.rotulo} (${i + 1}/${parcelas})`,
+          icone: configForma.icone,
+          moedaOrigem: configForma.moedaOrigem,
+          valorOriginal: valorParcelaOriginal,
+          valorConvertidoBRL: valorParcelaBRL,
+          geraDespesa: true,
+          dataVencimento: dataVenc.toISOString().split('T')[0]
+        });
+      }
+    } else {
+      novosPagamentos.push({
+        id: Date.now(),
+        formaId: configForma.id,
+        rotulo: configForma.rotulo,
+        icone: configForma.icone,
+        moedaOrigem: configForma.moedaOrigem,
+        valorOriginal: valorNum,
+        valorConvertidoBRL: valorBRL,
+        geraDespesa: false
+      });
+    }
+
+    const novaLista = [...pagamentosLancados, ...novosPagamentos];
     setPagamentosLancados(novaLista);
     const novoSaldo = Math.max(0, totalFinalBRL - novaLista.reduce((acc, p) => acc + p.valorConvertidoBRL, 0));
     setValorLancamentoInput(novoSaldo > 0 ? converterDeBRL(novoSaldo, configForma.moedaOrigem).toFixed(2) : '');
+    setQtdParcelas(1); 
   };
 
   const concluirEntradaMercadoria = () => {
     if (!podeFinalizarCompra) return;
     
     try {
-      // 1. ATUALIZAR ESTOQUE (PROTEGENDO DADOS EXISTENTES)
-      // O map abaixo garante que TUDO (...p) seja mantido, apenas atualizando estoque e custo
       const novosProdutos = (produtos || []).map(p => {
         const itemComprado = itensCompra.find(i => String(i.produtoOriginalId || i.id) === String(p.id));
         if (itemComprado && p.tipoItem !== 'servico') {
           const novaQuantidade = (parseInt(p.estoque) || 0) + (parseInt(itemComprado.qtd) || 0);
-          // Atualiza o custoBRL do produto caso tenha pago um valor diferente
-          const novoCustoBase = itemComprado.custoPraticadoBRL;
-          return { ...p, estoque: novaQuantidade, custoBRL: novoCustoBase };
+          return { ...p, estoque: novaQuantidade, custoBRL: itemComprado.custoPraticadoBRL };
         }
         return p;
       });
@@ -227,7 +264,6 @@ export default function PDVCompras({
       const idSeguro = (operadorAtivo && operadorAtivo.id) ? operadorAtivo.id : 'admin';
       const nomeSeguro = (operadorAtivo && operadorAtivo.nome) ? operadorAtivo.nome : 'Administrador';
 
-      // 2. REGISTRAR NO HISTÓRICO DE COMPRAS (Despesas)
       const novaCompra = {
         id: `COMPRA-${Date.now()}`,
         dataHora: new Date().toLocaleString(),
@@ -243,9 +279,28 @@ export default function PDVCompras({
       };
 
       setProdutos(novosProdutos);
-      
       if (typeof setHistoricoCompras === 'function') {
         setHistoricoCompras([novaCompra, ...(historicoCompras || [])]);
+      }
+
+      const novasDespesas = [];
+      pagamentosLancados.forEach(pag => {
+        if (pag.geraDespesa) {
+          novasDespesas.push({
+            id: `DESP-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+            descricao: `Reposição de Estoque - ${fornecedorSelecionado ? fornecedorSelecionado.nome : 'Avulso'} | ${pag.rotulo}`,
+            categoria: 'Mercadoria para Revenda',
+            valorBRL: pag.valorConvertidoBRL,
+            dataVencimento: pag.dataVencimento,
+            status: 'pendente',
+            recorrente: false,
+            observacao: `Vinculado à nota de compra: ${novaCompra.id}`
+          });
+        }
+      });
+
+      if (novasDespesas.length > 0 && typeof setDespesas === 'function') {
+        setDespesas([...novasDespesas, ...(despesas || [])]);
       }
       
       setCompraConcluidaObj(novaCompra);
@@ -266,7 +321,6 @@ export default function PDVCompras({
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px', width: '100%', boxSizing: 'border-box' }}>
       
-      {/* SEÇÃO VISUAL E CUPOM DE SUCESSO (ESTILO ROXO/LARANJA) */}
       {compraSucesso && compraConcluidaObj && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.95)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '16px', boxSizing: 'border-box' }}>
            <div style={{ backgroundColor: '#ffffff', border: '2px solid #f97316', borderRadius: '16px', width: '100%', maxWidth: '380px', maxHeight: '95vh', overflowY: 'auto', padding: '0', color: '#000', boxShadow: '0 25px 50px rgba(0,0,0,0.5)' }}>
@@ -306,10 +360,8 @@ export default function PDVCompras({
         </div>
       )}
 
-      {/* COLUNA ESQUERDA: FORNECEDOR E LISTA DE ENTRADA */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
         
-        {/* BUSCA DE FORNECEDOR */}
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ position: 'relative', flex: 1, minWidth: '220px' }}>
             <div style={{ position: 'absolute', top: '14px', left: '16px', fontSize: '18px' }}>🏭</div>
@@ -340,7 +392,6 @@ export default function PDVCompras({
           <button onClick={abrirCadastroFornecedor} style={{ padding: '16px 20px', backgroundColor: '#3b0764', border: '1px solid #7e22ce', color: '#e9d5ff', borderRadius: '14px', fontSize: '13px', fontWeight: 900, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 4px 15px rgba(126, 34, 206, 0.2)' }}>+ Fornecedor</button>
         </div>
 
-        {/* BUSCA PRODUTOS PARA COMPRA */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
             <label style={{ fontSize: '12px', fontWeight: 900, color: '#f97316', letterSpacing: '1px', textTransform: 'uppercase' }}>🔎 Localizar Mercadoria para Entrada</label>
@@ -364,7 +415,6 @@ export default function PDVCompras({
           </div>
         </div>
 
-        {/* LISTA DE ITENS DA COMPRA */}
         <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', display: 'flex', flexDirection: 'column', minHeight: '300px' }}>
           <div style={{ padding: '16px 20px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', letterSpacing: '1px', textTransform: 'uppercase' }}>Lista de Entrada ({itensCompra.length})</span>
@@ -396,7 +446,6 @@ export default function PDVCompras({
         </div>
       </div>
 
-      {/* COLUNA DIREITA: RESUMO E FECHAMENTO */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
         
         <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
@@ -427,7 +476,6 @@ export default function PDVCompras({
         </div>
       </div>
 
-      {/* MODAL ADIÇÃO RÁPIDA DE QTD */}
       {itemParaAdicionar && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '16px' }}>
           <div style={{ backgroundColor: '#0b1120', border: '1px solid #f97316', borderRadius: '20px', width: '100%', maxWidth: '400px', padding: '28px', color: '#fff', textAlign: 'center' }}>
@@ -442,7 +490,6 @@ export default function PDVCompras({
         </div>
       )}
 
-      {/* MODAL CADASTRO PRODUTO */}
       {modalProdutoAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1500, padding: '16px' }}>
           <div style={{ backgroundColor: '#0b1120', border: '1px solid #ea580c', borderRadius: '24px', width: '100%', maxWidth: '820px', maxHeight: '92vh', overflowY: 'auto', padding: '28px', color: '#fff', boxSizing: 'border-box' }}>
@@ -484,7 +531,6 @@ export default function PDVCompras({
         </div>
       )}
 
-      {/* MODAL FECHAMENTO (CONTAS A PAGAR) */}
       {modalFechamentoAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1500, padding: '16px', boxSizing: 'border-box' }}>
           <div style={{ backgroundColor: '#0b1120', border: '1px solid #ea580c', borderRadius: '24px', width: '100%', maxWidth: '750px', maxHeight: '95vh', overflowY: 'auto', padding: '28px', color: '#fff', boxShadow: '0 25px 50px rgba(0,0,0,0.5)', boxSizing: 'border-box' }}>
@@ -535,6 +581,23 @@ export default function PDVCompras({
                 style={{ padding: '14px', backgroundColor: '#020617', border: '1px solid #ea580c', borderRadius: '12px', color: '#f97316', fontSize: '18px', fontWeight: 900, textAlign: 'right', outline: 'none', boxSizing: 'border-box', width: '100%' }} 
               />
             </div>
+
+            {configAtualForma.aPrazo && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '10px', backgroundColor: '#1e1104', border: '1px solid #78350f', padding: '16px', borderRadius: '12px', marginBottom: '16px' }}>
+                <div>
+                  <label style={{ fontSize: '11px', color: '#fdba74', fontWeight: 800 }}>Nº de Parcelas</label>
+                  <input type="number" value={qtdParcelas} min="1" max="60" onChange={e => setQtdParcelas(e.target.value)} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #ea580c', borderRadius: '8px', color: '#fff', fontSize: '15px', fontWeight: 900, padding: '10px', outline: 'none', marginTop: '4px', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', color: '#fdba74', fontWeight: 800 }}>Intervalo (Dias)</label>
+                  <input type="number" value={intervaloDias} onChange={e => setIntervaloDias(e.target.value)} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #ea580c', borderRadius: '8px', color: '#fff', fontSize: '15px', fontWeight: 900, padding: '10px', outline: 'none', marginTop: '4px', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', color: '#fdba74', fontWeight: 800 }}>1º Vencimento</label>
+                  <input type="date" value={dataPrimeiroVenc} onChange={e => setDataPrimeiroVenc(e.target.value)} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #ea580c', borderRadius: '8px', color: '#fff', fontSize: '13px', fontWeight: 900, padding: '10px', outline: 'none', marginTop: '4px', boxSizing: 'border-box' }} />
+                </div>
+              </div>
+            )}
             
             <button onClick={adicionarPagamento} style={{ width: '100%', padding: '14px', background: 'linear-gradient(135deg, #f97316, #ea580c)', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '15px', marginBottom: '20px', boxShadow: '0 4px 15px rgba(234, 88, 12, 0.3)', boxSizing: 'border-box' }}>
               + Confirmar Parcela / Pagamento
