@@ -576,43 +576,98 @@ export default function App() {
           </div>
         </div>
 
-      {/* MODAL DE PLANOS RESTAURADO COM OPÇÕES */}
+     {/* MODAL DE PLANOS RESTAURADO COM TABELA COMPLETA E PREÇOS REAIS */}
         {modalPlanosAberto && (
           <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.95)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', backdropFilter: 'blur(5px)' }}>
-            <div style={{ backgroundColor: '#0b1120', border: '1px solid #334155', padding: '32px', borderRadius: '24px', textAlign: 'center', color: '#fff', maxWidth: '650px', width: '100%', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}>
+            <div style={{ backgroundColor: '#0b1120', border: '1px solid #334155', padding: '32px', borderRadius: '24px', textAlign: 'center', color: '#fff', maxWidth: '900px', width: '100%', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)', maxHeight: '90vh', overflowY: 'auto' }}>
               <span style={{ fontSize: '40px' }}>💎</span>
               <h3 style={{ margin: '12px 0 8px 0', fontSize: '24px', fontWeight: 900, color: '#f8fafc' }}>Escolha o seu Plano ZenOS</h3>
-              <p style={{ color: '#94a3b8', marginBottom: '32px', fontSize: '14px', lineHeight: 1.5 }}>
-                Selecione o ciclo de assinatura ideal para a sua operação e libere o acesso completo e vitalício aos seus dados.
+              <p style={{ color: '#94a3b8', marginBottom: '24px', fontSize: '14px', lineHeight: 1.5 }}>
+                Selecione o plano ideal para a sua operação e o ciclo de faturamento.
               </p>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '32px' }}>
-                <div onClick={() => setCicloPlano('mensal')} style={{ backgroundColor: cicloPlano === 'mensal' ? 'rgba(99, 102, 241, 0.1)' : '#020617', border: `2px solid ${cicloPlano === 'mensal' ? '#6366f1' : '#1e293b'}`, borderRadius: '16px', padding: '24px 16px', cursor: 'pointer', transition: 'all 0.2s', position: 'relative' }}>
-                  <h4 style={{ margin: '0 0 8px 0', color: cicloPlano === 'mensal' ? '#818cf8' : '#e2e8f0', fontSize: '18px', fontWeight: 800 }}>Mensal</h4>
-                  <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>Pagamento mês a mês sem fidelidade.</p>
+              {/* SELETORES DE CICLO */}
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '32px', backgroundColor: '#020617', padding: '6px', borderRadius: '12px', width: 'fit-content', margin: '0 auto 32px auto' }}>
+                <button onClick={() => setCicloPlano('mensal')} style={{ backgroundColor: cicloPlano === 'mensal' ? '#4f46e5' : 'transparent', color: cicloPlano === 'mensal' ? '#fff' : '#94a3b8', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' }}>Mensal</button>
+                <button onClick={() => setCicloPlano('semestral')} style={{ backgroundColor: cicloPlano === 'semestral' ? '#4f46e5' : 'transparent', color: cicloPlano === 'semestral' ? '#fff' : '#94a3b8', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' }}>Semestral (-10%)</button>
+                <button onClick={() => setCicloPlano('anual')} style={{ backgroundColor: cicloPlano === 'anual' ? '#4f46e5' : 'transparent', color: cicloPlano === 'anual' ? '#fff' : '#94a3b8', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' }}>Anual (Desconto Máx)</button>
+              </div>
+
+              {/* TABELA DE PREÇOS */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '32px', textAlign: 'left' }}>
+                
+                {/* Básico */}
+                <div style={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column' }}>
+                  <h4 style={{ margin: '0 0 4px 0', color: '#e2e8f0', fontSize: '18px', fontWeight: 800 }}>Básico</h4>
+                  <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: '#64748b' }}>Para pequenos lojistas.</p>
+                  <div style={{ marginBottom: '20px' }}>
+                    <span style={{ fontSize: '14px', color: '#94a3b8', fontWeight: 700 }}>R$</span>
+                    <span style={{ fontSize: '32px', color: '#fff', fontWeight: 900 }}>
+                      {cicloPlano === 'mensal' ? '35,00' : cicloPlano === 'semestral' ? '31,50' : '28,48'}
+                    </span>
+                    <span style={{ fontSize: '12px', color: '#64748b' }}>/mês</span>
+                  </div>
+                  <ul style={{ padding: 0, margin: '0 0 24px 0', listStyle: 'none', fontSize: '13px', color: '#cbd5e1', display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
+                    <li>✓ 1 Operador</li>
+                    <li>✓ PDV Frente de Caixa</li>
+                    <li>✓ Gestão de Produtos</li>
+                    <li>✓ Controle de Fiado</li>
+                  </ul>
+                  <button onClick={() => { window.open(`https://wa.me/SEUNUMEROAQUI?text=Olá,%20quero%20assinar%20o%20plano%20Básico%20${cicloPlano}.`, '_blank'); }} style={{ width: '100%', padding: '12px', borderRadius: '10px', backgroundColor: '#1e293b', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 800 }}>Assinar Básico</button>
                 </div>
 
-                <div onClick={() => setCicloPlano('semestral')} style={{ backgroundColor: cicloPlano === 'semestral' ? 'rgba(99, 102, 241, 0.1)' : '#020617', border: `2px solid ${cicloPlano === 'semestral' ? '#6366f1' : '#1e293b'}`, borderRadius: '16px', padding: '24px 16px', cursor: 'pointer', transition: 'all 0.2s', position: 'relative' }}>
-                  <span style={{ position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#10b981', color: '#fff', fontSize: '10px', fontWeight: 900, padding: '4px 10px', borderRadius: '12px', whiteSpace: 'nowrap', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>10% DESCONTO</span>
-                  <h4 style={{ margin: '0 0 8px 0', color: cicloPlano === 'semestral' ? '#818cf8' : '#e2e8f0', fontSize: '18px', fontWeight: 800 }}>Semestral</h4>
-                  <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>6 meses de acesso com economia.</p>
+                {/* Essencial (Mais Popular) */}
+                <div style={{ backgroundColor: '#0f172a', border: '2px solid #6366f1', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', position: 'relative', transform: 'scale(1.02)' }}>
+                  <span style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#6366f1', color: '#fff', fontSize: '10px', fontWeight: 900, padding: '4px 12px', borderRadius: '12px', textTransform: 'uppercase' }}>Mais Popular</span>
+                  <h4 style={{ margin: '0 0 4px 0', color: '#818cf8', fontSize: '18px', fontWeight: 800 }}>Essencial</h4>
+                  <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: '#94a3b8' }}>A operação completa.</p>
+                  <div style={{ marginBottom: '20px' }}>
+                    <span style={{ fontSize: '14px', color: '#818cf8', fontWeight: 700 }}>R$</span>
+                    <span style={{ fontSize: '32px', color: '#fff', fontWeight: 900 }}>
+                      {cicloPlano === 'mensal' ? '44,90' : cicloPlano === 'semestral' ? '40,41' : '33,57'}
+                    </span>
+                    <span style={{ fontSize: '12px', color: '#94a3b8' }}>/mês</span>
+                  </div>
+                  <ul style={{ padding: 0, margin: '0 0 24px 0', listStyle: 'none', fontSize: '13px', color: '#cbd5e1', display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
+                    <li>✓ Múltiplos Operadores</li>
+                    <li>✓ Controle de Permissões</li>
+                    <li>✓ Painel Executivo / Dashboard</li>
+                    <li>✓ Gestão de Despesas</li>
+                  </ul>
+                  <button onClick={() => { window.open(`https://wa.me/SEUNUMEROAQUI?text=Olá,%20quero%20assinar%20o%20plano%20Essencial%20${cicloPlano}.`, '_blank'); }} style={{ width: '100%', padding: '12px', borderRadius: '10px', background: 'linear-gradient(135deg, #4f46e5, #4338ca)', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 900, boxShadow: '0 4px 15px rgba(79, 70, 229, 0.4)' }}>Assinar Essencial</button>
                 </div>
 
-                <div onClick={() => setCicloPlano('anual')} style={{ backgroundColor: cicloPlano === 'anual' ? 'rgba(99, 102, 241, 0.1)' : '#020617', border: `2px solid ${cicloPlano === 'anual' ? '#6366f1' : '#1e293b'}`, borderRadius: '16px', padding: '24px 16px', cursor: 'pointer', transition: 'all 0.2s', position: 'relative' }}>
-                  <span style={{ position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#8b5cf6', color: '#fff', fontSize: '10px', fontWeight: 900, padding: '4px 10px', borderRadius: '12px', whiteSpace: 'nowrap', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>MAIS POPULAR</span>
-                  <h4 style={{ margin: '0 0 8px 0', color: cicloPlano === 'anual' ? '#818cf8' : '#e2e8f0', fontSize: '18px', fontWeight: 800 }}>Anual</h4>
-                  <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>1 ano inteiro focado em vender.</p>
+                {/* Pro Avançado */}
+                <div style={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column' }}>
+                  <h4 style={{ margin: '0 0 4px 0', color: '#e2e8f0', fontSize: '18px', fontWeight: 800 }}>Pro Avançado</h4>
+                  <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: '#64748b' }}>Comissão e alta gestão.</p>
+                  <div style={{ marginBottom: '20px' }}>
+                    <span style={{ fontSize: '14px', color: '#94a3b8', fontWeight: 700 }}>R$</span>
+                    <span style={{ fontSize: '32px', color: '#fff', fontWeight: 900 }}>
+                      {cicloPlano === 'mensal' ? '59,90' : cicloPlano === 'semestral' ? '53,91' : '43,75'}
+                    </span>
+                    <span style={{ fontSize: '12px', color: '#64748b' }}>/mês</span>
+                  </div>
+                  <ul style={{ padding: 0, margin: '0 0 24px 0', listStyle: 'none', fontSize: '13px', color: '#cbd5e1', display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
+                    <li>✓ Módulo de Comissões</li>
+                    <li>✓ Gestão de Mesas/Comandas</li>
+                    <li>✓ Relatórios Avançados</li>
+                    <li>✓ Suporte Prioritário</li>
+                  </ul>
+                  <button onClick={() => { window.open(`https://wa.me/SEUNUMEROAQUI?text=Olá,%20quero%20assinar%20o%20plano%20Pro%20Avançado%20${cicloPlano}.`, '_blank'); }} style={{ width: '100%', padding: '12px', borderRadius: '10px', backgroundColor: '#1e293b', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 800 }}>Assinar Pro</button>
                 </div>
               </div>
 
+              {/* Botões Inferiores */}
               <div style={{ display: 'flex', gap: '16px' }}>
                 <button onClick={() => setModalPlanosAberto(false)} style={{ flex: 1, padding: '16px', borderRadius: '12px', backgroundColor: '#1e293b', color: '#f8fafc', border: 'none', cursor: 'pointer', fontWeight: 800, fontSize: '14px' }}>
-                  Voltar
+                  Voltar para Bloqueio
                 </button>
-                <button onClick={() => { window.open(`https://wa.me/SEUNUMEROAQUI?text=Olá,%20minha%20loja%20está%20bloqueada%20e%20gostaria%20de%20assinar%20o%20ZenOS%20no%20plano%20${cicloPlano.toUpperCase()}.`, '_blank'); }} style={{ flex: 2, padding: '16px', borderRadius: '12px', background: 'linear-gradient(135deg, #4f46e5, #4338ca)', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 900, fontSize: '14px', boxShadow: '0 4px 15px rgba(79, 70, 229, 0.4)' }}>
-                  Assinar Plano {cicloPlano.charAt(0).toUpperCase() + cicloPlano.slice(1)} ➔
+                <button onClick={() => { window.open('https://wa.me/SEUNUMEROAQUI?text=Olá,%20gostaria%20de%20saber%20sobre%20o%20plano%20Multi-Filiais.', '_blank'); }} style={{ flex: 1, padding: '16px', borderRadius: '12px', backgroundColor: '#020617', border: '1px solid #334155', color: '#38bdf8', cursor: 'pointer', fontWeight: 900, fontSize: '14px' }}>
+                  🏢 Consultar Plano Multi-Filiais
                 </button>
               </div>
+
             </div>
           </div>
         )}
