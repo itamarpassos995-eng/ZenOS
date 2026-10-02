@@ -206,7 +206,7 @@ export default function Produtos({ produtos, setProdutos, moeda, fmt, t, restaur
                     <tr key={prod.id} style={{ borderBottom: '1px solid #1e293b' }}>
                       <td style={{ padding: '16px 20px', fontWeight: 800, color: '#f8fafc', fontFamily: 'monospace' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          {prod.imagem ? <img src={prod.imagem} alt={prod.nome} style={{ width: '38px', height: '38px', borderRadius: '8px', objectFit: 'cover' }} /> : <div style={{ width: '38px', height: '38px', borderRadius: '8px', backgroundColor: '#020617', border: '1px solid #1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>{ehServico ? '🛠️' : '📦'}</div>}
+                          {prod.imagem ? <img src={prod.imagem} alt={prod.nome} style={{ width: '38px', height: '38px', borderRadius: '8px', objectFit: 'cover' }} /> : <div style={{ width: '38px', height: '38px', borderRadius: '8px', backgroundColor: '#020617', border: '1px solid #1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>{ehServico ? '🛠️️' : '📦'}</div>}
                           <span>{prod.sku}</span>
                         </div>
                       </td>
