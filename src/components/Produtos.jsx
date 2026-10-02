@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { normalizarProduto } from '../data';
 
-export default function Produtos({ produtos, setProdutos, moeda, fmt, t, restaurarProdutosPadrao }) {
+// Adicionamos a prop 'fornecedoresGlobais' para receber a lista oficial do sistema
+export default function Produtos({ produtos, setProdutos, moeda, fmt, t, restaurarProdutosPadrao, fornecedoresGlobais = [] }) {
   const [gruposCadastrados, setGruposCadastrados] = useState(['Tintas Acrílicas', 'Colorimetria & Pigmentos', 'Massas e Complementos', 'Serviços Especializados', 'Acessórios & Ferramentas']);
   const [filtroGrupo, setFiltroGrupo] = useState('todos');
   const [buscaProdutoTexto, setBuscaProdutoTexto] = useState('');
@@ -13,10 +14,17 @@ export default function Produtos({ produtos, setProdutos, moeda, fmt, t, restaur
   const [novoGrupoTexto, setNovoGrupoTexto] = useState('');
   const [criandoNovoGrupo, setCriandoNovoGrupo] = useState(false);
 
-  // --- NOVIDADE AQUI: Autocomplete Inteligente com DADOS REAIS ---
+  // --- MELHORIA: Autocomplete Inteligente (PRODUTOS + BANCO GLOBAL) ---
+  // Agora ele pega os fornecedores que já estão nos produtos E os fornecedores oficiais do sistema
+  const todosOsFornecedores = [
+    ...produtos.map((p) => p.fornecedor),
+    ...fornecedoresGlobais.map(f => typeof f === 'object' ? f.nome || f.razao_social : f)
+  ];
+  
   const fornecedoresCadastrados = Array.from(
-    new Set(produtos.map((p) => p.fornecedor).filter((f) => f && f.trim() !== ''))
+    new Set(todosOsFornecedores.filter((f) => f && f.trim() !== ''))
   ).sort();
+  
   const [mostrarFornecedores, setMostrarFornecedores] = useState(false);
   // ---------------------------------------------------------------
 
