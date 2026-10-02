@@ -154,7 +154,10 @@ return p;
 return (
 <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-<h2 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>{t('catalogoTitulo')}<span style={{ fontSize: '13px', color: '#64748b' }}>{t('catalogoSub')}
+
+<h2 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>{t('catalogoTitulo')}
+<span style={{ fontSize: '13px', color: '#64748b' }}>{t('catalogoSub')}
+
 <div style={{ display: 'flex', gap: '10px' }}>
 <button onClick={abrirCadastroNovoProduto} style={{ background: 'linear-gradient(135deg, #0284c7, #0369a1)', border: '1px solid #38bdf8', color: '#ffffff', padding: '12px 24px', borderRadius: '12px', fontSize: '13px', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 15px rgba(2, 132, 199, 0.3)' }}>{t('novoProdutoBtn')}
 
