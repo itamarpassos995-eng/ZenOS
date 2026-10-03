@@ -1,8 +1,13 @@
 import React, { useState, useRef } from 'react';
-import { normalizarProduto } from '../data';
+import * as bancoDeDados from '../data';
 
-// Adicionamos a prop 'fornecedoresGlobais' para receber a lista oficial do sistema
-export default function Produtos({ produtos, setProdutos, moeda, fmt, t, restaurarProdutosPadrao, fornecedoresGlobais = [] }) {
+// Garante que o normalizarProduto funcione
+const normalizarProduto = bancoDeDados.normalizarProduto;
+
+// Caça a lista de fornecedores global dentro do seu data.js (seja qual for o nome que estiver lá)
+const listaFornecedoresGlobal = bancoDeDados.fornecedores || bancoDeDados.listaFornecedores || bancoDeDados.fornecedoresCadastrados || bancoDeDados.fornecedor || [];
+
+export default function Produtos({ produtos, setProdutos, moeda, fmt, t, restaurarProdutosPadrao }) {
   const [gruposCadastrados, setGruposCadastrados] = useState(['Tintas Acrílicas', 'Colorimetria & Pigmentos', 'Massas e Complementos', 'Serviços Especializados', 'Acessórios & Ferramentas']);
   const [filtroGrupo, setFiltroGrupo] = useState('todos');
   const [buscaProdutoTexto, setBuscaProdutoTexto] = useState('');
@@ -14,15 +19,21 @@ export default function Produtos({ produtos, setProdutos, moeda, fmt, t, restaur
   const [novoGrupoTexto, setNovoGrupoTexto] = useState('');
   const [criandoNovoGrupo, setCriandoNovoGrupo] = useState(false);
 
-  // --- MELHORIA: Autocomplete Inteligente (PRODUTOS + BANCO GLOBAL) ---
-  // Agora ele pega os fornecedores que já estão nos produtos E os fornecedores oficiais do sistema
+  // --- MELHORIA: Autocomplete Inteligente DEFINITIVO ---
+  // Pega os nomes da lista global do seu data.js
+  const nomesFornecedoresSistema = Array.isArray(listaFornecedoresGlobal) 
+    ? listaFornecedoresGlobal.map(f => typeof f === 'object' ? (f.nome || f.razao_social || f.nomeFantasia || f) : f)
+    : [];
+
+  // Junta os do data.js com os que já estão vinculados aos produtos na tela
   const todosOsFornecedores = [
     ...produtos.map((p) => p.fornecedor),
-    ...fornecedoresGlobais.map(f => typeof f === 'object' ? f.nome || f.razao_social : f)
+    ...nomesFornecedoresSistema
   ];
   
+  // Remove repetições e organiza em ordem alfabética
   const fornecedoresCadastrados = Array.from(
-    new Set(todosOsFornecedores.filter((f) => f && f.trim() !== ''))
+    new Set(todosOsFornecedores.filter((f) => typeof f === 'string' && f.trim() !== ''))
   ).sort();
   
   const [mostrarFornecedores, setMostrarFornecedores] = useState(false);
@@ -206,7 +217,7 @@ export default function Produtos({ produtos, setProdutos, moeda, fmt, t, restaur
                     <tr key={prod.id} style={{ borderBottom: '1px solid #1e293b' }}>
                       <td style={{ padding: '16px 20px', fontWeight: 800, color: '#f8fafc', fontFamily: 'monospace' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          {prod.imagem ? <img src={prod.imagem} alt={prod.nome} style={{ width: '38px', height: '38px', borderRadius: '8px', objectFit: 'cover' }} /> : <div style={{ width: '38px', height: '38px', borderRadius: '8px', backgroundColor: '#020617', border: '1px solid #1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>{ehServico ? '🛠️️' : '📦'}</div>}
+                          {prod.imagem ? <img src={prod.imagem} alt={prod.nome} style={{ width: '38px', height: '38px', borderRadius: '8px', objectFit: 'cover' }} /> : <div style={{ width: '38px', height: '38px', borderRadius: '8px', backgroundColor: '#020617', border: '1px solid #1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>{ehServico ? '🛠️' : '📦'}</div>}
                           <span>{prod.sku}</span>
                         </div>
                       </td>
