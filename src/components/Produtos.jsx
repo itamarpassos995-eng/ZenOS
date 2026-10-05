@@ -1,13 +1,8 @@
 import React, { useState, useRef } from 'react';
-import * as bancoDeDados from '../data';
+import { normalizarProduto } from '../data';
 
-// Garante que o normalizarProduto funcione
-const normalizarProduto = bancoDeDados.normalizarProduto;
-
-// Caça a lista de fornecedores global dentro do seu data.js (seja qual for o nome que estiver lá)
-const listaFornecedoresGlobal = bancoDeDados.fornecedores || bancoDeDados.listaFornecedores || bancoDeDados.fornecedoresCadastrados || bancoDeDados.fornecedor || [];
-
-export default function Produtos({ produtos, setProdutos, moeda, fmt, t, restaurarProdutosPadrao }) {
+// Recebendo a prop fornecedoresGlobais que agora vem do App.js
+export default function Produtos({ produtos, setProdutos, moeda, fmt, t, tx, fornecedoresGlobais = [] }) {
   const [gruposCadastrados, setGruposCadastrados] = useState(['Tintas Acrílicas', 'Colorimetria & Pigmentos', 'Massas e Complementos', 'Serviços Especializados', 'Acessórios & Ferramentas']);
   const [filtroGrupo, setFiltroGrupo] = useState('todos');
   const [buscaProdutoTexto, setBuscaProdutoTexto] = useState('');
@@ -19,19 +14,12 @@ export default function Produtos({ produtos, setProdutos, moeda, fmt, t, restaur
   const [novoGrupoTexto, setNovoGrupoTexto] = useState('');
   const [criandoNovoGrupo, setCriandoNovoGrupo] = useState(false);
 
-  // --- MELHORIA: Autocomplete Inteligente DEFINITIVO ---
-  // Pega os nomes da lista global do seu data.js
-  const nomesFornecedoresSistema = Array.isArray(listaFornecedoresGlobal) 
-    ? listaFornecedoresGlobal.map(f => typeof f === 'object' ? (f.nome || f.razao_social || f.nomeFantasia || f) : f)
-    : [];
-
-  // Junta os do data.js com os que já estão vinculados aos produtos na tela
+  // --- MELHORIA: Autocomplete Inteligente (PRODUTOS + BANCO GLOBAL) ---
   const todosOsFornecedores = [
     ...produtos.map((p) => p.fornecedor),
-    ...nomesFornecedoresSistema
+    ...fornecedoresGlobais.map(f => typeof f === 'object' ? (f.nome || f.razao_social || f.nomeFantasia || f.nomeFornecedor) : f)
   ];
   
-  // Remove repetições e organiza em ordem alfabética
   const fornecedoresCadastrados = Array.from(
     new Set(todosOsFornecedores.filter((f) => typeof f === 'string' && f.trim() !== ''))
   ).sort();
@@ -42,9 +30,11 @@ export default function Produtos({ produtos, setProdutos, moeda, fmt, t, restaur
   const [formProduto, setFormProduto] = useState(normalizarProduto({}));
   const fileInputRef = useRef(null);
 
-  const produtosListaFiltrada = produtos.filter(p => {
+  // CORREÇÃO DO FILTRO: Garante que todos os produtos (independente de quem cadastrou) sejam exibidos, desde que passem no filtro de busca
+  const produtosListaFiltrada = (produtos || []).filter(p => {
     if (!p) return false;
-    if (p.usoUnicoEncomendado && (p.estoque || 0) <= 0) return false;
+    // Opcional: Se quiser que produtos por encomenda zerados não apareçam, mantenha esta linha:
+    // if (p.usoUnicoEncomendado && (p.estoque || 0) <= 0) return false;
 
     const nomeLower = (p.nome || '').toLowerCase();
     const skuLower = (p.sku || '').toLowerCase();
@@ -169,24 +159,24 @@ export default function Produtos({ produtos, setProdutos, moeda, fmt, t, restaur
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div><h2 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>{t('catalogoTitulo')}</h2><span style={{ fontSize: '13px', color: '#64748b' }}>{t('catalogoSub')}</span></div>
+        <div><h2 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>{t ? t('catalogoTitulo') : 'Catálogo'}</h2><span style={{ fontSize: '13px', color: '#64748b' }}>{t ? t('catalogoSub') : 'Gerenciamento'}</span></div>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <button onClick={abrirCadastroNovoProduto} style={{ background: 'linear-gradient(135deg, #0284c7, #0369a1)', border: '1px solid #38bdf8', color: '#ffffff', padding: '12px 24px', borderRadius: '12px', fontSize: '13px', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 15px rgba(2, 132, 199, 0.3)' }}>{t('novoProdutoBtn')}</button>
+          <button onClick={abrirCadastroNovoProduto} style={{ background: 'linear-gradient(135deg, #0284c7, #0369a1)', border: '1px solid #38bdf8', color: '#ffffff', padding: '12px 24px', borderRadius: '12px', fontSize: '13px', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 15px rgba(2, 132, 199, 0.3)' }}>{t ? t('novoProdutoBtn') : '+ Novo Produto'}</button>
         </div>
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0b1120', padding: '16px 20px', borderRadius: '16px', border: '1px solid #1e293b', gap: '16px' }}>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', flex: 1 }}>
-          <button onClick={() => setFiltroGrupo('todos')} style={{ backgroundColor: filtroGrupo === 'todos' ? '#082f49' : '#020617', color: filtroGrupo === 'todos' ? '#38bdf8' : '#94a3b8', border: `1px solid ${filtroGrupo === 'todos' ? '#0284c7' : '#1e293b'}`, borderRadius: '8px', padding: '6px 14px', fontSize: '12px', fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}>{t('todosGrupos')} ({produtosListaFiltrada.length})</button>
+          <button onClick={() => setFiltroGrupo('todos')} style={{ backgroundColor: filtroGrupo === 'todos' ? '#082f49' : '#020617', color: filtroGrupo === 'todos' ? '#38bdf8' : '#94a3b8', border: `1px solid ${filtroGrupo === 'todos' ? '#0284c7' : '#1e293b'}`, borderRadius: '8px', padding: '6px 14px', fontSize: '12px', fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}>{t ? t('todosGrupos') : 'Todos'} ({produtosListaFiltrada.length})</button>
           {gruposCadastrados.map((grp) => {
             const ativo = filtroGrupo === grp;
-            const qtd = produtos.filter(p => (p.grupo || 'Geral') === grp && (!p.usoUnicoEncomendado || p.estoque > 0)).length;
+            const qtd = produtos.filter(p => (p.grupo || 'Geral') === grp).length;
             return (
               <button key={grp} onClick={() => setFiltroGrupo(grp)} style={{ backgroundColor: ativo ? '#082f49' : '#020617', color: ativo ? '#38bdf8' : '#94a3b8', border: `1px solid ${ativo ? '#0284c7' : '#1e293b'}`, borderRadius: '8px', padding: '6px 14px', fontSize: '12px', fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}>{grp} ({qtd})</button>
             );
           })}
         </div>
-        <input type="text" value={buscaProdutoTexto} onChange={(e) => setBuscaProdutoTexto(e.target.value)} placeholder={t('buscarProd')} style={{ width: '280px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', padding: '8px 14px', color: '#ffffff', fontSize: '13px', outline: 'none' }} />
+        <input type="text" value={buscaProdutoTexto} onChange={(e) => setBuscaProdutoTexto(e.target.value)} placeholder={t ? t('buscarProd') : 'Buscar...'} style={{ width: '280px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', padding: '8px 14px', color: '#ffffff', fontSize: '13px', outline: 'none' }} />
       </div>
 
       <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', overflow: 'hidden' }}>
@@ -194,21 +184,21 @@ export default function Produtos({ produtos, setProdutos, moeda, fmt, t, restaur
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid #1e293b', color: '#64748b', fontSize: '11px', textTransform: 'uppercase' }}>
-                <th style={{ padding: '16px 20px' }}>{t('fotoSku')}</th>
-                <th style={{ padding: '16px 12px' }}>{t('descItem')}</th>
+                <th style={{ padding: '16px 20px' }}>Foto & SKU</th>
+                <th style={{ padding: '16px 12px' }}>Descrição</th>
                 <th style={{ padding: '16px 12px' }}>Grupo & Unidade</th>
                 <th style={{ padding: '16px 12px' }}>Localização</th>
                 <th style={{ padding: '16px 12px', textAlign: 'center' }}>Vitrine | Galpão</th>
-                <th style={{ padding: '16px 12px', textAlign: 'right' }}>{t('custo')}</th>
-                <th style={{ padding: '16px 12px', textAlign: 'right' }}>{t('preco1')}</th>
-                <th style={{ padding: '16px 12px', textAlign: 'right' }}>{t('preco2')}</th>
-                <th style={{ padding: '16px 12px', textAlign: 'center' }}>{t('margem')}</th>
-                <th style={{ padding: '16px 20px', textAlign: 'right' }}>{t('acoes')}</th>
+                <th style={{ padding: '16px 12px', textAlign: 'right' }}>Custo</th>
+                <th style={{ padding: '16px 12px', textAlign: 'right' }}>Preço Venda</th>
+                <th style={{ padding: '16px 12px', textAlign: 'right' }}>Atacado</th>
+                <th style={{ padding: '16px 12px', textAlign: 'center' }}>Margem</th>
+                <th style={{ padding: '16px 20px', textAlign: 'right' }}>Ações</th>
               </tr>
             </thead>
             <tbody>
               {produtosListaFiltrada.length === 0 ? (
-                <tr><td colSpan="10" style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>{t('nenhumProd')}</td></tr>
+                <tr><td colSpan="10" style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>Nenhum produto encontrado.</td></tr>
               ) : (
                 produtosListaFiltrada.map((prod) => {
                   const custo = prod.custoBRL || 0; const preco = prod.precoBRL || 0; const margem = preco > 0 ? (((preco - custo) / preco) * 100).toFixed(1) : 0;
@@ -240,7 +230,7 @@ export default function Produtos({ produtos, setProdutos, moeda, fmt, t, restaur
                       <td style={{ padding: '16px 12px', textAlign: 'right', fontWeight: 900, color: '#34d399', fontSize: '15px' }}>{fmt(preco)}</td>
                       <td style={{ padding: '16px 12px', textAlign: 'right', fontWeight: 700, color: prod.habilitarPreco2 ? '#38bdf8' : '#475569' }}>{prod.habilitarPreco2 && prod.preco2BRL > 0 ? fmt(prod.preco2BRL) : '—'}</td>
                       <td style={{ padding: '16px 12px', textAlign: 'center' }}><span style={{ backgroundColor: margem >= 40 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)', color: margem >= 40 ? '#34d399' : '#fbbf24', border: `1px solid ${margem >= 40 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`, padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>{margem}%</span></td>
-                      <td style={{ padding: '16px 20px', textAlign: 'right' }}><button onClick={() => abrirEdicaoProduto(prod)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#38bdf8', padding: '6px 14px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>{t('editar')}</button></td>
+                      <td style={{ padding: '16px 20px', textAlign: 'right' }}><button onClick={() => abrirEdicaoProduto(prod)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#38bdf8', padding: '6px 14px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>Editar</button></td>
                     </tr>
                   );
                 })
