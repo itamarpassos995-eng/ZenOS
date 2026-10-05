@@ -33,9 +33,7 @@ export default function Produtos({ produtos, setProdutos, moeda, fmt, t, tx, for
   // CORREÇÃO DO FILTRO: Garante que todos os produtos (independente de quem cadastrou) sejam exibidos, desde que passem no filtro de busca
   const produtosListaFiltrada = (produtos || []).filter(p => {
     if (!p) return false;
-    // Opcional: Se quiser que produtos por encomenda zerados não apareçam, mantenha esta linha:
-    // if (p.usoUnicoEncomendado && (p.estoque || 0) <= 0) return false;
-
+    
     const nomeLower = (p.nome || '').toLowerCase();
     const skuLower = (p.sku || '').toLowerCase();
     const grupoItem = p.grupo || 'Geral';
@@ -297,11 +295,16 @@ export default function Produtos({ produtos, setProdutos, moeda, fmt, t, tx, for
                         setMostrarFornecedores(true);
                       }} 
                       onFocus={() => setMostrarFornecedores(true)}
-                      onBlur={() => setTimeout(() => setMostrarFornecedores(false), 200)}
                       autoComplete="off"
                       placeholder="Buscar..."
                       style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontSize: '12px', padding: '8px 10px', outline: 'none' }} 
                     />
+                    {mostrarFornecedores && (
+                      <div 
+                        style={{ position: 'fixed', inset: 0, zIndex: 40 }} 
+                        onClick={() => setMostrarFornecedores(false)}
+                      />
+                    )}
                     {mostrarFornecedores && (
                       <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px', marginTop: '4px', zIndex: 50, maxHeight: '150px', overflowY: 'auto', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)' }}>
                         {fornecedoresCadastrados
@@ -309,7 +312,8 @@ export default function Produtos({ produtos, setProdutos, moeda, fmt, t, tx, for
                           .map((forn, idx) => (
                             <div 
                               key={idx} 
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 setFormProduto({ ...formProduto, fornecedor: forn });
                                 setMostrarFornecedores(false);
                               }} 
