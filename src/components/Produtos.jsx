@@ -1,7 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { normalizarProduto } from '../data';
 
-// Recebendo a prop fornecedoresGlobais que agora vem do App.js
 export default function Produtos({ produtos, setProdutos, moeda, fmt, t, tx, fornecedoresGlobais = [] }) {
   const [gruposCadastrados, setGruposCadastrados] = useState(['Tintas Acrílicas', 'Colorimetria & Pigmentos', 'Massas e Complementos', 'Serviços Especializados', 'Acessórios & Ferramentas']);
   const [filtroGrupo, setFiltroGrupo] = useState('todos');
@@ -30,7 +29,6 @@ export default function Produtos({ produtos, setProdutos, moeda, fmt, t, tx, for
   const [formProduto, setFormProduto] = useState(normalizarProduto({}));
   const fileInputRef = useRef(null);
 
-  // CORREÇÃO DO FILTRO: Garante que todos os produtos (independente de quem cadastrou) sejam exibidos, desde que passem no filtro de busca
   const produtosListaFiltrada = (produtos || []).filter(p => {
     if (!p) return false;
     
@@ -295,26 +293,23 @@ export default function Produtos({ produtos, setProdutos, moeda, fmt, t, tx, for
                         setMostrarFornecedores(true);
                       }} 
                       onFocus={() => setMostrarFornecedores(true)}
+                      onBlur={() => setTimeout(() => setMostrarFornecedores(false), 250)}
                       autoComplete="off"
                       placeholder="Buscar..."
                       style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontSize: '12px', padding: '8px 10px', outline: 'none' }} 
                     />
                     {mostrarFornecedores && (
-                      <div 
-                        style={{ position: 'fixed', inset: 0, zIndex: 40 }} 
-                        onClick={() => setMostrarFornecedores(false)}
-                      />
-                    )}
-                    {mostrarFornecedores && (
                       <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px', marginTop: '4px', zIndex: 50, maxHeight: '150px', overflowY: 'auto', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)' }}>
                         {fornecedoresCadastrados
                           .filter(f => f.toLowerCase().includes((formProduto.fornecedor || '').toLowerCase()))
-                          .map((forn, idx) => (
+                          .map((forn) => (
                             <div 
-                              key={idx} 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setFormProduto({ ...formProduto, fornecedor: forn });
+                              // CHAVE ÚNICA DE STRING (Resolve o bug de não clicar quando digita)
+                              key={forn} 
+                              // EVENTO MOUSE DOWN (Resolve o bug de o campo perder o foco antes de registrar o clique)
+                              onMouseDown={(e) => {
+                                e.preventDefault(); // Impede que o navegador roube o foco do input
+                                setFormProduto(prev => ({ ...prev, fornecedor: forn }));
                                 setMostrarFornecedores(false);
                               }} 
                               style={{ padding: '8px 10px', color: '#cbd5e1', fontSize: '12px', cursor: 'pointer', borderBottom: '1px solid #1e293b', transition: 'background-color 0.2s' }}
