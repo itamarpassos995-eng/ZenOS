@@ -1,0 +1,11 @@
+ZenOS ATT10.1 RC1.2 — HOTFIX HOMOLOGAÇÃO MOBILE / PIN
+
+1. Pare somente o terminal do Vite/dev:mobile com Ctrl+C.
+2. Extraia o conteúdo deste ZIP dentro da pasta ZenOS-main, aceitando substituir os arquivos.
+3. NÃO apague node_modules e NÃO rode npm ci novamente.
+4. O terminal dos emuladores pode continuar aberto.
+5. Reinicie: npm.cmd run dev:mobile
+6. No celular, recarregue a página e tente o mesmo operador/PIN.
+7. Para validar: npm.cmd run test:mobile
+
+Arquivos funcionais de PDV, Produtos, Compras, Caixa, Vendas e persistência não foram alterados.

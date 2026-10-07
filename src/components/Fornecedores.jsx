@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
+import ZenModal from './ZenModal';
 
 export default function Fornecedores({ fornecedores, setFornecedores, moeda, tx }) {
   const [termoBusca, setTermoBusca] = useState('');
   const [modalAberto, setModalAberto] = useState(false);
   const [fornecedorEmEdicao, setFornecedorEmEdicao] = useState(null);
+  const [modalZen, setModalZen] = useState(null);
+  const avisarZen=(variante,titulo,mensagem)=>setModalZen({variante,titulo,mensagem,apenasConfirmar:true});
+  const confirmarZen=({titulo,mensagem,confirmarTexto='Confirmar',variante='warning'})=>new Promise(resolve=>setModalZen({variante,titulo,mensagem,confirmarTexto,cancelarTexto:'Cancelar',resolver}));
   
   // Detecção da legislação fiscal baseada na moeda
   const eParaguai = moeda === 'PYG';
@@ -31,7 +35,7 @@ export default function Fornecedores({ fornecedores, setFornecedores, moeda, tx 
   };
 
   const salvar = () => {
-    if (!form.nome.trim()) return alert(tx('O Nome/Razão Social é obrigatório.', 'El Nombre/Razón Social es obligatorio.', 'Name is required.'));
+    if (!form.nome.trim()) return avisarZen('warning','Nome obrigatório',tx('O Nome/Razão Social é obrigatório.', 'El Nombre/Razón Social es obligatorio.', 'Name is required.'));
     
     const dados = { ...form };
     
@@ -45,14 +49,15 @@ export default function Fornecedores({ fornecedores, setFornecedores, moeda, tx 
     setModalAberto(false);
   };
 
-  const excluir = (id) => {
-    if (window.confirm(tx('Tem certeza que deseja excluir este fornecedor?', '¿Eliminar este proveedor?', 'Delete this supplier?'))) {
-      setFornecedores(fornecedores.filter(f => f.id !== id));
-    }
+  const excluir = async (id) => {
+    const alvo=(fornecedores||[]).find(f=>f.id===id);
+    const confirmou=await confirmarZen({titulo:'Excluir fornecedor',mensagem:tx(`Excluir ${alvo?.nome || 'este fornecedor'}?`, `¿Eliminar ${alvo?.nome || 'este proveedor'}?`, `Delete ${alvo?.nome || 'this supplier'}?`),confirmarTexto:'Excluir',variante:'danger'});
+    if (confirmou) setFornecedores(fornecedores.filter(f => f.id !== id));
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <ZenModal aberto={!!modalZen} variante={modalZen?.variante} titulo={modalZen?.titulo} mensagem={modalZen?.mensagem} confirmarTexto={modalZen?.confirmarTexto || 'OK'} cancelarTexto={modalZen?.cancelarTexto || 'Cancelar'} apenasConfirmar={!!modalZen?.apenasConfirmar} onConfirmar={()=>{const r=modalZen?.resolver;setModalZen(null);if(r)r(true);}} onCancelar={()=>{const r=modalZen?.resolver;setModalZen(null);if(r)r(false);}} />
       {/* CABEÇALHO */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>

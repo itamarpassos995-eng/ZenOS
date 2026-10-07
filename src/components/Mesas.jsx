@@ -1,23 +1,37 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { ehEncomendaUsoUnico } from '../core/orderItems';
+import { db } from '../firebase';
+import { assinarMesasV1, atualizarMesaV1, criarMesasPadrao, garantirMesasV1 } from '../core/tablesV1';
+import { zenosStorage } from '../core/storage';
 
-export default function Mesas({ produtos, fmt, tx, historicoVendas, setHistoricoVendas, moeda, idioma }) {
-  // Inicialização Segura: Garante que as mesas não se perdem se o navegador fechar
-  const [mesas, setMesas] = useState(() => {
-    try {
-      const salvo = localStorage.getItem('zenos_mesas_ativas');
-      if (salvo) return JSON.parse(salvo);
-    } catch (e) {}
-    
-    // Gerar ambiente padrão: 15 Mesas + 5 Comandas Vips
-    const iniciais = [];
-    for(let i=1; i<=15; i++) iniciais.push({ id: `M${i}`, tipo: 'Mesa', rotulo: `Mesa ${String(i).padStart(2, '0')}`, status: 'livre', itens: [] });
-    for(let i=1; i<=5; i++) iniciais.push({ id: `C${i}`, tipo: 'Comanda', rotulo: `Comanda ${String(i).padStart(2, '0')}`, status: 'livre', itens: [] });
-    return iniciais;
-  });
+export default function Mesas({ userId, produtos, fmt, tx, historicoVendas, setHistoricoVendas, moeda, idioma, operadorAtivo }) {
+  // ATT 09: Mesas V1 sincronizadas pela nuvem. O módulo continua EXPERIMENTAL até fechar estoque/financeiro/misto.
+  const [mesas, setMesas] = useState(() => criarMesasPadrao());
+  const [erroMesas, setErroMesas] = useState('');
 
   useEffect(() => {
-    localStorage.setItem('zenos_mesas_ativas', JSON.stringify(mesas));
-  }, [mesas]);
+    if (!userId) { setMesas(criarMesasPadrao()); return; }
+    let ativo = true;
+    const unsub = assinarMesasV1({
+      db, userId,
+      onData: async lista => {
+        if (!ativo) return;
+        if (lista === null) {
+          try {
+            let legado=null;
+            try { const bruto=zenosStorage.getItem(`zenos_${userId}_mesas_ativas`); legado=bruto?JSON.parse(bruto):null; } catch {}
+            await garantirMesasV1({ db, userId, mesasIniciais:Array.isArray(legado)?legado:null });
+          }
+          catch (error) { setErroMesas(error?.message || 'Falha ao inicializar mesas.'); }
+          return;
+        }
+        setMesas(lista.length ? lista : criarMesasPadrao());
+        setErroMesas('');
+      },
+      onError: error => { console.error('[ZenOS][Mesas V1]', error); setErroMesas(error?.message || 'Falha de sincronização das mesas.'); },
+    });
+    return () => { ativo = false; unsub(); };
+  }, [userId]);
 
   const [mesaAtivaId, setMesaAtivaId] = useState(null);
   const [buscaProduto, setBuscaProduto] = useState('');
@@ -41,7 +55,7 @@ export default function Mesas({ produtos, fmt, tx, historicoVendas, setHistorico
 
   // Otimização de Busca para Cardápio (Ignora itens de uso único sem estoque)
   const produtosCardapio = useMemo(() => {
-    let lista = produtos.filter(p => !p.usoUnicoEncomendado || p.estoque > 0);
+    let lista = produtos.filter(p => !ehEncomendaUsoUnico(p) || p.estoque > 0);
     if (!buscaProduto) return lista.slice(0, 50);
     const txt = buscaProduto.toLowerCase();
     return lista.filter(p => (p.nome || '').toLowerCase().includes(txt) || (p.sku || '').toLowerCase().includes(txt)).slice(0, 50);
@@ -53,47 +67,35 @@ export default function Mesas({ produtos, fmt, tx, historicoVendas, setHistorico
   }, [mesaAtiva]);
 
   // AÇÕES DA MESA
-  const adicionarItemMesa = (produto) => {
-    setMesas(prev => prev.map(m => {
-      if (m.id === mesaAtivaId) {
-        const jaExiste = m.itens.findIndex(it => it.produtoId === produto.id);
-        let novosItens = [...m.itens];
-        if (jaExiste >= 0) {
-          novosItens[jaExiste].qtd += 1;
-        } else {
-          novosItens.push({
-            produtoId: produto.id,
-            nome: produto.nome,
-            preco: produto.precoBRL || 0,
-            custo: produto.custoBRL || 0,
-            qtd: 1
-          });
-        }
-        return { ...m, status: 'ocupada', itens: novosItens };
-      }
-      return m;
-    }));
+  const adicionarItemMesa = async (produto) => {
+    try {
+      await atualizarMesaV1({ db, userId, mesaId: mesaAtivaId, operador: operadorAtivo, mutator: (m) => {
+        const novosItens = [...(m.itens || [])];
+        const jaExiste = novosItens.findIndex(it => String(it.produtoId) === String(produto.id));
+        if (jaExiste >= 0) novosItens[jaExiste] = { ...novosItens[jaExiste], qtd: Number(novosItens[jaExiste].qtd || 0) + 1 };
+        else novosItens.push({ produtoId: produto.id, sku: produto.sku || '', nome: produto.nome, preco: produto.precoBRL || 0, custo: produto.custoBRL || 0, qtd: 1 });
+        return { ...m, status:'ocupada', itens:novosItens };
+      }});
+    } catch (error) { setErroMesas(error?.message || 'Não foi possível atualizar a mesa.'); }
   };
 
-  const alterarQtdItem = (produtoId, delta) => {
-    setMesas(prev => prev.map(m => {
-      if (m.id === mesaAtivaId) {
-        let novosItens = m.itens.map(it => {
-          if (it.produtoId === produtoId) return { ...it, qtd: it.qtd + delta };
-          return it;
-        }).filter(it => it.qtd > 0);
-        return { ...m, itens: novosItens, status: novosItens.length === 0 ? 'livre' : 'ocupada' };
-      }
-      return m;
-    }));
+  const alterarQtdItem = async (produtoId, delta) => {
+    try {
+      await atualizarMesaV1({ db, userId, mesaId: mesaAtivaId, operador: operadorAtivo, mutator: (m) => {
+        const novosItens=(m.itens||[]).map(it=>String(it.produtoId)===String(produtoId)?{...it,qtd:Number(it.qtd||0)+delta}:it).filter(it=>it.qtd>0);
+        return { ...m, itens:novosItens, status:novosItens.length===0?'livre':'ocupada' };
+      }});
+    } catch (error) { setErroMesas(error?.message || 'Não foi possível alterar a quantidade.'); }
   };
 
-  const processarPagamento = () => {
+  const processarPagamento = async () => {
     if (!mesaAtiva || mesaAtiva.itens.length === 0) return;
     
+    const instanteVenda = new Date();
     const novaVenda = {
       id: Date.now(),
-      dataHora: new Date().toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR'),
+      createdAt: instanteVenda.toISOString(),
+      dataHora: instanteVenda.toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR'),
       clienteNome: `Consumidor (${mesaAtiva.rotulo})`,
       clienteId: null,
       operador: 'Módulo Restaurante',
@@ -113,15 +115,18 @@ export default function Mesas({ produtos, fmt, tx, historicoVendas, setHistorico
     };
 
     setHistoricoVendas([novaVenda, ...historicoVendas]);
-    setMesas(prev => prev.map(m => m.id === mesaAtivaId ? { ...m, status: 'livre', itens: [] } : m));
-    setModalPagamento(false);
-    setMesaAtivaId(null);
+    try {
+      await atualizarMesaV1({ db, userId, mesaId: mesaAtivaId, operador: operadorAtivo, mutator: m => ({ ...m, status:'livre', itens:[] }) });
+      setModalPagamento(false);
+      setMesaAtivaId(null);
+    } catch (error) { setErroMesas(error?.message || 'Venda criada, mas a mesa não pôde ser liberada. Verifique antes de reutilizar.'); }
   };
 
   // TELA 1: MAPA GERAL DE MESAS
   if (!mesaAtivaId) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '28px', width: '100%', boxSizing: 'border-box' }}>
+        <div style={{padding:'10px 14px',borderRadius:12,border:'1px solid #f59e0b',background:'rgba(120,53,15,.22)',color:'#fbbf24',fontSize:11,fontWeight:850}}>🧪 MÓDULO EXPERIMENTAL — sincronização multiterminal foi blindada na ATT 09, porém estoque, pagamento misto, fiado e fechamento financeiro ainda exigem validação completa antes de uso comercial.{erroMesas ? ` • ${erroMesas}` : ''}</div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
           <div><h2 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>Mapa de Mesas & Comandas</h2><span style={{ fontSize: '13px', color: '#64748b' }}>Gestão de consumos em aberto</span></div>
           <div style={{ display: 'flex', gap: '16px' }}>
@@ -163,6 +168,7 @@ export default function Mesas({ produtos, fmt, tx, historicoVendas, setHistorico
   // TELA 2: GESTÃO DA MESA SELECIONADA (ADAPTADA MOBILE RESPONSIVE)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', boxSizing: 'border-box' }}>
+      {erroMesas && <div style={{padding:'10px 14px',borderRadius:12,border:'1px solid #ef4444',background:'rgba(127,29,29,.25)',color:'#fecaca',fontSize:11,fontWeight:850}}>Falha de sincronização da mesa: {erroMesas}</div>}
       <style>{`
         @media (max-width: 900px) {
           .mesas-gestao-layout { flex-direction: column !important; }
