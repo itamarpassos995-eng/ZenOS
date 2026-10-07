@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { normalizarProduto, normalizarCliente } from '../data';
+import ZenModal from './ZenModal';
 
 export default function Migracao({ produtos, setProdutos, clientes, setClientes, t }) {
   const [dadosInput, setDadosInput] = useState('');
   const [tipoMigracao, setTipoMigracao] = useState('produtos');
   const [mensagemSucesso, setMensagemSucesso] = useState('');
+  const [modalZen,setModalZen]=useState(null);
 
   const importarDadosEmMassa = () => {
-    if (!dadosInput.trim()) return alert('Cole os dados na caixa de texto primeiro.');
+    if (!dadosInput.trim()) return setModalZen({variante:'warning',titulo:'Dados ausentes',mensagem:'Cole os dados na caixa de texto primeiro.',apenasConfirmar:true});
     try {
       const linhas = dadosInput.split('\n');
       let contador = 0;
@@ -44,12 +46,13 @@ export default function Migracao({ produtos, setProdutos, clientes, setClientes,
       setDadosInput('');
       setTimeout(() => setMensagemSucesso(''), 5000);
     } catch (err) {
-      alert('Erro ao processar. Verifique se copiou corretamente.');
+      setModalZen({variante:'danger',titulo:'Importação não concluída',mensagem:'Erro ao processar. Verifique se copiou corretamente.',apenasConfirmar:true});
     }
   };
 
   return (
     <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '20px', padding: '32px', maxWidth: '800px', margin: '0 auto', color: '#fff' }}>
+      <ZenModal aberto={!!modalZen} variante={modalZen?.variante} titulo={modalZen?.titulo} mensagem={modalZen?.mensagem} apenasConfirmar confirmarTexto="OK" onConfirmar={()=>setModalZen(null)} onCancelar={()=>setModalZen(null)} />
       <h2 style={{ fontSize: '24px', fontWeight: 900, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}><span>📥</span> Importador Universal</h2>
       <p style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '24px', lineHeight: 1.5 }}>
         Cole abaixo os dados copiados do seu Excel ou sistema antigo.<br/>
