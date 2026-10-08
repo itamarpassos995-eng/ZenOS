@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
+import ZenModal from './ZenModal';
 
-export default function Fornecedores({ fornecedores, setFornecedores, moeda, tx }) {
+export default function Fornecedores({ commitOperacaoNegocio, fornecedores, setFornecedores, moeda, tx }) {
   const [termoBusca, setTermoBusca] = useState('');
   const [modalAberto, setModalAberto] = useState(false);
   const [fornecedorEmEdicao, setFornecedorEmEdicao] = useState(null);
+  const [modalZen, setModalZen] = useState(null);
+  const avisarZen=(variante,titulo,mensagem)=>setModalZen({variante,titulo,mensagem,apenasConfirmar:true});
+  const confirmarZen=({titulo,mensagem,confirmarTexto='Confirmar',variante='warning'})=>new Promise(resolve=>setModalZen({variante,titulo,mensagem,confirmarTexto,cancelarTexto:'Cancelar',resolver}));
   
   // Detecção da legislação fiscal baseada na moeda
   const eParaguai = moeda === 'PYG';
@@ -30,29 +34,51 @@ export default function Fornecedores({ fornecedores, setFornecedores, moeda, tx 
     setModalAberto(true);
   };
 
-  const salvar = () => {
-    if (!form.nome.trim()) return alert(tx('O Nome/Razão Social é obrigatório.', 'El Nombre/Razón Social es obligatorio.', 'Name is required.'));
-    
+  const salvar = async () => {
+    if (!form.nome.trim()) return avisarZen('warning','Nome obrigatório',tx('O Nome/Razão Social é obrigatório.', 'El Nombre/Razón Social es obligatorio.', 'Name is required.'));
     const dados = { ...form };
-    
+    let listaProposta;
     if (fornecedorEmEdicao) {
-      setFornecedores(fornecedores.map(f => f.id === fornecedorEmEdicao.id ? { ...f, ...dados } : f));
+      listaProposta = fornecedores.map(f => f.id === fornecedorEmEdicao.id ? { ...f, ...dados } : f);
     } else {
       dados.id = `FORN-${Date.now()}`;
       dados.dataCadastro = new Date().toISOString();
-      setFornecedores([dados, ...fornecedores]);
+      listaProposta = [dados, ...fornecedores];
     }
-    setModalAberto(false);
+    try {
+      let confirmados = listaProposta;
+      if (typeof commitOperacaoNegocio === 'function') {
+        const confirmado = await commitOperacaoNegocio({ changes:[{ field:'fornecedores', value:listaProposta, storageSuffix:'fornecedores' }] });
+        if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou o fornecedor.');
+        confirmados = confirmado.values?.fornecedores || listaProposta;
+      }
+      setFornecedores(confirmados);
+      setModalAberto(false);
+    } catch (erro) {
+      avisarZen('danger','Fornecedor não salvo',`A nuvem não confirmou o cadastro. ${erro?.message || ''}`.trim());
+    }
   };
 
-  const excluir = (id) => {
-    if (window.confirm(tx('Tem certeza que deseja excluir este fornecedor?', '¿Eliminar este proveedor?', 'Delete this supplier?'))) {
-      setFornecedores(fornecedores.filter(f => f.id !== id));
+  const excluir = async (id) => {
+    const alvo=(fornecedores||[]).find(f=>f.id===id);
+    const confirmou=await confirmarZen({titulo:'Excluir fornecedor',mensagem:tx(`Excluir ${alvo?.nome || 'este fornecedor'}?`, `¿Eliminar ${alvo?.nome || 'este proveedor'}?`, `Delete ${alvo?.nome || 'this supplier'}?`),confirmarTexto:'Excluir',variante:'danger'});
+    if (confirmou) {
+      const listaProposta = fornecedores.filter(f => f.id !== id);
+      try {
+        let confirmados = listaProposta;
+        if (typeof commitOperacaoNegocio === 'function') {
+          const resultado = await commitOperacaoNegocio({ changes:[{ field:'fornecedores', value:listaProposta, storageSuffix:'fornecedores' }] });
+          if (!resultado?.cloudOk) throw resultado?.error || new Error('A nuvem não confirmou a exclusão.');
+          confirmados = resultado.values?.fornecedores || listaProposta;
+        }
+        setFornecedores(confirmados);
+      } catch (erro) { avisarZen('danger','Fornecedor não excluído',`O cadastro foi preservado. ${erro?.message || ''}`.trim()); }
     }
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <ZenModal aberto={!!modalZen} variante={modalZen?.variante} titulo={modalZen?.titulo} mensagem={modalZen?.mensagem} confirmarTexto={modalZen?.confirmarTexto || 'OK'} cancelarTexto={modalZen?.cancelarTexto || 'Cancelar'} apenasConfirmar={!!modalZen?.apenasConfirmar} onConfirmar={()=>{const r=modalZen?.resolver;setModalZen(null);if(r)r(true);}} onCancelar={()=>{const r=modalZen?.resolver;setModalZen(null);if(r)r(false);}} />
       {/* CABEÇALHO */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
