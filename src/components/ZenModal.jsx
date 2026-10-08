@@ -10,6 +10,9 @@ const PALETA = {
 export default function ZenModal({ aberto, variante='info', titulo='ZenOS', mensagem='', detalhes=[], confirmarTexto='OK', cancelarTexto='Cancelar', onConfirmar, onCancelar, apenasConfirmar=false, children }) {
   if (!aberto) return null;
   const c = PALETA[variante] || PALETA.info;
+  const listaDetalhes = Array.isArray(detalhes)
+    ? detalhes
+    : (detalhes == null || String(detalhes).length === 0 ? [] : [String(detalhes)]);
   return <div style={{position:'fixed',inset:0,zIndex:20000,background:'rgba(2,6,23,.88)',backdropFilter:'blur(8px)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
     <div style={{width:'100%',maxWidth:520,background:'#0b1120',border:`1px solid ${c.borda}`,borderRadius:24,boxShadow:'0 30px 80px rgba(0,0,0,.65)',overflow:'hidden',color:'#fff'}}>
       <div style={{display:'flex',alignItems:'center',gap:14,padding:'20px 22px',background:`linear-gradient(135deg, ${c.fundo}, #0b1120)`}}>
@@ -18,7 +21,7 @@ export default function ZenModal({ aberto, variante='info', titulo='ZenOS', mens
       </div>
       <div style={{padding:'20px 22px'}}>
         {mensagem && <div style={{fontSize:14,lineHeight:1.55,color:'#e2e8f0',whiteSpace:'pre-line'}}>{mensagem}</div>}
-        {detalhes?.length>0 && <div style={{marginTop:14,background:'#020617',border:'1px solid #1e293b',borderRadius:14,padding:14,display:'flex',flexDirection:'column',gap:8}}>{detalhes.map((x,i)=><div key={i} style={{fontSize:12,color:'#cbd5e1'}}>{x}</div>)}</div>}
+        {listaDetalhes.length>0 && <div style={{marginTop:14,background:'#020617',border:'1px solid #1e293b',borderRadius:14,padding:14,display:'flex',flexDirection:'column',gap:8}}>{listaDetalhes.map((x,i)=><div key={i} style={{fontSize:12,color:'#cbd5e1'}}>{x}</div>)}</div>}
         {children}
       </div>
       <div style={{display:'flex',gap:10,padding:'16px 22px 20px',borderTop:'1px solid #1e293b'}}>
