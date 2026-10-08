@@ -51,6 +51,15 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
   const inputBuscaRef = useRef(null);
   const inputQtdRapidaRef = useRef(null);
   const inputValorLancamentoRef = useRef(null);
+  const moedaPrecoVendaRef = useRef(moeda);
+
+  useEffect(() => {
+    if (moedaPrecoVendaRef.current === moeda) return;
+    moedaPrecoVendaRef.current = moeda;
+    setItensCompra(atual => atual.map(item => Number.isFinite(item.precoVendaBRL) && item.precoVendaBRL >= 0
+      ? { ...item, precoVendaTexto: converterDeBRL(item.precoVendaBRL, moeda).toFixed(2) }
+      : item));
+  }, [moeda, converterDeBRL]);
 
   const termosProd = termoBusca.toLowerCase().trim().split(/\s+/).filter(Boolean);
   const produtosFiltrados = produtos.filter(prod => {
@@ -140,7 +149,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
       setProdutos(produtosConfirmados);
       const produtoConfirmado = produtosConfirmados.find(p => String(p.id) === String(dadosFinais.id) && String(p.sku || '').toUpperCase() === String(dadosFinais.sku || '').toUpperCase()) || dadosFinais;
       if (produtoEmEdicao) {
-        setItensCompra(itensCompra.map(item => String(item.produtoOriginalId || item.id) === String(produtoEmEdicao.id) && String(item.produtoOriginalSku || item.sku || '').toUpperCase() === String(produtoEmEdicao.sku || '').toUpperCase() ? { ...item, ...produtoConfirmado, produtoOriginalId: produtoConfirmado.id, produtoOriginalSku: produtoConfirmado.sku, custoPraticadoBRL: custo } : item));
+        setItensCompra(itensCompra.map(item => String(item.produtoOriginalId || item.id) === String(produtoEmEdicao.id) && String(item.produtoOriginalSku || item.sku || '').toUpperCase() === String(produtoEmEdicao.sku || '').toUpperCase() ? { ...item, ...produtoConfirmado, produtoOriginalId: produtoConfirmado.id, produtoOriginalSku: produtoConfirmado.sku, custoPraticadoBRL: custo, precoVendaBRL: produtoConfirmado.precoBRL, precoVendaTexto: converterDeBRL(produtoConfirmado.precoBRL, moeda).toFixed(2) } : item));
       } else {
         setItemParaAdicionar(produtoConfirmado);
         setQtdDigitadaRapida('1');
@@ -178,7 +187,9 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
         produtoOriginalSku: itemParaAdicionar.sku,
         qtd: String(qtdNum), 
         custoPraticadoBRL: custoBase, 
-        custoTexto: converterDeBRL(custoBase, moeda).toFixed(2) 
+        custoTexto: converterDeBRL(custoBase, moeda).toFixed(2),
+        precoVendaBRL: itemParaAdicionar.precoBRL,
+        precoVendaTexto: converterDeBRL(itemParaAdicionar.precoBRL, moeda).toFixed(2)
       }]);
     }
     setItemParaAdicionar(null); setTermoBusca(''); 
@@ -188,6 +199,16 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
   const removerItem = (id) => { setItensCompra(itensCompra.filter(item => item.id !== id)); };
   const atualizarQtd = (id, valor) => { setItensCompra(itensCompra.map(item => item.id === id ? { ...item, qtd: String(Math.max(1, parseInt(valor) || 1)) } : item)); };
   const lidarDigitacaoCusto = (id, valorDigitado) => { setItensCompra(itensCompra.map(item => item.id === id ? { ...item, custoTexto: valorDigitado, custoPraticadoBRL: converterParaBRL(parseFloat(valorDigitado.replace(',', '.')) || 0, moeda) } : item)); };
+  const lidarDigitacaoPrecoVenda = (id, valorDigitado) => {
+    const texto = valorDigitado.trim().replace(',', '.');
+    const valor = texto === '' ? NaN : Number(texto);
+    const precoBRL = Number.isFinite(valor) && valor >= 0 ? converterParaBRL(valor, moeda) : null;
+    setItensCompra(atual => atual.map(item => item.id === id ? {
+      ...item,
+      precoVendaTexto: valorDigitado,
+      precoVendaBRL: Number.isFinite(precoBRL) && precoBRL >= 0 ? precoBRL : null,
+    } : item));
+  };
 
   const subtotalBrutoBRL = itensCompra.reduce((acc, item) => acc + (Math.max(0, parseInt(item.qtd) || 0) * (item.custoPraticadoBRL || 0)), 0);
   const descBRL = converterParaBRL(parseFloat(String(descontoTexto).replace(',', '.')) || 0, moeda);
@@ -332,7 +353,13 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
             referenciaId: compraId,
             createdAt: instanteCompra.toISOString(),
           }));
-          return { ...entrada.produto, custoBRL: itemComprado.custoPraticadoBRL };
+          return {
+            ...entrada.produto,
+            custoBRL: itemComprado.custoPraticadoBRL,
+            precoBRL: Number.isFinite(itemComprado.precoVendaBRL) && itemComprado.precoVendaBRL >= 0
+              ? itemComprado.precoVendaBRL
+              : p.precoBRL,
+          };
         }
         return p;
       });
@@ -575,7 +602,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
                     <span onClick={() => removerItem(item.id)} style={{ fontSize: '11px', color: '#f43f5e', cursor: 'pointer', fontWeight: 600 }}>Remover da Lista</span>
                   </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: 'auto' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: 'auto', flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                     <label style={{ fontSize: '9px', color: '#64748b' }}>Qtd</label>
                     <input type="number" value={item.qtd} onChange={(e) => atualizarQtd(item.id, e.target.value)} onFocus={(e) => e.target.select()} style={{ width: '50px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontWeight: 800, fontSize: '13px', textAlign: 'center', padding: '6px', outline: 'none' }} />
@@ -583,6 +610,10 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                     <label style={{ fontSize: '9px', color: '#64748b' }}>Custo Un.</label>
                     <input type="text" value={item.custoTexto !== undefined ? item.custoTexto : converterDeBRL(item.custoPraticadoBRL, moeda).toFixed(2)} onChange={(e) => lidarDigitacaoCusto(item.id, e.target.value)} onFocus={(e) => e.target.select()} style={{ width: '80px', backgroundColor: '#020617', border: '1px solid #f97316', borderRadius: '8px', color: '#fdba74', fontWeight: 800, fontSize: '13px', textAlign: 'right', padding: '6px', outline: 'none' }} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <label style={{ fontSize: '9px', color: '#64748b' }}>Preço Venda</label>
+                    <input type="text" inputMode="decimal" aria-label={`Preço Venda de ${item.nome}`} value={item.precoVendaTexto !== undefined ? item.precoVendaTexto : converterDeBRL(item.precoVendaBRL ?? item.precoBRL, moeda).toFixed(2)} onChange={(e) => lidarDigitacaoPrecoVenda(item.id, e.target.value)} onFocus={(e) => e.target.select()} style={{ width: '80px', backgroundColor: '#020617', border: '1px solid #34d399', borderRadius: '8px', color: '#34d399', fontWeight: 800, fontSize: '13px', textAlign: 'right', padding: '6px', outline: 'none' }} />
                   </div>
                   <div style={{ width: '85px', textAlign: 'right', fontWeight: 900, color: '#f97316', fontSize: '15px', paddingTop: '14px' }}>{fmt(Math.max(0, parseInt(item.qtd) || 0) * (item.custoPraticadoBRL || 0))}</div>
                 </div>
