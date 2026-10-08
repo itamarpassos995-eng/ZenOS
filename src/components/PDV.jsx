@@ -682,7 +682,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
 
       if (typeof commitVendaCritica === 'function') {
         const changes = [
-          { field:'historicoVendas', value:historicoProposto, storageSuffix:'historico_vendas' },
+          { field:'historicoVendas', value:historicoProposto, storageSuffix:'historico_vendas', removeEntityIds: prePedidoEmAbertoId ? [prePedidoEmAbertoId] : [] },
         ];
         if (tipoFinalizacao === 'venda') {
           changes.push({ field:'produtos', value:novosProdutos, storageSuffix:'produtos' });
@@ -704,8 +704,15 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
           for (const [code, amount] of usosVoucher.entries()) guards.push({ type:'voucher_balance_at_least', code, amount });
         }
         if (prePedidoEmAbertoId) {
-          const prePedidoBase = (historicoVendas || []).find(h => String(h?.id) === String(prePedidoEmAbertoId));
-          guards.push({ type:'entity_unchanged', field:'historicoVendas', entityId:prePedidoEmAbertoId, entityKey:'id', expected:prePedidoBase, message:'Este pré-pedido foi alterado ou recuperado em outro terminal. Atualize antes de finalizar.' });
+          guards.push({
+            type:'entity_field_equals',
+            field:'historicoVendas',
+            entityId:prePedidoEmAbertoId,
+            entityKey:'id',
+            property:'estado',
+            expected:'pendente',
+            message:'Este pré-pedido já foi liquidado ou deixou de estar pendente em outro caixa. Atualize a fila antes de continuar.',
+          });
         }
         const confirmado = await commitVendaCritica({
           changes,
