@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
+import ZenModal from './ZenModal';
 
-export default function Despesas({ despesas, setDespesas, fmt, tx, patenteUsuario, moeda, converterParaBRL }) {
+export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, saldoSessaoFisicoBRL = 0, operadorAtivo, despesas, setDespesas, fmt, tx, patenteUsuario, moeda, converterParaBRL }) {
   const [modalAberto, setModalAberto] = useState(false);
   const [despesaEmEdicao, setDespesaEmEdicao] = useState(null);
   const [filtroStatus, setFiltroStatus] = useState('pendente'); // pendente, paga, todas
@@ -15,6 +16,9 @@ export default function Despesas({ despesas, setDespesas, fmt, tx, patenteUsuari
   const [modalPagamentoAberto, setModalPagamentoAberto] = useState(false);
   const [despesaParaPagar, setDespesaParaPagar] = useState(null);
   const [formaPagamento, setFormaPagamento] = useState('Dinheiro / Caixa');
+  const [modalZen, setModalZen] = useState(null);
+  const avisarZen=(variante,titulo,mensagem,detalhes=[])=>setModalZen({variante,titulo,mensagem,detalhes,apenasConfirmar:true});
+  const confirmarZen=({titulo,mensagem,confirmarTexto='Confirmar',variante='warning'})=>new Promise(resolve=>setModalZen({variante,titulo,mensagem,confirmarTexto,cancelarTexto:'Cancelar',resolver}));
 
   if (patenteUsuario !== 'gerencia') {
     return (
@@ -35,10 +39,10 @@ export default function Despesas({ despesas, setDespesas, fmt, tx, patenteUsuari
     setModalAberto(true);
   };
 
-  const salvarDespesa = () => {
-    if (!descricao.trim()) return alert('Informe a descrição da despesa.');
+  const salvarDespesa = async () => {
+    if (!descricao.trim()) return avisarZen('warning','Descrição obrigatória','Informe a descrição da despesa.');
     const valBRL = converterParaBRL(parseFloat(valorInput.replace(',', '.')) || 0, moeda);
-    if (valBRL <= 0) return alert('Informe um valor válido maior que zero.');
+    if (valBRL <= 0) return avisarZen('warning','Valor inválido','Informe um valor válido maior que zero.');
 
     const novaDespesa = {
       id: despesaEmEdicao ? despesaEmEdicao.id : `DESP-${Date.now()}`,
@@ -50,13 +54,21 @@ export default function Despesas({ despesas, setDespesas, fmt, tx, patenteUsuari
       dataPagamento: despesaEmEdicao ? despesaEmEdicao.dataPagamento : null,
       formaPagamento: despesaEmEdicao ? despesaEmEdicao.formaPagamento : null
     };
-
-    if (despesaEmEdicao) {
-      setDespesas(despesas.map(d => d.id === despesaEmEdicao.id ? novaDespesa : d));
-    } else {
-      setDespesas([novaDespesa, ...despesas]);
+    const listaProposta = despesaEmEdicao
+      ? despesas.map(d => d.id === despesaEmEdicao.id ? novaDespesa : d)
+      : [novaDespesa, ...despesas];
+    try {
+      let confirmadas = listaProposta;
+      if (typeof commitOperacaoNegocio === 'function') {
+        const confirmado = await commitOperacaoNegocio({ changes:[{ field:'despesas', value:listaProposta, storageSuffix:'despesas' }] });
+        if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou a despesa.');
+        confirmadas = confirmado.values?.despesas || listaProposta;
+      }
+      setDespesas(confirmadas);
+      setModalAberto(false);
+    } catch (erro) {
+      avisarZen('danger','Despesa não salva','A nuvem não confirmou o lançamento. Nenhuma alteração foi considerada concluída.',[erro?.message || 'Falha de persistência']);
     }
-    setModalAberto(false);
   };
 
   const abrirPagamento = (despesa) => {
@@ -65,25 +77,77 @@ export default function Despesas({ despesas, setDespesas, fmt, tx, patenteUsuari
     setModalPagamentoAberto(true);
   };
 
-  const confirmarPagamento = () => {
-    setDespesas(despesas.map(d => {
-      if (d.id === despesaParaPagar.id) {
-        return { 
-          ...d, 
-          status: 'paga', 
-          dataPagamento: new Date().toISOString().split('T')[0],
-          formaPagamento 
-        };
+  const confirmarPagamento = async () => {
+    const dinheiro = String(formaPagamento || '').toLowerCase().includes('dinheiro');
+    const valor = Number(despesaParaPagar?.valorBRL || 0);
+    if (dinheiro && !sessaoAtiva) return setModalZen({ variante:'danger', titulo:'Caixa fechado', mensagem:'Para pagar uma despesa em dinheiro é necessário um turno de caixa aberto.', apenasConfirmar:true });
+    if (dinheiro && valor > Number(saldoSessaoFisicoBRL || 0) + 0.001) return setModalZen({ variante:'danger', titulo:'Saldo insuficiente na gaveta', mensagem:`Disponível: ${fmt(saldoSessaoFisicoBRL,'BRL')}`, detalhes:[`Despesa: ${fmt(valor,'BRL')}`], apenasConfirmar:true });
+
+    const createdAt = new Date().toISOString();
+    const despesasPropostas = despesas.map(d => d.id === despesaParaPagar.id ? { ...d, status:'paga', dataPagamento:createdAt, formaPagamento } : d);
+    const mov = dinheiro ? { id:`MOV-DESP-${despesaParaPagar.id}`, sessaoId:sessaoAtiva.id, createdAt, dataHora:new Date(createdAt).toLocaleString('pt-BR'), tipo: despesaParaPagar?.naturezaContabil === 'estoque_ativo' ? 'saida_compra' : 'saida_despesa', direcao:'saida', afetaGaveta:true, valorBRL:valor, detalhesMoedas:{BRL:valor}, descricao:despesaParaPagar.descricao, despesaId:despesaParaPagar.id, operador:operadorAtivo?.nome||'Administrador' } : null;
+    const caixaProposto = mov ? [mov, ...(caixaMovimentos || [])] : caixaMovimentos;
+    const financeiro = {
+      id: `DESPESA-${despesaParaPagar.id}`,
+      tipo: despesaParaPagar.naturezaContabil === 'estoque_ativo' ? 'pagamento_compra' : 'pagamento_despesa',
+      origem: despesaParaPagar.naturezaContabil === 'estoque_ativo' ? 'despesas_compra' : 'despesas',
+      referenciaId: despesaParaPagar.compraId || despesaParaPagar.id,
+      valor,
+      formaPagamento: dinheiro ? 'dinheiro_gaveta' : String(formaPagamento).toLowerCase().includes('pix') ? 'pix' : 'cartao_corporativo',
+      createdAt,
+      afetaCaixaFisico: dinheiro,
+      afetaResultado: despesaParaPagar.afetaResultado !== false,
+      direcao: 'saida',
+      sessaoId: dinheiro ? sessaoAtiva?.id : null,
+      observacao: despesaParaPagar.descricao,
+      detalhes: { categoria: despesaParaPagar.categoria, naturezaContabil: despesaParaPagar.naturezaContabil || null },
+      operadorId:operadorAtivo?.id || 'admin',
+      operadorNome:operadorAtivo?.nome || 'Administrador',
+    };
+
+    try {
+      let confirmadas = despesasPropostas;
+      let caixaConfirmado = caixaProposto;
+      if (typeof commitOperacaoNegocio === 'function') {
+        const changes = [{ field:'despesas', value:despesasPropostas, storageSuffix:'despesas' }];
+        if (mov) changes.push({ field:'caixaMovimentos', value:caixaProposto, storageSuffix:'caixa_movs' });
+        const guards = dinheiro ? [
+          { type:'cash_session_open', sessionId:sessaoAtiva.id },
+          { type:'cash_balance_at_least', sessionId:sessaoAtiva.id, amount:valor, message:'O saldo físico do caixa mudou em outro terminal. O pagamento foi bloqueado.' },
+        ] : [];
+        const confirmado = await commitOperacaoNegocio({ changes, financialEntries:[financeiro], guards });
+        if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou o pagamento.');
+        confirmadas = confirmado.values?.despesas || despesasPropostas;
+        caixaConfirmado = confirmado.values?.caixaMovimentos || caixaProposto;
+      } else if (typeof registrarFinanceiro === 'function') {
+        await registrarFinanceiro(financeiro);
       }
-      return d;
-    }));
+      setDespesas(confirmadas);
+      if (mov && typeof setCaixaMovimentos === 'function') setCaixaMovimentos(caixaConfirmado);
+    } catch (err) {
+      console.error('[ZenOS][ATT10.2] Falha no pagamento da despesa:', err);
+      return setModalZen({ variante:'danger', titulo:'Pagamento não concluído', mensagem:'A nuvem não confirmou o pagamento. A despesa continua pendente.', detalhes:[err?.message || 'Falha de persistência'], apenasConfirmar:true });
+    }
+
     setModalPagamentoAberto(false);
     setDespesaParaPagar(null);
   };
 
-  const excluirDespesa = (id) => {
-    if (window.confirm('Tem certeza que deseja excluir este registro permanentemente?')) {
-      setDespesas(despesas.filter(d => d.id !== id));
+  const excluirDespesa = async (id) => {
+    const alvo=(despesas||[]).find(d=>d.id===id);
+    const confirmou=await confirmarZen({titulo:'Excluir registro',mensagem:`Excluir permanentemente “${alvo?.descricao || 'este registro'}”?`,confirmarTexto:'Excluir',variante:'danger'});
+    if(!confirmou) return;
+    const listaProposta = despesas.filter(d=>d.id!==id);
+    try {
+      let confirmadas = listaProposta;
+      if (typeof commitOperacaoNegocio === 'function') {
+        const resultado = await commitOperacaoNegocio({ changes:[{ field:'despesas', value:listaProposta, storageSuffix:'despesas' }] });
+        if (!resultado?.cloudOk) throw resultado?.error || new Error('A nuvem não confirmou a exclusão.');
+        confirmadas = resultado.values?.despesas || listaProposta;
+      }
+      setDespesas(confirmadas);
+    } catch (erro) {
+      avisarZen('danger','Registro não excluído','A nuvem não confirmou a exclusão. O registro foi preservado.',[erro?.message || 'Falha de persistência']);
     }
   };
 
@@ -93,6 +157,7 @@ export default function Despesas({ despesas, setDespesas, fmt, tx, patenteUsuari
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
+      <ZenModal aberto={!!modalZen} variante={modalZen?.variante} titulo={modalZen?.titulo} mensagem={modalZen?.mensagem} detalhes={modalZen?.detalhes} confirmarTexto={modalZen?.confirmarTexto || "OK"} cancelarTexto={modalZen?.cancelarTexto || "Cancelar"} apenasConfirmar={!!modalZen?.apenasConfirmar} onConfirmar={()=>{const r=modalZen?.resolver;setModalZen(null);if(r)r(true);}} onCancelar={()=>{const r=modalZen?.resolver;setModalZen(null);if(r)r(false);}} />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h2 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>Contas a Pagar & Despesas</h2>
@@ -128,11 +193,12 @@ export default function Despesas({ despesas, setDespesas, fmt, tx, patenteUsuari
               despesasFiltradas.map(d => (
                 <tr key={d.id} style={{ borderBottom: '1px solid #1e293b' }}>
                   <td style={{ padding: '16px 20px', color: '#cbd5e1', fontWeight: d.status === 'pendente' ? 800 : 500 }}>
-                    {d.dataVencimento.split('-').reverse().join('/')}
+                    {d.dataVencimento ? d.dataVencimento.split('T')[0].split('-').reverse().join('/') : '-'}
                   </td>
                   <td style={{ padding: '16px 12px', color: '#f8fafc', fontWeight: 700 }}>
                     {d.descricao}
-                    {d.status === 'paga' && <div style={{ fontSize: '10px', color: '#10b981', marginTop: '4px' }}>Pago em: {d.dataPagamento?.split('-').reverse().join('/')} via {d.formaPagamento}</div>}
+                    {d.status === 'paga' && <div style={{ fontSize: '10px', color: '#10b981', marginTop: '4px' }}>Pago em: {d.dataPagamento ? d.dataPagamento.split('T')[0].split('-').reverse().join('/') : '-'} via {d.formaPagamento || '-'}</div>}
+                    {d.afetaResultado === false && <div style={{ fontSize: '10px', color: '#38bdf8', marginTop: '4px', fontWeight: 800 }}>Estoque / ativo — não reduz o lucro novamente</div>}
                   </td>
                   <td style={{ padding: '16px 12px' }}>
                     <span style={{ backgroundColor: '#020617', border: '1px solid #334155', color: '#94a3b8', padding: '4px 8px', borderRadius: '6px', fontSize: '11px' }}>{d.categoria}</span>
