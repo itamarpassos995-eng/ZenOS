@@ -3,7 +3,7 @@ import { normalizarCliente } from '../data';
 import ZenModal from './ZenModal';
 import { formaEhDinheiro, lancamentosDoCliente } from '../core/financialLedger';
 
-export default function Clientes({ livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, setClientes, moeda, fmt, t, converterDeBRL, converterParaBRL }) {
+export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, setClientes, moeda, fmt, t, converterDeBRL, converterParaBRL }) {
   const [filtroPaisCliente, setFiltroPaisCliente] = useState('todos');
   const [buscaClienteTexto, setBuscaClienteTexto] = useState('');
   
@@ -62,18 +62,26 @@ export default function Clientes({ livroFinanceiro = [], registrarFinanceiro, ca
     setModalClienteAberto(true);
   };
 
-  const salvarCliente = () => {
+  const salvarCliente = async () => {
     if (!formCliente.nome || !formCliente.nome.trim()) return setModalZen({ variante:'warning', titulo:'Nome obrigatório', mensagem:'Informe o nome do cliente antes de salvar.', apenasConfirmar:true });
     const limiteNum = Math.max(0, parseFloat(String(formCliente.limiteCreditoBRL).replace(',', '.')) || 0);
     const diasNum = Math.max(0, parseInt(formCliente.diasAtraso) || 0);
     const dadosFinais = normalizarCliente({ ...formCliente, limiteCreditoBRL: limiteNum, diasAtraso: diasNum });
-
-    if (clienteEmEdicao) { 
-      setClientes(clientes.map(c => c.id === clienteEmEdicao.id ? dadosFinais : c)); 
-    } else { 
-      setClientes([dadosFinais, ...clientes]); 
+    const listaProposta = clienteEmEdicao
+      ? clientes.map(c => c.id === clienteEmEdicao.id ? dadosFinais : c)
+      : [dadosFinais, ...clientes];
+    try {
+      let clientesConfirmados = listaProposta;
+      if (typeof commitOperacaoNegocio === 'function') {
+        const confirmado = await commitOperacaoNegocio({ changes:[{ field:'clientes', value:listaProposta, storageSuffix:'clientes' }] });
+        if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou o cliente.');
+        clientesConfirmados = confirmado.values?.clientes || listaProposta;
+      }
+      setClientes(clientesConfirmados);
+      setModalClienteAberto(false);
+    } catch (erro) {
+      setModalZen({ variante:'danger', titulo:'Cliente não salvo', mensagem:'A nuvem não confirmou o cadastro. Nenhuma alteração foi considerada concluída.', detalhes:[erro?.message || 'Falha de persistência'], apenasConfirmar:true });
     }
-    setModalClienteAberto(false);
   };
 
   const excluirCliente = (id, saldoDevedor) => {
@@ -87,7 +95,20 @@ export default function Clientes({ livroFinanceiro = [], registrarFinanceiro, ca
       confirmarTexto:'Excluir',
       cancelarTexto:'Cancelar',
       apenasConfirmar:false,
-      aoConfirmar:()=>setClientes(clientes.filter(c => c.id !== id)),
+      aoConfirmar: async () => {
+        const listaProposta = clientes.filter(c => c.id !== id);
+        try {
+          let clientesConfirmados = listaProposta;
+          if (typeof commitOperacaoNegocio === 'function') {
+            const confirmado = await commitOperacaoNegocio({ changes:[{ field:'clientes', value:listaProposta, storageSuffix:'clientes' }] });
+            if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou a exclusão.');
+            clientesConfirmados = confirmado.values?.clientes || listaProposta;
+          }
+          setClientes(clientesConfirmados);
+        } catch (erro) {
+          setModalZen({ variante:'danger', titulo:'Cliente não excluído', mensagem:'A nuvem não confirmou a exclusão. O cadastro foi preservado.', detalhes:[erro?.message || 'Falha de persistência'], apenasConfirmar:true });
+        }
+      },
     });
   };
 
@@ -118,51 +139,61 @@ export default function Clientes({ livroFinanceiro = [], registrarFinanceiro, ca
     const saldoDepois = Math.max(0, saldoAntes - valBRL);
     const recebimentoId = `REC-${Date.now()}`;
     const createdAt = new Date().toISOString();
+    const clientesPropostos = clientes.map(c => c.id === clienteReceberFiado.id ? { ...c, saldoDevedorBRL: saldoDepois } : c);
+    const mov = dinheiroFisico ? {
+      id: `MOV-${recebimentoId}`,
+      sessaoId: sessaoAtiva.id,
+      createdAt,
+      dataHora: new Date(createdAt).toLocaleString('pt-BR'),
+      tipo: 'recebimento_fiado',
+      direcao: 'entrada',
+      afetaGaveta: true,
+      valorBRL: valBRL,
+      detalhesMoedas: { [formaCfg.moedaOrigem || 'BRL']: valorOriginal },
+      descricao: `Recebimento fiado • ${clienteReceberFiado.nome}`,
+      clienteId: clienteReceberFiado.id,
+      operador: operadorAtivo?.nome || 'Administrador',
+    } : null;
+    const caixaProposto = mov ? [mov, ...(caixaMovimentos || [])] : caixaMovimentos;
+    const financeiro = {
+      id: recebimentoId,
+      tipo: 'recebimento_fiado',
+      origem: 'clientes',
+      referenciaId: recebimentoId,
+      valor: valBRL,
+      formaPagamento: formaAmortizacaoSel,
+      createdAt,
+      afetaCaixaFisico: dinheiroFisico,
+      afetaResultado: false,
+      direcao: 'entrada',
+      sessaoId: sessaoAtiva?.id || null,
+      clienteId: clienteReceberFiado.id,
+      clienteNome: clienteReceberFiado.nome,
+      saldoClienteAntes: saldoAntes,
+      saldoClienteDepois: saldoDepois,
+      observacao: `Recebimento de conta do cliente ${clienteReceberFiado.nome}`,
+      operadorId: operadorAtivo?.id || 'admin',
+      operadorNome: operadorAtivo?.nome || 'Administrador',
+    };
 
     try {
-      if (typeof registrarFinanceiro === 'function') {
-        await registrarFinanceiro({
-          id: recebimentoId,
-          tipo: 'recebimento_fiado',
-          origem: 'clientes',
-          referenciaId: recebimentoId,
-          valor: valBRL,
-          formaPagamento: formaAmortizacaoSel,
-          createdAt,
-          afetaCaixaFisico: dinheiroFisico,
-          afetaResultado: false,
-          direcao: 'entrada',
-          sessaoId: sessaoAtiva?.id || null,
-          clienteId: clienteReceberFiado.id,
-          clienteNome: clienteReceberFiado.nome,
-          saldoClienteAntes: saldoAntes,
-          saldoClienteDepois: saldoDepois,
-          observacao: `Recebimento de conta do cliente ${clienteReceberFiado.nome}`,
-        });
+      let clientesConfirmados = clientesPropostos;
+      let caixaConfirmado = caixaProposto;
+      if (typeof commitOperacaoNegocio === 'function') {
+        const changes = [{ field:'clientes', value:clientesPropostos, storageSuffix:'clientes' }];
+        if (mov) changes.push({ field:'caixaMovimentos', value:caixaProposto, storageSuffix:'caixa_movs' });
+        const confirmado = await commitOperacaoNegocio({ changes, financialEntries:[financeiro] });
+        if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou o recebimento.');
+        clientesConfirmados = confirmado.values?.clientes || clientesPropostos;
+        caixaConfirmado = confirmado.values?.caixaMovimentos || caixaProposto;
+      } else if (typeof registrarFinanceiro === 'function') {
+        await registrarFinanceiro(financeiro);
       }
+      setClientes(clientesConfirmados);
+      if (mov && typeof setCaixaMovimentos === 'function') setCaixaMovimentos(caixaConfirmado);
     } catch (err) {
-      console.error('[ZenOS][ATT07] Falha no Livro Financeiro do recebimento:', err);
-      return setModalZen({ variante:'danger', titulo:'Recebimento não concluído', mensagem:'O Livro Financeiro não confirmou o lançamento. Nenhum saldo foi alterado.', detalhes:[err?.message || 'Falha de persistência'], apenasConfirmar:true });
-    }
-
-    setClientes(clientes.map(c => c.id === clienteReceberFiado.id ? { ...c, saldoDevedorBRL: saldoDepois } : c));
-
-    if (dinheiroFisico && typeof setCaixaMovimentos === 'function') {
-      const mov = {
-        id: `MOV-${recebimentoId}`,
-        sessaoId: sessaoAtiva.id,
-        createdAt,
-        dataHora: new Date().toLocaleString('pt-BR'),
-        tipo: 'recebimento_fiado',
-        direcao: 'entrada',
-        afetaGaveta: true,
-        valorBRL: valBRL,
-        detalhesMoedas: { [formaCfg.moedaOrigem || 'BRL']: valorOriginal },
-        descricao: `Recebimento fiado • ${clienteReceberFiado.nome}`,
-        clienteId: clienteReceberFiado.id,
-        operador: operadorAtivo?.nome || 'Administrador',
-      };
-      setCaixaMovimentos([mov, ...(caixaMovimentos || [])]);
+      console.error('[ZenOS][ATT10.2] Falha no recebimento:', err);
+      return setModalZen({ variante:'danger', titulo:'Recebimento não concluído', mensagem:'A nuvem não confirmou o recebimento. Nenhum saldo foi alterado.', detalhes:[err?.message || 'Falha de persistência'], apenasConfirmar:true });
     }
 
     setModalZen({ variante:'success', titulo:'Recebimento registrado', mensagem:`${fmt(valBRL, 'BRL')} recebidos de ${clienteReceberFiado.nome}.`, detalhes:[`Saldo anterior: ${fmt(saldoAntes, 'BRL')}`, `Saldo atual: ${fmt(saldoDepois, 'BRL')}`, dinheiroFisico ? 'Entrada registrada na gaveta do turno.' : 'Recebimento financeiro sem movimentar a gaveta física.'], apenasConfirmar:true });

@@ -28,13 +28,15 @@ const formatarMetaBonus = (bonus, fmt) => {
   return `Meta: ${Math.round(Number(bonus.meta || 0))}`;
 };
 
-export default function Comissoes({ historicoVendas, fmt, tx, patenteUsuario, operadorAtivo, regrasDesconto, regrasComissao, setRegrasComissao }) {
+export default function Comissoes({ commitOperacaoNegocio, historicoVendas, fmt, tx, patenteUsuario, operadorAtivo, regrasDesconto, regrasComissao, setRegrasComissao }) {
   const [filtroMes, setFiltroMes] = useState(() => obterMesLocalAtual());
   const [modoPeriodo, setModoPeriodo] = useState('mes');
   const [dataInicio, setDataInicio] = useState(() => `${obterMesLocalAtual()}-01`);
   const [dataFim, setDataFim] = useState(() => chaveDiaLocal(new Date()));
   const [mostrarConfig, setMostrarConfig] = useState(false);
   const [salvoAgora, setSalvoAgora] = useState(false);
+  const [salvandoRegras, setSalvandoRegras] = useState(false);
+  const [erroSalvarRegras, setErroSalvarRegras] = useState('');
   const [rascunho, setRascunho] = useState(() => normalizarRegrasComissao(regrasComissao || {}));
 
   useEffect(() => {
@@ -56,12 +58,28 @@ export default function Comissoes({ historicoVendas, fmt, tx, patenteUsuario, op
   );
   const { margemIdeal, margemMinima } = normalizarRegrasMargem(regrasDesconto || {});
 
-  const salvarRegras = () => {
+  const salvarRegras = async () => {
+    if (salvandoRegras) return;
     const normalizadas = normalizarRegrasComissao(rascunho);
-    if (typeof setRegrasComissao === 'function') setRegrasComissao(normalizadas);
-    setRascunho(normalizadas);
-    setSalvoAgora(true);
-    window.setTimeout(() => setSalvoAgora(false), 1800);
+    setSalvandoRegras(true);
+    setErroSalvarRegras('');
+    setSalvoAgora(false);
+    try {
+      let confirmadas = normalizadas;
+      if (typeof commitOperacaoNegocio === 'function') {
+        const resultado = await commitOperacaoNegocio({ changes:[{ field:'regrasComissao', value:normalizadas, storageSuffix:'regras_comissao' }] });
+        if (!resultado?.cloudOk) throw resultado?.error || new Error('A nuvem não confirmou as regras de comissão.');
+        confirmadas = resultado.values?.regrasComissao || normalizadas;
+      }
+      if (typeof setRegrasComissao === 'function') setRegrasComissao(confirmadas);
+      setRascunho(confirmadas);
+      setSalvoAgora(true);
+      window.setTimeout(() => setSalvoAgora(false), 1800);
+    } catch (error) {
+      setErroSalvarRegras(error?.message || 'Não foi possível confirmar as regras na nuvem.');
+    } finally {
+      setSalvandoRegras(false);
+    }
   };
 
   const adicionarBonus = () => {
@@ -161,7 +179,8 @@ export default function Comissoes({ historicoVendas, fmt, tx, patenteUsuario, op
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '12px' }}>
             {salvoAgora && <span style={{ color: '#34d399', fontSize: '12px', fontWeight: 900 }}>✓ Regras salvas e sincronizadas</span>}
-            <button onClick={salvarRegras} style={{ padding: '12px 20px', borderRadius: '9px', border: 'none', background: '#0ea5e9', color: '#fff', fontWeight: 900, cursor: 'pointer' }}>Salvar regras</button>
+            {erroSalvarRegras && <span style={{ color: '#fb7185', fontSize: '12px', fontWeight: 900 }}>⚠ {erroSalvarRegras}</span>}
+            <button disabled={salvandoRegras} onClick={salvarRegras} style={{ padding: '12px 20px', borderRadius: '9px', border: 'none', background: '#0ea5e9', color: '#fff', fontWeight: 900, cursor: salvandoRegras ? 'wait' : 'pointer', opacity: salvandoRegras ? .65 : 1 }}>{salvandoRegras ? 'Confirmando…' : 'Salvar regras'}</button>
           </div>
         </div>
       )}

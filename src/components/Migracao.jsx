@@ -2,13 +2,13 @@ import React, { useState } from 'react';
 import { normalizarProduto, normalizarCliente } from '../data';
 import ZenModal from './ZenModal';
 
-export default function Migracao({ produtos, setProdutos, clientes, setClientes, t }) {
+export default function Migracao({ commitOperacaoNegocio, produtos, setProdutos, clientes, setClientes, t }) {
   const [dadosInput, setDadosInput] = useState('');
   const [tipoMigracao, setTipoMigracao] = useState('produtos');
   const [mensagemSucesso, setMensagemSucesso] = useState('');
   const [modalZen,setModalZen]=useState(null);
 
-  const importarDadosEmMassa = () => {
+  const importarDadosEmMassa = async () => {
     if (!dadosInput.trim()) return setModalZen({variante:'warning',titulo:'Dados ausentes',mensagem:'Cole os dados na caixa de texto primeiro.',apenasConfirmar:true});
     try {
       const linhas = dadosInput.split('\n');
@@ -27,7 +27,11 @@ export default function Migracao({ produtos, setProdutos, clientes, setClientes,
             contador++;
           }
         });
-        setProdutos(novos);
+        if (typeof commitOperacaoNegocio === 'function') {
+          const confirmado = await commitOperacaoNegocio({ changes:[{ field:'produtos', value:novos, storageSuffix:'produtos' }] });
+          if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou a importação de produtos.');
+          setProdutos(confirmado.values?.produtos || novos);
+        } else setProdutos(novos);
       } else {
         const novosCli = [...clientes];
         linhas.forEach(linha => {
@@ -40,13 +44,17 @@ export default function Migracao({ produtos, setProdutos, clientes, setClientes,
             contador++;
           }
         });
-        setClientes(novosCli);
+        if (typeof commitOperacaoNegocio === 'function') {
+          const confirmado = await commitOperacaoNegocio({ changes:[{ field:'clientes', value:novosCli, storageSuffix:'clientes' }] });
+          if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou a importação de clientes.');
+          setClientes(confirmado.values?.clientes || novosCli);
+        } else setClientes(novosCli);
       }
       setMensagemSucesso(`✓ ${contador} registos importados com sucesso!`);
       setDadosInput('');
       setTimeout(() => setMensagemSucesso(''), 5000);
     } catch (err) {
-      setModalZen({variante:'danger',titulo:'Importação não concluída',mensagem:'Erro ao processar. Verifique se copiou corretamente.',apenasConfirmar:true});
+      setModalZen({variante:'danger',titulo:'Importação não concluída',mensagem:err?.message || 'Erro ao processar. Verifique se copiou corretamente.',apenasConfirmar:true});
     }
   };
 

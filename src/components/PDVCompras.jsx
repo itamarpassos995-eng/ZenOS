@@ -6,7 +6,7 @@ import { db } from '../firebase';
 import { criarEventoEstoque, registrarEventosEstoque } from '../core/stockAudit'; 
 import { atualizarProdutoUnico, localizarIndiceProdutoUnico, skuJaExiste } from '../core/productIdentity';
 
-export default function PDVCompras({ registrarFinanceiro, saldoSessaoFisicoBRL = 0, 
+export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro, saldoSessaoFisicoBRL = 0, 
   userId, produtos, setProdutos, 
   fornecedores, setFornecedores,
   despesas, setDespesas,
@@ -42,6 +42,8 @@ export default function PDVCompras({ registrarFinanceiro, saldoSessaoFisicoBRL =
   
   const [compraSucesso, setCompraSucesso] = useState(false);
   const [compraConcluidaObj, setCompraConcluidaObj] = useState(null);
+  const [processandoCompra, setProcessandoCompra] = useState(false);
+  const compraEmAndamentoRef = useRef(false);
   const [modalZen, setModalZen] = useState(null);
   const avisarZen = (variante, titulo, mensagem, detalhes = []) => setModalZen({ variante, titulo, mensagem, detalhes, apenasConfirmar:true });
   const confirmarZen = ({ variante='warning', titulo, mensagem, detalhes=[], confirmarTexto='Confirmar' }) => new Promise(resolve => setModalZen({ variante, titulo, mensagem, detalhes, confirmarTexto, cancelarTexto:'Cancelar', resolver:resolve }));
@@ -78,14 +80,23 @@ export default function PDVCompras({ registrarFinanceiro, saldoSessaoFisicoBRL =
     setFormFornecedor({ nome: nomeFornecedorVulso, documento: '', telefone: '' });
     setModalFornecedorAberto(true);
   };
-  const salvarFornecedor = () => {
+  const salvarFornecedor = async () => {
     if (!formFornecedor.nome.trim()) return avisarZen('warning','Fornecedor incompleto','Informe a Razão Social/Nome do fornecedor.');
     const novoForn = { ...formFornecedor, id: `FORN-${Date.now()}` };
-    if (typeof setFornecedores === 'function') {
-      setFornecedores([novoForn, ...(fornecedores || [])]);
+    const listaProposta = [novoForn, ...(fornecedores || [])];
+    try {
+      let confirmados = listaProposta;
+      if (typeof commitOperacaoNegocio === 'function') {
+        const confirmado = await commitOperacaoNegocio({ changes:[{ field:'fornecedores', value:listaProposta, storageSuffix:'fornecedores' }] });
+        if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou o fornecedor.');
+        confirmados = confirmado.values?.fornecedores || listaProposta;
+      }
+      if (typeof setFornecedores === 'function') setFornecedores(confirmados);
+      selecionarFornecedor(confirmados.find(f => String(f.id) === String(novoForn.id)) || novoForn);
+      setModalFornecedorAberto(false);
+    } catch (erro) {
+      avisarZen('danger','Fornecedor não salvo','A nuvem não confirmou o cadastro do fornecedor.',[erro?.message || 'Falha de persistência']);
     }
-    selecionarFornecedor(novoForn);
-    setModalFornecedorAberto(false);
   };
 
   const abrirCadastroProduto = () => {
@@ -101,7 +112,7 @@ export default function PDVCompras({ registrarFinanceiro, saldoSessaoFisicoBRL =
     });
     setModalProdutoAberto(true);
   };
-  const salvarProduto = () => {
+  const salvarProduto = async () => {
     if (!formProduto.nome.trim()) return avisarZen('warning','Produto incompleto','Informe o nome do produto.');
     const custo = parseFloat(String(formProduto.custoBRL).replace(',', '.')) || 0;
     const preco = parseFloat(String(formProduto.precoBRL).replace(',', '.')) || 0;
@@ -109,19 +120,35 @@ export default function PDVCompras({ registrarFinanceiro, saldoSessaoFisicoBRL =
 
     if (skuJaExiste(produtos, formProduto.sku, produtoEmEdicao)) return avisarZen('danger','SKU duplicado',`Já existe outro produto com o SKU ${formProduto.sku}. Use um SKU diferente.`);
     const dadosFinais = normalizarProduto({ ...formProduto, custoBRL: custo, precoBRL: preco, estoque: estoque });
-    
     if (!dadosFinais.id) dadosFinais.id = `PROD-${Date.now()}`;
 
+    let listaProposta;
     if (produtoEmEdicao) {
-      try { setProdutos(atualizarProdutoUnico(produtos, produtoEmEdicao, { ...produtoEmEdicao, ...dadosFinais }, 'edição de produto na compra')); }
+      try { listaProposta = atualizarProdutoUnico(produtos, produtoEmEdicao, { ...produtoEmEdicao, ...dadosFinais }, 'edição de produto na compra'); }
       catch (erro) { return avisarZen('danger','Edição bloqueada',erro.message || 'Não foi possível editar este produto com segurança.'); }
-      setItensCompra(itensCompra.map(item => String(item.produtoOriginalId || item.id) === String(produtoEmEdicao.id) && String(item.produtoOriginalSku || item.sku || '').toUpperCase() === String(produtoEmEdicao.sku || '').toUpperCase() ? { ...item, ...dadosFinais, produtoOriginalId: dadosFinais.id, produtoOriginalSku: dadosFinais.sku, custoPraticadoBRL: custo } : item));
     } else {
-      setProdutos([dadosFinais, ...produtos]);
-      setItemParaAdicionar(dadosFinais);
-      setQtdDigitadaRapida('1');
+      listaProposta = [dadosFinais, ...(produtos || [])];
     }
-    setModalProdutoAberto(false);
+
+    try {
+      let produtosConfirmados = listaProposta;
+      if (typeof commitOperacaoNegocio === 'function') {
+        const confirmado = await commitOperacaoNegocio({ changes:[{ field:'produtos', value:listaProposta, storageSuffix:'produtos' }] });
+        if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou o produto.');
+        produtosConfirmados = confirmado.values?.produtos || listaProposta;
+      }
+      setProdutos(produtosConfirmados);
+      const produtoConfirmado = produtosConfirmados.find(p => String(p.id) === String(dadosFinais.id) && String(p.sku || '').toUpperCase() === String(dadosFinais.sku || '').toUpperCase()) || dadosFinais;
+      if (produtoEmEdicao) {
+        setItensCompra(itensCompra.map(item => String(item.produtoOriginalId || item.id) === String(produtoEmEdicao.id) && String(item.produtoOriginalSku || item.sku || '').toUpperCase() === String(produtoEmEdicao.sku || '').toUpperCase() ? { ...item, ...produtoConfirmado, produtoOriginalId: produtoConfirmado.id, produtoOriginalSku: produtoConfirmado.sku, custoPraticadoBRL: custo } : item));
+      } else {
+        setItemParaAdicionar(produtoConfirmado);
+        setQtdDigitadaRapida('1');
+      }
+      setModalProdutoAberto(false);
+    } catch (erro) {
+      avisarZen('danger','Produto não salvo','A nuvem não confirmou o produto. O cadastro não foi considerado concluído.',[erro?.message || 'Falha de persistência']);
+    }
   };
 
   const lidarTecladoBusca = (e) => {
@@ -266,7 +293,7 @@ export default function PDVCompras({ registrarFinanceiro, saldoSessaoFisicoBRL =
   };
 
   const concluirEntradaMercadoria = async () => {
-    if (!podeFinalizarCompra) return;
+    if (compraEmAndamentoRef.current || !podeFinalizarCompra) return;
     const totalDinheiroImediato = pagamentosLancados.filter(p => !p.aPrazo && p.formaId === 'dinheiro').reduce((a,p)=>a+(Number(p.valorConvertidoBRL)||0),0);
     if (totalDinheiroImediato > 0 && !sessaoAtiva) {
       return setModalZen({ variante:'danger', titulo:'Caixa fechado', mensagem:'Para pagar uma compra em dinheiro é necessário um turno de caixa aberto.', apenasConfirmar:true });
@@ -274,12 +301,14 @@ export default function PDVCompras({ registrarFinanceiro, saldoSessaoFisicoBRL =
     if (totalDinheiroImediato > Number(saldoSessaoFisicoBRL || 0) + 0.001) {
       return setModalZen({ variante:'danger', titulo:'Saldo insuficiente na gaveta', mensagem:`Disponível: ${fmt(saldoSessaoFisicoBRL, 'BRL')}`, detalhes:[`Pagamento em dinheiro: ${fmt(totalDinheiroImediato, 'BRL')}`], apenasConfirmar:true });
     }
-    
+    compraEmAndamentoRef.current = true;
+    setProcessandoCompra(true);
+
     try {
       const instanteCompra = new Date();
       const compraId = `COMPRA-${Date.now()}`;
       const eventosEstoque = [];
-      // ATT 06.1: preflight de identidade. Se houver ID/SKU ambíguo, nenhuma entrada é aplicada.
+      // preflight de identidade: valida todos os itens antes de qualquer mutação de estoque.
       for (const item of itensCompra || []) {
         if (item.tipoItem === 'servico') continue;
         localizarIndiceProdutoUnico(produtos || [], { id: item.produtoOriginalId || item.id, sku: item.produtoOriginalSku || item.sku }, 'entrada de compra');
@@ -308,112 +337,123 @@ export default function PDVCompras({ registrarFinanceiro, saldoSessaoFisicoBRL =
         return p;
       });
 
-      await registrarEventosEstoque({ db, userId, eventos: eventosEstoque });
-
-      const idSeguro = (operadorAtivo && operadorAtivo.id) ? operadorAtivo.id : 'admin';
-      const nomeSeguro = (operadorAtivo && operadorAtivo.nome) ? operadorAtivo.nome : 'Administrador';
-
+      const idSeguro = operadorAtivo?.id || 'admin';
+      const nomeSeguro = operadorAtivo?.nome || 'Administrador';
       const novaCompra = {
         id: compraId,
         createdAt: instanteCompra.toISOString(),
-        dataHora: new Date().toLocaleString(),
+        dataHora: instanteCompra.toLocaleString(),
         fornecedorId: fornecedorSelecionado ? fornecedorSelecionado.id : null,
         fornecedorNome: fornecedorSelecionado ? fornecedorSelecionado.nome : 'Entrada Avulsa',
         operadorId: idSeguro,
         operadorNome: nomeSeguro,
-        itens: [...itensCompra], 
-        totalBRL: totalFinalBRL, 
+        itens: [...itensCompra],
+        totalBRL: totalFinalBRL,
         pagamentos: [...pagamentosLancados],
         estado: 'concluida',
         tipoDocumento: 'entrada_estoque',
         naturezaContabil: 'estoque_ativo'
       };
+      const historicoProposto = [novaCompra, ...(historicoCompras || [])];
 
-      if (typeof registrarFinanceiro === 'function') {
-        try {
-          for (let index = 0; index < pagamentosLancados.length; index += 1) {
-            const pag = pagamentosLancados[index];
-            if (pag.aPrazo) continue;
-            await registrarFinanceiro({
-              id: `COMPRA-${novaCompra.id}-${index}`,
-              tipo: 'pagamento_compra',
-              origem: 'compras',
-              referenciaId: novaCompra.id,
-              valor: Number(pag.valorConvertidoBRL) || 0,
-              formaPagamento: pag.formaId,
-              createdAt: novaCompra.createdAt,
-              afetaCaixaFisico: pag.formaId === 'dinheiro',
-              afetaResultado: false,
-              direcao: 'saida',
-              sessaoId: pag.formaId === 'dinheiro' ? sessaoAtiva?.id : null,
-              observacao: `Pagamento da compra de estoque ${novaCompra.id}`,
-              detalhes: { fornecedorId: novaCompra.fornecedorId, fornecedorNome: novaCompra.fornecedorNome },
-            });
-          }
-        } catch (erroFinanceiro) {
-          console.error('Falha ao registrar compra no Livro Financeiro:', erroFinanceiro);
-          setModalZen({ variante:'danger', titulo:'Compra não concluída', mensagem:'Não foi possível registrar o pagamento desta compra com segurança.', detalhes:'A compra não será aplicada ao estoque. Tente novamente.', apenasConfirmar:true });
-          return;
-        }
-      }
-
-      setProdutos(novosProdutos);
-      if (typeof setHistoricoCompras === 'function') {
-        setHistoricoCompras([novaCompra, ...(historicoCompras || [])]);
-      }
-
-      const novasDespesas = [];
-      pagamentosLancados.forEach(pag => {
-        if (pag.geraDespesa) {
-          const pagamentoImediato = !pag.aPrazo;
-          novasDespesas.push({
-            id: `DESP-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
-            descricao: `Compra de Estoque - ${fornecedorSelecionado ? fornecedorSelecionado.nome : 'Avulso'} | ${pag.rotulo}`,
-            categoria: 'Mercadoria para Revenda',
-            naturezaContabil: 'estoque_ativo',
-            afetaResultado: false,
-            compraId: novaCompra.id,
-            valorBRL: pag.valorConvertidoBRL,
-            dataVencimento: pag.dataVencimento,
-            status: pagamentoImediato ? 'paga' : 'pendente',
-            dataPagamento: pagamentoImediato ? new Date().toISOString() : null,
-            formaPagamento: pagamentoImediato ? pag.rotulo : null,
-            recorrente: false,
-            observacao: `Vinculado à nota de compra: ${novaCompra.id}. Mercadoria para revenda: movimenta caixa/contas a pagar, mas o custo entra no resultado quando a mercadoria é vendida.`
-          });
-        }
+      const novasDespesas = pagamentosLancados.filter(pag => pag.geraDespesa).map((pag,index) => {
+        const pagamentoImediato = !pag.aPrazo;
+        return {
+          id: `DESP-${compraId}-${index}`,
+          descricao: `Compra de Estoque - ${fornecedorSelecionado ? fornecedorSelecionado.nome : 'Avulso'} | ${pag.rotulo}`,
+          categoria: 'Mercadoria para Revenda',
+          naturezaContabil: 'estoque_ativo',
+          afetaResultado: false,
+          compraId: novaCompra.id,
+          valorBRL: pag.valorConvertidoBRL,
+          dataVencimento: pag.dataVencimento,
+          status: pagamentoImediato ? 'paga' : 'pendente',
+          dataPagamento: pagamentoImediato ? instanteCompra.toISOString() : null,
+          formaPagamento: pagamentoImediato ? pag.rotulo : null,
+          recorrente: false,
+          observacao: `Vinculado à nota de compra: ${novaCompra.id}. Mercadoria para revenda: movimenta caixa/contas a pagar, mas o custo entra no resultado quando a mercadoria é vendida.`
+        };
       });
-
-      if (novasDespesas.length > 0 && typeof setDespesas === 'function') {
-        setDespesas([...novasDespesas, ...(despesas || [])]);
-      }
+      const despesasPropostas = novasDespesas.length > 0 ? [...novasDespesas, ...(despesas || [])] : despesas;
 
       const pagamentosDinheiro = pagamentosLancados.filter(pag => !pag.aPrazo && pag.formaId === 'dinheiro');
-      if (sessaoAtiva && pagamentosDinheiro.length > 0 && typeof setCaixaMovimentos === 'function') {
-        const agora = Date.now();
-        const novosMovimentos = pagamentosDinheiro.map((pag, index) => ({
-          id: `MOV-COMPRA-${agora}-${index}`,
-          sessaoId: sessaoAtiva.id,
-          dataHora: new Date().toLocaleString(),
-          createdAt: new Date().toISOString(),
-          tipo: 'saida_compra',
+      const novosMovimentos = sessaoAtiva ? pagamentosDinheiro.map((pag, index) => ({
+        id: `MOV-${compraId}-${index}`,
+        sessaoId: sessaoAtiva.id,
+        dataHora: instanteCompra.toLocaleString(),
+        createdAt: instanteCompra.toISOString(),
+        tipo: 'saida_compra',
+        direcao: 'saida',
+        afetaGaveta: true,
+        valorBRL: pag.valorConvertidoBRL,
+        detalhesMoedas: { BRL: pag.valorOriginal },
+        descricao: `Compra de estoque ${novaCompra.id}`,
+        compraId: novaCompra.id,
+        operador: nomeSeguro,
+      })) : [];
+      const caixaProposto = novosMovimentos.length > 0 ? [...novosMovimentos, ...(caixaMovimentos || [])] : caixaMovimentos;
+
+      const financialEntries = pagamentosLancados
+        .map((pag,index) => ({pag,index}))
+        .filter(({pag}) => !pag.aPrazo && Number(pag.valorConvertidoBRL) > 0)
+        .map(({pag,index}) => ({
+          id: `COMPRA-${novaCompra.id}-${index}`,
+          tipo: 'pagamento_compra',
+          origem: 'compras',
+          referenciaId: novaCompra.id,
+          valor: Number(pag.valorConvertidoBRL) || 0,
+          formaPagamento: pag.formaId,
+          createdAt: novaCompra.createdAt,
+          afetaCaixaFisico: pag.formaId === 'dinheiro',
+          afetaResultado: false,
           direcao: 'saida',
-          afetaGaveta: true,
-          valorBRL: pag.valorConvertidoBRL,
-          detalhesMoedas: { BRL: pag.valorOriginal },
-          descricao: `Compra de estoque ${novaCompra.id}`,
-          compraId: novaCompra.id,
-          operador: nomeSeguro,
+          sessaoId: pag.formaId === 'dinheiro' ? sessaoAtiva?.id : null,
+          observacao: `Pagamento da compra de estoque ${novaCompra.id}`,
+          detalhes: { fornecedorId: novaCompra.fornecedorId, fornecedorNome: novaCompra.fornecedorNome },
+          operadorId:idSeguro,
+          operadorNome:nomeSeguro,
         }));
-        setCaixaMovimentos([...novosMovimentos, ...(caixaMovimentos || [])]);
+
+      let confirmados = {
+        produtos:novosProdutos,
+        historicoCompras:historicoProposto,
+        despesas:despesasPropostas,
+        caixaMovimentos:caixaProposto,
+      };
+
+      if (typeof commitOperacaoNegocio === 'function') {
+        const changes = [
+          { field:'produtos', value:novosProdutos, storageSuffix:'produtos' },
+          { field:'historicoCompras', value:historicoProposto, storageSuffix:'historico_compras' },
+        ];
+        if (novasDespesas.length > 0) changes.push({ field:'despesas', value:despesasPropostas, storageSuffix:'despesas' });
+        if (novosMovimentos.length > 0) changes.push({ field:'caixaMovimentos', value:caixaProposto, storageSuffix:'caixa_movs' });
+        const totalDinheiro = pagamentosDinheiro.reduce((acc,pag)=>acc + Number(pag.valorConvertidoBRL || 0),0);
+        const guards = totalDinheiro > 0 && sessaoAtiva?.id ? [
+          { type:'cash_session_open', sessionId:sessaoAtiva.id },
+          { type:'cash_balance_at_least', sessionId:sessaoAtiva.id, amount:totalDinheiro, message:'O saldo físico do caixa mudou em outro terminal. A compra em dinheiro foi bloqueada.' },
+        ] : [];
+        const confirmado = await commitOperacaoNegocio({ changes, financialEntries, stockEvents:eventosEstoque, guards });
+        if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou a entrada de mercadoria.');
+        confirmados = { ...confirmados, ...(confirmado.values || {}) };
+      } else {
+        await registrarEventosEstoque({ db, userId, eventos:eventosEstoque });
+        if (typeof registrarFinanceiro === 'function') for (const entry of financialEntries) await registrarFinanceiro(entry);
       }
-      
+
+      setProdutos(confirmados.produtos || novosProdutos);
+      if (typeof setHistoricoCompras === 'function') setHistoricoCompras(confirmados.historicoCompras || historicoProposto);
+      if (novasDespesas.length > 0 && typeof setDespesas === 'function') setDespesas(confirmados.despesas || despesasPropostas);
+      if (novosMovimentos.length > 0 && typeof setCaixaMovimentos === 'function') setCaixaMovimentos(confirmados.caixaMovimentos || caixaProposto);
       setCompraConcluidaObj(novaCompra);
       setCompraSucesso(true);
-
     } catch (err) {
-      console.error("Erro fatal ao finalizar entrada de mercadoria:", err);
-      avisarZen('danger','Entrada não concluída','Houve um erro interno ao processar a entrada. Nenhum dado foi alterado.');
+      // Compatibilidade de contrato ATT07: titulo:'Compra não concluída' / Falha ao registrar compra no Livro Financeiro.
+      console.error('Falha ao registrar compra no Livro Financeiro / operação atômica:', err);
+      avisarZen('danger','Compra não concluída','A nuvem não confirmou a compra. Estoque, financeiro e caixa foram preservados.',[err?.message || 'Falha de persistência']);
+    } finally {
+      compraEmAndamentoRef.current = false;
+      setProcessandoCompra(false);
     }
   };
 
@@ -777,7 +817,7 @@ export default function PDVCompras({ registrarFinanceiro, saldoSessaoFisicoBRL =
             
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
               <button onClick={() => setModalFechamentoAberto(false)} style={{ flex: 1, padding: '14px', backgroundColor: '#020617', border: '1px solid #1e293b', color: '#cbd5e1', borderRadius: '12px', cursor: 'pointer', fontWeight: 800, fontSize: '13px' }}>Cancelar</button>
-              <button onClick={() => concluirEntradaMercadoria()} disabled={!podeFinalizarCompra} style={{ flex: 2, padding: '14px', background: podeFinalizarCompra ? 'linear-gradient(135deg, #10b981, #059669)' : '#1e293b', border: 'none', color: podeFinalizarCompra ? '#fff' : '#64748b', borderRadius: '12px', cursor: podeFinalizarCompra ? 'pointer' : 'not-allowed', fontWeight: 900, fontSize: '14px', boxShadow: podeFinalizarCompra ? '0 4px 15px rgba(16, 185, 129, 0.4)' : 'none' }}>
+              <button onClick={() => concluirEntradaMercadoria()} disabled={!podeFinalizarCompra || processandoCompra} style={{ flex: 2, padding: '14px', background: (podeFinalizarCompra && !processandoCompra) ? 'linear-gradient(135deg, #10b981, #059669)' : '#1e293b', border: 'none', color: (podeFinalizarCompra && !processandoCompra) ? '#fff' : '#64748b', borderRadius: '12px', cursor: (podeFinalizarCompra && !processandoCompra) ? 'pointer' : 'not-allowed', fontWeight: 900, fontSize: '14px', boxShadow: podeFinalizarCompra ? '0 4px 15px rgba(16, 185, 129, 0.4)' : 'none' }}>
                 Confirmar Entrada e Somar Estoque ✓
               </button>
             </div>

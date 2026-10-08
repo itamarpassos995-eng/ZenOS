@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import ZenModal from './ZenModal';
 
-export default function Fornecedores({ fornecedores, setFornecedores, moeda, tx }) {
+export default function Fornecedores({ commitOperacaoNegocio, fornecedores, setFornecedores, moeda, tx }) {
   const [termoBusca, setTermoBusca] = useState('');
   const [modalAberto, setModalAberto] = useState(false);
   const [fornecedorEmEdicao, setFornecedorEmEdicao] = useState(null);
@@ -34,25 +34,46 @@ export default function Fornecedores({ fornecedores, setFornecedores, moeda, tx 
     setModalAberto(true);
   };
 
-  const salvar = () => {
+  const salvar = async () => {
     if (!form.nome.trim()) return avisarZen('warning','Nome obrigatório',tx('O Nome/Razão Social é obrigatório.', 'El Nombre/Razón Social es obligatorio.', 'Name is required.'));
-    
     const dados = { ...form };
-    
+    let listaProposta;
     if (fornecedorEmEdicao) {
-      setFornecedores(fornecedores.map(f => f.id === fornecedorEmEdicao.id ? { ...f, ...dados } : f));
+      listaProposta = fornecedores.map(f => f.id === fornecedorEmEdicao.id ? { ...f, ...dados } : f);
     } else {
       dados.id = `FORN-${Date.now()}`;
       dados.dataCadastro = new Date().toISOString();
-      setFornecedores([dados, ...fornecedores]);
+      listaProposta = [dados, ...fornecedores];
     }
-    setModalAberto(false);
+    try {
+      let confirmados = listaProposta;
+      if (typeof commitOperacaoNegocio === 'function') {
+        const confirmado = await commitOperacaoNegocio({ changes:[{ field:'fornecedores', value:listaProposta, storageSuffix:'fornecedores' }] });
+        if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou o fornecedor.');
+        confirmados = confirmado.values?.fornecedores || listaProposta;
+      }
+      setFornecedores(confirmados);
+      setModalAberto(false);
+    } catch (erro) {
+      avisarZen('danger','Fornecedor não salvo',`A nuvem não confirmou o cadastro. ${erro?.message || ''}`.trim());
+    }
   };
 
   const excluir = async (id) => {
     const alvo=(fornecedores||[]).find(f=>f.id===id);
     const confirmou=await confirmarZen({titulo:'Excluir fornecedor',mensagem:tx(`Excluir ${alvo?.nome || 'este fornecedor'}?`, `¿Eliminar ${alvo?.nome || 'este proveedor'}?`, `Delete ${alvo?.nome || 'this supplier'}?`),confirmarTexto:'Excluir',variante:'danger'});
-    if (confirmou) setFornecedores(fornecedores.filter(f => f.id !== id));
+    if (confirmou) {
+      const listaProposta = fornecedores.filter(f => f.id !== id);
+      try {
+        let confirmados = listaProposta;
+        if (typeof commitOperacaoNegocio === 'function') {
+          const resultado = await commitOperacaoNegocio({ changes:[{ field:'fornecedores', value:listaProposta, storageSuffix:'fornecedores' }] });
+          if (!resultado?.cloudOk) throw resultado?.error || new Error('A nuvem não confirmou a exclusão.');
+          confirmados = resultado.values?.fornecedores || listaProposta;
+        }
+        setFornecedores(confirmados);
+      } catch (erro) { avisarZen('danger','Fornecedor não excluído',`O cadastro foi preservado. ${erro?.message || ''}`.trim()); }
+    }
   };
 
   return (

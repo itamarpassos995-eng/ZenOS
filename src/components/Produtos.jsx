@@ -10,7 +10,7 @@ import ZenModal from './ZenModal';
 import { calcularPrecoPorCustoEMargem, calcularMargemPorCustoEPreco, validarMargemPrecoVenda, MAX_MARGEM_PRECO_PCT } from '../core/pricing';
 import { validarCredencialGerencial } from '../core/accessControl';
 
-export default function Produtos({ produtos, setProdutos, moeda, fmt, t, tx, fornecedoresGlobais = [], userId, operadorAtivo, planoLoja = 'basico', historicoVendas = [], historicoCompras = [], patenteUsuario, regrasDesconto, vendedores = [] }) {
+export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos, moeda, fmt, t, tx, fornecedoresGlobais = [], userId, operadorAtivo, planoLoja = 'basico', historicoVendas = [], historicoCompras = [], patenteUsuario, regrasDesconto, vendedores = [] }) {
   const [gruposCadastrados, setGruposCadastrados] = useState(['Tintas Acrílicas', 'Colorimetria & Pigmentos', 'Massas e Complementos', 'Serviços Especializados', 'Acessórios & Ferramentas']);
   const [filtroGrupo, setFiltroGrupo] = useState('todos');
   const [buscaProdutoTexto, setBuscaProdutoTexto] = useState('');
@@ -138,7 +138,6 @@ export default function Produtos({ produtos, setProdutos, moeda, fmt, t, tx, for
     const preco = Math.max(0, parseFloat(String(formProduto.precoBRL).replace(',', '.')) || (custo > 0 ? custo * 1.5 : 10));
     const preco2 = formProduto.habilitarPreco2 ? (parseFloat(String(formProduto.preco2BRL).replace(',', '.')) || 0) : 0;
     const preco3 = formProduto.habilitarPreco3 ? (parseFloat(String(formProduto.preco3BRL).replace(',', '.')) || 0) : 0;
-    
     const vitrine = Math.max(0, parseInt(formProduto.estoqueVitrine) || 0);
     const galpao = Math.max(0, parseInt(formProduto.estoqueGalpao) || 0);
     const estoqueTotal = vitrine + galpao;
@@ -147,56 +146,72 @@ export default function Produtos({ produtos, setProdutos, moeda, fmt, t, tx, for
       return mostrarZen('danger', 'SKU duplicado', `Já existe outro produto com o SKU ${formProduto.sku}.`, ['Use um SKU diferente para impedir movimentação no item errado.']);
     }
 
-    const dadosFinais = normalizarProduto({ 
-      ...formProduto, 
-      grupo: grupoFinal, 
-      custoBRL: custo, 
-      precoBRL: preco, 
-      preco2BRL: preco2, 
-      preco3BRL: preco3, 
-      estoque: estoqueTotal, 
-      estoqueVitrine: vitrine, 
+    const dadosFinais = normalizarProduto({
+      ...formProduto,
+      grupo: grupoFinal,
+      custoBRL: custo,
+      precoBRL: preco,
+      preco2BRL: preco2,
+      preco3BRL: preco3,
+      estoque: estoqueTotal,
+      estoqueVitrine: vitrine,
       estoqueGalpao: galpao,
       localizacao: formProduto.localizacao || ''
     });
 
-    let listaAtualizadaEdicao = null;
+    let listaProposta;
     if (produtoEmEdicao) {
-      try {
-        listaAtualizadaEdicao = atualizarProdutoUnico(produtos, produtoEmEdicao, dadosFinais, 'edição do produto');
-      } catch (erro) {
-        return mostrarZen('danger', 'Edição bloqueada', erro.message || 'Não foi possível editar o produto com segurança.');
-      }
-    }
-
-    try { await reservarIdentidadeProduto({ db, userId, produto: dadosFinais, produtoAnterior: produtoEmEdicao }); } catch (erro) { return mostrarZen('danger', erro?.code === 'ZENOS_PRODUTO_DUPLICADO' ? 'Produto duplicado' : 'Cadastro não concluído', erro.message || 'Não foi possível reservar a identidade do produto.'); }
-
-    if (produtoEmEdicao) {
-      setProdutos(listaAtualizadaEdicao);
+      try { listaProposta = atualizarProdutoUnico(produtos, produtoEmEdicao, dadosFinais, 'edição do produto'); }
+      catch (erro) { return mostrarZen('danger', 'Edição bloqueada', erro.message || 'Não foi possível editar o produto com segurança.'); }
     } else {
-      if (dadosFinais.tipoItem !== 'servico' && estoqueTotal > 0) {
-        try {
-          const eventoInicial = criarEventoEstoque({
-            produto: dadosFinais,
-            tipo: 'cadastro_inicial',
-            origem: 'cadastro',
-            destino: vitrine > 0 && galpao > 0 ? 'vitrine+deposito' : vitrine > 0 ? 'vitrine' : 'deposito',
-            quantidade: estoqueTotal,
-            saldoAntes: { estoque: 0, estoqueVitrine: 0, estoqueGalpao: 0 },
-            saldoDepois: dadosFinais,
-            motivo: 'Saldo inicial do cadastro',
-            operador: operadorAtivo,
-          });
-          await registrarEventosEstoque({ db, userId, eventos: [eventoInicial] });
-        } catch (erro) {
-          console.error('[ZenOS][ATT06] Falha ao registrar saldo inicial:', erro);
-          await liberarIdentidadeProduto({ db, userId, produto: dadosFinais });
-          return mostrarZen('danger', 'Produto não salvo', 'Não foi possível registrar o histórico inicial do estoque. Nenhum cadastro foi concluído.');
-        }
-      }
-      setProdutos([dadosFinais, ...produtos]);
+      listaProposta = [dadosFinais, ...(produtos || [])];
     }
-    setModalProdutoAberto(false);
+
+    let eventoInicial = null;
+    if (!produtoEmEdicao && dadosFinais.tipoItem !== 'servico' && estoqueTotal > 0) {
+      eventoInicial = criarEventoEstoque({
+        produto: dadosFinais,
+        tipo: 'cadastro_inicial',
+        origem: 'cadastro',
+        destino: vitrine > 0 && galpao > 0 ? 'vitrine+deposito' : vitrine > 0 ? 'vitrine' : 'deposito',
+        quantidade: estoqueTotal,
+        saldoAntes: { estoque: 0, estoqueVitrine: 0, estoqueGalpao: 0 },
+        saldoDepois: dadosFinais,
+        motivo: 'Saldo inicial do cadastro',
+        operador: operadorAtivo,
+      });
+    }
+
+    try {
+      await reservarIdentidadeProduto({ db, userId, produto: dadosFinais, produtoAnterior: produtoEmEdicao });
+    } catch (erro) {
+      return mostrarZen('danger', erro?.code === 'ZENOS_PRODUTO_DUPLICADO' ? 'Produto duplicado' : 'Cadastro não concluído', erro.message || 'Não foi possível reservar a identidade do produto.');
+    }
+
+    try {
+      let produtosConfirmados = listaProposta;
+      if (typeof commitOperacaoNegocio === 'function') {
+        const confirmado = await commitOperacaoNegocio({
+          changes: [{ field:'produtos', value:listaProposta, storageSuffix:'produtos' }],
+          stockEvents: eventoInicial ? [eventoInicial] : [],
+        });
+        if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou o cadastro do produto.');
+        produtosConfirmados = confirmado.values?.produtos || listaProposta;
+      } else {
+        if (eventoInicial) await registrarEventosEstoque({ db, userId, eventos:[eventoInicial] });
+      }
+      setProdutos(produtosConfirmados);
+      setModalProdutoAberto(false);
+    } catch (erro) {
+      console.error('[ZenOS][ATT10.2] Produto não confirmado:', erro);
+      try {
+        if (produtoEmEdicao) await reservarIdentidadeProduto({ db, userId, produto:produtoEmEdicao, produtoAnterior:dadosFinais });
+        else await liberarIdentidadeProduto({ db, userId, produto:dadosFinais });
+      } catch (rollbackErro) {
+        console.error('[ZenOS][ATT10.2] Falha ao restaurar índice do produto:', rollbackErro);
+      }
+      return mostrarZen('danger', 'Produto não salvo', 'A nuvem não confirmou o cadastro. Nenhum produto foi considerado salvo.', [erro?.message || 'Falha de persistência']);
+    }
   };
 
   const abrirMovimentoRapido = (produto, localDestino, delta) => {
@@ -232,23 +247,35 @@ export default function Produtos({ produtos, setProdutos, moeda, fmt, t, tx, for
         observacao: movimentoObs,
         operador: operadorAtivo,
       });
-      await registrarEventosEstoque({ db, userId, eventos: [evento] });
-      setProdutos(atualizarProdutoUnico(produtos, modalMovimento.produto, resultado.produto, 'movimentação de estoque'));
+      const listaProposta = atualizarProdutoUnico(produtos, modalMovimento.produto, resultado.produto, 'movimentação de estoque');
+      let produtosConfirmados = listaProposta;
+      if (typeof commitOperacaoNegocio === 'function') {
+        const confirmado = await commitOperacaoNegocio({
+          changes:[{ field:'produtos', value:listaProposta, storageSuffix:'produtos' }],
+          stockEvents:[evento],
+        });
+        if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou a movimentação.');
+        produtosConfirmados = confirmado.values?.produtos || listaProposta;
+      } else {
+        await registrarEventosEstoque({ db, userId, eventos:[evento] });
+      }
+      setProdutos(produtosConfirmados);
+      const produtoConfirmado = produtosConfirmados.find(p => String(p.id) === String(resultado.produto.id) && String(p.sku || '').toUpperCase() === String(resultado.produto.sku || '').toUpperCase()) || resultado.produto;
       if (produtoEmEdicao && String(produtoEmEdicao.id) === String(modalMovimento.produto.id) && String(produtoEmEdicao.sku || '').toUpperCase() === String(modalMovimento.produto.sku || '').toUpperCase()) {
-        setProdutoEmEdicao(resultado.produto);
+        setProdutoEmEdicao(produtoConfirmado);
         setFormProduto((prev) => ({
           ...prev,
-          estoqueVitrine: String(resultado.produto.estoqueVitrine ?? 0),
-          estoqueGalpao: String(resultado.produto.estoqueGalpao ?? 0),
-          estoque: resultado.produto.estoque,
+          estoqueVitrine: String(produtoConfirmado.estoqueVitrine ?? 0),
+          estoqueGalpao: String(produtoConfirmado.estoqueGalpao ?? 0),
+          estoque: produtoConfirmado.estoque,
         }));
       }
       setModalMovimento(null);
       if (historicoExpandido && produtoEmEdicao && String(produtoEmEdicao.id) === String(modalMovimento.produto.id) && String(produtoEmEdicao.sku || '').toUpperCase() === String(modalMovimento.produto.sku || '').toUpperCase()) {
-        await carregarHistoricoProduto(resultado.produto.id);
+        await carregarHistoricoProduto(produtoConfirmado.id);
       }
     } catch (erro) {
-      console.error('[ZenOS][ATT06] Falha na movimentação auditada:', erro);
+      console.error('[ZenOS][ATT10.2] Falha na movimentação auditada:', erro);
       mostrarZen('danger', 'Movimentação bloqueada', erro.message || 'Não foi possível movimentar o estoque com segurança.');
     } finally {
       setSalvandoMovimento(false);
@@ -296,9 +323,25 @@ export default function Produtos({ produtos, setProdutos, moeda, fmt, t, tx, for
     const autorizador = await validarCredencialGerencial({ vendedores, senha: senhaExclusao, senhaLegada: regrasDesconto?.senhaGerente });
     if(!autorizador) return mostrarZen('danger', 'Senha incorreta', 'Informe o PIN de um Administrador/Gerência cadastrado.');
     const temHist=produtoTemHistorico(modalExcluir);
-    if(temHist){ setProdutos(produtos.map(p=>String(p.id)===String(modalExcluir.id)&&String(p.sku)===String(modalExcluir.sku)?{...p,ativo:false,inativadoEm:new Date().toISOString(),inativadoPor:operadorAtivo?.nome||'Gerência'}:p)); }
-    else { setProdutos(produtos.filter(p=>!(String(p.id)===String(modalExcluir.id)&&String(p.sku)===String(modalExcluir.sku)))); await liberarIdentidadeProduto({db,userId,produto:modalExcluir}); }
-    setModalExcluir(null);
+    const listaProposta = temHist
+      ? produtos.map(p=>String(p.id)===String(modalExcluir.id)&&String(p.sku)===String(modalExcluir.sku)?{...p,ativo:false,inativadoEm:new Date().toISOString(),inativadoPor:operadorAtivo?.nome||'Gerência'}:p)
+      : produtos.filter(p=>!(String(p.id)===String(modalExcluir.id)&&String(p.sku)===String(modalExcluir.sku)));
+    try {
+      let produtosConfirmados = listaProposta;
+      if (typeof commitOperacaoNegocio === 'function') {
+        const confirmado = await commitOperacaoNegocio({ changes:[{ field:'produtos', value:listaProposta, storageSuffix:'produtos' }] });
+        if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou a alteração.');
+        produtosConfirmados = confirmado.values?.produtos || listaProposta;
+      }
+      setProdutos(produtosConfirmados);
+      if (!temHist) {
+        try { await liberarIdentidadeProduto({db,userId,produto:modalExcluir}); }
+        catch (erroIndice) { console.error('[ZenOS][ATT10.2] Produto removido, mas índice não foi liberado:', erroIndice); mostrarZen('warning','Produto removido com proteção pendente','O produto foi removido, porém o índice de unicidade não pôde ser liberado. Não recadastre o mesmo SKU até sincronizar novamente.'); }
+      }
+      setModalExcluir(null);
+    } catch (erro) {
+      mostrarZen('danger','Alteração não concluída','A nuvem não confirmou a exclusão/inativação. O catálogo foi mantido.',[erro?.message || 'Falha de persistência']);
+    }
   };
 
 

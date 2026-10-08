@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { calcularAlocacaoReposicaoDevolucao, reporEstoqueProduto } from '../core/inventory';
 import { calcularCustoDevolucaoAtual, calcularValorDevolucaoAtual, obterFinanceiroVenda, precoLiquidoUnitarioItem } from '../core/salesFinancials';
 import { ehEncomendaUsoUnico } from '../core/orderItems';
@@ -10,7 +10,7 @@ import { normalizarPerfilLoja, larguraCssRecibo } from '../core/storeProfile';
 import { calcularResumoSessao } from '../core/cashSession';
 import { formatarEquivalenciaBRL, moedasAtivasRecibo } from '../core/receiptCurrency';
 
-export default function Vendas({ taxasCambio = {}, sessoesCaixa = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, saldoSessaoFisicoBRL = 0, perfilLoja, vouchers = [], setVouchers, userId, operadorAtivo, historicoVendas, setHistoricoVendas, produtos, setProdutos, clientes, setClientes, fmt, t, tx, patenteUsuario, moeda, converterDeBRL }) {
+export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoesCaixa = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, saldoSessaoFisicoBRL = 0, perfilLoja, vouchers = [], setVouchers, userId, operadorAtivo, historicoVendas, setHistoricoVendas, produtos, setProdutos, clientes, setClientes, fmt, t, tx, patenteUsuario, moeda, converterDeBRL }) {
   const [vendaExpandida, setVendaExpandida] = useState(null);
   const [cupomParaImprimir, setCupomParaImprimir] = useState(null);
 
@@ -21,6 +21,9 @@ export default function Vendas({ taxasCambio = {}, sessoesCaixa = [], registrarF
   const [modalZen, setModalZen] = useState(null);
   const [mostrarVouchers, setMostrarVouchers] = useState(false);
   const [sessaoReembolsoId, setSessaoReembolsoId] = useState('');
+  const [processandoDevolucao, setProcessandoDevolucao] = useState(false);
+  const devolucaoEmAndamentoRef = useRef(false);
+  const devolucaoOperacaoRef = useRef({ assinatura: null, id: null });
   const perfilRecibo = normalizarPerfilLoja(perfilLoja);
   const caixasAbertos = (sessoesCaixa || [])
     .filter(s => s?.status === 'aberta')
@@ -90,6 +93,10 @@ export default function Vendas({ taxasCambio = {}, sessoesCaixa = [], registrarF
   const calcularTotalDevolucaoBRL = () => calcularValorDevolucaoAtual(vendaSendoDevolvida || {}, itensParaDevolver);
 
   const confirmarDevolucao = async () => {
+    if (devolucaoEmAndamentoRef.current) return;
+    devolucaoEmAndamentoRef.current = true;
+    setProcessandoDevolucao(true);
+    try {
     const totalEstornoBRL = calcularTotalDevolucaoBRL();
     const custoEstornoBRL = calcularCustoDevolucaoAtual(itensParaDevolver);
     if (totalEstornoBRL <= 0) return avisarZen({ variante:'warning', titulo:'Nenhum item selecionado', mensagem:tx('Selecione pelo menos 1 item para devolver.', 'Seleccione al menos 1 ítem.', 'Select at least 1 item.') });
@@ -141,7 +148,16 @@ export default function Vendas({ taxasCambio = {}, sessoesCaixa = [], registrarF
       }
     }
 
-    const devolucaoId = `DEV-${Date.now()}`;
+    const assinaturaDevolucao = JSON.stringify({
+      vendaId: vendaSendoDevolvida?.id || null,
+      metodoReembolso,
+      sessaoReembolsoId: metodoReembolso === 'dinheiro' ? sessaoReembolsoId : null,
+      itens: Object.entries(itensParaDevolver || {}).filter(([,d]) => Number(d?.qtdSendoDevolvidaAgora || 0) > 0).map(([id,d]) => [id, Number(d.qtdSendoDevolvidaAgora || 0)]),
+    });
+    if (devolucaoOperacaoRef.current.assinatura !== assinaturaDevolucao || !devolucaoOperacaoRef.current.id) {
+      devolucaoOperacaoRef.current = { assinatura: assinaturaDevolucao, id: `DEV-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` };
+    }
+    const devolucaoId = devolucaoOperacaoRef.current.id;
     const devolucaoCreatedAt = new Date().toISOString();
 
     // ATT 02/06: primeiro montamos toda a reposição em memória. Se qualquer produto
@@ -187,7 +203,7 @@ export default function Vendas({ taxasCambio = {}, sessoesCaixa = [], registrarF
           createdAt: devolucaoCreatedAt,
         }));
       });
-      await registrarEventosEstoque({ db, userId, eventos: eventosEstoque });
+      if (typeof commitOperacaoNegocio !== 'function') await registrarEventosEstoque({ db, userId, eventos: eventosEstoque });
     } catch (erro) {
       console.error('[ZenOS][ATT02] Falha ao preparar devolução:', erro);
       avisarZen({ variante:'danger', titulo:'Estorno não concluído', mensagem:erro.message || 'Não foi possível preparar a devolução sem risco de inconsistência.' });
@@ -201,7 +217,7 @@ export default function Vendas({ taxasCambio = {}, sessoesCaixa = [], registrarF
         : c);
     }
 
-    const voucherCodigo = metodoReembolso === 'voucher' ? `VALE-${Date.now().toString().slice(-6)}` : null;
+    const voucherCodigo = metodoReembolso === 'voucher' ? `VALE-${String(devolucaoId).replace(/[^A-Z0-9]/gi, '').slice(-10).toUpperCase()}` : null;
 
     const novoHistorico = historicoVendas.map(venda => {
       if (venda.id !== vendaSendoDevolvida.id) return venda;
@@ -259,78 +275,113 @@ export default function Vendas({ taxasCambio = {}, sessoesCaixa = [], registrarF
       };
     });
 
-    // ATT 07: o financeiro é confirmado antes de aplicar os estados locais.
+    // ATT 10.2: devolução é uma única operação crítica confirmada pela nuvem.
+    // Estoque + histórico + fiado/voucher + caixa + Livro Financeiro avançam juntos.
     const clienteDevolucao = vendaSendoDevolvida?.clienteId ? (clientes || []).find(c => String(c.id) === String(vendaSendoDevolvida.clienteId)) : null;
     const saldoClienteAntes = clienteDevolucao ? Number(clienteDevolucao.saldoDevedorBRL || 0) : null;
     const saldoClienteDepois = metodoReembolso === 'credito_fiado' && saldoClienteAntes != null ? Math.max(0, saldoClienteAntes - totalEstornoBRL) : null;
+    const financeiroDevolucao = {
+      id: `DEVOLUCAO-${devolucaoId}`,
+      tipo: 'devolucao',
+      origem: 'historico_vendas',
+      referenciaId: devolucaoId,
+      valor: totalEstornoBRL,
+      formaPagamento: metodoReembolso,
+      createdAt: devolucaoCreatedAt,
+      afetaCaixaFisico: metodoReembolso === 'dinheiro',
+      afetaResultado: true,
+      direcao: 'saida',
+      sessaoId: metodoReembolso === 'dinheiro' ? caixaReembolsoSelecionado?.sessao?.id : null,
+      clienteId: vendaSendoDevolvida?.clienteId || null,
+      clienteNome: vendaSendoDevolvida?.clienteNome || null,
+      saldoClienteAntes: metodoReembolso === 'credito_fiado' ? saldoClienteAntes : null,
+      saldoClienteDepois: metodoReembolso === 'credito_fiado' ? saldoClienteDepois : null,
+      observacao: `Devolução da venda ${vendaSendoDevolvida?.id || '—'} • ${metodoLabel}`,
+      detalhes: {
+        vendaId: vendaSendoDevolvida?.id || null,
+        voucherCodigo,
+        caixaOperadorId: metodoReembolso === 'dinheiro' ? caixaReembolsoSelecionado?.sessao?.operadorId || null : null,
+        caixaOperadorNome: metodoReembolso === 'dinheiro' ? caixaReembolsoSelecionado?.sessao?.operadorNome || null : null,
+      },
+      operadorId: operadorAtivo?.id || 'admin',
+      operadorNome: operadorAtivo?.nome || 'Administrador',
+    };
+
+    const mov = metodoReembolso === 'dinheiro' ? {
+      id: `MOV-${devolucaoId}`,
+      sessaoId: caixaReembolsoSelecionado.sessao.id,
+      createdAt: devolucaoCreatedAt,
+      dataHora: new Date(devolucaoCreatedAt).toLocaleString('pt-BR'),
+      tipo: 'saida_devolucao',
+      direcao: 'saida',
+      afetaGaveta: true,
+      valorBRL: totalEstornoBRL,
+      detalhesMoedas: { BRL: totalEstornoBRL },
+      descricao: `Devolução ${vendaSendoDevolvida?.id || devolucaoId}`,
+      operador: operadorAtivo?.nome || 'Administrador',
+      caixaOperadorId: caixaReembolsoSelecionado?.sessao?.operadorId || null,
+      caixaOperadorNome: caixaReembolsoSelecionado?.sessao?.operadorNome || null,
+      devolucaoId,
+    } : null;
+    const caixaProposto = mov ? [mov, ...(caixaMovimentos || [])] : caixaMovimentos;
+    const novoVoucher = voucherCodigo ? { codigo: voucherCodigo, valorOriginalBRL: totalEstornoBRL, saldoBRL: totalEstornoBRL, status: 'ativo', criadoEm: devolucaoCreatedAt, origemVendaId: vendaSendoDevolvida?.id || null, clienteId: vendaSendoDevolvida?.clienteId || null, clienteNome: vendaSendoDevolvida?.clienteNome || null, criadoPor: operadorAtivo?.nome || 'Gerência', criadoPorId: operadorAtivo?.id || 'admin', impressoes: [] } : null;
+    const vouchersPropostos = novoVoucher ? [novoVoucher, ...(vouchers || [])] : vouchers;
+
     try {
-      if (typeof registrarFinanceiro === 'function') {
-        await registrarFinanceiro({
-          id: `DEVOLUCAO-${devolucaoId}`,
-          tipo: 'devolucao',
-          origem: 'historico_vendas',
-          referenciaId: devolucaoId,
-          valor: totalEstornoBRL,
-          formaPagamento: metodoReembolso,
-          createdAt: devolucaoCreatedAt,
-          afetaCaixaFisico: metodoReembolso === 'dinheiro',
-          afetaResultado: true,
-          direcao: 'saida',
-          sessaoId: metodoReembolso === 'dinheiro' ? caixaReembolsoSelecionado?.sessao?.id : null,
-          clienteId: vendaSendoDevolvida?.clienteId || null,
-          clienteNome: vendaSendoDevolvida?.clienteNome || null,
-          saldoClienteAntes: metodoReembolso === 'credito_fiado' ? saldoClienteAntes : null,
-          saldoClienteDepois: metodoReembolso === 'credito_fiado' ? saldoClienteDepois : null,
-          observacao: `Devolução da venda ${vendaSendoDevolvida?.id || '—'} • ${metodoLabel}`,
-          detalhes: {
-            vendaId: vendaSendoDevolvida?.id || null,
-            voucherCodigo,
-            caixaOperadorId: metodoReembolso === 'dinheiro' ? caixaReembolsoSelecionado?.sessao?.operadorId || null : null,
-            caixaOperadorNome: metodoReembolso === 'dinheiro' ? caixaReembolsoSelecionado?.sessao?.operadorNome || null : null,
-          },
+      let confirmados = { produtos:novosProdutos, clientes:novosClientes, historicoVendas:novoHistorico, caixaMovimentos:caixaProposto, vouchers:vouchersPropostos };
+      if (typeof commitOperacaoNegocio === 'function') {
+        const changes = [
+          { field:'produtos', value:novosProdutos, storageSuffix:'produtos' },
+          { field:'historicoVendas', value:novoHistorico, storageSuffix:'historico_vendas' },
+        ];
+        if (metodoReembolso === 'credito_fiado') changes.push({ field:'clientes', value:novosClientes, storageSuffix:'clientes' });
+        if (mov) changes.push({ field:'caixaMovimentos', value:caixaProposto, storageSuffix:'caixa_movs' });
+        if (novoVoucher) changes.push({ field:'vouchers', value:vouchersPropostos, storageSuffix:'vouchers' });
+        const guardItems = Object.entries(itensParaDevolver || {})
+          .filter(([,dados]) => Number(dados?.qtdSendoDevolvidaAgora || 0) > 0)
+          .map(([itemId,dados]) => ({ itemId, produtoOriginalId:dados?.produtoOriginalId, quantity:Number(dados?.qtdSendoDevolvidaAgora || 0), name:dados?.nome }));
+        const guards = [{ type:'sale_return_capacity', saleId:vendaSendoDevolvida?.id, items:guardItems }];
+        if (metodoReembolso === 'dinheiro' && caixaReembolsoSelecionado?.sessao?.id) {
+          guards.push({ type:'cash_session_open', sessionId:caixaReembolsoSelecionado.sessao.id });
+          guards.push({ type:'cash_balance_at_least', sessionId:caixaReembolsoSelecionado.sessao.id, amount:totalEstornoBRL, message:'O saldo físico do caixa mudou em outro terminal. A devolução em dinheiro foi bloqueada.' });
+        }
+        if (metodoReembolso === 'credito_fiado' && vendaSendoDevolvida?.clienteId) guards.push({ type:'numeric_at_least', field:'clientes', entityId:vendaSendoDevolvida.clienteId, entityKey:'id', property:'saldoDevedorBRL', amount:totalEstornoBRL, message:'O saldo devedor do cliente mudou em outro terminal. Atualize antes de devolver como crédito de fiado.' });
+        const confirmado = await commitOperacaoNegocio({
+          changes,
+          financialEntries:[financeiroDevolucao],
+          stockEvents:eventosEstoque,
+          guards,
+          operationKey:`devolucao:${devolucaoId}`,
         });
+        if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou a devolução.');
+        confirmados = { ...confirmados, ...(confirmado.values || {}) };
+      } else {
+        if (typeof registrarFinanceiro === 'function') await registrarFinanceiro(financeiroDevolucao);
       }
+
+      setProdutos(confirmados.produtos || novosProdutos);
+      if (metodoReembolso === 'credito_fiado') setClientes(confirmados.clientes || novosClientes);
+      setHistoricoVendas(confirmados.historicoVendas || novoHistorico);
+      if (mov && typeof setCaixaMovimentos === 'function') setCaixaMovimentos(confirmados.caixaMovimentos || caixaProposto);
+      if (novoVoucher && setVouchers) setVouchers(confirmados.vouchers || vouchersPropostos);
     } catch (err) {
-      console.error('[ZenOS][ATT07] Falha no Livro Financeiro da devolução:', err);
-      avisarZen({ variante:'danger', titulo:'Estorno não concluído', mensagem:'O Livro Financeiro não confirmou a devolução. Nenhum saldo financeiro foi alterado.', detalhes:[err?.message || 'Falha de persistência'] });
+      console.error('[ZenOS][ATT10.2] Devolução não confirmada:', err);
+      avisarZen({ variante:'danger', titulo:'Estorno não concluído', mensagem:'A nuvem não confirmou a devolução. Estoque, histórico, caixa e fiado foram preservados.', detalhes:[err?.message || 'Falha de persistência'] });
       return;
     }
 
-    // Só aplicamos os estados depois que estoque + financeiro + histórico foram
-    // calculados com sucesso em memória.
-    setProdutos(novosProdutos);
-    if (metodoReembolso === 'credito_fiado') setClientes(novosClientes);
-    setHistoricoVendas(novoHistorico);
-
-    if (metodoReembolso === 'dinheiro' && typeof setCaixaMovimentos === 'function') {
-      const mov = {
-        id: `MOV-${devolucaoId}`,
-        sessaoId: caixaReembolsoSelecionado.sessao.id,
-        createdAt: devolucaoCreatedAt,
-        dataHora: new Date(devolucaoCreatedAt).toLocaleString('pt-BR'),
-        tipo: 'saida_devolucao',
-        direcao: 'saida',
-        afetaGaveta: true,
-        valorBRL: totalEstornoBRL,
-        detalhesMoedas: { BRL: totalEstornoBRL },
-        descricao: `Devolução ${vendaSendoDevolvida?.id || devolucaoId}`,
-        operador: operadorAtivo?.nome || 'Administrador',
-        caixaOperadorId: caixaReembolsoSelecionado?.sessao?.operadorId || null,
-        caixaOperadorNome: caixaReembolsoSelecionado?.sessao?.operadorNome || null,
-        devolucaoId,
-      };
-      setCaixaMovimentos([mov, ...(caixaMovimentos || [])]);
-    }
-
     if (voucherCodigo) {
-      const novoVoucher = { codigo: voucherCodigo, valorOriginalBRL: totalEstornoBRL, saldoBRL: totalEstornoBRL, status: 'ativo', criadoEm: devolucaoCreatedAt, origemVendaId: vendaSendoDevolvida?.id || null, clienteId: vendaSendoDevolvida?.clienteId || null, clienteNome: vendaSendoDevolvida?.clienteNome || null, criadoPor: operadorAtivo?.nome || 'Gerência', criadoPorId: operadorAtivo?.id || 'admin', impressoes: [] };
-      if (setVouchers) setVouchers([novoVoucher, ...(vouchers || [])]);
       setModalZen({variante:'success',titulo:'Voucher gerado',mensagem:`Código: ${voucherCodigo}`,detalhes:[`Valor: ${fmt(totalEstornoBRL, 'BRL')}`,'O voucher foi registrado e poderá ser usado como pagamento no PDV.'],apenasConfirmar:true});
     }
 
+    devolucaoOperacaoRef.current = { assinatura:null, id:null };
     setModalDevolucaoAberto(false);
     setVendaSendoDevolvida(null);
     setItensParaDevolver({});
+    } finally {
+      devolucaoEmAndamentoRef.current = false;
+      setProcessandoDevolucao(false);
+    }
   };
 
   const imprimirVoucher = (voucher) => {
@@ -563,7 +614,7 @@ export default function Vendas({ taxasCambio = {}, sessoesCaixa = [], registrarF
               <div style={{ backgroundColor: 'rgba(244, 63, 94, 0.1)', border: '1px solid rgba(244, 63, 94, 0.3)', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <span style={{ fontSize: '11px', fontWeight: 800, color: '#f43f5e', textTransform: 'uppercase' }}>{tx('3. Confirmação Final do Estorno', '3. Confirmación de Devolución', '3. Refund Confirmation')}</span>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}><span style={{ fontSize: '14px', color: '#cbd5e1' }}>Total a Devolver:</span><span style={{ fontSize: '28px', fontWeight: 900, color: '#f43f5e' }}>{fmt(calcularTotalDevolucaoBRL())}</span></div>
-                <button onClick={confirmarDevolucao} disabled={calcularTotalDevolucaoBRL() === 0} style={{ padding: '16px', background: calcularTotalDevolucaoBRL() === 0 ? '#334155' : 'linear-gradient(135deg, #e11d48, #be123c)', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: calcularTotalDevolucaoBRL() === 0 ? 'not-allowed' : 'pointer' }}>{tx('Confirmar Estorno / Devolução', 'Confirmar Devolución', 'Confirm Refund')}</button>
+                <button onClick={confirmarDevolucao} disabled={processandoDevolucao || calcularTotalDevolucaoBRL() === 0} style={{ padding: '16px', background: (processandoDevolucao || calcularTotalDevolucaoBRL() === 0) ? '#334155' : 'linear-gradient(135deg, #e11d48, #be123c)', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: (processandoDevolucao || calcularTotalDevolucaoBRL() === 0) ? 'not-allowed' : 'pointer' }}>{processandoDevolucao ? 'Confirmando...' : tx('Confirmar Estorno / Devolução', 'Confirmar Devolución', 'Confirm Refund')}</button>
               </div>
             </div>
           </div>

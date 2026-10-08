@@ -29,7 +29,9 @@
     "test:att09": "node scripts/att09-check.mjs",
     "test:att09:emulator": "npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local \"node scripts/att09-emulator-check.mjs\"",
     "test:att101": "node scripts/att101-check.mjs",
-    "test:mobile": "node scripts/mobile-homologacao-check.mjs"
+    "test:mobile": "node scripts/mobile-homologacao-check.mjs",
+    "test:att102": "node scripts/att102-safety-check.mjs",
+    "test:att1021": "node scripts/att1021-prepedido-check.mjs"
   },
   "dependencies": {
     "firebase": "^12.19.0",

@@ -13,7 +13,7 @@ import { validarBackup } from '../core/backupCore';
 import { ZENOS_RUNTIME } from '../core/runtimeEnvironment';
 import { notifyPersistenceStatus } from '../core/persistenceSafety';
 
-export default function Configuracoes({ userId, operadorAtivo, perfilLojaGlobal, setPerfilLojaGlobal, produtos, setProdutos, clientes, setClientes, historicoVendas, setHistoricoVendas, caixaMovimentos, setCaixaMovimentos, despesas, setDespesas, tx, regrasDesconto, setRegrasDesconto, vendedores, setVendedores }) {
+export default function Configuracoes({ commitOperacaoNegocio, userId, operadorAtivo, perfilLojaGlobal, setPerfilLojaGlobal, produtos, setProdutos, clientes, setClientes, historicoVendas, setHistoricoVendas, caixaMovimentos, setCaixaMovimentos, despesas, setDespesas, tx, regrasDesconto, setRegrasDesconto, vendedores, setVendedores }) {
   const [modalResetAberto, setModalResetAberto] = useState(false);
   const [senhaAdmin, setSenhaAdmin] = useState('');
   const [etapaAviso, setEtapaAviso] = useState(1);
@@ -52,14 +52,16 @@ export default function Configuracoes({ userId, operadorAtivo, perfilLojaGlobal,
     setSalvandoPerfil(true);
     try {
       const user = auth.currentUser;
-      const perfilNormalizado = salvarPerfilLojaLocal(user?.uid, perfilLoja);
-      if (setPerfilLojaGlobal) setPerfilLojaGlobal(perfilNormalizado); 
-      
+      const perfilNormalizado = normalizarPerfilLoja(perfilLoja);
       if (user) {
         notifyPersistenceStatus({status:'SALVANDO',field:'configuracoes'});
-        await setDoc(doc(db, "lojas", user.uid, "dados", "configuracoes"), { perfilLoja: normalizarPerfilLoja(perfilLoja), updatedAtClient: new Date().toISOString(), updatedAtServer: serverTimestamp() }, { merge: true });
+        await setDoc(doc(db, "lojas", user.uid, "dados", "configuracoes"), { perfilLoja: perfilNormalizado, updatedAtClient: new Date().toISOString(), updatedAtServer: serverTimestamp() }, { merge: true });
         notifyPersistenceStatus({status:'SINCRONIZADO',field:'configuracoes'});
       }
+      // Só muda cache/UI depois da confirmação da nuvem. Falha de quota/rede não
+      // pode deixar aparência de configuração salva apenas neste terminal.
+      const perfilConfirmadoLocal = salvarPerfilLojaLocal(user?.uid, perfilLoja);
+      if (setPerfilLojaGlobal) setPerfilLojaGlobal(perfilConfirmadoLocal);
       avisarZen('success','Configurações salvas',tx ? tx('Dados fiscais da loja atualizados com sucesso!', '¡Datos fiscales actualizados con éxito!', 'Fiscal data successfully updated!') : 'Dados atualizados!');
       window.location.reload(); 
     } catch (err) {
@@ -123,6 +125,17 @@ export default function Configuracoes({ userId, operadorAtivo, perfilLojaGlobal,
     admin: false, pdv: true, produtos: false, clientes: false, vendas: false, caixa: false, despesas: false, mesas: false, inteligencia: false
   });
 
+  const confirmarVendedoresNaNuvem = async (listaProposta) => {
+    if (typeof commitOperacaoNegocio !== 'function') {
+      const error = new Error('Persistência segura de operadores indisponível. Nenhuma alteração foi aplicada.');
+      error.code = 'ZENOS_SAFE_COMMIT_REQUIRED';
+      throw error;
+    }
+    const resultado = await commitOperacaoNegocio({ changes:[{ field:'vendedores', value:listaProposta, storageSuffix:'vendedores' }] });
+    if (!resultado?.cloudOk) throw resultado?.error || new Error('A nuvem não confirmou a alteração de operadores.');
+    return resultado.values?.vendedores || listaProposta;
+  };
+
   const adicionarVendedor = async () => {
     if (!novoVendedorNome.trim() || !novoVendedorSenha.trim()) return avisarZen('warning','Dados incompletos','Informe o nome e o PIN do operador.');
     if (pinEhFraco(novoVendedorSenha)) return avisarZen('warning','PIN muito previsível','Escolha um PIN diferente de admin, 1234, 0000, 1111 e sequências triviais.');
@@ -139,15 +152,18 @@ export default function Configuracoes({ userId, operadorAtivo, perfilLojaGlobal,
       permissoes: novoVendedorPermissoes
     };
 
-    if (setVendedores) setVendedores([...(vendedores || []), nv]);
-    
-    setNovoVendedorNome('');
-    setNovoVendedorCargo('');
-    setNovoVendedorSenha('');
-    setNovoVendedorPercentual('');
-    setNovoVendedorPermissoes({ admin: false, pdv: true, produtos: false, clientes: false, vendas: false, caixa: false, despesas: false, mesas: false, inteligencia: false });
-    
-    avisarZen('success','Operador cadastrado','Utilizador adicionado com sucesso!');
+    try {
+      const confirmados = await confirmarVendedoresNaNuvem([...(vendedores || []), nv]);
+      if (setVendedores) setVendedores(confirmados);
+      setNovoVendedorNome('');
+      setNovoVendedorCargo('');
+      setNovoVendedorSenha('');
+      setNovoVendedorPercentual('');
+      setNovoVendedorPermissoes({ admin: false, pdv: true, produtos: false, clientes: false, vendas: false, caixa: false, despesas: false, mesas: false, inteligencia: false });
+      avisarZen('success','Operador cadastrado','Utilizador confirmado na nuvem com sucesso!');
+    } catch (error) {
+      avisarZen('danger','Operador não cadastrado','A nuvem não confirmou o cadastro. Nenhuma alteração foi aplicada.',[error?.message || 'Falha de persistência']);
+    }
   };
 
   const removerVendedor = async (idParaRemover) => {
@@ -155,25 +171,34 @@ export default function Configuracoes({ userId, operadorAtivo, perfilLojaGlobal,
     if (!vendedores || vendedores.length <= 1) return avisarZen('warning','Operação bloqueada','Você não pode excluir o último utilizador do sistema.');
     const alvo=(vendedores||[]).find(v=>String(v.id)===String(idParaRemover));
     const confirmou=await confirmarZen({ titulo:'Remover operador', mensagem:`Remover ${alvo?.nome || 'este operador'} do sistema?`, confirmarTexto:'Remover', variante:'danger' });
-    if (confirmou && setVendedores) setVendedores(vendedores.filter(v => String(v.id) !== String(idParaRemover)));
+    if (!confirmou) return;
+    try {
+      const confirmados = await confirmarVendedoresNaNuvem(vendedores.filter(v => String(v.id) !== String(idParaRemover)));
+      if (setVendedores) setVendedores(confirmados);
+    } catch (error) {
+      avisarZen('danger','Operador não removido','A nuvem não confirmou a remoção. O operador foi preservado.',[error?.message || 'Falha de persistência']);
+    }
   };
 
   // 🛡️ ATUALIZA AS PERMISSÕES DE UM VENDEDOR JÁ EXISTENTE
-  const atualizarPermissaoVendedor = (idVendedor, campoPermissao, valorCheckbox) => {
+  const atualizarPermissaoVendedor = async (idVendedor, campoPermissao, valorCheckbox) => {
     if (String(idVendedor) === 'admin' && campoPermissao === 'admin' && !valorCheckbox) return avisarZen('warning','Administrador principal protegido','O administrador principal deve manter acesso total.');
-    if (setVendedores) {
-      const novaLista = vendedores.map(v => {
-        if (v.id === idVendedor) {
-          const permissoes = { ...(v.permissoes || {}), [campoPermissao]: valorCheckbox };
-          return {
-            ...v,
-            permissoes,
-            patente: campoPermissao === 'admin' ? (valorCheckbox ? 'gerencia' : (String(v.id) === 'admin' ? 'gerencia' : 'vendedor')) : v.patente
-          };
-        }
-        return v;
-      });
-      setVendedores(novaLista);
+    const novaLista = (vendedores || []).map(v => {
+      if (v.id === idVendedor) {
+        const permissoes = { ...(v.permissoes || {}), [campoPermissao]: valorCheckbox };
+        return {
+          ...v,
+          permissoes,
+          patente: campoPermissao === 'admin' ? (valorCheckbox ? 'gerencia' : (String(v.id) === 'admin' ? 'gerencia' : 'vendedor')) : v.patente
+        };
+      }
+      return v;
+    });
+    try {
+      const confirmados = await confirmarVendedoresNaNuvem(novaLista);
+      if (setVendedores) setVendedores(confirmados);
+    } catch (error) {
+      avisarZen('danger','Permissão não alterada','A nuvem não confirmou a alteração. A permissão anterior foi preservada.',[error?.message || 'Falha de persistência']);
     }
   };
 
@@ -181,9 +206,15 @@ export default function Configuracoes({ userId, operadorAtivo, perfilLojaGlobal,
     const novoPin = String(pinEdicaoPorId[operador.id] ?? '').trim();
     if (!novoPin || pinEhFraco(novoPin)) return avisarZen('warning','PIN inválido','Escolha um PIN com pelo menos 4 caracteres, diferente dos padrões previsíveis bloqueados.');
     const credencialPin = await criarCredencialPin(novoPin);
-    if (setVendedores) setVendedores((vendedores || []).map(v => String(v.id) === String(operador.id) ? { ...v, ...credencialPin } : v));
-    setPinEdicaoPorId(prev => ({ ...prev, [operador.id]: '' }));
-    avisarZen('success','PIN atualizado',`PIN de ${operador.nome} atualizado com sucesso.`);
+    try {
+      const proposta = (vendedores || []).map(v => String(v.id) === String(operador.id) ? { ...v, ...credencialPin } : v);
+      const confirmados = await confirmarVendedoresNaNuvem(proposta);
+      if (setVendedores) setVendedores(confirmados);
+      setPinEdicaoPorId(prev => ({ ...prev, [operador.id]: '' }));
+      avisarZen('success','PIN atualizado',`PIN de ${operador.nome} confirmado na nuvem com sucesso.`);
+    } catch (error) {
+      avisarZen('danger','PIN não atualizado','A nuvem não confirmou o novo PIN. O PIN anterior continua válido.',[error?.message || 'Falha de persistência']);
+    }
   };
 
   const executarResetGranular = async () => {
@@ -201,10 +232,23 @@ export default function Configuracoes({ userId, operadorAtivo, perfilLojaGlobal,
       const novoHistoricoVendas = selVendas ? [] : historicoVendas;
       const novosCaixaMovs = selCaixa ? [] : caixaMovimentos;
       const novasDespesas = selDespesas ? [] : despesas;
-      setProdutos(novosProdutos); setClientes(novosClientes); setHistoricoVendas(novoHistoricoVendas); setCaixaMovimentos(novosCaixaMovs); setDespesas(novasDespesas);
-      notifyPersistenceStatus({status:'SALVANDO',field:'reset_granular'});
-      await setDoc(doc(db, "lojas", user.uid, "dados", "operacao"), { produtos: novosProdutos, clientes: novosClientes, historicoVendas: novoHistoricoVendas, caixaMovimentos: novosCaixaMovs, despesas: novasDespesas, _syncMeta:{lastField:'reset_granular',updatedAtClient:new Date().toISOString(),updatedAtServer:serverTimestamp()} }, { merge: true });
-      notifyPersistenceStatus({status:'SINCRONIZADO',field:'reset_granular'});
+      if (typeof commitOperacaoNegocio === 'function') {
+        const changes = [];
+        if (selProdutos) changes.push({ field:'produtos', value:novosProdutos, storageSuffix:'produtos' });
+        if (selClientes) changes.push({ field:'clientes', value:novosClientes, storageSuffix:'clientes' });
+        if (selVendas) changes.push({ field:'historicoVendas', value:novoHistoricoVendas, storageSuffix:'historico_vendas' });
+        if (selCaixa) changes.push({ field:'caixaMovimentos', value:novosCaixaMovs, storageSuffix:'caixa_movs' });
+        if (selDespesas) changes.push({ field:'despesas', value:novasDespesas, storageSuffix:'despesas' });
+        const confirmado = await commitOperacaoNegocio({ changes });
+        if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou a restauração/limpeza.');
+        if (selProdutos) setProdutos(confirmado.values?.produtos || novosProdutos);
+        if (selClientes) setClientes(confirmado.values?.clientes || novosClientes);
+        if (selVendas) setHistoricoVendas(confirmado.values?.historicoVendas || novoHistoricoVendas);
+        if (selCaixa) setCaixaMovimentos(confirmado.values?.caixaMovimentos || novosCaixaMovs);
+        if (selDespesas) setDespesas(confirmado.values?.despesas || novasDespesas);
+      } else {
+        throw new Error('Persistência segura indisponível. Reset/restauração bloqueado para evitar sobrescrita concorrente.');
+      }
       avisarZen('success','Operação concluída','Itens selecionados limpos/restaurados com sucesso!');
       setModalResetAberto(false); setSenhaAdmin(''); setEtapaAviso(1); handleSelTudo(false);
     } catch (err) {

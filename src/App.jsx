@@ -4,7 +4,9 @@ import { traducoes, moedasConfig, normalizarProduto, normalizarCliente, produtos
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
-import { inspectLocalSchemaVersion, persistV1OperationField, PERSISTENCE_STATUS_EVENT, notifyPersistenceStatus } from './core/persistenceSafety';
+import { inspectLocalSchemaVersion, PERSISTENCE_STATUS_EVENT, notifyPersistenceStatus } from './core/persistenceSafety';
+import { persistV1OperationFieldSafe, persistV1BusinessOperationSafe, recordSyncMetric } from './core/productionSync';
+import { cloneSyncValue, hasLocalSyncChange, syncValuesEqual } from './core/syncMerge';
 import { zenosStorage } from './core/storage';
 import { obterFinanceiroVenda } from './core/salesFinancials';
 import { registroEhDoDiaLocal } from './core/dates';
@@ -143,7 +145,10 @@ export default function App() {
   const [modalPerfilRapido, setModalPerfilRapido] = useState(false);
   const [perfilRapidoErro, setPerfilRapidoErro] = useState('');
   const [perfilRapidoRascunho, setPerfilRapidoRascunho] = useState(() => normalizarPerfilLoja({}));
-  const remotoAplicandoRef = useRef(false);
+  const syncBaseRef = useRef(new Map());
+  const syncRevisionRef = useRef(new Map());
+  const syncWriteQueueRef = useRef(new Map());
+  const syncDeferredRemoteRef = useRef(new Map());
   const syncCamposRef = useRef(new Map());
   const [modalAppZen, setModalAppZen] = useState(null);
 
@@ -152,6 +157,142 @@ export default function App() {
 
   const confirmarAppZen = ({ variante = 'warning', titulo, mensagem, detalhes = [], confirmarTexto = 'Confirmar' }) =>
     new Promise(resolve => setModalAppZen({ variante, titulo, mensagem, detalhes, confirmarTexto, cancelarTexto: 'Cancelar', resolver: resolve }));
+
+  const registrarBaseSyncCampo = (field, value, revision = null) => {
+    syncBaseRef.current.set(field, cloneSyncValue(value));
+    if (revision !== null && revision !== undefined) syncRevisionRef.current.set(field, Number(revision) || 0);
+  };
+
+  const aplicarCampoRemoto = ({ field, value, setter, revision = null, localStorageKey = null }) => {
+    const revisionNum = revision !== null && revision !== undefined ? Number(revision) || 0 : null;
+    const revisionVista = syncRevisionRef.current.get(field);
+    if (revisionNum !== null && revisionVista !== undefined && revisionNum <= revisionVista) return;
+
+    const fila = syncWriteQueueRef.current.get(field);
+    if (fila?.running || fila?.desired) {
+      // Nunca sobrescrever uma alteração local ainda não confirmada. O snapshot fica
+      // aguardando; a transação fará o merge contra a versão mais nova da nuvem.
+      syncDeferredRemoteRef.current.set(field, { field, value: cloneSyncValue(value), setter, revision: revisionNum, localStorageKey });
+      recordSyncMetric('snapshotDeferred', field);
+      return;
+    }
+
+    registrarBaseSyncCampo(field, value, revisionNum);
+    if (localStorageKey) {
+      try { zenosStorage.setItem(localStorageKey, JSON.stringify(value)); } catch (_) {}
+    }
+    setter(prev => {
+      if (syncValuesEqual(prev, value)) return prev;
+      return cloneSyncValue(value);
+    });
+    recordSyncMetric('snapshotApplied', field);
+  };
+
+  const persistirCampoSeguro = ({ field, value, setter, localStorageKey }) => {
+    if (!nuvemSincronizada || !userId) return;
+    const baseAtual = syncBaseRef.current.get(field);
+    // A BASE é atualizada ANTES de aplicar snapshots remotos. Portanto, igualdade
+    // com a BASE é uma prova de que não existe alteração local a persistir. Além de
+    // eliminar o eco sem write/read, isto evita a corrida de um simples flag: se o
+    // usuário editar entre o snapshot e o useEffect, o valor já difere da BASE e a
+    // alteração local não é suprimida.
+    if (!hasLocalSyncChange(value, baseAtual)) {
+      recordSyncMetric('writesSkipped', field);
+      return;
+    }
+    let fila = syncWriteQueueRef.current.get(field);
+    if (!fila) {
+      fila = { running: false, desired: null, version: 0 };
+      syncWriteQueueRef.current.set(field, fila);
+    }
+    fila.version += 1;
+    fila.desired = { value: cloneSyncValue(value), setter, localStorageKey, version: fila.version };
+    if (fila.running) return;
+
+    const drenar = async () => {
+      fila.running = true;
+      try {
+        while (fila.desired) {
+          const atual = fila.desired;
+          fila.desired = null;
+          const baseValue = syncBaseRef.current.get(field);
+          const resultado = await persistV1OperationFieldSafe({ db, userId, field, value: atual.value, baseValue, localStorageKey: atual.localStorageKey });
+          if (!resultado?.cloudOk) {
+            // Sem retry automático: quota/rede/erro não pode virar tempestade de writes.
+            // Se não chegou uma alteração local mais nova enquanto a gravação falhava,
+            // volta a UI para a última BASE confirmada. Assim quota/rede nunca produz
+            // um falso "salvou" que desaparece após F5.
+            if (!fila.desired && baseValue !== undefined && typeof atual.setter === 'function') {
+              atual.setter(prev => syncValuesEqual(prev, baseValue) ? prev : cloneSyncValue(baseValue));
+            }
+            break;
+          }
+          const confirmado = resultado.value === undefined ? atual.value : resultado.value;
+          registrarBaseSyncCampo(field, confirmado, resultado.revision);
+          if (typeof atual.setter === 'function' && !syncValuesEqual(confirmado, atual.value)) {
+            atual.setter(prev => syncValuesEqual(prev, confirmado) ? prev : cloneSyncValue(confirmado));
+          }
+        }
+      } finally {
+        fila.running = false;
+        const pendenteRemoto = syncDeferredRemoteRef.current.get(field);
+        if (!fila.desired && pendenteRemoto) {
+          syncDeferredRemoteRef.current.delete(field);
+          aplicarCampoRemoto(pendenteRemoto);
+        }
+        // Se um novo estado chegou exatamente ao finalizar a fila, inicia nova drenagem.
+        if (fila.desired && !fila.running) persistirCampoSeguro({ field, ...fila.desired, setter: fila.desired.setter, localStorageKey: fila.desired.localStorageKey });
+      }
+    };
+    void drenar();
+  };
+
+  const commitOperacaoCritica = async (changes = [], { guards = [], operationKey = null } = {}) => {
+    if (!nuvemSincronizada || !userId) {
+      return { ok:false, cloudOk:false, error:new Error('Nuvem não confirmada. A operação não foi finalizada para evitar perda de dados.'), values:{}, revisions:{} };
+    }
+    const preparados = (changes || []).map(change => ({
+      ...change,
+      baseValue: syncBaseRef.current.get(change.field),
+      localStorageKey: change.localStorageKey || `zenos_${userId}_${change.storageSuffix || change.field}`,
+    }));
+    const resultado = await persistV1BusinessOperationSafe({ db, userId, changes: preparados, guards, operationKey });
+    if (resultado?.cloudOk) {
+      for (const change of preparados) {
+        const confirmado = resultado.values?.[change.field] === undefined ? change.value : resultado.values[change.field];
+        registrarBaseSyncCampo(change.field, confirmado, resultado.revisions?.[change.field]);
+      }
+    }
+    return resultado;
+  };
+
+
+  const commitVendaCritica = async ({ changes = [], financialEntries = [], stockEvents = [], guards = [], operationKey = null } = {}) => {
+    if (!nuvemSincronizada || !userId) {
+      return { ok:false, cloudOk:false, error:new Error('Nuvem não confirmada. Venda/pré-pedido não foi finalizado.'), values:{}, revisions:{} };
+    }
+    const preparados = (changes || []).map(change => ({
+      ...change,
+      baseValue: syncBaseRef.current.get(change.field),
+      localStorageKey: change.localStorageKey || `zenos_${userId}_${change.storageSuffix || change.field}`,
+    }));
+    const resultado = await persistV1BusinessOperationSafe({ db, userId, changes: preparados, financialEntries, stockEvents, guards, operationKey });
+    if (resultado?.cloudOk) {
+      for (const change of preparados) {
+        const confirmado = resultado.values?.[change.field] === undefined ? change.value : resultado.values[change.field];
+        registrarBaseSyncCampo(change.field, confirmado, resultado.revisions?.[change.field]);
+      }
+      if (Array.isArray(resultado.financialEntries) && resultado.financialEntries.length > 0) {
+        setLivroFinanceiro(atual => {
+          const mapa = new Map((atual || []).map(item => [String(item.id), item]));
+          resultado.financialEntries.forEach(item => mapa.set(String(item.id), item));
+          return [...mapa.values()].sort((a,b)=>String(b?.createdAt||'').localeCompare(String(a?.createdAt||'')));
+        });
+      }
+    }
+    return resultado;
+  };
+
 
 
   useEffect(() => {
@@ -214,12 +355,16 @@ export default function App() {
       const credencial = await criarCredencialPin(novoPinObrigatorio);
       const atualizados = vendedores.map(v => String(v.id) === String(operadorAtivo.id) ? { ...v, ...credencial } : v);
       if (userId) {
-        const persistencia = await persistV1OperationField({
-          db, userId, field: 'vendedores', value: atualizados, localStorageKey: `zenos_${userId}_vendedores`
+        const persistencia = await persistV1OperationFieldSafe({
+          db, userId, field: 'vendedores', value: atualizados, baseValue: syncBaseRef.current.get('vendedores'), localStorageKey: `zenos_${userId}_vendedores`
         });
         if (!persistencia?.cloudOk) throw new Error('O novo PIN não foi confirmado na nuvem. Nenhuma alteração de acesso foi finalizada.');
+        const confirmados = persistencia.value || atualizados;
+        registrarBaseSyncCampo('vendedores', confirmados, persistencia.revision);
+        setVendedores(confirmados);
+      } else {
+        setVendedores(atualizados);
       }
-      setVendedores(atualizados);
       setOperadorAtivo(prev => prev ? { ...prev, ...credencial } : prev);
       setNovoPinObrigatorio(''); setConfirmarPinObrigatorio('');
     } catch (error) { setErroPinObrigatorio(error?.message || 'Não foi possível atualizar o PIN.'); }
@@ -242,6 +387,10 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       syncCamposRef.current.clear();
+      syncBaseRef.current.clear();
+      syncRevisionRef.current.clear();
+      syncWriteQueueRef.current.clear();
+      syncDeferredRemoteRef.current.clear();
       if (user) {
         setUserId(user.uid);
         setUsuarioAutenticado(user.email);
@@ -276,27 +425,63 @@ export default function App() {
           }
 
           const dadosLojaSnap = await getDoc(doc(db, "lojas", user.uid, "dados", "operacao"));
+          const adminPadrao = [{ id: 'admin', nome: 'Administrador (Gerência)', patente: 'gerencia', senha: 'admin', pinTrocaObrigatoria: true, percentual: 0, comissaoTipo: 'lucro', permissoes: { admin: true } }];
           if (dadosLojaSnap.exists()) {
-            // SE A LOJA TEM DADOS NA NUVEM, PUXA TUDO DAQUI!
+            // SE A LOJA TEM DADOS NA NUVEM, PUXA TUDO DAQUI SEM REGRAVAR NO LOGIN.
             const d = dadosLojaSnap.data();
-            setProdutos(Array.isArray(d.produtos) ? d.produtos.map((p, idx) => normalizarProduto(p, idx)) : []);
-            setClientes(Array.isArray(d.clientes) ? d.clientes.map((c, idx) => normalizarCliente(c, idx)) : []);
-            setHistoricoVendas(d.historicoVendas || []);
-            setCaixaMovimentos(d.caixaMovimentos || []);
-            setDespesas(d.despesas || []);
-            setHistoricoCompras(d.historicoCompras || []);
-            setFornecedores(d.fornecedores || []);
-            setVouchers(Array.isArray(d.vouchers) ? d.vouchers : []);
-            setRegrasDesconto(normalizarRegrasDescontoSeguras(d.regrasDesconto)); 
+            const revisions = d?._syncMeta?.fieldRevisions || {};
+            const produtosCloud = Array.isArray(d.produtos) ? d.produtos.map((p, idx) => normalizarProduto(p, idx)) : [];
+            const clientesCloud = Array.isArray(d.clientes) ? d.clientes.map((c, idx) => normalizarCliente(c, idx)) : [];
+            const historicoCloud = Array.isArray(d.historicoVendas) ? d.historicoVendas : [];
+            const caixaCloud = Array.isArray(d.caixaMovimentos) ? d.caixaMovimentos : [];
+            const despesasCloud = Array.isArray(d.despesas) ? d.despesas : [];
+            const comprasCloud = Array.isArray(d.historicoCompras) ? d.historicoCompras : [];
+            const fornecedoresCloud = Array.isArray(d.fornecedores) ? d.fornecedores : [];
+            const vouchersCloud = Array.isArray(d.vouchers) ? d.vouchers : [];
+            const sessoesCloud = Array.isArray(d.sessoesCaixa) ? d.sessoesCaixa : [];
+            const regrasDescontoCloud = normalizarRegrasDescontoSeguras(d.regrasDesconto);
             let regrasComissaoCarregadas = d.regrasComissao;
             if (!regrasComissaoCarregadas) {
               try { regrasComissaoCarregadas = JSON.parse(zenosStorage.getItem(`zenos_${user.uid}_regras_comissao`) || 'null'); } catch (e) {}
             }
-            setRegrasComissao(normalizarRegrasComissao(regrasComissaoCarregadas || REGRAS_COMISSAO_PADRAO));
-            setVendedores(d.vendedores && d.vendedores.length > 0 ? d.vendedores : [{ id: 'admin', nome: 'Administrador (Gerência)', patente: 'gerencia', senha: 'admin', pinTrocaObrigatoria: true, percentual: 0, comissaoTipo: 'lucro', permissoes: { admin: true } }]);
-            setSessoesCaixa(d.sessoesCaixa || []);
+            const regrasComissaoCloud = normalizarRegrasComissao(regrasComissaoCarregadas || REGRAS_COMISSAO_PADRAO);
+            const vendedoresCloud = Array.isArray(d.vendedores) && d.vendedores.length > 0 ? d.vendedores : adminPadrao;
+
+            registrarBaseSyncCampo('produtos', produtosCloud, revisions.produtos);
+            registrarBaseSyncCampo('clientes', clientesCloud, revisions.clientes);
+            registrarBaseSyncCampo('historicoVendas', historicoCloud, revisions.historicoVendas);
+            registrarBaseSyncCampo('caixaMovimentos', caixaCloud, revisions.caixaMovimentos);
+            registrarBaseSyncCampo('despesas', despesasCloud, revisions.despesas);
+            registrarBaseSyncCampo('historicoCompras', comprasCloud, revisions.historicoCompras);
+            registrarBaseSyncCampo('fornecedores', fornecedoresCloud, revisions.fornecedores);
+            registrarBaseSyncCampo('vouchers', vouchersCloud, revisions.vouchers);
+            registrarBaseSyncCampo('regrasDesconto', regrasDescontoCloud, revisions.regrasDesconto);
+            registrarBaseSyncCampo('regrasComissao', regrasComissaoCloud, revisions.regrasComissao);
+            registrarBaseSyncCampo('vendedores', vendedoresCloud, revisions.vendedores);
+            registrarBaseSyncCampo('sessoesCaixa', sessoesCloud, revisions.sessoesCaixa);
+
+            setProdutos(produtosCloud);
+            setClientes(clientesCloud);
+            setHistoricoVendas(historicoCloud);
+            setCaixaMovimentos(caixaCloud);
+            setDespesas(despesasCloud);
+            setHistoricoCompras(comprasCloud);
+            setFornecedores(fornecedoresCloud);
+            setVouchers(vouchersCloud);
+            setRegrasDesconto(regrasDescontoCloud);
+            setRegrasComissao(regrasComissaoCloud);
+            setVendedores(vendedoresCloud);
+            setSessoesCaixa(sessoesCloud);
           } else {
-            // CONTA NOVA (ZERADA): Ignorar qualquer lixo local e forçar arrays vazios/padrão
+            // CONTA NOVA (ZERADA): defaults viram BASE local; não gerar 12 writes no primeiro login.
+            const vazia = [];
+            const regrasDescontoCloud = normalizarRegrasDescontoSeguras(REGRAS_DESCONTO_PADRAO);
+            const regrasComissaoCloud = normalizarRegrasComissao(REGRAS_COMISSAO_PADRAO);
+            for (const field of ['produtos','clientes','historicoVendas','caixaMovimentos','despesas','historicoCompras','fornecedores','vouchers','sessoesCaixa']) registrarBaseSyncCampo(field, vazia, 0);
+            registrarBaseSyncCampo('regrasDesconto', regrasDescontoCloud, 0);
+            registrarBaseSyncCampo('regrasComissao', regrasComissaoCloud, 0);
+            registrarBaseSyncCampo('vendedores', adminPadrao, 0);
+
             setProdutos([]);
             setClientes([]);
             setHistoricoVendas([]);
@@ -306,9 +491,9 @@ export default function App() {
             setFornecedores([]);
             setVouchers([]);
             setSessoesCaixa([]);
-            setRegrasDesconto({ ...REGRAS_DESCONTO_PADRAO });
-            setRegrasComissao(normalizarRegrasComissao(REGRAS_COMISSAO_PADRAO));
-            setVendedores([{ id: 'admin', nome: 'Administrador (Gerência)', patente: 'gerencia', senha: 'admin', pinTrocaObrigatoria: true, percentual: 0, comissaoTipo: 'lucro', permissoes: { admin: true } }]);
+            setRegrasDesconto(regrasDescontoCloud);
+            setRegrasComissao(regrasComissaoCloud);
+            setVendedores(adminPadrao);
           }
           // Somente uma leitura autoritativa concluída libera gravações na V1.
           setFalhaBootstrapNuvem(null);
@@ -359,35 +544,56 @@ export default function App() {
   }, []);
 
   // ATT 06.2: sincronização reativa V1 entre terminais.
+  // ATT 10.2: realtime somente aplica dados remotos; NUNCA ecoa snapshot de volta para a nuvem.
   useEffect(() => {
     if (!userId) return;
     const refOperacao = doc(db, 'lojas', userId, 'dados', 'operacao');
     const refConfig = doc(db, 'lojas', userId, 'dados', 'configuracoes');
-    const eq = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
     const unsubOperacao = onSnapshot(refOperacao, (snap) => {
-      if (!snap.exists()) return;
+      if (!snap.exists() || snap.metadata?.fromCache || snap.metadata?.hasPendingWrites) return;
+      recordSyncMetric('snapshotReads', 'operacao');
       const d = snap.data() || {};
-      remotoAplicandoRef.current = true;
-      if (Array.isArray(d.produtos)) { const x=d.produtos.map((v,i)=>normalizarProduto(v,i)); setProdutos(prev=>eq(prev,x)?prev:x); }
-      if (Array.isArray(d.clientes)) { const x=d.clientes.map((v,i)=>normalizarCliente(v,i)); setClientes(prev=>eq(prev,x)?prev:x); }
-      if (Array.isArray(d.historicoVendas)) setHistoricoVendas(prev=>eq(prev,d.historicoVendas)?prev:d.historicoVendas);
-      if (Array.isArray(d.caixaMovimentos)) setCaixaMovimentos(prev=>eq(prev,d.caixaMovimentos)?prev:d.caixaMovimentos);
-      if (Array.isArray(d.despesas)) setDespesas(prev=>eq(prev,d.despesas)?prev:d.despesas);
-      if (Array.isArray(d.historicoCompras)) setHistoricoCompras(prev=>eq(prev,d.historicoCompras)?prev:d.historicoCompras);
-      if (Array.isArray(d.fornecedores)) setFornecedores(prev=>eq(prev,d.fornecedores)?prev:d.fornecedores);
-      if (Array.isArray(d.vouchers)) setVouchers(prev=>eq(prev,d.vouchers)?prev:d.vouchers);
-      if (Array.isArray(d.sessoesCaixa)) setSessoesCaixa(prev=>eq(prev,d.sessoesCaixa)?prev:d.sessoesCaixa);
-      if (Array.isArray(d.vendedores)) setVendedores(prev=>eq(prev,d.vendedores)?prev:d.vendedores);
-      if (d.regrasDesconto) { const x=normalizarRegrasDescontoSeguras(d.regrasDesconto); setRegrasDesconto(prev=>eq(prev,x)?prev:x); }
-      if (d.regrasComissao) { const x=normalizarRegrasComissao(d.regrasComissao); setRegrasComissao(prev=>eq(prev,x)?prev:x); }
+      const revisions = d?._syncMeta?.fieldRevisions || {};
+
+      const aplicar = (field, rawValue, setter, localStorageKey, transform = v => v) => {
+        if (rawValue === undefined) return;
+        const revisionRaw = revisions[field];
+        const revisionNum = revisionRaw !== undefined && revisionRaw !== null ? Number(revisionRaw) || 0 : null;
+        const revisionVista = syncRevisionRef.current.get(field);
+        // Evita normalizar/serializar arrays grandes em TODO snapshot quando somente
+        // outro campo mudou (ex.: uma sangria não deve remapear ~1000 produtos).
+        if (revisionNum !== null && revisionVista !== undefined && revisionNum <= revisionVista) return;
+        const value = transform(rawValue);
+        aplicarCampoRemoto({ field, value, setter, revision: revisionNum, localStorageKey });
+      };
+
+      if (Array.isArray(d.produtos)) aplicar('produtos', d.produtos, setProdutos, `zenos_${userId}_produtos`, lista => lista.map((v, i) => normalizarProduto(v, i)));
+      if (Array.isArray(d.clientes)) aplicar('clientes', d.clientes, setClientes, `zenos_${userId}_clientes`, lista => lista.map((v, i) => normalizarCliente(v, i)));
+      if (Array.isArray(d.historicoVendas)) aplicar('historicoVendas', d.historicoVendas, setHistoricoVendas, `zenos_${userId}_historico_vendas`);
+      if (Array.isArray(d.caixaMovimentos)) aplicar('caixaMovimentos', d.caixaMovimentos, setCaixaMovimentos, `zenos_${userId}_caixa_movs`);
+      if (Array.isArray(d.despesas)) aplicar('despesas', d.despesas, setDespesas, `zenos_${userId}_despesas`);
+      if (Array.isArray(d.historicoCompras)) aplicar('historicoCompras', d.historicoCompras, setHistoricoCompras, `zenos_${userId}_historico_compras`);
+      if (Array.isArray(d.fornecedores)) aplicar('fornecedores', d.fornecedores, setFornecedores, `zenos_${userId}_fornecedores`);
+      if (Array.isArray(d.vouchers)) aplicar('vouchers', d.vouchers, setVouchers, `zenos_${userId}_vouchers`);
+      if (Array.isArray(d.sessoesCaixa)) aplicar('sessoesCaixa', d.sessoesCaixa, setSessoesCaixa, `zenos_${userId}_sessoes_caixa`);
+      if (Array.isArray(d.vendedores)) aplicar('vendedores', d.vendedores, setVendedores, `zenos_${userId}_vendedores`);
+      if (d.regrasDesconto) aplicar('regrasDesconto', d.regrasDesconto, setRegrasDesconto, `zenos_${userId}_regras_desconto`, normalizarRegrasDescontoSeguras);
+      if (d.regrasComissao) aplicar('regrasComissao', d.regrasComissao, setRegrasComissao, `zenos_${userId}_regras_comissao`, normalizarRegrasComissao);
+
       if (!snap.metadata?.fromCache) {
         setFalhaBootstrapNuvem(null);
         setNuvemSincronizada(true);
-        notifyPersistenceStatus({status:'SINCRONIZADO',field:'operacao_realtime'});
       }
-      queueMicrotask(() => { remotoAplicandoRef.current = false; });
-    }, err => { console.error('[ZenOS][Realtime] operação:', err); notifyPersistenceStatus({status:'ERRO',field:'operacao_realtime',error:err?.message || 'Falha na sincronização operacional.'}); });
+      // Snapshot passivo não muda status para SALVANDO/SINCRONIZADO: o indicador reflete somente writes locais.
+    }, err => {
+      console.error('[ZenOS][Realtime] operação:', err);
+      notifyPersistenceStatus({status:'ERRO',field: 'operacao_realtime',error:err?.message || 'Falha na sincronização operacional.'});
+    });
+
     const unsubConfig = onSnapshot(refConfig, (snap) => {
+      if (snap.metadata?.fromCache || snap.metadata?.hasPendingWrites) return;
+      recordSyncMetric('snapshotReads', 'configuracoes');
       if (!snap.exists()) {
         const pf = normalizarPerfilLoja({});
         setPerfilLoja(pf);
@@ -399,18 +605,18 @@ export default function App() {
       }
       const config = snap.data() || {};
       const pf = normalizarPerfilLoja(config.perfilLoja || {});
-      setPerfilLoja(pf);
+      setPerfilLoja(prev => syncValuesEqual(prev, pf) ? prev : pf);
+      setPerfilRapidoRascunho(prev => syncValuesEqual(prev, pf) ? prev : pf);
       salvarPerfilLojaLocal(userId, pf);
       if (config.taxasCambio) {
         const taxas = normalizarTaxasCambio(config.taxasCambio);
-        setTaxasCambio(taxas);
+        setTaxasCambio(prev => syncValuesEqual(prev, taxas) ? prev : taxas);
         setTaxasInput(taxasInputAPartirDasTaxas(taxas));
-      } else {
-        setTaxasCambio({ ...TAXAS_CAMBIO_PADRAO });
-        setTaxasInput({ ...TAXAS_INPUT_PADRAO });
       }
-      if (!snap.metadata?.fromCache) notifyPersistenceStatus({status:'SINCRONIZADO',field:'configuracoes_realtime'});
-    }, err => { console.error('[ZenOS][Realtime] configuração:', err); notifyPersistenceStatus({status:'ERRO',field:'configuracoes_realtime',error:err?.message || 'Falha na sincronização de configuração.'}); });
+    }, err => {
+      console.error('[ZenOS][Realtime] configuração:', err);
+      notifyPersistenceStatus({status:'ERRO',field: 'configuracoes_realtime',error:err?.message || 'Falha na sincronização de configuração.'});
+    });
     return () => { unsubOperacao(); unsubConfig(); };
   }, [userId]);
 
@@ -420,8 +626,8 @@ export default function App() {
     return assinarLivroFinanceiro({
       db,
       userId,
-      onData: (itens, meta) => { setLivroFinanceiro(itens); if (!meta?.fromCache) notifyPersistenceStatus({status:'SINCRONIZADO',field:'financeiro_realtime'}); },
-      onError: (err) => { console.error('[ZenOS][ATT07][LivroFinanceiro]', err); notifyPersistenceStatus({status:'ERRO',field:'financeiro_realtime',error:err?.message || 'Falha na sincronização do Livro Financeiro.'}); },
+      onData: (itens, meta) => { setLivroFinanceiro(itens); if (!meta?.fromCache) recordSyncMetric('snapshotReads', 'financeiro_realtime'); },
+      onError: (err) => { console.error('[ZenOS][ATT07][LivroFinanceiro]', err); notifyPersistenceStatus({status:'ERRO',field: 'financeiro_realtime',error:err?.message || 'Falha na sincronização do Livro Financeiro.'}); },
     });
   }, [userId]);
 
@@ -429,7 +635,7 @@ export default function App() {
     const pf = normalizarPerfilLoja(perfilRapidoRascunho);
     if (!pf.nomeFantasia.trim()) return;
     setPerfilLoja(pf); salvarPerfilLojaLocal(userId, pf);
-    if (userId) { notifyPersistenceStatus({status:'SALVANDO',field:'configuracoes'}); try { await setDoc(doc(db, 'lojas', userId, 'dados', 'configuracoes'), { perfilLoja: pf, updatedAtClient:new Date().toISOString(), updatedAtServer:serverTimestamp() }, { merge: true }); notifyPersistenceStatus({status:'SINCRONIZADO',field:'configuracoes'}); } catch(error) { notifyPersistenceStatus({status:'ERRO',field:'configuracoes',error:error?.message||String(error)}); throw error; } }
+    if (userId) { notifyPersistenceStatus({status:'SALVANDO',field: 'configuracoes'}); try { await setDoc(doc(db, 'lojas', userId, 'dados', 'configuracoes'), { perfilLoja: pf, updatedAtClient:new Date().toISOString(), updatedAtServer:serverTimestamp() }, { merge: true }); notifyPersistenceStatus({status:'SINCRONIZADO',field: 'configuracoes'}); } catch(error) { notifyPersistenceStatus({status:'ERRO',field: 'configuracoes',error:error?.message||String(error)}); throw error; } }
     setPerfilRapidoErro('');
     setModalPerfilRapido(false);
   };
@@ -473,74 +679,44 @@ export default function App() {
     setMostrarPainelExecutivo(false);
   };
 
-  // 🔒 ATUALIZADO: SINCRONIZAÇÃO CIRÚRGICA (Envia apenas o que mudou usando chave segura)
+  // ATT 10.2: persistência local -> nuvem sem eco. Cada efeito compara com a BASE
+  // confirmada da nuvem e só escreve quando existe alteração local real.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { 
-    if (!nuvemSincronizada || !userId) return;
-    void persistV1OperationField({ db, userId, field: 'produtos', value: produtos, localStorageKey: `zenos_${userId}_produtos` }); 
-  }, [produtos, userId, nuvemSincronizada]);
+  useEffect(() => { persistirCampoSeguro({ field: 'produtos', value:produtos, setter:setProdutos, localStorageKey:`zenos_${userId}_produtos` }); }, [produtos, userId, nuvemSincronizada]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { 
-    if (!nuvemSincronizada || !userId) return;
-    void persistV1OperationField({ db, userId, field: 'clientes', value: clientes, localStorageKey: `zenos_${userId}_clientes` }); 
-  }, [clientes, userId, nuvemSincronizada]);
+  useEffect(() => { persistirCampoSeguro({ field: 'clientes', value:clientes, setter:setClientes, localStorageKey:`zenos_${userId}_clientes` }); }, [clientes, userId, nuvemSincronizada]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { 
-    if (!nuvemSincronizada || !userId) return;
-    void persistV1OperationField({ db, userId, field: 'historicoVendas', value: historicoVendas, localStorageKey: `zenos_${userId}_historico_vendas` }); 
-  }, [historicoVendas, userId, nuvemSincronizada]);
+  useEffect(() => { persistirCampoSeguro({ field: 'historicoVendas', value:historicoVendas, setter:setHistoricoVendas, localStorageKey:`zenos_${userId}_historico_vendas` }); }, [historicoVendas, userId, nuvemSincronizada]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { 
-    if (!nuvemSincronizada || !userId) return;
-    void persistV1OperationField({ db, userId, field: 'caixaMovimentos', value: caixaMovimentos, localStorageKey: `zenos_${userId}_caixa_movs` }); 
-  }, [caixaMovimentos, userId, nuvemSincronizada]);
+  useEffect(() => { persistirCampoSeguro({ field: 'caixaMovimentos', value:caixaMovimentos, setter:setCaixaMovimentos, localStorageKey:`zenos_${userId}_caixa_movs` }); }, [caixaMovimentos, userId, nuvemSincronizada]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { 
-    if (!nuvemSincronizada || !userId) return;
-    void persistV1OperationField({ db, userId, field: 'despesas', value: despesas, localStorageKey: `zenos_${userId}_despesas` }); 
-  }, [despesas, userId, nuvemSincronizada]);
+  useEffect(() => { persistirCampoSeguro({ field: 'despesas', value:despesas, setter:setDespesas, localStorageKey:`zenos_${userId}_despesas` }); }, [despesas, userId, nuvemSincronizada]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { 
-    if (!nuvemSincronizada || !userId) return;
-    void persistV1OperationField({ db, userId, field: 'historicoCompras', value: historicoCompras, localStorageKey: `zenos_${userId}_historico_compras` }); 
-  }, [historicoCompras, userId, nuvemSincronizada]);
+  useEffect(() => { persistirCampoSeguro({ field: 'historicoCompras', value:historicoCompras, setter:setHistoricoCompras, localStorageKey:`zenos_${userId}_historico_compras` }); }, [historicoCompras, userId, nuvemSincronizada]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { 
-    if (!nuvemSincronizada || !userId) return;
-    void persistV1OperationField({ db, userId, field: 'fornecedores', value: fornecedores, localStorageKey: `zenos_${userId}_fornecedores` }); 
-  }, [fornecedores, userId, nuvemSincronizada]);
+  useEffect(() => { persistirCampoSeguro({ field: 'fornecedores', value:fornecedores, setter:setFornecedores, localStorageKey:`zenos_${userId}_fornecedores` }); }, [fornecedores, userId, nuvemSincronizada]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { 
-    if (!nuvemSincronizada || !userId) return;
-    void persistV1OperationField({ db, userId, field: 'vouchers', value: vouchers, localStorageKey: `zenos_${userId}_vouchers` });
-  }, [vouchers, userId, nuvemSincronizada]);
+  useEffect(() => { persistirCampoSeguro({ field: 'vouchers', value:vouchers, setter:setVouchers, localStorageKey:`zenos_${userId}_vouchers` }); }, [vouchers, userId, nuvemSincronizada]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { 
-    if (!nuvemSincronizada || !userId) return;
-    void persistV1OperationField({ db, userId, field: 'regrasDesconto', value: regrasDesconto, localStorageKey: `zenos_${userId}_regras_desconto` }); 
-  }, [regrasDesconto, userId, nuvemSincronizada]);
+  useEffect(() => { persistirCampoSeguro({ field: 'regrasDesconto', value:regrasDesconto, setter:setRegrasDesconto, localStorageKey:`zenos_${userId}_regras_desconto` }); }, [regrasDesconto, userId, nuvemSincronizada]);
 
   // ATT 08: regras de comissão/metas sincronizadas entre terminais.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!nuvemSincronizada || !userId) return;
     const normalizadas = normalizarRegrasComissao(regrasComissao);
-    void persistV1OperationField({ db, userId, field: 'regrasComissao', value: normalizadas, localStorageKey: `zenos_${userId}_regras_comissao` });
+    persistirCampoSeguro({ field: 'regrasComissao', value:normalizadas, setter:setRegrasComissao, localStorageKey:`zenos_${userId}_regras_comissao` });
   }, [regrasComissao, userId, nuvemSincronizada]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { 
-    if (!nuvemSincronizada || !userId) return;
-    void persistV1OperationField({ db, userId, field: 'sessoesCaixa', value: sessoesCaixa, localStorageKey: `zenos_${userId}_sessoes_caixa` }); 
-  }, [sessoesCaixa, userId, nuvemSincronizada]);
+  useEffect(() => { persistirCampoSeguro({ field: 'sessoesCaixa', value:sessoesCaixa, setter:setSessoesCaixa, localStorageKey:`zenos_${userId}_sessoes_caixa` }); }, [sessoesCaixa, userId, nuvemSincronizada]);
 
   const t = (chave) => traducoes[idioma]?.[chave] || traducoes.pt[chave] || chave;
   const tx = (pt, es, en) => { if (idioma === 'es') return es || pt; if (idioma === 'en') return en || pt; return pt; };
@@ -584,12 +760,12 @@ export default function App() {
     setTaxasCambio(novasTaxas);
     if (userId) {
       try {
-        notifyPersistenceStatus({status:'SALVANDO',field:'configuracoes'});
+        notifyPersistenceStatus({status:'SALVANDO',field: 'configuracoes'});
         await setDoc(doc(db, 'lojas', userId, 'dados', 'configuracoes'), { taxasCambio: novasTaxas, updatedAtClient:new Date().toISOString(), updatedAtServer:serverTimestamp() }, { merge: true });
-        notifyPersistenceStatus({status:'SINCRONIZADO',field:'configuracoes'});
+        notifyPersistenceStatus({status:'SINCRONIZADO',field: 'configuracoes'});
       } catch (err) {
         console.error('[ZenOS][Câmbio] Não foi possível persistir as cotações:', err);
-        notifyPersistenceStatus({status:'ERRO',field:'configuracoes',error:err?.message||String(err)});
+        notifyPersistenceStatus({status:'ERRO',field: 'configuracoes',error:err?.message||String(err)});
       }
     }
     setModalCambioAberto(false);
@@ -653,7 +829,7 @@ export default function App() {
   };
   const resetarValoresCaixa = () => setValoresMovCaixa({ BRL: '', USD: '', EUR: '', PYG: '' });
 
-  const abrirTurnoDeCaixa = () => {
+  const abrirTurnoDeCaixa = async () => {
     const saldoIni = calcularTotalMovBRL();
     const novaSessao = {
       id: `SESSAO-${Date.now()}`,
@@ -665,7 +841,18 @@ export default function App() {
       createdAt: new Date().toISOString(),
       abertura: new Date().toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR')
     };
-    setSessoesCaixa([novaSessao, ...sessoesCaixa]);
+    const sessoesPropostas = [novaSessao, ...sessoesCaixa];
+    const confirmado = await commitOperacaoCritica(
+      [{ field:'sessoesCaixa', value:sessoesPropostas, storageSuffix:'sessoes_caixa' }],
+      {
+        operationKey: `abrir-caixa:${novaSessao.id}`,
+        guards: [{ type:'no_open_cash_session_for_operator', operatorId:idVendedorAtual }],
+      }
+    );
+    if (!confirmado?.cloudOk) {
+      return avisarAppZen({ variante:'danger', titulo:'Caixa não aberto', mensagem:'A nuvem não confirmou a abertura do turno.', detalhes:[confirmado?.error?.message || 'Tente novamente quando a sincronização estiver disponível.'] });
+    }
+    setSessoesCaixa(confirmado.values?.sessoesCaixa || sessoesPropostas);
     setModalCaixaAberto(false);
     resetarValoresCaixa();
   };
@@ -685,8 +872,10 @@ export default function App() {
       descricao: descMovCaixa || (tipoMovCaixa === 'suprimento' ? tx('Reforço de Fundo', 'Refuerzo de Caja', 'Float Fund') : tx('Retirada de Caixa', 'Retiro de Caja', 'Cash Withdrawal')), 
       operador: operadorAtivo?.nome 
     };
-    try {
-      await registrarFinanceiro({
+    const movimentosPropostos = [novoMov, ...caixaMovimentos];
+    const confirmado = await commitVendaCritica({
+      changes: [{ field:'caixaMovimentos', value:movimentosPropostos, storageSuffix:'caixa_movs' }],
+      financialEntries: [{
         id: `CAIXA-${novoMov.id}`,
         tipo: tipoMovCaixa,
         origem: 'caixa_manual',
@@ -699,17 +888,24 @@ export default function App() {
         direcao: tipoMovCaixa === 'suprimento' ? 'entrada' : 'saida',
         sessaoId: sessaoAtiva.id,
         observacao: novoMov.descricao,
-      });
-    } catch (err) {
-      console.error('[ZenOS][ATT07] Falha ao registrar movimento financeiro:', err);
-      return;
+        operadorId: operadorAtivo?.id || 'admin',
+        operadorNome: operadorAtivo?.nome || 'Administrador',
+      }],
+      guards: [
+        { type:'cash_session_open', sessionId:sessaoAtiva.id },
+        ...(tipoMovCaixa === 'sangria' ? [{ type:'cash_balance_at_least', sessionId:sessaoAtiva.id, amount:valBRL, message:'O saldo físico do caixa mudou em outro terminal. A sangria não foi realizada.' }] : []),
+      ],
+      operationKey: `mov-caixa:${novoMov.id}`,
+    });
+    if (!confirmado?.cloudOk) {
+      return avisarAppZen({ variante:'danger', titulo:'Movimento não registrado', mensagem:'A nuvem não confirmou o movimento de caixa.', detalhes:[confirmado?.error?.message || 'Nenhum movimento foi finalizado.'] });
     }
-    setCaixaMovimentos([novoMov, ...caixaMovimentos]);
+    setCaixaMovimentos(confirmado.values?.caixaMovimentos || movimentosPropostos);
     setModalCaixaAberto(false);
     resetarValoresCaixa(); setDescMovCaixa('');
   };
 
-  const processarFechamentoCego = () => {
+  const processarFechamentoCego = async () => {
     if (!sessaoAtiva || !resumoSessaoAtiva) {
       return avisarAppZen({
         variante: 'warning',
@@ -873,7 +1069,22 @@ export default function App() {
       </div>
     `;
 
-    setSessoesCaixa(sessoesAtualizadas);
+    const fechamentoConfirmado = await commitOperacaoCritica(
+      [{ field:'sessoesCaixa', value:sessoesAtualizadas, storageSuffix:'sessoes_caixa' }],
+      {
+        operationKey: `fechar-caixa:${sessaoAtiva.id}`,
+        guards: [{ type:'cash_session_open', sessionId:sessaoAtiva.id }],
+      }
+    );
+    if (!fechamentoConfirmado?.cloudOk) {
+      return avisarAppZen({
+        variante:'danger',
+        titulo:'Caixa não fechado',
+        mensagem:'A nuvem não confirmou o fechamento. O turno continua aberto.',
+        detalhes:[fechamentoConfirmado?.error?.message || 'Tente novamente sem encerrar a tela.'],
+      });
+    }
+    setSessoesCaixa(fechamentoConfirmado.values?.sessoesCaixa || sessoesAtualizadas);
 
     const janelaImpressao = window.open('', '_blank', 'width=400,height=650');
     if (janelaImpressao) {
@@ -1321,20 +1532,20 @@ export default function App() {
           </div>
  )}
 
-        {ecraAtual === 'pdv' && <PDV perfilLoja={perfilLoja} taxasCambio={taxasCambio} registrarFinanceiro={registrarFinanceiro} vouchers={vouchers} setVouchers={setVouchers} userId={userId} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} patenteUsuario={patenteUsuario} idioma={idioma} regrasDesconto={regrasDesconto} vendedores={vendedores} operadorAtivo={operadorAtivo} sessaoAtiva={sessaoAtiva} />}
-        {ecraAtual === 'compras' && <PDVCompras registrarFinanceiro={registrarFinanceiro} saldoSessaoFisicoBRL={saldoSessaoFisicoBRL} userId={userId} produtos={produtos} setProdutos={setProdutos} fornecedores={fornecedores} setFornecedores={setFornecedores} despesas={despesas} setDespesas={setDespesas} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoCompras={historicoCompras} setHistoricoCompras={setHistoricoCompras} operadorAtivo={operadorAtivo} />}
-        {ecraAtual === 'fornecedores' && <Fornecedores fornecedores={fornecedores} setFornecedores={setFornecedores} moeda={moeda} tx={tx} />}
-        {ecraAtual === 'mesas' && <Mesas userId={userId} produtos={produtos} fmt={fmt} tx={tx} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} moeda={moeda} idioma={idioma} operadorAtivo={operadorAtivo} />}
-        {ecraAtual === 'produtos' && <Produtos historicoVendas={historicoVendas} historicoCompras={historicoCompras} patenteUsuario={patenteUsuario} regrasDesconto={regrasDesconto} vendedores={vendedores} userId={userId} operadorAtivo={operadorAtivo} planoLoja={planoLoja} produtos={produtos} setProdutos={setProdutos} fornecedoresGlobais={fornecedores} moeda={moeda} fmt={fmt} t={t} tx={tx} />}
+        {ecraAtual === 'pdv' && <PDV perfilLoja={perfilLoja} taxasCambio={taxasCambio} registrarFinanceiro={registrarFinanceiro} commitOperacaoCritica={commitOperacaoCritica} commitVendaCritica={commitVendaCritica} vouchers={vouchers} setVouchers={setVouchers} userId={userId} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} patenteUsuario={patenteUsuario} idioma={idioma} regrasDesconto={regrasDesconto} vendedores={vendedores} operadorAtivo={operadorAtivo} sessaoAtiva={sessaoAtiva} />}
+        {ecraAtual === 'compras' && <PDVCompras commitOperacaoNegocio={commitVendaCritica} registrarFinanceiro={registrarFinanceiro} saldoSessaoFisicoBRL={saldoSessaoFisicoBRL} userId={userId} produtos={produtos} setProdutos={setProdutos} fornecedores={fornecedores} setFornecedores={setFornecedores} despesas={despesas} setDespesas={setDespesas} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoCompras={historicoCompras} setHistoricoCompras={setHistoricoCompras} operadorAtivo={operadorAtivo} />}
+        {ecraAtual === 'fornecedores' && <Fornecedores commitOperacaoNegocio={commitVendaCritica} fornecedores={fornecedores} setFornecedores={setFornecedores} moeda={moeda} tx={tx} />}
+        {ecraAtual === 'mesas' && <Mesas commitOperacaoNegocio={commitVendaCritica} userId={userId} produtos={produtos} fmt={fmt} tx={tx} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} moeda={moeda} idioma={idioma} operadorAtivo={operadorAtivo} />}
+        {ecraAtual === 'produtos' && <Produtos commitOperacaoNegocio={commitVendaCritica} historicoVendas={historicoVendas} historicoCompras={historicoCompras} patenteUsuario={patenteUsuario} regrasDesconto={regrasDesconto} vendedores={vendedores} userId={userId} operadorAtivo={operadorAtivo} planoLoja={planoLoja} produtos={produtos} setProdutos={setProdutos} fornecedoresGlobais={fornecedores} moeda={moeda} fmt={fmt} t={t} tx={tx} />}
         {ecraAtual === 'inteligencia' && <EstoqueInteligente produtos={produtos} fmt={fmt} />}
-        {ecraAtual === 'comissoes' && <Comissoes historicoVendas={historicoVisivelParaOperador} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} operadorAtivo={operadorAtivo} regrasDesconto={regrasDesconto} regrasComissao={regrasComissao} setRegrasComissao={setRegrasComissao} />}
+        {ecraAtual === 'comissoes' && <Comissoes commitOperacaoNegocio={commitVendaCritica} historicoVendas={historicoVisivelParaOperador} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} operadorAtivo={operadorAtivo} regrasDesconto={regrasDesconto} regrasComissao={regrasComissao} setRegrasComissao={setRegrasComissao} />}
         {ecraAtual === 'dashboardMobile' && <DashboardMobile historicoVendas={historicoVendas} despesas={despesas} clientes={clientes} produtos={produtos} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} regrasDesconto={regrasDesconto} />}
-        {ecraAtual === 'clientes' && <Clientes livroFinanceiro={livroFinanceiro} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} operadorAtivo={operadorAtivo} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} />}
-        {ecraAtual === 'vendas' && <Vendas taxasCambio={taxasCambio} sessoesCaixa={sessoesCaixa} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} saldoSessaoFisicoBRL={saldoSessaoFisicoBRL} perfilLoja={perfilLoja} vouchers={vouchers} setVouchers={setVouchers} userId={userId} operadorAtivo={operadorAtivo} historicoVendas={historicoVisivelParaOperador} setHistoricoVendas={setHistoricoVendas} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} fmt={fmt} t={t} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterDeBRL={converterDeBRL} />}
-        {ecraAtual === 'migracao' && <Migracao produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} t={t} tx={tx} />}
-        {ecraAtual === 'configuracoes' && <Configuracoes userId={userId} operadorAtivo={operadorAtivo} perfilLojaGlobal={perfilLoja} setPerfilLojaGlobal={setPerfilLoja} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} despesas={despesas} setDespesas={setDespesas} moeda={moeda} fmt={fmt} tx={tx} regrasDesconto={regrasDesconto} setRegrasDesconto={setRegrasDesconto} vendedores={vendedores} setVendedores={(novosVendedores) => { setVendedores(novosVendedores); if (userId) void persistV1OperationField({ db, userId, field: 'vendedores', value: novosVendedores, localStorageKey: `zenos_${userId}_vendedores` }); }} />}
+        {ecraAtual === 'clientes' && <Clientes commitOperacaoNegocio={commitVendaCritica} livroFinanceiro={livroFinanceiro} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} operadorAtivo={operadorAtivo} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} />}
+        {ecraAtual === 'vendas' && <Vendas commitOperacaoNegocio={commitVendaCritica} taxasCambio={taxasCambio} sessoesCaixa={sessoesCaixa} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} saldoSessaoFisicoBRL={saldoSessaoFisicoBRL} perfilLoja={perfilLoja} vouchers={vouchers} setVouchers={setVouchers} userId={userId} operadorAtivo={operadorAtivo} historicoVendas={historicoVisivelParaOperador} setHistoricoVendas={setHistoricoVendas} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} fmt={fmt} t={t} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterDeBRL={converterDeBRL} />}
+        {ecraAtual === 'migracao' && <Migracao commitOperacaoNegocio={commitVendaCritica} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} t={t} tx={tx} />}
+        {ecraAtual === 'configuracoes' && <Configuracoes commitOperacaoNegocio={commitVendaCritica} userId={userId} operadorAtivo={operadorAtivo} perfilLojaGlobal={perfilLoja} setPerfilLojaGlobal={setPerfilLoja} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} despesas={despesas} setDespesas={setDespesas} moeda={moeda} fmt={fmt} tx={tx} regrasDesconto={regrasDesconto} setRegrasDesconto={setRegrasDesconto} vendedores={vendedores} setVendedores={(novosVendedores) => { setVendedores(novosVendedores); persistirCampoSeguro({ field: 'vendedores', value:novosVendedores, setter:setVendedores, localStorageKey:`zenos_${userId}_vendedores` }); }} />}
         {ecraAtual === 'auditoria_caixas' && <GestaoCaixas sessoesCaixa={sessoesCaixa} historicoVendas={historicoVendas} caixaMovimentos={caixaMovimentos} livroFinanceiro={livroFinanceiro} fmt={fmt} tx={tx} />}
-        {ecraAtual === 'despesas' && <Despesas registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} saldoSessaoFisicoBRL={saldoSessaoFisicoBRL} operadorAtivo={operadorAtivo} despesas={despesas} setDespesas={setDespesas} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterParaBRL={converterParaBRL} />}
+        {ecraAtual === 'despesas' && <Despesas commitOperacaoNegocio={commitVendaCritica} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} saldoSessaoFisicoBRL={saldoSessaoFisicoBRL} operadorAtivo={operadorAtivo} despesas={despesas} setDespesas={setDespesas} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterParaBRL={converterParaBRL} />}
       </main>
 
       {modalCambioAberto && (

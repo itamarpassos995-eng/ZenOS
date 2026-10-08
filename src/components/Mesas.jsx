@@ -4,7 +4,7 @@ import { db } from '../firebase';
 import { assinarMesasV1, atualizarMesaV1, criarMesasPadrao, garantirMesasV1 } from '../core/tablesV1';
 import { zenosStorage } from '../core/storage';
 
-export default function Mesas({ userId, produtos, fmt, tx, historicoVendas, setHistoricoVendas, moeda, idioma, operadorAtivo }) {
+export default function Mesas({ commitOperacaoNegocio, userId, produtos, fmt, tx, historicoVendas, setHistoricoVendas, moeda, idioma, operadorAtivo }) {
   // ATT 09: Mesas V1 sincronizadas pela nuvem. O módulo continua EXPERIMENTAL até fechar estoque/financeiro/misto.
   const [mesas, setMesas] = useState(() => criarMesasPadrao());
   const [erroMesas, setErroMesas] = useState('');
@@ -114,12 +114,19 @@ export default function Mesas({ userId, produtos, fmt, tx, historicoVendas, setH
       ]
     };
 
-    setHistoricoVendas([novaVenda, ...historicoVendas]);
+    const historicoProposto = [novaVenda, ...historicoVendas];
     try {
+      let historicoConfirmado = historicoProposto;
+      if (typeof commitOperacaoNegocio === 'function') {
+        const confirmado = await commitOperacaoNegocio({ changes:[{ field:'historicoVendas', value:historicoProposto, storageSuffix:'historico_vendas' }] });
+        if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou a venda da mesa.');
+        historicoConfirmado = confirmado.values?.historicoVendas || historicoProposto;
+      }
+      setHistoricoVendas(historicoConfirmado);
       await atualizarMesaV1({ db, userId, mesaId: mesaAtivaId, operador: operadorAtivo, mutator: m => ({ ...m, status:'livre', itens:[] }) });
       setModalPagamento(false);
       setMesaAtivaId(null);
-    } catch (error) { setErroMesas(error?.message || 'Venda criada, mas a mesa não pôde ser liberada. Verifique antes de reutilizar.'); }
+    } catch (error) { setErroMesas(error?.message || 'A operação da mesa não foi confirmada. Verifique antes de reutilizar.'); }
   };
 
   // TELA 1: MAPA GERAL DE MESAS
