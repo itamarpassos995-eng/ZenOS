@@ -1,8 +1,6 @@
 import React, { useMemo } from 'react';
-import { obterFinanceiroVenda } from '../core/salesFinancials';
-import { classificarMargem } from '../core/profitability';
 
-export default function DashboardMobile({ historicoVendas, despesas, clientes, produtos, fmt, tx, patenteUsuario, regrasDesconto }) {
+export default function DashboardMobile({ historicoVendas, despesas, clientes, produtos, fmt, tx, patenteUsuario }) {
   // Bloqueio Absoluto: Vendedores não podem ver a saúde financeira da empresa
   if (patenteUsuario !== 'gerencia') {
     return <div style={{ color: '#fb7185', textAlign: 'center', padding: '40px', fontSize: '18px', fontWeight: 900 }}>Acesso Restrito à Direção.</div>;
@@ -10,27 +8,26 @@ export default function DashboardMobile({ historicoVendas, despesas, clientes, p
 
   // Motor Analítico: Processamento de Dados para o CEO
   const painel = useMemo(() => {
-    const vendasValidas = historicoVendas.filter(v => v.estado === 'concluida' || v.estado === 'parcial');
+    const vendasValidas = historicoVendas.filter(v => v.estado !== 'cancelada');
     
     // Para garantir que o dashboard tem sempre dados (mesmo em dias de teste),
     // vamos olhar para as últimas 50 vendas globais para os insights principais.
     const amostraVendas = vendasValidas.slice(0, 50);
     
-    const faturamentoTotal = amostraVendas.reduce((acc, v) => acc + obterFinanceiroVenda(v).totalLiquidoBRL, 0);
-    const lucroTotal = amostraVendas.reduce((acc, v) => acc + obterFinanceiroVenda(v).lucroLiquidoBRL, 0);
+    const faturamentoTotal = amostraVendas.reduce((acc, v) => acc + (v.totalBRL || 0), 0);
+    const lucroTotal = amostraVendas.reduce((acc, v) => acc + (v.lucroBRL || 0), 0);
     const ticketMedio = amostraVendas.length > 0 ? faturamentoTotal / amostraVendas.length : 0;
     const margemMedia = faturamentoTotal > 0 ? (lucroTotal / faturamentoTotal) * 100 : 0;
 
     const fiadoTotal = clientes.reduce((acc, c) => acc + (parseFloat(c.saldoDevedorBRL) || 0), 0);
-    const despesasPagas = despesas.filter(d => d.status === 'paga' && d.afetaResultado !== false && d.naturezaContabil !== 'estoque_ativo' && d.categoria !== 'Mercadoria para Revenda').reduce((acc, d) => acc + (parseFloat(d.valorBRL) || 0), 0);
+    const despesasPagas = despesas.filter(d => d.status === 'paga').reduce((acc, d) => acc + (parseFloat(d.valorBRL) || 0), 0);
     const lucroLiquidoReal = lucroTotal - despesasPagas;
 
     // Descobrir o Campeão de Vendas
     const contagemItens = {};
     amostraVendas.forEach(v => {
       v.itens.forEach(it => {
-        const qtdLiquida = Math.max(0, (Number(it.qtd) || 0) - (Number(it.qtdDevolvida) || 0));
-        contagemItens[it.nome] = (contagemItens[it.nome] || 0) + qtdLiquida;
+        contagemItens[it.nome] = (contagemItens[it.nome] || 0) + it.qtd;
       });
     });
     
@@ -44,13 +41,10 @@ export default function DashboardMobile({ historicoVendas, despesas, clientes, p
     const insights = [];
     
     // Insight 1: Margem
-    const faixaMargem = classificarMargem(margemMedia, regrasDesconto || {});
-    if (faixaMargem.faixa === 'verde') {
-      insights.push({ icone: '🚀', cor: faixaMargem.cor, titulo: 'Margem Saudável', texto: `Sua margem está em ${margemMedia.toFixed(1)}%, dentro da faixa verde configurada (≥ ${faixaMargem.margemIdeal}%).` });
-    } else if (faixaMargem.faixa === 'amarelo') {
-      insights.push({ icone: '⚠️', cor: faixaMargem.cor, titulo: 'Margem em Alerta', texto: `A margem média está em ${margemMedia.toFixed(1)}%. Faixa amarela: ${faixaMargem.margemMinima}% até abaixo de ${faixaMargem.margemIdeal}%.` });
-    } else if (faturamentoTotal > 0) {
-      insights.push({ icone: '🛑', cor: faixaMargem.cor, titulo: 'Margem Crítica', texto: `A margem média está em ${margemMedia.toFixed(1)}%, abaixo do mínimo configurado de ${faixaMargem.margemMinima}%.` });
+    if (margemMedia >= 35) {
+      insights.push({ icone: '🚀', cor: '#10b981', titulo: 'Margem Saudável', texto: `Sua margem está em ${margemMedia.toFixed(1)}%. Excelente precificação e poucos descontos!` });
+    } else if (margemMedia > 0) {
+      insights.push({ icone: '⚠️', cor: '#f59e0b', titulo: 'Atenção aos Descontos', texto: `A margem média caiu para ${margemMedia.toFixed(1)}%. Verifique se a equipa não está a dar descontos a mais.` });
     }
 
     // Insight 2: Fiado vs Faturamento
@@ -68,7 +62,7 @@ export default function DashboardMobile({ historicoVendas, despesas, clientes, p
     return {
       faturamentoTotal, lucroLiquidoReal, ticketMedio, margemMedia, fiadoTotal, insights, numVendas: amostraVendas.length
     };
-  }, [historicoVendas, despesas, clientes, regrasDesconto]);
+  }, [historicoVendas, despesas, clientes]);
 
   // Estilização Mobile-First (Emula um ecrã de telemóvel)
   return (

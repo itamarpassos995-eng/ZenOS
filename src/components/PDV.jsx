@@ -1,18 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { normalizarProduto, normalizarCliente } from '../data';
-import { aplicarVendaAoEstoque, obterEstoqueProduto, preverBaixaEstoqueProduto } from '../core/inventory';
-import { db } from '../firebase';
-import { criarEventoEstoque, registrarEventosEstoque } from '../core/stockAudit';
-import { ajustarSkuPorTipoProdutoRapido, ehEncomendaUsoUnico, gerarSkuProdutoBalcao } from '../core/orderItems';
-import { classificarMargem } from '../core/profitability';
-import ZenModal from './ZenModal';
-import { liberarIdentidadeProduto, reservarIdentidadeProduto } from '../core/productRegistry';
-import { normalizarPerfilLoja, larguraCssRecibo } from '../core/storeProfile';
-import { atualizarProdutoUnico, localizarIndiceProdutoUnico, skuJaExiste } from '../core/productIdentity';
-import { formatarEquivalenciaBRL, moedasAtivasRecibo } from '../core/receiptCurrency';
-import { validarCredencialGerencial } from '../core/accessControl';
 
-export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro, vouchers = [], setVouchers, userId, produtos, setProdutos, clientes, setClientes, moeda, fmt, t, tx, converterDeBRL, converterParaBRL, historicoVendas, setHistoricoVendas, patenteUsuario, idioma, regrasDesconto, vendedores = [], operadorAtivo, sessaoAtiva }) {
+export default function PDV({ produtos, setProdutos, clientes, setClientes, moeda, fmt, t, tx, converterDeBRL, converterParaBRL, historicoVendas, setHistoricoVendas, patenteUsuario, idioma, regrasDesconto, operadorAtivo, sessaoAtiva }) {
   const [termoBusca, setTermoBusca] = useState('');
   const [indiceFocoBusca, setIndiceFocoBusca] = useState(0);
   const [itensVenda, setItensVenda] = useState([]);
@@ -36,7 +25,6 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
   const [pagamentosLancados, setPagamentosLancados] = useState([]);
   const [formaSelecionada, setFormaSelecionada] = useState('dinheiro_brl');
   const [valorLancamentoInput, setValorLancamentoInput] = useState('');
-  const [voucherCodigoInput, setVoucherCodigoInput] = useState('');
   const [moedaTrocoEscolhida, setMoedaTrocoEscolhida] = useState('BRL');
   
   const [vendaSucesso, setVendaSucesso] = useState(false);
@@ -45,15 +33,6 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
   const [modalResgateAberto, setModalResgateAberto] = useState(false);
   const [prePedidoEmAbertoId, setPrePedidoEmAbertoId] = useState(null);
 
-  const perfilRecibo = normalizarPerfilLoja(perfilLoja);
-  const cotacoesRecibo = vendaConcluidaObj?.taxasCambio || taxasCambio || {};
-  const moedasReciboAtivas = moedasAtivasRecibo(cotacoesRecibo);
-  const [modalZen, setModalZen] = useState(null);
-  const [modalSenhaMargem, setModalSenhaMargem] = useState(false);
-  const [senhaMargemInput, setSenhaMargemInput] = useState('');
-  const mostrarZen = (variante, titulo, mensagem, detalhes = []) => setModalZen({ variante, titulo, mensagem, detalhes, apenasConfirmar: true });
-  const pedirConfirmacaoZen = ({ titulo, mensagem, detalhes = [], confirmarTexto = 'Continuar', variante = 'warning' }) =>
-    new Promise(resolve => setModalZen({ variante, titulo, mensagem, detalhes, confirmarTexto, cancelarTexto: 'Cancelar', resolver: resolve }));
   const inputBuscaRef = useRef(null);
   const inputQtdRapidaRef = useRef(null);
   const inputValorLancamentoRef = useRef(null);
@@ -61,7 +40,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
   const termosProd = termoBusca.toLowerCase().trim().split(/\s+/).filter(Boolean);
   const produtosFiltrados = produtos.filter(prod => {
     if (!prod) return false;
-    const ehUsoUnico = ehEncomendaUsoUnico(prod);
+    const ehUsoUnico = prod.usoUnicoEncomendado || String(prod.sku || '').toUpperCase().includes('ENCOMENDA');
     if (ehUsoUnico && parseInt(prod.estoque || 0) <= 0) return false; 
     const textoCompleto = `${prod.nome || ''} ${prod.sku || ''} ${prod.grupo || ''}`.toLowerCase();
     return termosProd.every(termo => textoCompleto.includes(termo));
@@ -86,32 +65,21 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
     return prod.precoBRL || 0;
   };
 
-  const obterProdutoCatalogoSeguro = (item, contexto = 'consulta do PDV') => {
-    const indice = localizarIndiceProdutoUnico(produtos || [], { id: item.produtoOriginalId ?? item.id, sku: item.produtoOriginalSku ?? item.sku }, contexto);
-    return indice >= 0 ? produtos[indice] : item;
-  };
-
   const selecionarClienteNoPDV = (cli) => {
-    try {
-      const novosItens = itensVenda.map(item => {
-        const prodOriginal = obterProdutoCatalogoSeguro(item, 'reprecificação por cliente');
-        const novoPrecoBRL = aplicarPrecoPorPerfilCliente(prodOriginal, cli);
-        return { ...item, precoPraticadoBRL: novoPrecoBRL, precoTexto: converterDeBRL(novoPrecoBRL, moeda).toFixed(2) };
-      });
-      setClienteSelecionadoPDV(cli); setNomeClienteVulso(cli.nome); setFocoInputCliente(false);
-      setItensVenda(novosItens);
-    } catch (erro) { mostrarZen('danger', 'Preço não recalculado', erro.message || 'Não foi possível recalcular os preços com segurança.'); }
+    setClienteSelecionadoPDV(cli); setNomeClienteVulso(cli.nome); setFocoInputCliente(false);
+    setItensVenda(itensVenda.map(item => {
+      const prodOriginal = produtos.find(p => p.id === item.id) || item;
+      const novoPrecoBRL = aplicarPrecoPorPerfilCliente(prodOriginal, cli);
+      return { ...item, precoPraticadoBRL: novoPrecoBRL, precoTexto: converterDeBRL(novoPrecoBRL, moeda).toFixed(2) };
+    }));
   };
 
   const removerClienteDoPDV = () => {
-    try {
-      const novosItens = itensVenda.map(item => {
-        const prodOriginal = obterProdutoCatalogoSeguro(item, 'retorno ao preço de balcão');
-        return { ...item, precoPraticadoBRL: prodOriginal.precoBRL || 0, precoTexto: converterDeBRL(prodOriginal.precoBRL || 0, moeda).toFixed(2) };
-      });
-      setClienteSelecionadoPDV(null); setNomeClienteVulso('');
-      setItensVenda(novosItens);
-    } catch (erro) { mostrarZen('danger', 'Preço não restaurado', erro.message || 'Não foi possível retornar aos preços de balcão com segurança.'); }
+    setClienteSelecionadoPDV(null); setNomeClienteVulso('');
+    setItensVenda(itensVenda.map(item => {
+      const prodOriginal = produtos.find(p => p.id === item.id) || item;
+      return { ...item, precoPraticadoBRL: prodOriginal.precoBRL || 0, precoTexto: converterDeBRL(prodOriginal.precoBRL || 0, moeda).toFixed(2) };
+    }));
   };
 
   const abrirCadastroClientePDV = () => {
@@ -120,7 +88,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
   };
 
   const salvarClientePDV = () => {
-    if (!formClientePDV.nome.trim()) return mostrarZen('warning', 'Nome obrigatório', tx('Informe o nome do cliente.', 'Informe el nombre del cliente.', 'Enter customer name.'));
+    if (!formClientePDV.nome.trim()) return alert(tx('Informe o nome do cliente.', 'Informe el nombre del cliente.', 'Enter customer name.'));
     const limiteNum = parseFloat(String(formClientePDV.limiteCreditoBRL).replace(',', '.')) || 0;
     const novoCli = normalizarCliente({ ...formClientePDV, limiteCreditoBRL: limiteNum });
     setClientes([novoCli, ...clientes]);
@@ -130,7 +98,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
 
   const abrirCadastroProdutoPDV = () => {
     setProdutoEmEdicaoPDV(null); 
-    setFormProdutoPDV(normalizarProduto({ sku: gerarSkuProdutoBalcao('BALCAO'), usoUnicoEncomendado: false, classificacaoUso: 'estoque', estoque: 0, estoqueVitrine: 0, estoqueGalpao: 0 }));
+    setFormProdutoPDV(normalizarProduto({ sku: `ENCOMENDA-${Date.now().toString().slice(-5)}`, usoUnicoEncomendado: true }));
     setModalProdutoPDVAberto(true);
   };
 
@@ -139,76 +107,26 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
     setFormProdutoPDV({
       ...normalizarProduto(prod), custoBRL: (prod.custoBRL || 0).toString(), precoBRL: (prod.precoBRL || 0).toString(),
       preco2BRL: (prod.preco2BRL || 0).toString(), preco3BRL: (prod.preco3BRL || 0).toString(), estoque: (prod.estoque || 0).toString(),
-      usoUnicoEncomendado: ehEncomendaUsoUnico(prod)
+      usoUnicoEncomendado: prod.usoUnicoEncomendado || String(prod.sku).toUpperCase().includes('ENCOMENDA')
     });
     setModalProdutoPDVAberto(true);
   };
 
-  const salvarProdutoPDV = async () => {
-    if (!formProdutoPDV.nome.trim()) return mostrarZen('warning', 'Nome obrigatório', tx('Informe o nome do produto.', 'Informe el nombre del producto.', 'Enter product name.'));
+  const salvarProdutoPDV = () => {
+    if (!formProdutoPDV.nome.trim()) return alert(tx('Informe o nome do produto.', 'Informe el nombre del producto.', 'Enter product name.'));
     const custo = parseFloat(String(formProdutoPDV.custoBRL).replace(',', '.')) || 0;
     const preco = parseFloat(String(formProdutoPDV.precoBRL).replace(',', '.')) || 0;
     const preco2 = formProdutoPDV.habilitarPreco2 ? (parseFloat(String(formProdutoPDV.preco2BRL).replace(',', '.')) || 0) : 0;
     const preco3 = formProdutoPDV.habilitarPreco3 ? (parseFloat(String(formProdutoPDV.preco3BRL).replace(',', '.')) || 0) : 0;
-    const estoqueVitrineNovo = Math.max(0, parseInt(String(formProdutoPDV.estoqueVitrine)) || 0);
-    const estoqueGalpaoNovo = Math.max(0, parseInt(String(formProdutoPDV.estoqueGalpao)) || 0);
-    const estoque = produtoEmEdicaoPDV
-      ? Math.max(0, Number(normalizarProduto(produtoEmEdicaoPDV).estoque) || 0)
-      : estoqueVitrineNovo + estoqueGalpaoNovo;
+    const estoque = parseInt(String(formProdutoPDV.estoque)) || 0;
 
-    if (skuJaExiste(produtos, formProdutoPDV.sku, produtoEmEdicaoPDV)) return mostrarZen('danger', 'SKU duplicado', `Já existe outro produto com o SKU ${formProdutoPDV.sku}. Use um SKU diferente.`);
-    const usoUnicoEncomendado = Boolean(formProdutoPDV.usoUnicoEncomendado);
-    const skuAjustado = ajustarSkuPorTipoProdutoRapido(formProdutoPDV.sku, usoUnicoEncomendado);
-    const dadosFinais = normalizarProduto({
-      ...formProdutoPDV,
-      sku: skuAjustado,
-      custoBRL: custo,
-      precoBRL: preco,
-      preco2BRL: preco2,
-      preco3BRL: preco3,
-      estoque,
-      estoqueVitrine: usoUnicoEncomendado ? 0 : (produtoEmEdicaoPDV ? normalizarProduto(produtoEmEdicaoPDV).estoqueVitrine : estoqueVitrineNovo),
-      estoqueGalpao: usoUnicoEncomendado ? 0 : (produtoEmEdicaoPDV ? normalizarProduto(produtoEmEdicaoPDV).estoqueGalpao : estoqueGalpaoNovo),
-      usoUnicoEncomendado,
-      classificacaoUso: usoUnicoEncomendado ? 'encomenda_unica' : 'estoque',
-    });
-    dadosFinais.usoUnicoEncomendado = usoUnicoEncomendado;
+    const dadosFinais = normalizarProduto({ ...formProdutoPDV, custoBRL: custo, precoBRL: preco, preco2BRL: preco2, preco3BRL: preco3, estoque: estoque });
+    dadosFinais.usoUnicoEncomendado = formProdutoPDV.usoUnicoEncomendado; 
     
     if (!dadosFinais.id) dadosFinais.id = `PROD-BALCAO-${Date.now()}`;
 
-    let listaAtualizadaEdicao = null;
     if (produtoEmEdicaoPDV) {
-      try { listaAtualizadaEdicao = atualizarProdutoUnico(produtos, produtoEmEdicaoPDV, dadosFinais, 'edição rápida no PDV'); }
-      catch (erro) { return mostrarZen('danger', 'Edição bloqueada', erro.message || 'Não foi possível editar este produto com segurança.'); }
-    }
-
-    try { await reservarIdentidadeProduto({ db, userId, produto: dadosFinais, produtoAnterior: produtoEmEdicaoPDV }); } catch (erro) { return setModalZen({variante:'danger',titulo:'Produto duplicado',mensagem:erro.message,apenasConfirmar:true}); }
-
-    if (!produtoEmEdicaoPDV && !usoUnicoEncomendado && dadosFinais.tipoItem !== 'servico' && estoque > 0) {
-      try {
-        await registrarEventosEstoque({
-          db,
-          userId,
-          eventos: [criarEventoEstoque({
-            produto: dadosFinais,
-            tipo: 'cadastro_inicial',
-            origem: 'cadastro_pdv',
-            destino: estoqueVitrineNovo > 0 && estoqueGalpaoNovo > 0 ? 'vitrine+deposito' : estoqueVitrineNovo > 0 ? 'vitrine' : 'deposito',
-            quantidade: estoque,
-            saldoAntes: { estoque: 0, estoqueVitrine: 0, estoqueGalpao: 0 },
-            saldoDepois: dadosFinais,
-            motivo: 'Saldo inicial do cadastro rápido no PDV',
-            operador: operadorAtivo,
-          })],
-        });
-      } catch (erro) {
-        await liberarIdentidadeProduto({ db, userId, produto: dadosFinais });
-        return mostrarZen('danger', 'Produto não salvo', 'Não foi possível registrar o histórico inicial do estoque. O cadastro foi bloqueado para evitar inconsistência.');
-      }
-    }
-
-    if (produtoEmEdicaoPDV) {
-      setProdutos(listaAtualizadaEdicao);
+      setProdutos(produtos.map(p => p.id === produtoEmEdicaoPDV.id ? dadosFinais : p));
       setItensVenda(itensVenda.map(item => item.id === produtoEmEdicaoPDV.id ? { ...item, ...dadosFinais, precoPraticadoBRL: preco } : item));
     } else {
       setProdutos([dadosFinais, ...produtos]);
@@ -229,10 +147,6 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
   const confirmarAdicaoRapida = () => {
     if (!itemParaAdicionar) return;
     const qtdNum = Math.max(1, parseInt(qtdDigitadaRapida) || 1);
-    if (itemParaAdicionar.tipoItem !== 'servico' && !ehEncomendaUsoUnico(itemParaAdicionar)) {
-      const saldo = obterEstoqueProduto(itemParaAdicionar);
-      if (qtdNum > saldo.estoque) return mostrarZen('warning', 'Estoque insuficiente', `Disponível: ${saldo.estoque} unidade(s). Você tentou adicionar ${qtdNum}.`, [`Vitrine: ${saldo.estoqueVitrine || 0}`, `Depósito: ${saldo.estoqueGalpao || 0}`]);
-    }
     const precoBase = aplicarPrecoPorPerfilCliente(itemParaAdicionar, clienteSelecionadoPDV);
 
     const indiceExistente = itensVenda.findIndex(i => i.nome === itemParaAdicionar.nome && i.sku === itemParaAdicionar.sku);
@@ -247,7 +161,6 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
         ...itemParaAdicionar, 
         id: `${itemParaAdicionar.id}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         produtoOriginalId: itemParaAdicionar.id,
-        produtoOriginalSku: itemParaAdicionar.sku,
         qtd: String(qtdNum), 
         precoPraticadoBRL: precoBase, 
         precoTexto: converterDeBRL(precoBase, moeda).toFixed(2) 
@@ -281,25 +194,24 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
   const margemLucroReal = totalFinalBRL > 0 ? (lucroEstimadoBRL / totalFinalBRL) * 100 : 0;
 
   const regras = regrasDesconto || {};
-  const classificacaoMargem = classificarMargem(margemLucroReal, regras);
-  const margemIdeal = classificacaoMargem.margemIdeal;
-  const margemMinima = classificacaoMargem.margemMinima;
+  const margemIdeal = regras.margemIdeal ?? 30; 
+  const margemMinima = regras.margemMinima ?? 15; 
 
-  let corSemafaro = classificacaoMargem.cor;
-  let bgSemafaro = classificacaoMargem.fundo;
-  let borderSemafaro = classificacaoMargem.borda;
-  let textoSemafaro = tx(`🟢 Margem Saudável (≥ ${margemIdeal}%)`, `🟢 Margen Saludable`, `🟢 Healthy Margin`);
+  let corSemafaro = '#34d399'; let bgSemafaro = 'rgba(16, 185, 129, 0.1)'; let borderSemafaro = 'rgba(16, 185, 129, 0.3)';
+  let textoSemafaro = tx(`🟢 Margem Saudável (> ${margemIdeal}%)`, `🟢 Margen Saludable`, `🟢 Healthy Margin`); 
   let vendaBloqueadaPorMargem = false;
 
   if (itensVenda.length > 0 && totalFinalBRL > 0) {
-    if (classificacaoMargem.faixa === 'vermelho') {
-      textoSemafaro = tx(`🔴 Margem Crítica (< ${margemMinima}%)`, `🔴 Margen Crítico`, `🔴 Critical Margin`);
-      if (patenteUsuario !== 'gerencia') vendaBloqueadaPorMargem = true;
-    } else if (classificacaoMargem.faixa === 'amarelo') {
-      textoSemafaro = tx(`🟡 Margem em Alerta (${margemMinima}% a < ${margemIdeal}%)`, `🟡 Alerta de Margen`, `🟡 Margin Alert`);
+    if (margemLucroReal < margemMinima) { 
+      corSemafaro = '#fb7185'; bgSemafaro = 'rgba(244, 63, 94, 0.15)'; borderSemafaro = 'rgba(244, 63, 94, 0.4)'; 
+      textoSemafaro = tx(`🔴 Margem Crítica / Prejuízo (< ${margemMinima}%)`, `🔴 Margen Crítico`, `🔴 Critical Margin`); 
+      if (patenteUsuario !== 'gerencia') vendaBloqueadaPorMargem = true; 
+    } 
+    else if (margemLucroReal < margemIdeal) { 
+      corSemafaro = '#fbbf24'; bgSemafaro = 'rgba(245, 158, 11, 0.15)'; borderSemafaro = 'rgba(245, 158, 11, 0.4)'; 
+      textoSemafaro = tx(`🟡 Margem Baixa/Em Alerta (< ${margemIdeal}%)`, `🟡 Alerta de Margen`, `🟡 Margin Alert`); 
     }
   } else if (itensVenda.length === 0) {
-    corSemafaro = '#34d399'; bgSemafaro = 'rgba(16, 185, 129, 0.1)'; borderSemafaro = 'rgba(16, 185, 129, 0.3)';
     textoSemafaro = tx(`🟢 Aguardando Produtos...`, `🟢 Esperando Productos...`, `🟢 Waiting for Products...`);
   }
 
@@ -327,40 +239,33 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
   const trocoTotalBRL = valorExcedidoGlobal > 0.01 ? Math.min(valorExcedidoGlobal, totalDinheiroBRL) : 0;
   const podeFinalizarVenda = totalFinalBRL > 0 && totalPagoConvertidoBRL >= (totalFinalBRL - 0.05);
 
-  const abrirCheckoutAposValidacoes = () => {
-    if (itensVenda.length === 0 || totalFinalBRL <= 0) return mostrarZen('warning', 'Venda vazia', tx('Adicione produtos à venda.', 'Añada productos.', 'Add products.'));
-    setPagamentosLancados([]);
+  const abrirFechamento = () => {
+    if (!sessaoAtiva) {
+      return alert(tx('Atenção: O seu caixa está fechado! Você só pode fazer Pré-Pedidos ou Orçamentos. Para liquidar vendas, o Caixa tem de abrir o turno na Home.', '¡Caja cerrada!', 'Closed shift!'));
+    }
+
+    if (vendaBloqueadaPorMargem) {
+      if (regras?.exigirSenhaVermelho ?? true) {
+        const senhaDigitada = window.prompt(tx(
+          `🔴 A margem de lucro caiu para ${margemLucroReal.toFixed(1)}% (Mínimo exigido: ${margemMinima}%).\nInsira a Senha da Gerência para liberar a venda:`, 
+          `🔴 ¡Margen por debajo del límite!\nIngrese la Contraseña de Gerencia:`, 
+          `🔴 Margin below limit!\nEnter Manager Password:`
+        ));
+        if (senhaDigitada !== (regras?.senhaGerente ?? '1234')) {
+          return alert(tx('⛔ Senha incorreta! Venda bloqueada.', '⛔ ¡Contraseña incorrecta!', '⛔ Wrong password!'));
+        }
+      } else {
+        return alert(tx(`⛔ Venda bloqueada!\nA margem de lucro (${margemLucroReal.toFixed(1)}%) está abaixo do mínimo exigido.`, '⛔ ¡Venta bloqueada!', '⛔ Sale blocked!'));
+      }
+    }
+    
+    if (itensVenda.length === 0 || totalFinalBRL <= 0) return alert(tx('Adicione produtos à venda.', 'Añada productos.', 'Add products.'));
+    setPagamentosLancados([]); 
     setFormaSelecionada('dinheiro_brl');
     setMoedaTrocoEscolhida(moeda);
     setValorLancamentoInput(converterDeBRL(totalFinalBRL, 'BRL').toFixed(2));
-    setVendaSucesso(false);
+    setVendaSucesso(false); 
     setModalFechamentoAberto(true);
-  };
-
-  const confirmarSenhaMargem = async () => {
-    const autorizador = await validarCredencialGerencial({ vendedores, senha: senhaMargemInput, senhaLegada: regras?.senhaGerente });
-    if (!autorizador) {
-      setSenhaMargemInput('');
-      return mostrarZen('danger', 'Senha incorreta', tx('Venda bloqueada. Informe o PIN de um Administrador/Gerência cadastrado.', 'Venta bloqueada. Ingrese el PIN de un Administrador/Gerencia.', 'Sale blocked. Enter a registered manager/admin PIN.'));
-    }
-    setModalSenhaMargem(false);
-    setSenhaMargemInput('');
-    abrirCheckoutAposValidacoes();
-  };
-
-  const abrirFechamento = () => {
-    if (!sessaoAtiva) {
-      return mostrarZen('warning', 'Caixa fechado', tx('Abra primeiro o turno de caixa na Home para liquidar vendas. Pré-pedidos e orçamentos continuam disponíveis.', 'Abra primero el turno de caja.', 'Open the cash shift first.'));
-    }
-    if (vendaBloqueadaPorMargem) {
-      if (regras?.exigirSenhaVermelho ?? true) {
-        setSenhaMargemInput('');
-        setModalSenhaMargem(true);
-        return;
-      }
-      return mostrarZen('danger', 'Venda bloqueada pela margem', tx(`A margem de lucro (${margemLucroReal.toFixed(1)}%) está abaixo do mínimo exigido de ${margemMinima}%.`, 'Margen por debajo del mínimo.', 'Margin below minimum.'));
-    }
-    abrirCheckoutAposValidacoes();
   };
 
   useEffect(() => {
@@ -378,29 +283,22 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
     const valorNum = parseFloat(String(valorLancamentoInput).replace(',', '.')) || 0;
     if (valorNum <= 0) return;
     const configForma = catalogoFormas.find(f => f.id === formaSelecionada) || catalogoFormas[0];
-    let voucherSelecionado = null;
-    if (configForma.id === 'voucher') {
-      const codigo = String(voucherCodigoInput || '').trim().toUpperCase();
-      voucherSelecionado = (vouchers || []).find(v => String(v.codigo || '').toUpperCase() === codigo && v.status === 'ativo' && Number(v.saldoBRL || 0) > 0);
-      if (!voucherSelecionado) return setModalZen({variante:'danger',titulo:'Voucher inválido',mensagem:'Código não encontrado, já utilizado ou sem saldo.',apenasConfirmar:true});
-      if (valorNum > Number(voucherSelecionado.saldoBRL || 0) + 0.001) return setModalZen({variante:'warning',titulo:'Saldo insuficiente no voucher',mensagem:`Saldo disponível: ${fmt(voucherSelecionado.saldoBRL, 'BRL')}`,apenasConfirmar:true});
-    }
     const valorBRL = converterParaBRL(valorNum, configForma.moedaOrigem);
 
   if (configForma.id === 'crediario') {
-      if (!clienteSelecionadoPDV) return mostrarZen('warning', 'Cliente obrigatório', 'Para vender fiado, vincule um cliente antes de finalizar.');
+      if (!clienteSelecionadoPDV) return alert("Para Fiado, vincule o cliente na tela inicial do PDV!");
 
       const limite = parseFloat(clienteSelecionadoPDV.limiteCreditoBRL) || 0;
       
       // TRAVA 1: Se o cliente não tem limite ou o limite é zero
       if (limite <= 0) {
-        return mostrarZen('danger', 'Venda bloqueada', 'Este cliente não possui limite de crédito cadastrado ou o limite é zero.');
+        return alert("⛔ Venda Bloqueada: Este cliente não possui limite de crédito cadastrado ou o limite é zero.");
       }
 
       // TRAVA 2: Se a compra ultrapassar o limite (Sem opção de confirmar)
       const novoDevedor = (parseFloat(clienteSelecionadoPDV.saldoDevedorBRL) || 0) + valorBRL;
       if (novoDevedor > limite) {
-        return mostrarZen('danger', 'Limite de crédito excedido', `Limite: ${fmt(limite, 'BRL')}. Com esta compra, a dívida iria para ${fmt(novoDevedor, 'BRL')}.`);
+        return alert(`⛔ Venda Bloqueada: O limite do cliente é ${fmt(limite, 'BRL')}. Com esta compra, a dívida iria para ${fmt(novoDevedor, 'BRL')}.`);
       }
     }
 
@@ -411,75 +309,35 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
       icone: configForma.icone,
       moedaOrigem: configForma.moedaOrigem,
       valorOriginal: valorNum, 
-      valorConvertidoBRL: valorBRL,
-      voucherCodigo: voucherSelecionado?.codigo || null
+      valorConvertidoBRL: valorBRL 
     }];
     setPagamentosLancados(novaLista);
     const novoSaldo = Math.max(0, totalFinalBRL - novaLista.reduce((acc, p) => acc + p.valorConvertidoBRL, 0));
     setValorLancamentoInput(novoSaldo > 0 ? converterDeBRL(novoSaldo, configForma.moedaOrigem).toFixed(2) : '');
-    if (configForma.id === 'voucher') setVoucherCodigoInput('');
   };
 
-  const concluirTransacao = async (tipoFinalizacao) => {
+  const concluirTransacao = (tipoFinalizacao) => {
     if (tipoFinalizacao === 'venda' && (!podeFinalizarVenda || !sessaoAtiva)) return;
     
     try {
       const idsParaRemover = itensVenda
-        .filter(it => ehEncomendaUsoUnico(it))
-        .map(it => ({ id: it.produtoOriginalId || it.id, sku: it.produtoOriginalSku || it.sku }));
+        .filter(it => it.usoUnicoEncomendado || String(it.sku).toUpperCase().includes('ENCOMENDA'))
+        .map(it => String(it.produtoOriginalId || it.id));
       
       let novosProdutos = produtos;
       let novosClientes = null;
-      let itensDocumento = [...itensVenda];
-      const instanteVenda = new Date();
-      const docRotulo = tipoFinalizacao === 'venda' ? 'VENDA' : (tipoFinalizacao === 'pre_pedido' ? 'PRÉ-PEDIDO' : 'ORÇAMENTO');
-      const vendaId = `${docRotulo}-${Date.now()}`;
 
       if (tipoFinalizacao === 'venda') {
-        const itensComUsoVitrine = (itensVenda || []).filter((it) => !ehEncomendaUsoUnico(it) && it.tipoItem !== 'servico').map((it) => {
-          const produtoAtual = obterProdutoCatalogoSeguro(it, 'prévia de baixa de estoque');
-          return { item: it, previsao: preverBaixaEstoqueProduto(produtoAtual, Number(it.qtd) || 0) };
-        }).filter(({ previsao }) => previsao.movimento.vitrine > 0);
-        if (itensComUsoVitrine.length > 0) {
-          const linhas = itensComUsoVitrine.map(({ item, previsao }) => `${item.nome}: baixa prevista Vitrine ${previsao.movimento.vitrine} + Depósito ${previsao.movimento.galpao} • saldo atual V:${previsao.saldo.estoqueVitrine} D:${previsao.saldo.estoqueGalpao}`);
-          const confirmouVitrine = await pedirConfirmacaoZen({
-            variante:'warning',
-            titulo:'Atenção ao estoque da vitrine',
-            mensagem:'Esta venda utilizará unidades expostas na vitrine.',
-            detalhes:[...linhas, 'Considere repor a vitrine após concluir a venda.'],
-            confirmarTexto:'Continuar venda'
-          });
-          if (!confirmouVitrine) return;
-        }
+        novosProdutos = (produtos || []).map(p => {
+          const qtdVendidaDesteProduto = itensVenda
+            .filter(i => String(i.produtoOriginalId || i.id) === String(p.id))
+            .reduce((soma, i) => soma + (parseInt(i.qtd) || 0), 0);
 
-        // ATT 02: uma única operação mantém estoque total = vitrine + galpão
-        // e registra em cada item exatamente de onde a mercadoria saiu.
-        const resultadoEstoque = aplicarVendaAoEstoque(produtos || [], itensVenda || [], idsParaRemover);
-        novosProdutos = resultadoEstoque.produtos;
-        itensDocumento = resultadoEstoque.itens;
-
-        const eventosEstoque = resultadoEstoque.itens
-          .filter((it) => it.movimentoEstoqueVenda?.total > 0)
-          .map((it, index) => {
-            const mov = it.movimentoEstoqueVenda;
-            const origem = mov.vitrine > 0 && mov.galpao > 0 ? 'vitrine+deposito' : mov.vitrine > 0 ? 'vitrine' : 'deposito';
-            return criarEventoEstoque({
-              id: `${vendaId}-${it.produtoOriginalId || it.id}-${index}`,
-              produto: it,
-              tipo: 'venda',
-              origem,
-              destino: 'cliente',
-              quantidade: mov.total,
-              saldoAntes: it.saldoEstoqueVenda?.antes,
-              saldoDepois: it.saldoEstoqueVenda?.depois,
-              motivo: 'Venda no PDV',
-              operador: operadorAtivo,
-              referenciaId: vendaId,
-              detalhes: { vitrine: mov.vitrine, deposito: mov.galpao },
-              createdAt: instanteVenda.toISOString(),
-            });
-          });
-        await registrarEventosEstoque({ db, userId, eventos: eventosEstoque });
+          if (qtdVendidaDesteProduto > 0 && p.tipoItem !== 'servico' && !idsParaRemover.includes(String(p.id))) {
+            return { ...p, estoque: Math.max(0, (parseInt(p.estoque) || 0) - qtdVendidaDesteProduto) };
+          }
+          return p;
+        }).filter(p => !idsParaRemover.includes(String(p.id))); 
 
         const valorFiado = pagamentosLancados.filter(p => p.formaId === 'crediario').reduce((acc, p) => acc + (parseFloat(p.valorConvertidoBRL) || 0), 0);
         
@@ -495,98 +353,26 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
       const idSeguro = (operadorAtivo && operadorAtivo.id) ? operadorAtivo.id : 'admin';
       const nomeSeguro = (operadorAtivo && operadorAtivo.nome) ? operadorAtivo.nome : 'Administrador';
 
+      const docRotulo = tipoFinalizacao === 'venda' ? 'VENDA' : (tipoFinalizacao === 'pre_pedido' ? 'PRÉ-PEDIDO' : 'ORÇAMENTO');
       const estadoFinal = tipoFinalizacao === 'venda' ? 'concluida' : (tipoFinalizacao === 'pre_pedido' ? 'pendente' : 'orcamento');
 
       const novaVenda = {
-        id: vendaId,
-        createdAt: instanteVenda.toISOString(),
-        dataHora: instanteVenda.toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR'),
+        id: `${docRotulo}-${Date.now()}`,
+        dataHora: new Date().toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR'),
         clienteId: clienteSelecionadoPDV ? clienteSelecionadoPDV.id : null,
         clienteNome: clienteSelecionadoPDV ? clienteSelecionadoPDV.nome : tx('Consumidor Balcão', 'Consumidor', 'Walk-in'),
         vendedorId: idSeguro,
         vendedorNome: nomeSeguro,
-        itens: itensDocumento, 
+        itens: [...itensVenda], 
         totalBRL: totalFinalBRL, 
         lucroBRL: lucroEstimadoBRL,
         trocoBRL: tipoFinalizacao === 'venda' ? trocoTotalBRL : 0,
         moedaTrocoInfo: tipoFinalizacao === 'venda' && trocoTotalBRL > 0.01 ? `${moedaTrocoEscolhida}` : null,
         pagamentos: tipoFinalizacao === 'venda' ? [...pagamentosLancados] : [],
-        taxasCambio: { BRL: 1, ...(taxasCambio || {}) },
         detalhesPagamento: tipoFinalizacao === 'venda' ? (pagamentosLancados.map(p => `${p.rotulo}: ${(parseFloat(p.valorOriginal)||0).toFixed(2)}`).join(' • ') || tx('Dinheiro', 'Efectivo', 'Cash')) : docRotulo,
         estado: estadoFinal,
         tipoDocumento: tipoFinalizacao
       };
-
-      if (tipoFinalizacao === 'venda' && typeof registrarFinanceiro === 'function') {
-        try {
-          let trocoRestante = Math.max(0, Number(trocoTotalBRL) || 0);
-          const clienteAntes = clienteSelecionadoPDV ? Number(clienteSelecionadoPDV.saldoDevedorBRL || 0) : null;
-          const pagamentosFiado = pagamentosLancados.filter(p => p.formaId === 'crediario');
-          const valorFiadoTotal = pagamentosFiado.reduce((a,p)=>a+(Number(p.valorConvertidoBRL)||0),0);
-          const clienteDepois = clienteAntes == null ? null : clienteAntes + valorFiadoTotal;
-
-          // Fiado vira um único débito no extrato do cliente, mesmo que haja mais de um lançamento de crédito na mesma venda.
-          if (valorFiadoTotal > 0) {
-            await registrarFinanceiro({
-              id: `VENDA-${vendaId}-FIADO`,
-              tipo: 'venda_fiada',
-              origem: 'pdv',
-              referenciaId: vendaId,
-              valor: valorFiadoTotal,
-              formaPagamento: 'crediario',
-              createdAt: novaVenda.createdAt,
-              afetaCaixaFisico: false,
-              afetaResultado: true,
-              direcao: 'entrada',
-              sessaoId: null,
-              clienteId: novaVenda.clienteId,
-              clienteNome: novaVenda.clienteNome,
-              saldoClienteAntes: clienteAntes,
-              saldoClienteDepois: clienteDepois,
-              observacao: `Venda fiada ${vendaId}`,
-            });
-          }
-
-          const pagamentosImediatos = pagamentosLancados.filter(p => p.formaId !== 'crediario');
-          for (let index = 0; index < pagamentosImediatos.length; index += 1) {
-            const pag = pagamentosImediatos[index];
-            const bruto = Math.max(0, Number(pag.valorConvertidoBRL) || 0);
-            let valorEfetivo = bruto;
-            if (String(pag.formaId || '').startsWith('dinheiro') && trocoRestante > 0) {
-              const abatido = Math.min(trocoRestante, valorEfetivo);
-              valorEfetivo -= abatido;
-              trocoRestante -= abatido;
-            }
-            if (valorEfetivo <= 0) continue;
-            await registrarFinanceiro({
-              id: `VENDA-${vendaId}-PG-${index}-${String(pag.formaId || 'outro')}`,
-              tipo: 'venda',
-              origem: 'pdv',
-              referenciaId: vendaId,
-              valor: valorEfetivo,
-              formaPagamento: pag.formaId,
-              createdAt: novaVenda.createdAt,
-              afetaCaixaFisico: String(pag.formaId || '').startsWith('dinheiro'),
-              afetaResultado: true,
-              direcao: 'entrada',
-              sessaoId: sessaoAtiva?.id || null,
-              clienteId: novaVenda.clienteId,
-              clienteNome: novaVenda.clienteNome,
-              observacao: `Venda ${vendaId} • ${pag.rotulo}`,
-            });
-          }
-        } catch (erroFinanceiro) {
-          console.error('Falha ao registrar a venda no Livro Financeiro:', erroFinanceiro);
-          setModalZen({
-            variante: 'danger',
-            titulo: 'Venda não concluída',
-            mensagem: 'Não foi possível registrar o financeiro desta venda com segurança.',
-            detalhes: 'Nenhum estoque, cliente ou histórico de venda foi alterado. Tente novamente antes de prosseguir.',
-            apenasConfirmar: true,
-          });
-          return;
-        }
-      }
 
       if (tipoFinalizacao === 'venda') {
         setProdutos(novosProdutos);
@@ -602,17 +388,6 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
         setHistoricoVendas([novaVenda, ...novoHist]);
       }
       
-      if (tipoFinalizacao === 'venda' && setVouchers) {
-        const usos = pagamentosLancados.filter(p => p.formaId === 'voucher' && p.voucherCodigo);
-        if (usos.length > 0) {
-          setVouchers((vouchers || []).map(v => {
-            const uso = usos.filter(u => String(u.voucherCodigo).toUpperCase() === String(v.codigo).toUpperCase()).reduce((a,u)=>a+(Number(u.valorConvertidoBRL)||0),0);
-            if (!uso) return v;
-            const saldo = Math.max(0, Number(v.saldoBRL || 0) - uso);
-            return {...v, saldoBRL: saldo, status: saldo <= 0.001 ? 'utilizado' : 'ativo', usadoEm: new Date().toISOString(), ultimaVendaId: novaVenda.id};
-          }));
-        }
-      }
       setVendaConcluidaObj(novaVenda);
       setVendaSucesso(true);
       // Força a tela de imprimir o recibo a saltar, mesmo em Orçamentos/Pré-Pedidos
@@ -620,11 +395,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
 
     } catch (err) {
       console.error("Erro fatal ao finalizar documento:", err);
-      if (err?.code === 'ZENOS_ESTOQUE_INSUFICIENTE' || err?.code === 'ZENOS_PRODUTO_NAO_ENCONTRADO' || err?.code === 'ZENOS_PRODUTO_IDENTIDADE_DUPLICADA') {
-        mostrarZen('danger', 'Venda não concluída', err.message);
-        return;
-      }
-      mostrarZen('danger', 'Documento não concluído', 'Houve um erro interno ao processar o documento. Nenhum passo adicional deve ser realizado até tentar novamente.');
+      alert("Houve um erro interno ao processar o documento.");
     }
   };
 
@@ -632,9 +403,9 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
     const elementoCupom = document.getElementById('area-cupom-pdv');
     if (!elementoCupom) return;
     const janelaImpressao = window.open('', '_blank', 'width=400,height=600');
-    if (!janelaImpressao) return mostrarZen('warning', 'Impressão bloqueada', 'O navegador bloqueou a janela de impressão. Permita pop-ups para o ZenOS e tente novamente.');
+    if (!janelaImpressao) return alert('Bloqueador de pop-ups ativo. Permita pop-ups.');
     janelaImpressao.document.write(`
-      <!DOCTYPE html><html><head><title>Cupom</title><style>@page{margin:0;size:${larguraCssRecibo(perfilRecibo)} auto;}body{font-family:monospace;font-size:12px;color:#000;background:#fff;margin:0;padding:10px;width:${larguraCssRecibo(perfilRecibo)};box-sizing:border-box;}table{width:100%;border-collapse:collapse;font-size:11px;}th,td{padding:3px 0;}</style></head>
+      <!DOCTYPE html><html><head><title>Cupom</title><style>@page{margin:0;size:80mm auto;}body{font-family:monospace;font-size:12px;color:#000;background:#fff;margin:0;padding:10px;width:80mm;}table{width:100%;border-collapse:collapse;font-size:11px;}th,td{padding:3px 0;}</style></head>
       <body>${elementoCupom.innerHTML}<script>window.onload=function(){window.focus();window.print();setTimeout(function(){window.close();},500);};</script></body></html>
     `);
     janelaImpressao.document.close();
@@ -657,10 +428,6 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
         }
       `}</style>
       
-      <ZenModal aberto={!!modalZen} variante={modalZen?.variante} titulo={modalZen?.titulo} mensagem={modalZen?.mensagem} detalhes={modalZen?.detalhes} confirmarTexto={modalZen?.confirmarTexto||'OK'} cancelarTexto={modalZen?.cancelarTexto||'Cancelar'} apenasConfirmar={modalZen?.apenasConfirmar} onConfirmar={()=>{ const r=modalZen?.resolver; setModalZen(null); if(r) r(true); }} onCancelar={()=>{ const r=modalZen?.resolver; setModalZen(null); if(r) r(false); }}/>
-
-      {modalSenhaMargem && <div style={{position:'fixed',inset:0,zIndex:20500,background:'rgba(2,6,23,.9)',backdropFilter:'blur(8px)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}><div style={{width:'100%',maxWidth:460,background:'#0b1120',border:'1px solid #f43f5e',borderRadius:24,overflow:'hidden',color:'#fff',boxShadow:'0 30px 80px rgba(0,0,0,.65)'}}><div style={{display:'flex',alignItems:'center',gap:14,padding:'20px 22px',background:'linear-gradient(135deg,#2e0a16,#0b1120)'}}><img src="/logo-zenos.png?v=4" alt="ZenOS" style={{width:48,height:48,objectFit:'contain'}}/><div><div style={{fontSize:10,fontWeight:900,letterSpacing:2,color:'#f43f5e'}}>ZENOS • PROTEÇÃO DE MARGEM</div><div style={{fontSize:19,fontWeight:900,marginTop:3}}>🔐 Autorização gerencial</div></div></div><div style={{padding:'20px 22px'}}><div style={{fontSize:13,lineHeight:1.55,color:'#e2e8f0',marginBottom:14}}>Margem atual: <b>{margemLucroReal.toFixed(1)}%</b> • mínimo: <b>{margemMinima}%</b>. Informe a senha gerencial para liberar excepcionalmente esta venda.</div><input autoFocus type="text" inputMode="text" autoComplete="one-time-code" name="zenos-manager-approval-pin" data-lpignore="true" data-1p-ignore="true" value={senhaMargemInput} onChange={e=>setSenhaMargemInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')confirmarSenhaMargem();}} placeholder="PIN do Administrador / Gerência" style={{width:'100%',WebkitTextSecurity:'disc',boxSizing:'border-box',padding:13,borderRadius:10,border:'1px solid #f43f5e',background:'#020617',color:'#fff',outline:'none'}}/></div><div style={{display:'flex',gap:10,padding:'16px 22px 20px',borderTop:'1px solid #1e293b'}}><button onClick={()=>{setModalSenhaMargem(false);setSenhaMargemInput('');}} style={{flex:1,padding:12,borderRadius:10,border:'1px solid #334155',background:'#020617',color:'#cbd5e1',fontWeight:900,cursor:'pointer'}}>Cancelar</button><button onClick={confirmarSenhaMargem} style={{flex:1,padding:12,borderRadius:10,border:'none',background:'#e11d48',color:'#fff',fontWeight:900,cursor:'pointer'}}>Autorizar venda</button></div></div></div>}
-
       {modalResgateAberto && (
         <div className="no-print" style={{ position: 'fixed', inset: 0, zIndex: 2000, backgroundColor: 'rgba(2,6,23,0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
           <div style={{ backgroundColor: '#0b1120', border: '1px solid #8b5cf6', borderRadius: '20px', width: '100%', maxWidth: '600px', padding: '24px', color: '#fff', maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 25px 50px rgba(0,0,0,0.5)' }}>
@@ -696,7 +463,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
            <div style={{ backgroundColor: '#ffffff', border: '1px solid #10b981', borderRadius: '16px', width: '100%', maxWidth: '380px', maxHeight: '95vh', overflowY: 'auto', padding: '0', color: '#000', boxShadow: '0 25px 50px rgba(0,0,0,0.5)' }}>
               <div id="area-cupom-pdv" style={{ padding: '20px', fontFamily: 'monospace', fontSize: '12px' }}>
                 <div style={{ textAlign: 'center', marginBottom: '10px' }}>
-                  {perfilRecibo.mostrarLogoRecibo !== false && perfilRecibo.logoLoja && <img src={perfilRecibo.logoLoja} alt="Logo" style={{maxWidth:'110px',maxHeight:'55px',objectFit:'contain',marginBottom:4}}/>}<h2 style={{ margin: '0 0 4px 0', fontSize: '16px' }}>{perfilRecibo.nomeFantasia || 'ZenOS - SISTEMA DE GESTÃO'}</h2>{perfilRecibo.cabecalhoRecibo && <div style={{fontSize:'10px'}}>{perfilRecibo.cabecalhoRecibo}</div>}
+                  <h2 style={{ margin: '0 0 4px 0', fontSize: '16px' }}>ZenOS - SISTEMA DE GESTÃO</h2>
                   <div style={{ fontSize: '10px' }}>{vendaConcluidaObj.tipoDocumento === 'pre_pedido' ? 'TICKET DE PRÉ-PEDIDO (NÃO PAGO)' : 'ORÇAMENTO SEM VALOR FISCAL'}<br/>{vendaConcluidaObj.dataHora}</div>
                 </div>
                 <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
@@ -715,21 +482,13 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
                 </table>
                 <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '14px' }}><span>TOTAL A PAGAR</span><span>{fmt(vendaConcluidaObj.totalBRL)}</span></div>
-                <div style={{ marginTop: 6, fontSize: '10px' }}>
-                  {moedasReciboAtivas.map(codigo => (
-                    <div key={codigo} style={{ display:'flex', justifyContent:'space-between' }}>
-                      <span>Total {codigo}</span>
-                      <span>{formatarEquivalenciaBRL(vendaConcluidaObj.totalBRL || 0, codigo, cotacoesRecibo)}</span>
-                    </div>
-                  ))}
-                </div>
                 
                 <div style={{ marginTop: '15px', textAlign: 'center', fontSize: '14px', fontWeight: 'bold', border: '1px solid #000', padding: '5px' }}>
                   {vendaConcluidaObj.tipoDocumento === 'pre_pedido' ? 'DIRIJA-SE AO CAIXA PARA PAGAR' : 'ORÇAMENTO VÁLIDO POR 7 DIAS'}
                 </div>
 
                 <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
-                <div style={{ textAlign: 'center', fontSize: '10px' }}>{perfilRecibo.rodapeRecibo || 'Obrigado pela preferência! Volte sempre.'}</div>
+                <div style={{ textAlign: 'center', fontSize: '10px' }}>Obrigado pela preferência!<br/>Volte Sempre.</div>
               </div>
               <div className="no-print" style={{ padding: '20px', backgroundColor: '#f1f5f9', display: 'flex', gap: '10px', borderTop: '1px dashed #ccc', borderBottomLeftRadius: '16px', borderBottomRightRadius: '16px', flexWrap: 'wrap' }}>
                 <button onClick={executarImpressaoNativa} style={{ flex: 1, padding: '12px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '14px' }}>🖨️ {tx('Imprimir', 'Imprimir', 'Print')}</button>
@@ -786,7 +545,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
                   const estaFocado = index === indiceFocoBusca;
                   return (
                     <div key={prod.id} onClick={() => { setItemParaAdicionar(prod); setQtdDigitadaRapida('1'); }} onMouseEnter={() => setIndiceFocoBusca(index)} style={{ padding: '14px 20px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', backgroundColor: estaFocado ? '#1e1b4b' : 'transparent' }}>
-                      <div><div style={{ fontWeight: 700, color: '#f8fafc', fontSize: '15px' }}>{prod.nome} {ehEncomendaUsoUnico(prod) && <span style={{ color: '#fbbf24', fontSize: '11px' }}>({tx('Encomenda', 'Especial', 'Order')})</span>}</div><div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>SKU: {prod.sku} • Estoque: <strong style={{ color: '#38bdf8' }}>{prod.estoque} {prod.unidadeMedida}</strong></div></div>
+                      <div><div style={{ fontWeight: 700, color: '#f8fafc', fontSize: '15px' }}>{prod.nome} {(prod.usoUnicoEncomendado || String(prod.sku).includes('ENCOMENDA')) && <span style={{ color: '#fbbf24', fontSize: '11px' }}>({tx('Encomenda', 'Especial', 'Order')})</span>}</div><div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>SKU: {prod.sku} • Estoque: <strong style={{ color: '#38bdf8' }}>{prod.estoque} {prod.unidadeMedida}</strong></div></div>
                       <div style={{ color: '#34d399', fontWeight: 900, fontSize: '16px' }}>{fmt(aplicarPrecoPorPerfilCliente(prod, clienteSelecionadoPDV))}</div>
                     </div>
                   );
@@ -804,7 +563,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
             {itensVenda.length === 0 ? <div style={{ padding: '60px 20px', textAlign: 'center', color: '#475569', fontSize: '14px' }}>{t('nenhumItem')}</div> : itensVenda.map(item => (
               <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderBottom: '1px solid #1e293b', gap: '8px', flexWrap: 'wrap' }}>
                 <div style={{ flex: '1 1 180px' }}>
-                  <div style={{ fontWeight: 700, color: '#f8fafc', fontSize: '14px' }}>{item.nome} {ehEncomendaUsoUnico(item) && <span style={{ color: '#fbbf24', fontSize: '10px' }}>(⭐ {tx('Encomenda', 'Especial', 'Order')})</span>}</div>
+                  <div style={{ fontWeight: 700, color: '#f8fafc', fontSize: '14px' }}>{item.nome} {(item.usoUnicoEncomendado || String(item.sku).includes('ENCOMENDA')) && <span style={{ color: '#fbbf24', fontSize: '10px' }}>(⭐ {tx('Encomenda', 'Especial', 'Order')})</span>}</div>
                   <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '4px' }}>
                     <span style={{ fontSize: '10px', color: '#64748b', fontFamily: 'monospace' }}>SKU: {item.sku}</span>
                     <span onClick={() => abrirEdicaoProdutoPDV(item)} style={{ fontSize: '11px', color: '#38bdf8', cursor: 'pointer', fontWeight: 600 }}>{tx('Editar', 'Editar', 'Edit')}</span>
@@ -865,14 +624,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
       {itemParaAdicionar && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '16px' }}>
           <div style={{ backgroundColor: '#0b1120', border: '1px solid #6366f1', borderRadius: '20px', width: '100%', maxWidth: '400px', padding: '28px', color: '#fff', textAlign: 'center' }}>
-            <h3 style={{ fontSize: '18px', fontWeight: 900, marginBottom: '10px' }}>{itemParaAdicionar.nome}</h3>
-            {(() => {
-              if (itemParaAdicionar.tipoItem === 'servico' || ehEncomendaUsoUnico(itemParaAdicionar)) return null;
-              const saldo = obterEstoqueProduto(itemParaAdicionar);
-              const previsao = preverBaixaEstoqueProduto(itemParaAdicionar, Math.max(1, parseInt(qtdDigitadaRapida) || 1));
-              if (saldo.estoqueVitrine > 0) return <div style={{ marginBottom: '14px', padding: '10px 12px', backgroundColor: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.45)', borderRadius: '10px', color: '#fbbf24', fontSize: '12px', fontWeight: 800 }}>⚠️ Disponibilidade: Vitrine {saldo.estoqueVitrine} • Depósito {saldo.estoqueGalpao} • Total {saldo.estoque}. Para esta quantidade, a baixa prevista é Vitrine {previsao.movimento.vitrine} + Depósito {previsao.movimento.galpao}. {saldo.estoqueGalpao > 0 ? 'Considere repor a vitrine após a venda.' : 'O produto está disponível somente na vitrine.'}</div>;
-              return <div style={{ marginBottom: '12px', color: '#64748b', fontSize: '11px' }}>Vitrine: {saldo.estoqueVitrine} • Depósito: {saldo.estoqueGalpao} • Total: {saldo.estoque}</div>;
-            })()}
+            <h3 style={{ fontSize: '18px', fontWeight: 900, marginBottom: '16px' }}>{itemParaAdicionar.nome}</h3>
             <input ref={inputQtdRapidaRef} type="number" value={qtdDigitadaRapida} onChange={e => setQtdDigitadaRapida(e.target.value)} onFocus={e=>e.target.select()} onKeyDown={e=>{if(e.key==='Enter') confirmarAdicaoRapida(); if(e.key==='Escape') setItemParaAdicionar(null);}} style={{ width: '80px', padding: '10px', fontSize: '20px', textAlign: 'center', backgroundColor: '#020617', border: '1px solid #6366f1', color: '#fff', borderRadius: '8px', marginBottom: '20px', outline: 'none' }} />
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => setItemParaAdicionar(null)} style={{ flex: 1, padding: '12px', background: '#1e293b', border: 'none', color: '#fff', borderRadius: '8px', cursor: 'pointer', fontWeight: 800 }}>{tx('Cancelar', 'Cancelar', 'Cancel')}</button>
@@ -915,7 +667,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
             </div>
             <div style={{ backgroundColor: 'rgba(217, 119, 6, 0.15)', border: '1px solid rgba(217, 119, 6, 0.4)', borderRadius: '14px', padding: '14px 20px', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '12px' }}>
               <input type="checkbox" id="checkUsoUnico" checked={formProdutoPDV.usoUnicoEncomendado} onChange={e => setFormProdutoPDV({...formProdutoPDV, usoUnicoEncomendado: e.target.checked})} style={{ width: '18px', height: '18px', cursor: 'pointer' }} />
-              <div><label htmlFor="checkUsoUnico" style={{ fontSize: '13px', fontWeight: 900, color: '#fbbf24', cursor: 'pointer' }}>{tx('⭐ Produto de Uso Único / Encomenda Especial', '⭐ Producto de Uso Único / Especial', '⭐ Single-Use / Special Order')}</label><p style={{ fontSize: '11px', color: '#cbd5e1', margin: '2px 0 0 0' }}>{tx('Marque somente para encomenda/uso único. Desmarcado, o produto entra normalmente no catálogo e no estoque.', 'Marque solo para pedido/uso único. Desmarcado, queda en catálogo y stock.', 'Check only for single-use/special orders. Unchecked items remain in catalog and stock.')}</p></div>
+              <div><label htmlFor="checkUsoUnico" style={{ fontSize: '13px', fontWeight: 900, color: '#fbbf24', cursor: 'pointer' }}>{tx('⭐ Produto de Uso Único / Encomenda Especial', '⭐ Producto de Uso Único / Especial', '⭐ Single-Use / Special Order')}</label><p style={{ fontSize: '11px', color: '#cbd5e1', margin: '2px 0 0 0' }}>{tx('Se marcado, o sistema EXCLUIRÁ esse produto fisicamente da base de dados ao fechar a venda.', 'Si está marcado, el sistema ELIMINARÁ este producto al cerrar.', 'If checked, the system will DELETE this item upon sale completion.')}</p></div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px', marginBottom: '18px' }}>
               {[{ id: 'mercadoria', rotulo: tx('Mercadoria', 'Mercancía', 'Retail'), icone: '📦' }, { id: 'materia_prima', rotulo: tx('Matéria-Prima', 'Materia Prima', 'Raw'), icone: '🧪' }, { id: 'kit', rotulo: 'Kit / Combo', icone: '🎁' }, { id: 'servico', rotulo: tx('Serviço', 'Servicio', 'Service'), icone: '🛠️' }].map(tipo => {
@@ -940,13 +692,11 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
               </div>
             </div>
             <div style={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', padding: '16px 20px', marginBottom: '18px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: '12px', alignItems: 'start', marginBottom: '12px' }}>
-                <div><label style={{ minHeight:28, display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>Custo (R$)</label><input type="text" value={formProdutoPDV.custoBRL} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, custoBRL: e.target.value })} style={{ width: '100%', height:40, backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontWeight: 800, fontSize: '14px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
-                <div><label style={{ minHeight:28, display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>Preço Venda (R$)</label><input type="text" value={formProdutoPDV.precoBRL} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, precoBRL: e.target.value })} style={{ width: '100%', height:40, backgroundColor: '#0b1120', border: '1px solid #34d399', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
-                <div><label style={{ minHeight:28, display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#38bdf8', fontWeight: 700 }}>Vitrine / Loja</label><input type="number" disabled={Boolean(produtoEmEdicaoPDV)} value={formProdutoPDV.estoqueVitrine ?? 0} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, estoqueVitrine: e.target.value })} style={{ width: '100%', height:40, backgroundColor: '#0b1120', border: '1px solid #0369a1', borderRadius: '8px', color: '#38bdf8', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '10px', outline: 'none', boxSizing: 'border-box', opacity: produtoEmEdicaoPDV ? .65 : 1 }} /></div>
-                <div><label style={{ minHeight:28, display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#a855f7', fontWeight: 700 }}>Galpão / Depósito</label><input type="number" disabled={Boolean(produtoEmEdicaoPDV)} value={formProdutoPDV.estoqueGalpao ?? 0} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, estoqueGalpao: e.target.value })} style={{ width: '100%', height:40, backgroundColor: '#0b1120', border: '1px solid #7e22ce', borderRadius: '8px', color: '#a855f7', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '10px', outline: 'none', boxSizing: 'border-box', opacity: produtoEmEdicaoPDV ? .65 : 1 }} /></div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', alignItems: 'center', marginBottom: '12px' }}>
+                <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>Custo (R$)</label><input type="text" value={formProdutoPDV.custoBRL} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, custoBRL: e.target.value })} style={{ width: '100%', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontWeight: 800, fontSize: '14px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
+                <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>Preço Venda (R$)</label><input type="text" value={formProdutoPDV.precoBRL} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, precoBRL: e.target.value })} style={{ width: '100%', backgroundColor: '#0b1120', border: '1px solid #34d399', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
+                <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>Estoque Inicial</label><input type="number" value={formProdutoPDV.estoque} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, estoque: e.target.value })} style={{ width: '100%', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#38bdf8', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
               </div>
-              {produtoEmEdicaoPDV && <div style={{fontSize:10,color:'#64748b',marginTop:-4,marginBottom:10}}>Para alterar estoque de produto existente, use as movimentações auditadas de Vitrine/Depósito no Catálogo.</div>}
             </div>
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
               <button onClick={() => setModalProdutoPDVAberto(false)} style={{ flex: 1, backgroundColor: '#020617', border: '1px solid #1e293b', color: '#94a3b8', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}>{tx('Cancelar', 'Cancelar', 'Cancel')}</button>
@@ -964,7 +714,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
               <div>
                 <div id="area-cupom-pdv" style={{ padding: '20px', fontFamily: 'monospace', fontSize: '12px' }}>
                   <div style={{ textAlign: 'center', marginBottom: '10px' }}>
-                    {perfilRecibo.mostrarLogoRecibo !== false && perfilRecibo.logoLoja && <img src={perfilRecibo.logoLoja} alt="Logo" style={{maxWidth:'110px',maxHeight:'55px',objectFit:'contain',marginBottom:4}}/>}<h2 style={{ margin: '0 0 4px 0', fontSize: '16px' }}>{perfilRecibo.nomeFantasia || 'ZenOS - SISTEMA DE GESTÃO'}</h2>{perfilRecibo.cabecalhoRecibo && <div style={{fontSize:'10px'}}>{perfilRecibo.cabecalhoRecibo}</div>}
+                    <h2 style={{ margin: '0 0 4px 0', fontSize: '16px' }}>ZenOS - SISTEMA DE GESTÃO</h2>
                     <div style={{ fontSize: '10px' }}>{vendaConcluidaObj?.tipoDocumento === 'venda' ? 'Cupom de Venda Não Fiscal' : vendaConcluidaObj?.tipoDocumento === 'pre_pedido' ? 'TICKET DE PRÉ-PEDIDO (NÃO PAGO)' : 'ORÇAMENTO SEM VALOR FISCAL'}<br/>{vendaConcluidaObj?.dataHora}</div>
                   </div>
                   <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
@@ -983,14 +733,6 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
                   </table>
                   <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '14px' }}><span>TOTAL A PAGAR</span><span>{fmt(vendaConcluidaObj?.totalBRL)}</span></div>
-                  <div style={{ marginTop: 6, fontSize: '10px' }}>
-                    {moedasReciboAtivas.map(codigo => (
-                      <div key={codigo} style={{ display:'flex', justifyContent:'space-between' }}>
-                        <span>Total {codigo}</span>
-                        <span>{formatarEquivalenciaBRL(vendaConcluidaObj?.totalBRL || 0, codigo, cotacoesRecibo)}</span>
-                      </div>
-                    ))}
-                  </div>
                   
                   {vendaConcluidaObj?.tipoDocumento === 'venda' && (
                     <>
@@ -998,7 +740,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
                         <strong>Pagamentos (Liquidados):</strong><br/>
                         {vendaConcluidaObj?.pagamentos.map((p, idx) => <div key={idx} style={{ display: 'flex', justifyContent: 'space-between' }}><span>{p.rotulo}</span><span>{p.valorOriginal.toFixed(2)}</span></div>)}
                       </div>
-                      {vendaConcluidaObj?.trocoBRL > 0.01 && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginTop: '4px', backgroundColor: '#e2e8f0', padding: '2px' }}><span>TROCO ({vendaConcluidaObj.moedaTrocoInfo})</span><span>{formatarEquivalenciaBRL(vendaConcluidaObj.trocoBRL, vendaConcluidaObj.moedaTrocoInfo || 'BRL', cotacoesRecibo)}</span></div>}
+                      {vendaConcluidaObj?.trocoBRL > 0.01 && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginTop: '4px', backgroundColor: '#e2e8f0', padding: '2px' }}><span>TROCO ({vendaConcluidaObj.moedaTrocoInfo})</span><span>{fmt(vendaConcluidaObj.trocoBRL)}</span></div>}
                     </>
                   )}
                   {vendaConcluidaObj?.tipoDocumento === 'pre_pedido' && (
@@ -1006,7 +748,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
                   )}
 
                   <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
-                  <div style={{ textAlign: 'center', fontSize: '10px' }}>{perfilRecibo.rodapeRecibo || 'Obrigado pela preferência! Volte sempre.'}</div>
+                  <div style={{ textAlign: 'center', fontSize: '10px' }}>Obrigado pela preferência!<br/>Volte Sempre.</div>
                 </div>
                 <div className="no-print" style={{ padding: '20px', backgroundColor: '#f1f5f9', display: 'flex', gap: '10px', borderTop: '1px dashed #ccc', borderBottomLeftRadius: '16px', borderBottomRightRadius: '16px', flexWrap: 'wrap' }}>
                   <button onClick={executarImpressaoNativa} style={{ flex: 1, padding: '12px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '14px' }}>🖨️ {tx('Imprimir', 'Imprimir', 'Print')}</button>
@@ -1079,7 +821,6 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
                     style={{ padding: '14px', backgroundColor: '#020617', border: '1px solid #10b981', borderRadius: '12px', color: '#34d399', fontSize: '18px', fontWeight: 900, textAlign: 'right', outline: 'none', boxSizing: 'border-box', width: '100%' }} 
                   />
                 </div>
-                {formaSelecionada === 'voucher' && <div style={{margin:'-6px 0 14px'}}><label style={{fontSize:11,color:'#c084fc',fontWeight:900}}>CÓDIGO DO VOUCHER</label><input value={voucherCodigoInput} onChange={e=>setVoucherCodigoInput(e.target.value.toUpperCase())} placeholder="VALE-000000" style={{width:'100%',boxSizing:'border-box',marginTop:6,padding:12,borderRadius:10,border:'1px solid #8b5cf6',background:'#020617',color:'#e9d5ff',fontWeight:900,letterSpacing:1}}/></div>}
                 
                 <button 
                   onClick={adicionarPagamento} 

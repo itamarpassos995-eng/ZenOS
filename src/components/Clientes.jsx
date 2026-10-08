@@ -1,9 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { normalizarCliente } from '../data';
-import ZenModal from './ZenModal';
-import { formaEhDinheiro, lancamentosDoCliente } from '../core/financialLedger';
 
-export default function Clientes({ livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, setClientes, moeda, fmt, t, converterDeBRL, converterParaBRL }) {
+export default function Clientes({ clientes, setClientes, moeda, fmt, t, converterDeBRL, converterParaBRL }) {
   const [filtroPaisCliente, setFiltroPaisCliente] = useState('todos');
   const [buscaClienteTexto, setBuscaClienteTexto] = useState('');
   
@@ -15,8 +13,6 @@ export default function Clientes({ livroFinanceiro = [], registrarFinanceiro, ca
   const [clienteReceberFiado, setClienteReceberFiado] = useState(null);
   const [valorAmortizacaoInput, setValorAmortizacaoInput] = useState('');
   const [formaAmortizacaoSel, setFormaAmortizacaoSel] = useState('dinheiro_brl');
-  const [clienteExtrato, setClienteExtrato] = useState(null);
-  const [modalZen, setModalZen] = useState(null);
 
   const catalogoFormas = [
     { id: 'dinheiro_brl', rotulo: 'Dinheiro (R$)', moedaOrigem: 'BRL', icone: '💵' }, 
@@ -63,7 +59,7 @@ export default function Clientes({ livroFinanceiro = [], registrarFinanceiro, ca
   };
 
   const salvarCliente = () => {
-    if (!formCliente.nome || !formCliente.nome.trim()) return setModalZen({ variante:'warning', titulo:'Nome obrigatório', mensagem:'Informe o nome do cliente antes de salvar.', apenasConfirmar:true });
+    if (!formCliente.nome || !formCliente.nome.trim()) return alert('Por favor, informe o nome do cliente.');
     const limiteNum = Math.max(0, parseFloat(String(formCliente.limiteCreditoBRL).replace(',', '.')) || 0);
     const diasNum = Math.max(0, parseInt(formCliente.diasAtraso) || 0);
     const dadosFinais = normalizarCliente({ ...formCliente, limiteCreditoBRL: limiteNum, diasAtraso: diasNum });
@@ -78,17 +74,11 @@ export default function Clientes({ livroFinanceiro = [], registrarFinanceiro, ca
 
   const excluirCliente = (id, saldoDevedor) => {
     if (saldoDevedor > 0) {
-      return setModalZen({ variante:'danger', titulo:'Exclusão bloqueada', mensagem:'Não é possível excluir um cliente que possui saldo devedor (fiado) em aberto.', apenasConfirmar:true });
+      return alert('Não é possível excluir um cliente que possui saldo devedor (fiado) em aberto.');
     }
-    setModalZen({
-      variante:'warning',
-      titulo:'Excluir cliente?',
-      mensagem:'Confirme a exclusão deste cadastro de cliente.',
-      confirmarTexto:'Excluir',
-      cancelarTexto:'Cancelar',
-      apenasConfirmar:false,
-      aoConfirmar:()=>setClientes(clientes.filter(c => c.id !== id)),
-    });
+    if (window.confirm('Tem certeza que deseja excluir este cliente?')) {
+      setClientes(clientes.filter(c => c.id !== id));
+    }
   };
 
   // FLUXO DE RECEBER CONTA / FIADO
@@ -99,79 +89,29 @@ export default function Clientes({ livroFinanceiro = [], registrarFinanceiro, ca
     setModalReceberFiadoAberto(true);
   };
 
-  const confirmarRecebimentoFiado = async () => {
-    const formaCfg = catalogoFormas.find(f => f.id === formaAmortizacaoSel) || catalogoFormas[0];
-    const valorOriginal = parseFloat(valorAmortizacaoInput.replace(',', '.')) || 0;
-    const valBRL = converterParaBRL(valorOriginal, formaCfg.moedaOrigem || moeda);
-    if (valBRL <= 0) return setModalZen({ variante:'warning', titulo:'Valor inválido', mensagem:'Informe um valor válido para recebimento.', apenasConfirmar:true });
+  const confirmarRecebimentoFiado = () => {
+    const valBRL = converterParaBRL(parseFloat(valorAmortizacaoInput.replace(',', '.')) || 0, moeda);
+    if (valBRL <= 0) return alert('Informe um valor válido para recebimento.');
 
-    const saldoAntes = Number(clienteReceberFiado?.saldoDevedorBRL || 0);
-    if (valBRL > saldoAntes + 0.001) {
-      return setModalZen({ variante:'warning', titulo:'Valor acima da dívida', mensagem:`A dívida atual é ${fmt(saldoAntes, 'BRL')}. O recebimento não pode ultrapassar esse saldo.`, apenasConfirmar:true });
+    if (valBRL > clienteReceberFiado.saldoDevedorBRL) {
+      if (!window.confirm('O valor recebido é maior do que a dívida atual. Deseja continuar e zerar o saldo?')) return;
     }
 
-    const dinheiroFisico = formaEhDinheiro(formaAmortizacaoSel);
-    if (dinheiroFisico && !sessaoAtiva) {
-      return setModalZen({ variante:'danger', titulo:'Caixa fechado', mensagem:'Para receber fiado em dinheiro, abra primeiro o turno de caixa do operador.', apenasConfirmar:true });
-    }
-
-    const saldoDepois = Math.max(0, saldoAntes - valBRL);
-    const recebimentoId = `REC-${Date.now()}`;
-    const createdAt = new Date().toISOString();
-
-    try {
-      if (typeof registrarFinanceiro === 'function') {
-        await registrarFinanceiro({
-          id: recebimentoId,
-          tipo: 'recebimento_fiado',
-          origem: 'clientes',
-          referenciaId: recebimentoId,
-          valor: valBRL,
-          formaPagamento: formaAmortizacaoSel,
-          createdAt,
-          afetaCaixaFisico: dinheiroFisico,
-          afetaResultado: false,
-          direcao: 'entrada',
-          sessaoId: sessaoAtiva?.id || null,
-          clienteId: clienteReceberFiado.id,
-          clienteNome: clienteReceberFiado.nome,
-          saldoClienteAntes: saldoAntes,
-          saldoClienteDepois: saldoDepois,
-          observacao: `Recebimento de conta do cliente ${clienteReceberFiado.nome}`,
-        });
+    setClientes(clientes.map(c => {
+      if (c.id === clienteReceberFiado.id) {
+        const novoSaldo = Math.max(0, (c.saldoDevedorBRL || 0) - valBRL);
+        return { ...c, saldoDevedorBRL: novoSaldo };
       }
-    } catch (err) {
-      console.error('[ZenOS][ATT07] Falha no Livro Financeiro do recebimento:', err);
-      return setModalZen({ variante:'danger', titulo:'Recebimento não concluído', mensagem:'O Livro Financeiro não confirmou o lançamento. Nenhum saldo foi alterado.', detalhes:[err?.message || 'Falha de persistência'], apenasConfirmar:true });
-    }
+      return c;
+    }));
 
-    setClientes(clientes.map(c => c.id === clienteReceberFiado.id ? { ...c, saldoDevedorBRL: saldoDepois } : c));
-
-    if (dinheiroFisico && typeof setCaixaMovimentos === 'function') {
-      const mov = {
-        id: `MOV-${recebimentoId}`,
-        sessaoId: sessaoAtiva.id,
-        createdAt,
-        dataHora: new Date().toLocaleString('pt-BR'),
-        tipo: 'recebimento_fiado',
-        direcao: 'entrada',
-        afetaGaveta: true,
-        valorBRL: valBRL,
-        detalhesMoedas: { [formaCfg.moedaOrigem || 'BRL']: valorOriginal },
-        descricao: `Recebimento fiado • ${clienteReceberFiado.nome}`,
-        clienteId: clienteReceberFiado.id,
-        operador: operadorAtivo?.nome || 'Administrador',
-      };
-      setCaixaMovimentos([mov, ...(caixaMovimentos || [])]);
-    }
-
-    setModalZen({ variante:'success', titulo:'Recebimento registrado', mensagem:`${fmt(valBRL, 'BRL')} recebidos de ${clienteReceberFiado.nome}.`, detalhes:[`Saldo anterior: ${fmt(saldoAntes, 'BRL')}`, `Saldo atual: ${fmt(saldoDepois, 'BRL')}`, dinheiroFisico ? 'Entrada registrada na gaveta do turno.' : 'Recebimento financeiro sem movimentar a gaveta física.'], apenasConfirmar:true });
+    alert(`Recebimento de ${fmt(valBRL, moeda)} registrado com sucesso!`);
     setModalReceberFiadoAberto(false);
     setClienteReceberFiado(null);
   };
 
   const abrirWhatsApp = (cli) => {
-    if (!cli.telefone) return setModalZen({ variante:'warning', titulo:'Telefone não cadastrado', mensagem:'Este cliente não possui telefone/WhatsApp cadastrado.', apenasConfirmar:true });
+    if (!cli.telefone) return alert('Cliente sem telefone.');
     const msg = encodeURIComponent(`Olá, ${cli.nome}! O saldo da sua conta é de R$ ${(cli.saldoDevedorBRL || 0).toFixed(2)}.`);
     window.open(`https://wa.me/${cli.telefone.replace(/\D/g, '')}?text=${msg}`, '_blank');
   };
@@ -275,7 +215,6 @@ export default function Clientes({ livroFinanceiro = [], registrarFinanceiro, ca
                               Receber Conta
                             </button>
                           )}
-                          <button onClick={() => setClienteExtrato(cli)} type="button" style={{ backgroundColor: '#111827', border: '1px solid #334155', color: '#cbd5e1', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>📒 Extrato</button>
                           <button onClick={() => abrirEdicaoCliente(cli)} type="button" style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#38bdf8', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>{t('editar')}</button>
                           <button onClick={() => excluirCliente(cli.id, cli.saldoDevedorBRL)} type="button" style={{ backgroundColor: 'transparent', border: '1px solid #1e293b', color: '#f43f5e', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>Excluir</button>
                         </div>
@@ -366,26 +305,6 @@ export default function Clientes({ livroFinanceiro = [], registrarFinanceiro, ca
           </div>
         </div>
       )}
-
-      <ZenModal aberto={!!modalZen} variante={modalZen?.variante} titulo={modalZen?.titulo} mensagem={modalZen?.mensagem} detalhes={modalZen?.detalhes} confirmarTexto={modalZen?.confirmarTexto||'OK'} cancelarTexto={modalZen?.cancelarTexto||'Cancelar'} apenasConfirmar={modalZen?.apenasConfirmar} onConfirmar={()=>{ const fn=modalZen?.aoConfirmar; setModalZen(null); if(fn) fn(); }} onCancelar={()=>setModalZen(null)} />
-
-      {clienteExtrato && (() => {
-        const linhas = lancamentosDoCliente(livroFinanceiro, clienteExtrato.id);
-        return <div style={{ position:'fixed', inset:0, zIndex:1800, background:'rgba(2,6,23,.88)', backdropFilter:'blur(7px)', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
-          <div style={{ width:'100%', maxWidth:900, maxHeight:'82vh', overflow:'hidden', background:'#0b1120', border:'1px solid #38bdf8', borderRadius:22, color:'#fff', boxShadow:'0 30px 80px rgba(0,0,0,.55)' }}>
-            <div style={{ padding:22, borderBottom:'1px solid #1e293b', display:'flex', justifyContent:'space-between', gap:16, alignItems:'center' }}>
-              <div><div style={{ color:'#38bdf8', fontSize:11, fontWeight:900, letterSpacing:1 }}>CONTA CORRENTE DO CLIENTE</div><h3 style={{ margin:'4px 0 0', fontSize:20 }}>{clienteExtrato.nome}</h3><div style={{ color:'#94a3b8', fontSize:12, marginTop:4 }}>Saldo atual cadastrado: <strong style={{color:'#fb7185'}}>{fmt(clienteExtrato.saldoDevedorBRL||0,'BRL')}</strong></div></div>
-              <button onClick={()=>setClienteExtrato(null)} style={{width:36,height:36,borderRadius:9,border:'1px solid #334155',background:'#020617',color:'#94a3b8',cursor:'pointer'}}>✕</button>
-            </div>
-            <div style={{ padding:14, color:'#94a3b8', fontSize:11, borderBottom:'1px solid #1e293b' }}>O extrato auditável começa com os novos lançamentos da ATT 07. O histórico anterior não é reconstruído por inferência.</div>
-            <div style={{ overflow:'auto', maxHeight:'58vh' }}>
-              <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,minWidth:760}}><thead><tr style={{color:'#64748b',textTransform:'uppercase',fontSize:10,borderBottom:'1px solid #1e293b'}}><th style={{padding:12,textAlign:'left'}}>Data</th><th style={{textAlign:'left'}}>Tipo</th><th style={{textAlign:'left'}}>Descrição</th><th style={{textAlign:'right'}}>Débito</th><th style={{textAlign:'right'}}>Crédito</th><th style={{textAlign:'right'}}>Saldo</th><th style={{textAlign:'left',paddingLeft:14}}>Forma / Operador</th></tr></thead><tbody>
-              {linhas.length===0 ? <tr><td colSpan="7" style={{padding:30,textAlign:'center',color:'#475569'}}>Nenhum lançamento ATT 07 para este cliente.</td></tr> : linhas.map(l=>{ const aumenta=l.tipo==='venda_fiada'; const reduz=l.tipo==='recebimento_fiado'||(l.tipo==='devolucao'&&l.formaPagamento==='credito_fiado'); return <tr key={l.id} style={{borderBottom:'1px solid rgba(255,255,255,.05)'}}><td style={{padding:12,color:'#94a3b8'}}>{l.createdAt?new Date(l.createdAt).toLocaleString('pt-BR'):'—'}</td><td style={{fontWeight:800,color:aumenta?'#fb7185':'#34d399'}}>{l.tipo}</td><td>{l.observacao||l.referenciaId}</td><td style={{textAlign:'right',color:'#fb7185'}}>{aumenta?fmt(l.valor,'BRL'):'—'}</td><td style={{textAlign:'right',color:'#34d399'}}>{reduz?fmt(l.valor,'BRL'):'—'}</td><td style={{textAlign:'right',fontWeight:900}}>{l.saldoClienteDepois==null?'—':fmt(l.saldoClienteDepois,'BRL')}</td><td style={{paddingLeft:14,color:'#94a3b8'}}>{l.formaPagamento}<br/><span style={{fontSize:10}}>{l.operadorNome}</span></td></tr>})}
-              </tbody></table>
-            </div>
-          </div>
-        </div>;
-      })()}
 
       {/* MODAL DE RECEBER CONTA / QUITAR FIADO COM CATÁLOGO COMPLETO */}
       {modalReceberFiadoAberto && clienteReceberFiado && (

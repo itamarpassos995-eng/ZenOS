@@ -3,12 +3,11 @@ import React, { useState } from 'react';
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [mensagem, setMensagem] = useState('');
 
   const handleLogin = (e) => {
     e.preventDefault();
-    // Componente legado de apresentação: evita diálogo nativo do navegador.
-    setMensagem(`Sessão solicitada para ${email}.`);
+    // Aqui vai entrar a ligação real ao Firebase na próxima etapa!
+    alert(`A iniciar sessão segura para: ${email}`);
   };
 
   return (
@@ -64,7 +63,6 @@ const Login = () => {
           </button>
         </form>
 
-        {mensagem && <div style={{color:'#34d399',fontSize:'12px',fontWeight:700,marginTop:'14px'}}>{mensagem}</div>}
         <div style={styles.footer}>
           <p style={styles.securityText}>🔒 Ligação encriptada de ponta a ponta</p>
         </div>

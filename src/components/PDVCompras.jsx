@@ -1,16 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import ZenModal from './ZenModal';
-import { normalizarProduto } from '../data';
-import { reporEstoqueProduto } from '../core/inventory';
-import { db } from '../firebase';
-import { criarEventoEstoque, registrarEventosEstoque } from '../core/stockAudit'; 
-import { atualizarProdutoUnico, localizarIndiceProdutoUnico, skuJaExiste } from '../core/productIdentity';
+import { normalizarProduto } from '../data'; 
 
-export default function PDVCompras({ registrarFinanceiro, saldoSessaoFisicoBRL = 0, 
-  userId, produtos, setProdutos, 
+export default function PDVCompras({ 
+  produtos, setProdutos, 
   fornecedores, setFornecedores,
   despesas, setDespesas,
-  caixaMovimentos, setCaixaMovimentos, sessaoAtiva,
   moeda, fmt, t, tx, converterDeBRL, converterParaBRL, 
   historicoCompras, setHistoricoCompras, 
   operadorAtivo 
@@ -42,9 +36,6 @@ export default function PDVCompras({ registrarFinanceiro, saldoSessaoFisicoBRL =
   
   const [compraSucesso, setCompraSucesso] = useState(false);
   const [compraConcluidaObj, setCompraConcluidaObj] = useState(null);
-  const [modalZen, setModalZen] = useState(null);
-  const avisarZen = (variante, titulo, mensagem, detalhes = []) => setModalZen({ variante, titulo, mensagem, detalhes, apenasConfirmar:true });
-  const confirmarZen = ({ variante='warning', titulo, mensagem, detalhes=[], confirmarTexto='Confirmar' }) => new Promise(resolve => setModalZen({ variante, titulo, mensagem, detalhes, confirmarTexto, cancelarTexto:'Cancelar', resolver:resolve }));
 
   const inputBuscaRef = useRef(null);
   const inputQtdRapidaRef = useRef(null);
@@ -79,7 +70,7 @@ export default function PDVCompras({ registrarFinanceiro, saldoSessaoFisicoBRL =
     setModalFornecedorAberto(true);
   };
   const salvarFornecedor = () => {
-    if (!formFornecedor.nome.trim()) return avisarZen('warning','Fornecedor incompleto','Informe a Razão Social/Nome do fornecedor.');
+    if (!formFornecedor.nome.trim()) return alert("Informe a Razão Social/Nome do fornecedor.");
     const novoForn = { ...formFornecedor, id: `FORN-${Date.now()}` };
     if (typeof setFornecedores === 'function') {
       setFornecedores([novoForn, ...(fornecedores || [])]);
@@ -102,20 +93,18 @@ export default function PDVCompras({ registrarFinanceiro, saldoSessaoFisicoBRL =
     setModalProdutoAberto(true);
   };
   const salvarProduto = () => {
-    if (!formProduto.nome.trim()) return avisarZen('warning','Produto incompleto','Informe o nome do produto.');
+    if (!formProduto.nome.trim()) return alert("Informe o nome do produto.");
     const custo = parseFloat(String(formProduto.custoBRL).replace(',', '.')) || 0;
     const preco = parseFloat(String(formProduto.precoBRL).replace(',', '.')) || 0;
     const estoque = parseInt(String(formProduto.estoque)) || 0;
 
-    if (skuJaExiste(produtos, formProduto.sku, produtoEmEdicao)) return avisarZen('danger','SKU duplicado',`Já existe outro produto com o SKU ${formProduto.sku}. Use um SKU diferente.`);
     const dadosFinais = normalizarProduto({ ...formProduto, custoBRL: custo, precoBRL: preco, estoque: estoque });
     
     if (!dadosFinais.id) dadosFinais.id = `PROD-${Date.now()}`;
 
     if (produtoEmEdicao) {
-      try { setProdutos(atualizarProdutoUnico(produtos, produtoEmEdicao, { ...produtoEmEdicao, ...dadosFinais }, 'edição de produto na compra')); }
-      catch (erro) { return avisarZen('danger','Edição bloqueada',erro.message || 'Não foi possível editar este produto com segurança.'); }
-      setItensCompra(itensCompra.map(item => String(item.produtoOriginalId || item.id) === String(produtoEmEdicao.id) && String(item.produtoOriginalSku || item.sku || '').toUpperCase() === String(produtoEmEdicao.sku || '').toUpperCase() ? { ...item, ...dadosFinais, produtoOriginalId: dadosFinais.id, produtoOriginalSku: dadosFinais.sku, custoPraticadoBRL: custo } : item));
+      setProdutos(produtos.map(p => p.id === produtoEmEdicao.id ? { ...p, ...dadosFinais } : p));
+      setItensCompra(itensCompra.map(item => item.id === produtoEmEdicao.id ? { ...item, ...dadosFinais, custoPraticadoBRL: custo } : item));
     } else {
       setProdutos([dadosFinais, ...produtos]);
       setItemParaAdicionar(dadosFinais);
@@ -137,7 +126,7 @@ export default function PDVCompras({ registrarFinanceiro, saldoSessaoFisicoBRL =
     const qtdNum = Math.max(1, parseInt(qtdDigitadaRapida) || 1);
     const custoBase = itemParaAdicionar.custoBRL || 0;
 
-    const indiceExistente = itensCompra.findIndex(i => String(i.produtoOriginalId || i.id) === String(itemParaAdicionar.id) && String(i.produtoOriginalSku || i.sku || '').toUpperCase() === String(itemParaAdicionar.sku || '').toUpperCase());
+    const indiceExistente = itensCompra.findIndex(i => i.id === itemParaAdicionar.id);
 
     if (indiceExistente !== -1) {
       const novaLista = [...itensCompra];
@@ -148,7 +137,6 @@ export default function PDVCompras({ registrarFinanceiro, saldoSessaoFisicoBRL =
       setItensCompra([ ...itensCompra, { 
         ...itemParaAdicionar, 
         produtoOriginalId: itemParaAdicionar.id,
-        produtoOriginalSku: itemParaAdicionar.sku,
         qtd: String(qtdNum), 
         custoPraticadoBRL: custoBase, 
         custoTexto: converterDeBRL(custoBase, moeda).toFixed(2) 
@@ -186,11 +174,11 @@ export default function PDVCompras({ registrarFinanceiro, saldoSessaoFisicoBRL =
   const saldoRestanteBRL = Math.max(0, totalFinalBRL - totalPagoConvertidoBRL);
   const podeFinalizarCompra = totalFinalBRL > 0 && totalPagoConvertidoBRL >= (totalFinalBRL - 0.05);
 
-  const abrirFechamento = async () => {
-    if (itensCompra.length === 0 || totalFinalBRL <= 0) return avisarZen('warning','Entrada vazia','Adicione produtos à nota de entrada.');
+  const abrirFechamento = () => {
+    if (itensCompra.length === 0 || totalFinalBRL <= 0) return alert("Adicione produtos à nota de entrada.");
     if (!fornecedorSelecionado) {
-        const confirmou = await confirmarZen({ titulo:'Entrada sem fornecedor', mensagem:'Você não selecionou um fornecedor. Deseja registrar a entrada de estoque de forma avulsa?', confirmarTexto:'Continuar sem fornecedor' });
-        if (!confirmou) return;
+        const confirmar = window.confirm("Você não selecionou um fornecedor. Deseja registrar a entrada de estoque de forma avulsa?");
+        if (!confirmar) return;
     }
     setPagamentosLancados([]); 
     setFormaSelecionada('boleto');
@@ -237,8 +225,6 @@ export default function PDVCompras({ registrarFinanceiro, saldoSessaoFisicoBRL =
           valorOriginal: valorParcelaOriginal,
           valorConvertidoBRL: valorParcelaBRL,
           geraDespesa: true,
-          aPrazo: true,
-          statusFinanceiro: 'pendente',
           dataVencimento: dataVenc.toISOString().split('T')[0]
         });
       }
@@ -251,10 +237,7 @@ export default function PDVCompras({ registrarFinanceiro, saldoSessaoFisicoBRL =
         moedaOrigem: configForma.moedaOrigem,
         valorOriginal: valorNum,
         valorConvertidoBRL: valorBRL,
-        geraDespesa: true,
-        aPrazo: false,
-        statusFinanceiro: 'paga',
-        dataVencimento: new Date().toISOString().split('T')[0]
+        geraDespesa: false
       });
     }
 
@@ -265,57 +248,24 @@ export default function PDVCompras({ registrarFinanceiro, saldoSessaoFisicoBRL =
     setQtdParcelas(1); 
   };
 
-  const concluirEntradaMercadoria = async () => {
+  const concluirEntradaMercadoria = () => {
     if (!podeFinalizarCompra) return;
-    const totalDinheiroImediato = pagamentosLancados.filter(p => !p.aPrazo && p.formaId === 'dinheiro').reduce((a,p)=>a+(Number(p.valorConvertidoBRL)||0),0);
-    if (totalDinheiroImediato > 0 && !sessaoAtiva) {
-      return setModalZen({ variante:'danger', titulo:'Caixa fechado', mensagem:'Para pagar uma compra em dinheiro é necessário um turno de caixa aberto.', apenasConfirmar:true });
-    }
-    if (totalDinheiroImediato > Number(saldoSessaoFisicoBRL || 0) + 0.001) {
-      return setModalZen({ variante:'danger', titulo:'Saldo insuficiente na gaveta', mensagem:`Disponível: ${fmt(saldoSessaoFisicoBRL, 'BRL')}`, detalhes:[`Pagamento em dinheiro: ${fmt(totalDinheiroImediato, 'BRL')}`], apenasConfirmar:true });
-    }
     
     try {
-      const instanteCompra = new Date();
-      const compraId = `COMPRA-${Date.now()}`;
-      const eventosEstoque = [];
-      // ATT 06.1: preflight de identidade. Se houver ID/SKU ambíguo, nenhuma entrada é aplicada.
-      for (const item of itensCompra || []) {
-        if (item.tipoItem === 'servico') continue;
-        localizarIndiceProdutoUnico(produtos || [], { id: item.produtoOriginalId || item.id, sku: item.produtoOriginalSku || item.sku }, 'entrada de compra');
-      }
-      const novosProdutos = (produtos || []).map((p, index) => {
-        const itemComprado = itensCompra.find(i => String(i.produtoOriginalId || i.id) === String(p.id) && (!i.produtoOriginalSku || String(i.produtoOriginalSku).toUpperCase() === String(p.sku || '').toUpperCase()));
+      const novosProdutos = (produtos || []).map(p => {
+        const itemComprado = itensCompra.find(i => String(i.produtoOriginalId || i.id) === String(p.id));
         if (itemComprado && p.tipoItem !== 'servico') {
-          const quantidadeEntrada = Math.max(0, Number(itemComprado.qtd) || 0);
-          const entrada = reporEstoqueProduto(p, quantidadeEntrada, { vitrine: 0, galpao: quantidadeEntrada });
-          eventosEstoque.push(criarEventoEstoque({
-            id: `${compraId}-${p.id}-${index}`,
-            produto: p,
-            tipo: 'compra_entrada',
-            origem: 'fornecedor',
-            destino: 'deposito',
-            quantidade: quantidadeEntrada,
-            saldoAntes: entrada.auditoria?.antes,
-            saldoDepois: entrada.auditoria?.depois,
-            motivo: 'Entrada de compra',
-            operador: operadorAtivo,
-            referenciaId: compraId,
-            createdAt: instanteCompra.toISOString(),
-          }));
-          return { ...entrada.produto, custoBRL: itemComprado.custoPraticadoBRL };
+          const novaQuantidade = (parseInt(p.estoque) || 0) + (parseInt(itemComprado.qtd) || 0);
+          return { ...p, estoque: novaQuantidade, custoBRL: itemComprado.custoPraticadoBRL };
         }
         return p;
       });
-
-      await registrarEventosEstoque({ db, userId, eventos: eventosEstoque });
 
       const idSeguro = (operadorAtivo && operadorAtivo.id) ? operadorAtivo.id : 'admin';
       const nomeSeguro = (operadorAtivo && operadorAtivo.nome) ? operadorAtivo.nome : 'Administrador';
 
       const novaCompra = {
-        id: compraId,
-        createdAt: instanteCompra.toISOString(),
+        id: `COMPRA-${Date.now()}`,
         dataHora: new Date().toLocaleString(),
         fornecedorId: fornecedorSelecionado ? fornecedorSelecionado.id : null,
         fornecedorNome: fornecedorSelecionado ? fornecedorSelecionado.nome : 'Entrada Avulsa',
@@ -325,37 +275,8 @@ export default function PDVCompras({ registrarFinanceiro, saldoSessaoFisicoBRL =
         totalBRL: totalFinalBRL, 
         pagamentos: [...pagamentosLancados],
         estado: 'concluida',
-        tipoDocumento: 'entrada_estoque',
-        naturezaContabil: 'estoque_ativo'
+        tipoDocumento: 'entrada_estoque'
       };
-
-      if (typeof registrarFinanceiro === 'function') {
-        try {
-          for (let index = 0; index < pagamentosLancados.length; index += 1) {
-            const pag = pagamentosLancados[index];
-            if (pag.aPrazo) continue;
-            await registrarFinanceiro({
-              id: `COMPRA-${novaCompra.id}-${index}`,
-              tipo: 'pagamento_compra',
-              origem: 'compras',
-              referenciaId: novaCompra.id,
-              valor: Number(pag.valorConvertidoBRL) || 0,
-              formaPagamento: pag.formaId,
-              createdAt: novaCompra.createdAt,
-              afetaCaixaFisico: pag.formaId === 'dinheiro',
-              afetaResultado: false,
-              direcao: 'saida',
-              sessaoId: pag.formaId === 'dinheiro' ? sessaoAtiva?.id : null,
-              observacao: `Pagamento da compra de estoque ${novaCompra.id}`,
-              detalhes: { fornecedorId: novaCompra.fornecedorId, fornecedorNome: novaCompra.fornecedorNome },
-            });
-          }
-        } catch (erroFinanceiro) {
-          console.error('Falha ao registrar compra no Livro Financeiro:', erroFinanceiro);
-          setModalZen({ variante:'danger', titulo:'Compra não concluída', mensagem:'Não foi possível registrar o pagamento desta compra com segurança.', detalhes:'A compra não será aplicada ao estoque. Tente novamente.', apenasConfirmar:true });
-          return;
-        }
-      }
 
       setProdutos(novosProdutos);
       if (typeof setHistoricoCompras === 'function') {
@@ -365,21 +286,15 @@ export default function PDVCompras({ registrarFinanceiro, saldoSessaoFisicoBRL =
       const novasDespesas = [];
       pagamentosLancados.forEach(pag => {
         if (pag.geraDespesa) {
-          const pagamentoImediato = !pag.aPrazo;
           novasDespesas.push({
             id: `DESP-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
-            descricao: `Compra de Estoque - ${fornecedorSelecionado ? fornecedorSelecionado.nome : 'Avulso'} | ${pag.rotulo}`,
+            descricao: `Reposição de Estoque - ${fornecedorSelecionado ? fornecedorSelecionado.nome : 'Avulso'} | ${pag.rotulo}`,
             categoria: 'Mercadoria para Revenda',
-            naturezaContabil: 'estoque_ativo',
-            afetaResultado: false,
-            compraId: novaCompra.id,
             valorBRL: pag.valorConvertidoBRL,
             dataVencimento: pag.dataVencimento,
-            status: pagamentoImediato ? 'paga' : 'pendente',
-            dataPagamento: pagamentoImediato ? new Date().toISOString() : null,
-            formaPagamento: pagamentoImediato ? pag.rotulo : null,
+            status: 'pendente',
             recorrente: false,
-            observacao: `Vinculado à nota de compra: ${novaCompra.id}. Mercadoria para revenda: movimenta caixa/contas a pagar, mas o custo entra no resultado quando a mercadoria é vendida.`
+            observacao: `Vinculado à nota de compra: ${novaCompra.id}`
           });
         }
       });
@@ -387,33 +302,13 @@ export default function PDVCompras({ registrarFinanceiro, saldoSessaoFisicoBRL =
       if (novasDespesas.length > 0 && typeof setDespesas === 'function') {
         setDespesas([...novasDespesas, ...(despesas || [])]);
       }
-
-      const pagamentosDinheiro = pagamentosLancados.filter(pag => !pag.aPrazo && pag.formaId === 'dinheiro');
-      if (sessaoAtiva && pagamentosDinheiro.length > 0 && typeof setCaixaMovimentos === 'function') {
-        const agora = Date.now();
-        const novosMovimentos = pagamentosDinheiro.map((pag, index) => ({
-          id: `MOV-COMPRA-${agora}-${index}`,
-          sessaoId: sessaoAtiva.id,
-          dataHora: new Date().toLocaleString(),
-          createdAt: new Date().toISOString(),
-          tipo: 'saida_compra',
-          direcao: 'saida',
-          afetaGaveta: true,
-          valorBRL: pag.valorConvertidoBRL,
-          detalhesMoedas: { BRL: pag.valorOriginal },
-          descricao: `Compra de estoque ${novaCompra.id}`,
-          compraId: novaCompra.id,
-          operador: nomeSeguro,
-        }));
-        setCaixaMovimentos([...novosMovimentos, ...(caixaMovimentos || [])]);
-      }
       
       setCompraConcluidaObj(novaCompra);
       setCompraSucesso(true);
 
     } catch (err) {
       console.error("Erro fatal ao finalizar entrada de mercadoria:", err);
-      avisarZen('danger','Entrada não concluída','Houve um erro interno ao processar a entrada. Nenhum dado foi alterado.');
+      alert("Houve um erro interno ao processar a entrada. Nenhum dado foi alterado.");
     }
   };
 
@@ -425,7 +320,6 @@ export default function PDVCompras({ registrarFinanceiro, saldoSessaoFisicoBRL =
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px', width: '100%', boxSizing: 'border-box' }}>
-      <ZenModal aberto={!!modalZen} variante={modalZen?.variante} titulo={modalZen?.titulo} mensagem={modalZen?.mensagem} detalhes={modalZen?.detalhes} confirmarTexto={modalZen?.confirmarTexto || "OK"} cancelarTexto={modalZen?.cancelarTexto || "Cancelar"} apenasConfirmar={!!modalZen?.apenasConfirmar} onConfirmar={()=>{const r=modalZen?.resolver;setModalZen(null);if(r)r(true);}} onCancelar={()=>{const r=modalZen?.resolver;setModalZen(null);if(r)r(false);}} />
       
       {compraSucesso && compraConcluidaObj && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.95)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '16px', boxSizing: 'border-box' }}>

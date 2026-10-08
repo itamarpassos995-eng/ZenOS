@@ -1,13 +1,9 @@
 import TerminalLogin from './components/TerminalLogin';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { traducoes, moedasConfig, normalizarProduto, normalizarCliente, produtosIniciais, clientesIniciais } from './data';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
-import { inspectLocalSchemaVersion, persistV1OperationField, PERSISTENCE_STATUS_EVENT, notifyPersistenceStatus } from './core/persistenceSafety';
-import { zenosStorage } from './core/storage';
-import { obterFinanceiroVenda } from './core/salesFinancials';
-import { registroEhDoDiaLocal } from './core/dates';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import LandingPage from './components/LandingPage';
 
 import Produtos from './components/Produtos';
@@ -24,54 +20,22 @@ import Mesas from './components/Mesas';
 import DashboardMobile from './components/DashboardMobile';
 import Configuracoes from './components/Configuracoes';
 import GestaoCaixas from './components/GestaoCaixas';
-import ZenModal from './components/ZenModal';
-import { normalizarPerfilLoja, lerPerfilLojaLocal, salvarPerfilLojaLocal, limparPerfilLojaLocal } from './core/storeProfile';
-import { assinarLivroFinanceiro, registrarLancamentoFinanceiro } from './core/financialLedger';
-import { calcularResumoSessao, calcularConciliacaoEletronicaSessao, timestampSessao, timestampVenda } from './core/cashSession';
-import { normalizarRegrasComissao, REGRAS_COMISSAO_PADRAO } from './core/commissionEngine';
-import { normalizarRegrasMargem } from './core/profitability';
-import { patenteEfetivaOperador } from './core/accessControl';
-import { criarCredencialPin, operadorRequerTrocaPin, pinEhFraco } from './core/operatorPin';
-import { ZenSidebar, ZenTopbar, ZenHero, ZenKpiCard, ZenQuickCard } from './components/ZenVisualLayout';
-import './zenos-dashboard.css';
 
 const CURRENT_SCHEMA_VERSION = 1;
 
-const TAXAS_CAMBIO_PADRAO = Object.freeze({ BRL: 1.0, USD: 0.185, EUR: 0.165, PYG: 1380.0 });
-const TAXAS_INPUT_PADRAO = Object.freeze({ USD: '5.40', EUR: '6.05', PYG: '1380' });
-const REGRAS_DESCONTO_PADRAO = Object.freeze({
-  verdeMax: 5,
-  amareloMax: 12,
-  margemIdeal: 30,
-  margemMinima: 15,
-  exigirSenhaVermelho: true,
-  senhaGerente: '',
-});
+function executarMigracaoDeDados() {
+  try {
+    const versaoSalva = parseInt(localStorage.getItem('zenos_schema_version') || '0', 10);
+    if (versaoSalva < CURRENT_SCHEMA_VERSION) {
+      console.info(`[ZenOS Migration] Atualizando base de dados local para v${CURRENT_SCHEMA_VERSION}...`);
+      localStorage.setItem('zenos_schema_version', CURRENT_SCHEMA_VERSION.toString());
+    }
+  } catch (err) {
+    console.error("[ZenOS Migration Error] Falha:", err);
+  }
+}
 
-const normalizarRegrasDescontoSeguras = (regras = {}) => {
-  const base = { ...REGRAS_DESCONTO_PADRAO, ...(regras || {}) };
-  const margem = normalizarRegrasMargem(base);
-  return { ...base, margemIdeal: margem.margemIdeal, margemMinima: margem.margemMinima };
-};
-
-const normalizarTaxasCambio = (taxas = {}) => ({
-  BRL: 1,
-  USD: Number(taxas?.USD) > 0 ? Number(taxas.USD) : TAXAS_CAMBIO_PADRAO.USD,
-  EUR: Number(taxas?.EUR) > 0 ? Number(taxas.EUR) : TAXAS_CAMBIO_PADRAO.EUR,
-  PYG: Number(taxas?.PYG) > 0 ? Number(taxas.PYG) : TAXAS_CAMBIO_PADRAO.PYG,
-});
-
-const taxasInputAPartirDasTaxas = (taxas = TAXAS_CAMBIO_PADRAO) => {
-  const t = normalizarTaxasCambio(taxas);
-  return {
-    USD: (1 / t.USD).toFixed(2),
-    EUR: (1 / t.EUR).toFixed(2),
-    PYG: String(Math.round(t.PYG)),
-  };
-};
-
-// ATT 01: somente inspeciona a versão. Nenhuma migração é executada automaticamente.
-inspectLocalSchemaVersion(CURRENT_SCHEMA_VERSION);
+executarMigracaoDeDados();
 
 function ZenosLogo({ aoClicar }) {
   return (
@@ -91,22 +55,15 @@ export default function App() {
   const [usuarioAutenticado, setUsuarioAutenticado] = useState(null);
   const [userId, setUserId] = useState(null);
   const [statusLoja, setStatusLoja] = useState(null);
-  const [planoLoja, setPlanoLoja] = useState('basico');
   const [carregandoAuth, setCarregandoAuth] = useState(true);
   
   // 🔒 MOTOR DE SINCRONIZAÇÃO (TRANCA DE DADOS)
   const [nuvemSincronizada, setNuvemSincronizada] = useState(false);
-  const [falhaBootstrapNuvem, setFalhaBootstrapNuvem] = useState(null);
-  const [statusSincronizacao, setStatusSincronizacao] = useState('PENDENTE');
-  const [erroSincronizacao, setErroSincronizacao] = useState('');
-  const [novoPinObrigatorio, setNovoPinObrigatorio] = useState('');
-  const [confirmarPinObrigatorio, setConfirmarPinObrigatorio] = useState('');
-  const [erroPinObrigatorio, setErroPinObrigatorio] = useState('');
 
   // 🛡️ Inicialização Limpa: Não puxar do cache genérico na inicialização
   const [vendedores, setVendedores] = useState([]);
   const [operadorAtivo, setOperadorAtivo] = useState(null); 
-  const patenteUsuario = patenteEfetivaOperador(operadorAtivo); 
+  const patenteUsuario = operadorAtivo?.patente || 'vendedor'; 
 
   const [modalPlanosAberto, setModalPlanosAberto] = useState(false);
   const [demoSolicitada, setDemoSolicitada] = useState(false);
@@ -114,21 +71,18 @@ export default function App() {
 
   const [ecraAtual, setEcraAtual] = useState('hub');
   const [menuNavAberto, setMenuNavAberto] = useState(false);
-  const [sidebarCompacta, setSidebarCompacta] = useState(false);
-  const [temaUi, setTemaUi] = useState('dark');
   const [idioma, setIdioma] = useState('pt');
   const [moeda, setMoeda] = useState('BRL');
   
   const [mostrarPainelExecutivo, setMostrarPainelExecutivo] = useState(false);
   const [valoresTopoVisiveis, setValoresTopoVisiveis] = useState(true);
 
-  const [taxasCambio, setTaxasCambio] = useState(() => ({ ...TAXAS_CAMBIO_PADRAO }));
-  const [taxasInput, setTaxasInput] = useState(() => ({ ...TAXAS_INPUT_PADRAO }));
+  const [taxasCambio, setTaxasCambio] = useState({ BRL: 1.0, USD: 0.185, EUR: 0.165, PYG: 1380.0 });
+  const [taxasInput, setTaxasInput] = useState({ USD: '5.40', EUR: '6.05', PYG: '1380' });
   const [modalCambioAberto, setModalCambioAberto] = useState(false);
 
   // Variáveis Nascem Vazias (Isolamento de Memória RAM)
-  const [regrasDesconto, setRegrasDesconto] = useState(() => normalizarRegrasDescontoSeguras(REGRAS_DESCONTO_PADRAO));
-  const [regrasComissao, setRegrasComissao] = useState(() => normalizarRegrasComissao(REGRAS_COMISSAO_PADRAO));
+  const [regrasDesconto, setRegrasDesconto] = useState({ verdeMax: 5, amareloMax: 12, exigirSenhaVermelho: true, senhaGerente: '1234' });
   const [sessoesCaixa, setSessoesCaixa] = useState([]);
   const [produtos, setProdutos] = useState([]);
   const [clientes, setClientes] = useState([]);
@@ -137,124 +91,26 @@ export default function App() {
   const [despesas, setDespesas] = useState([]);
   const [historicoCompras, setHistoricoCompras] = useState([]);
   const [fornecedores, setFornecedores] = useState([]);
-  const [vouchers, setVouchers] = useState([]);
-  const [livroFinanceiro, setLivroFinanceiro] = useState([]);
-  const [perfilLoja, setPerfilLoja] = useState(() => normalizarPerfilLoja({}));
-  const [modalPerfilRapido, setModalPerfilRapido] = useState(false);
-  const [perfilRapidoErro, setPerfilRapidoErro] = useState('');
-  const [perfilRapidoRascunho, setPerfilRapidoRascunho] = useState(() => normalizarPerfilLoja({}));
-  const remotoAplicandoRef = useRef(false);
-  const syncCamposRef = useRef(new Map());
-  const [modalAppZen, setModalAppZen] = useState(null);
-
-  const avisarAppZen = ({ variante = 'info', titulo, mensagem, detalhes = [] }) =>
-    setModalAppZen({ variante, titulo, mensagem, detalhes, apenasConfirmar: true });
-
-  const confirmarAppZen = ({ variante = 'warning', titulo, mensagem, detalhes = [], confirmarTexto = 'Confirmar' }) =>
-    new Promise(resolve => setModalAppZen({ variante, titulo, mensagem, detalhes, confirmarTexto, cancelarTexto: 'Cancelar', resolver: resolve }));
-
-
-  useEffect(() => {
-    const recalcularStatus = () => {
-      if (typeof navigator !== 'undefined' && !navigator.onLine) { setStatusSincronizacao('OFFLINE'); return; }
-      const estados = [...syncCamposRef.current.values()];
-      if (estados.some(x => x.status === 'ERRO')) {
-        const ultimoErro = [...syncCamposRef.current.values()].reverse().find(x => x.status === 'ERRO' && x.error);
-        setErroSincronizacao(ultimoErro?.error || 'Existe uma falha de sincronização pendente.');
-        setStatusSincronizacao('ERRO');
-      } else if (estados.some(x => x.status === 'PENDENTE')) {
-        setErroSincronizacao(''); setStatusSincronizacao('PENDENTE');
-      } else if (estados.some(x => x.status === 'SALVANDO')) {
-        setErroSincronizacao(''); setStatusSincronizacao('SALVANDO');
-      } else if (estados.length > 0 && estados.every(x => x.status === 'SINCRONIZADO')) {
-        setErroSincronizacao(''); setStatusSincronizacao('SINCRONIZADO');
-      } else {
-        setStatusSincronizacao('PENDENTE');
-      }
-    };
-    const atualizarOnline = () => recalcularStatus();
-    const ouvir = (event) => {
-      const status = String(event?.detail?.status || 'PENDENTE').toUpperCase();
-      const field = String(event?.detail?.field || event?.detail?.localStorageKey || 'global');
-      syncCamposRef.current.set(field, { status, error: event?.detail?.error || '', at: Date.now() });
-      recalcularStatus();
-    };
-    window.addEventListener(PERSISTENCE_STATUS_EVENT, ouvir);
-    window.addEventListener('online', atualizarOnline);
-    window.addEventListener('offline', atualizarOnline);
-    atualizarOnline();
-    return () => {
-      window.removeEventListener(PERSISTENCE_STATUS_EVENT, ouvir);
-      window.removeEventListener('online', atualizarOnline);
-      window.removeEventListener('offline', atualizarOnline);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!userId) {
-      setTemaUi('dark');
-      return;
-    }
-    const temaSalvo = zenosStorage.getItem(`zenos_${userId}_ui_theme`);
-    setTemaUi(temaSalvo === 'light' ? 'light' : 'dark');
-  }, [userId]);
-
-  const alternarTemaUi = () => {
-    const proximo = temaUi === 'dark' ? 'light' : 'dark';
-    setTemaUi(proximo);
-    if (userId) zenosStorage.setItem(`zenos_${userId}_ui_theme`, proximo);
-  };
-
-  const concluirTrocaPinObrigatoria = async () => {
-    setErroPinObrigatorio('');
-    if (!operadorAtivo) return;
-    if (novoPinObrigatorio !== confirmarPinObrigatorio) return setErroPinObrigatorio('Os PINs informados não coincidem.');
-    if (pinEhFraco(novoPinObrigatorio)) return setErroPinObrigatorio('Escolha um PIN menos previsível. Não use admin, 1234, 0000, 1111 ou sequências simples.');
-    try {
-      const credencial = await criarCredencialPin(novoPinObrigatorio);
-      const atualizados = vendedores.map(v => String(v.id) === String(operadorAtivo.id) ? { ...v, ...credencial } : v);
-      if (userId) {
-        const persistencia = await persistV1OperationField({
-          db, userId, field: 'vendedores', value: atualizados, localStorageKey: `zenos_${userId}_vendedores`
-        });
-        if (!persistencia?.cloudOk) throw new Error('O novo PIN não foi confirmado na nuvem. Nenhuma alteração de acesso foi finalizada.');
-      }
-      setVendedores(atualizados);
-      setOperadorAtivo(prev => prev ? { ...prev, ...credencial } : prev);
-      setNovoPinObrigatorio(''); setConfirmarPinObrigatorio('');
-    } catch (error) { setErroPinObrigatorio(error?.message || 'Não foi possível atualizar o PIN.'); }
-  };
 
   const solicitarDemoFirebase = async () => {
     if (!userId) return;
     try {
       await setDoc(doc(db, "solicitacoes_demo", userId), {
-        email: usuarioAutenticado, uid: userId, dataSolicitacao: new Date().toISOString(), dataSolicitacaoServer: serverTimestamp(), status: 'pendente_analise'
+        email: usuarioAutenticado, uid: userId, dataSolicitacao: new Date().toISOString(), status: 'pendente_analise'
       }, { merge: true });
       setDemoSolicitada(true);
-      avisarAppZen({ variante:'success', titulo:'Solicitação enviada', mensagem:'A solicitação foi registrada com sucesso.' });
+      alert('Solicitação enviada!');
     } catch (err) {
-      avisarAppZen({ variante:'danger', titulo:'Não foi possível enviar', mensagem:tx('Erro ao enviar solicitação.', 'Error al enviar solicitud.', 'Error sending request.') });
+      alert(tx('Erro ao enviar solicitação.', 'Error al enviar solicitud.', 'Error sending request.'));
     }
   };
 
   // 🔒 ATUALIZADO: MOTOR CLOUD-FIRST (A nuvem é a fonte absoluta da verdade)
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      syncCamposRef.current.clear();
       if (user) {
         setUserId(user.uid);
         setUsuarioAutenticado(user.email);
-        // ATT 08.1: isolamento absoluto por conta. Nenhum perfil/regra/câmbio da sessão anterior permanece em RAM.
-        const perfilCacheUsuario = lerPerfilLojaLocal(user.uid);
-        setPerfilLoja(perfilCacheUsuario);
-        setPerfilRapidoRascunho(perfilCacheUsuario);
-        setRegrasDesconto({ ...REGRAS_DESCONTO_PADRAO });
-        setTaxasCambio({ ...TAXAS_CAMBIO_PADRAO });
-        setTaxasInput({ ...TAXAS_INPUT_PADRAO });
-        setNuvemSincronizada(false);
-    setStatusSincronizacao('PENDENTE');
-        setFalhaBootstrapNuvem(null);
         try {
           const docRef = doc(db, "lojas", user.uid);
           const docSnap = await getDoc(docRef);
@@ -267,198 +123,88 @@ export default function App() {
             const diffDias = (agora - dataCriacao) / (1000 * 60 * 60 * 24);
             if (status === 'aguardando_pagamento' && diffDias <= 7) status = 'ativo';
             setStatusLoja(status);
-            setPlanoLoja(dadosLoja.plano || dadosLoja.planoId || 'basico');
           } else {
             const novaDataCriacao = new Date().toISOString();
-            await setDoc(docRef, { email: user.email, status: 'aguardando_pagamento', dataCriacao: novaDataCriacao, createdAtServer: serverTimestamp() }, { merge: true });
+            await setDoc(docRef, { email: user.email, status: 'aguardando_pagamento', dataCriacao: novaDataCriacao }, { merge: true });
             setStatusLoja('ativo');
-            setPlanoLoja('basico');
           }
 
           const dadosLojaSnap = await getDoc(doc(db, "lojas", user.uid, "dados", "operacao"));
           if (dadosLojaSnap.exists()) {
             // SE A LOJA TEM DADOS NA NUVEM, PUXA TUDO DAQUI!
             const d = dadosLojaSnap.data();
-            setProdutos(Array.isArray(d.produtos) ? d.produtos.map((p, idx) => normalizarProduto(p, idx)) : []);
-            setClientes(Array.isArray(d.clientes) ? d.clientes.map((c, idx) => normalizarCliente(c, idx)) : []);
+            setProdutos(d.produtos ? d.produtos.map(p => normalizarProduto(p)) : produtosIniciais.map((p, idx) => normalizarProduto(p, idx)));
+            setClientes(d.clientes ? d.clientes.map(c => normalizarCliente(c)) : clientesIniciais.map(c => normalizarCliente(c)));
             setHistoricoVendas(d.historicoVendas || []);
             setCaixaMovimentos(d.caixaMovimentos || []);
             setDespesas(d.despesas || []);
             setHistoricoCompras(d.historicoCompras || []);
             setFornecedores(d.fornecedores || []);
-            setVouchers(Array.isArray(d.vouchers) ? d.vouchers : []);
-            setRegrasDesconto(normalizarRegrasDescontoSeguras(d.regrasDesconto)); 
-            let regrasComissaoCarregadas = d.regrasComissao;
-            if (!regrasComissaoCarregadas) {
-              try { regrasComissaoCarregadas = JSON.parse(zenosStorage.getItem(`zenos_${user.uid}_regras_comissao`) || 'null'); } catch (e) {}
-            }
-            setRegrasComissao(normalizarRegrasComissao(regrasComissaoCarregadas || REGRAS_COMISSAO_PADRAO));
-            setVendedores(d.vendedores && d.vendedores.length > 0 ? d.vendedores : [{ id: 'admin', nome: 'Administrador (Gerência)', patente: 'gerencia', senha: 'admin', pinTrocaObrigatoria: true, percentual: 0, comissaoTipo: 'lucro', permissoes: { admin: true } }]);
+            setRegrasDesconto(d.regrasDesconto || { verdeMax: 5, amareloMax: 12, exigirSenhaVermelho: true, senhaGerente: '1234' }); 
+            setVendedores(d.vendedores && d.vendedores.length > 0 ? d.vendedores : [{ id: 'admin', nome: 'Administrador (Gerência)', patente: 'gerencia', senha: 'admin', percentual: 0, comissaoTipo: 'lucro' }]);
             setSessoesCaixa(d.sessoesCaixa || []);
           } else {
             // CONTA NOVA (ZERADA): Ignorar qualquer lixo local e forçar arrays vazios/padrão
-            setProdutos([]);
-            setClientes([]);
+            setProdutos(produtosIniciais.map((p, idx) => normalizarProduto(p, idx)));
+            setClientes(clientesIniciais.map(c => normalizarCliente(c)));
             setHistoricoVendas([]);
             setCaixaMovimentos([]);
             setDespesas([]);
             setHistoricoCompras([]);
             setFornecedores([]);
-            setVouchers([]);
             setSessoesCaixa([]);
-            setRegrasDesconto({ ...REGRAS_DESCONTO_PADRAO });
-            setRegrasComissao(normalizarRegrasComissao(REGRAS_COMISSAO_PADRAO));
-            setVendedores([{ id: 'admin', nome: 'Administrador (Gerência)', patente: 'gerencia', senha: 'admin', pinTrocaObrigatoria: true, percentual: 0, comissaoTipo: 'lucro', permissoes: { admin: true } }]);
+            setVendedores([{ id: 'admin', nome: 'Administrador (Gerência)', patente: 'gerencia', senha: 'admin', percentual: 0, comissaoTipo: 'lucro' }]);
           }
-          // Somente uma leitura autoritativa concluída libera gravações na V1.
-          setFalhaBootstrapNuvem(null);
-          setNuvemSincronizada(true);
-          setStatusSincronizacao('SINCRONIZADO');
-          setErroSincronizacao('');
         } catch (err) { 
-          console.error('[ZenOS][BOOTSTRAP] Falha ao confirmar os dados da nuvem. Escritas permanecem bloqueadas.', err);
-          setStatusLoja('ativo');
-          setPlanoLoja('basico');
-          setNuvemSincronizada(false);
-          setStatusSincronizacao(typeof navigator !== 'undefined' && !navigator.onLine ? 'OFFLINE' : 'ERRO');
-          setErroSincronizacao(err?.message || 'Não foi possível confirmar os dados da nuvem.');
-          setFalhaBootstrapNuvem(err?.message || 'Não foi possível confirmar os dados da nuvem.'); 
+          setStatusLoja('ativo'); 
           // FALLBACK OFFLINE SEGURO: Puxa o cache isolado ou o legado genérico se for a primeira vez offline
           try {
             const puxar = (chave) => {
-              // Nunca carregar cache sem UID: duas lojas no mesmo navegador não podem compartilhar dados.
-              const val = zenosStorage.getItem(`zenos_${user.uid}_${chave}`);
-              return val ? JSON.parse(val) : null;
+              const val = localStorage.getItem(`zenos_${user.uid}_${chave}`);
+              if (val) return JSON.parse(val);
+              const legado = localStorage.getItem(`zenos_${chave}`);
+              if (legado) return JSON.parse(legado);
+              return null;
             };
             
-            const p = puxar('produtos'); if(p) setProdutos(p.map((x, idx) => normalizarProduto(x, idx))); else setProdutos([]);
-            const c = puxar('clientes'); if(c) setClientes(c.map((x, idx) => normalizarCliente(x, idx))); else setClientes([]);
+            const p = puxar('produtos'); if(p) setProdutos(p); else setProdutos(produtosIniciais.map((x, idx) => normalizarProduto(x, idx)));
+            const c = puxar('clientes'); if(c) setClientes(c); else setClientes(clientesIniciais.map(x => normalizarCliente(x)));
             const hv = puxar('historico_vendas'); if(hv) setHistoricoVendas(hv);
             const cm = puxar('caixa_movs'); if(cm) setCaixaMovimentos(cm);
             const d = puxar('despesas'); if(d) setDespesas(d);
             const hc = puxar('historico_compras'); if(hc) setHistoricoCompras(hc);
             const f = puxar('fornecedores'); if(f) setFornecedores(f);
-            const vv = puxar('vouchers'); if(vv) setVouchers(vv);
             const sc = puxar('sessoes_caixa'); if(sc) setSessoesCaixa(sc);
-            const rd = puxar('regras_desconto'); setRegrasDesconto(normalizarRegrasDescontoSeguras(rd || REGRAS_DESCONTO_PADRAO));
-            const rc = puxar('regras_comissao');
-            setRegrasComissao(normalizarRegrasComissao(rc || REGRAS_COMISSAO_PADRAO));
-            const vd = puxar('vendedores'); if(vd) setVendedores(vd); else setVendedores([{ id: 'admin', nome: 'Administrador (Gerência)', patente: 'gerencia', senha: 'admin', pinTrocaObrigatoria: true, percentual: 0, comissaoTipo: 'lucro', permissoes: { admin: true } }]);
+            const rd = puxar('regras_desconto'); if(rd) setRegrasDesconto(rd); else setRegrasDesconto({ verdeMax: 5, amareloMax: 12, exigirSenhaVermelho: true, senhaGerente: '1234' });
+            const vd = puxar('vendedores'); if(vd) setVendedores(vd); else setVendedores([{ id: 'admin', nome: 'Administrador (Gerência)', patente: 'gerencia', senha: 'admin', percentual: 0, comissaoTipo: 'lucro' }]);
           } catch(e){}
+        } finally {
+          // Destranca o sistema para permitir salvamentos
+          setNuvemSincronizada(true);
         }
       } else {
         // SEM USUÁRIO (DESLOGADO): Destrói os dados locais da memória RAM
         setUsuarioAutenticado(null); setUserId(null); setStatusLoja(null); setOperadorAtivo(null);
         setNuvemSincronizada(false);
-        setFalhaBootstrapNuvem(null);
-        setProdutos([]); setClientes([]); setHistoricoVendas([]); setCaixaMovimentos([]); setDespesas([]); setHistoricoCompras([]); setFornecedores([]); setVouchers([]); setLivroFinanceiro([]); setSessoesCaixa([]); setRegrasDesconto({ ...REGRAS_DESCONTO_PADRAO }); setRegrasComissao(normalizarRegrasComissao(REGRAS_COMISSAO_PADRAO)); setVendedores([]); setPerfilLoja(normalizarPerfilLoja({})); setPerfilRapidoRascunho(normalizarPerfilLoja({})); setTaxasCambio({ ...TAXAS_CAMBIO_PADRAO }); setTaxasInput({ ...TAXAS_INPUT_PADRAO });
+        setProdutos([]); setClientes([]); setHistoricoVendas([]); setCaixaMovimentos([]); setDespesas([]); setHistoricoCompras([]); setFornecedores([]); setSessoesCaixa([]); setVendedores([]);
       }
       setCarregandoAuth(false);
     });
     return () => unsubscribe();
   }, []);
 
-  // ATT 06.2: sincronização reativa V1 entre terminais.
-  useEffect(() => {
-    if (!userId) return;
-    const refOperacao = doc(db, 'lojas', userId, 'dados', 'operacao');
-    const refConfig = doc(db, 'lojas', userId, 'dados', 'configuracoes');
-    const eq = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
-    const unsubOperacao = onSnapshot(refOperacao, (snap) => {
-      if (!snap.exists()) return;
-      const d = snap.data() || {};
-      remotoAplicandoRef.current = true;
-      if (Array.isArray(d.produtos)) { const x=d.produtos.map((v,i)=>normalizarProduto(v,i)); setProdutos(prev=>eq(prev,x)?prev:x); }
-      if (Array.isArray(d.clientes)) { const x=d.clientes.map((v,i)=>normalizarCliente(v,i)); setClientes(prev=>eq(prev,x)?prev:x); }
-      if (Array.isArray(d.historicoVendas)) setHistoricoVendas(prev=>eq(prev,d.historicoVendas)?prev:d.historicoVendas);
-      if (Array.isArray(d.caixaMovimentos)) setCaixaMovimentos(prev=>eq(prev,d.caixaMovimentos)?prev:d.caixaMovimentos);
-      if (Array.isArray(d.despesas)) setDespesas(prev=>eq(prev,d.despesas)?prev:d.despesas);
-      if (Array.isArray(d.historicoCompras)) setHistoricoCompras(prev=>eq(prev,d.historicoCompras)?prev:d.historicoCompras);
-      if (Array.isArray(d.fornecedores)) setFornecedores(prev=>eq(prev,d.fornecedores)?prev:d.fornecedores);
-      if (Array.isArray(d.vouchers)) setVouchers(prev=>eq(prev,d.vouchers)?prev:d.vouchers);
-      if (Array.isArray(d.sessoesCaixa)) setSessoesCaixa(prev=>eq(prev,d.sessoesCaixa)?prev:d.sessoesCaixa);
-      if (Array.isArray(d.vendedores)) setVendedores(prev=>eq(prev,d.vendedores)?prev:d.vendedores);
-      if (d.regrasDesconto) { const x=normalizarRegrasDescontoSeguras(d.regrasDesconto); setRegrasDesconto(prev=>eq(prev,x)?prev:x); }
-      if (d.regrasComissao) { const x=normalizarRegrasComissao(d.regrasComissao); setRegrasComissao(prev=>eq(prev,x)?prev:x); }
-      if (!snap.metadata?.fromCache) {
-        setFalhaBootstrapNuvem(null);
-        setNuvemSincronizada(true);
-        notifyPersistenceStatus({status:'SINCRONIZADO',field:'operacao_realtime'});
-      }
-      queueMicrotask(() => { remotoAplicandoRef.current = false; });
-    }, err => { console.error('[ZenOS][Realtime] operação:', err); notifyPersistenceStatus({status:'ERRO',field:'operacao_realtime',error:err?.message || 'Falha na sincronização operacional.'}); });
-    const unsubConfig = onSnapshot(refConfig, (snap) => {
-      if (!snap.exists()) {
-        const pf = normalizarPerfilLoja({});
-        setPerfilLoja(pf);
-        setPerfilRapidoRascunho(pf);
-        limparPerfilLojaLocal(userId);
-        setTaxasCambio({ ...TAXAS_CAMBIO_PADRAO });
-        setTaxasInput({ ...TAXAS_INPUT_PADRAO });
-        return;
-      }
-      const config = snap.data() || {};
-      const pf = normalizarPerfilLoja(config.perfilLoja || {});
-      setPerfilLoja(pf);
-      salvarPerfilLojaLocal(userId, pf);
-      if (config.taxasCambio) {
-        const taxas = normalizarTaxasCambio(config.taxasCambio);
-        setTaxasCambio(taxas);
-        setTaxasInput(taxasInputAPartirDasTaxas(taxas));
-      } else {
-        setTaxasCambio({ ...TAXAS_CAMBIO_PADRAO });
-        setTaxasInput({ ...TAXAS_INPUT_PADRAO });
-      }
-      if (!snap.metadata?.fromCache) notifyPersistenceStatus({status:'SINCRONIZADO',field:'configuracoes_realtime'});
-    }, err => { console.error('[ZenOS][Realtime] configuração:', err); notifyPersistenceStatus({status:'ERRO',field:'configuracoes_realtime',error:err?.message || 'Falha na sincronização de configuração.'}); });
-    return () => { unsubOperacao(); unsubConfig(); };
-  }, [userId]);
-
-  // ATT 07: Livro Financeiro aditivo em documentos independentes.
-  useEffect(() => {
-    if (!userId) { setLivroFinanceiro([]); return; }
-    return assinarLivroFinanceiro({
-      db,
-      userId,
-      onData: (itens, meta) => { setLivroFinanceiro(itens); if (!meta?.fromCache) notifyPersistenceStatus({status:'SINCRONIZADO',field:'financeiro_realtime'}); },
-      onError: (err) => { console.error('[ZenOS][ATT07][LivroFinanceiro]', err); notifyPersistenceStatus({status:'ERRO',field:'financeiro_realtime',error:err?.message || 'Falha na sincronização do Livro Financeiro.'}); },
-    });
-  }, [userId]);
-
-  const salvarPerfilRapido = async () => {
-    const pf = normalizarPerfilLoja(perfilRapidoRascunho);
-    if (!pf.nomeFantasia.trim()) return;
-    setPerfilLoja(pf); salvarPerfilLojaLocal(userId, pf);
-    if (userId) { notifyPersistenceStatus({status:'SALVANDO',field:'configuracoes'}); try { await setDoc(doc(db, 'lojas', userId, 'dados', 'configuracoes'), { perfilLoja: pf, updatedAtClient:new Date().toISOString(), updatedAtServer:serverTimestamp() }, { merge: true }); notifyPersistenceStatus({status:'SINCRONIZADO',field:'configuracoes'}); } catch(error) { notifyPersistenceStatus({status:'ERRO',field:'configuracoes',error:error?.message||String(error)}); throw error; } }
-    setPerfilRapidoErro('');
-    setModalPerfilRapido(false);
-  };
-
   const fazerLogout = async () => {
-    const confirmou = await confirmarAppZen({
-      variante:'warning',
-      titulo:tx('Encerrar sessão da loja', 'Cerrar sesión de la tienda', 'End store session'),
-      mensagem:tx('Encerrar a sessão principal desta loja?', '¿Cerrar la sesión principal de esta tienda?', 'End the main session for this store?'),
-      confirmarTexto:tx('Encerrar sessão', 'Cerrar sesión', 'End session')
-    });
-    if (!confirmou) return;
-    await signOut(auth);
-    // LIMPEZA ABSOLUTA DE MEMÓRIA NO LOGOUT
-    setNuvemSincronizada(false);
-    setStatusSincronizacao('PENDENTE');
-    setErroSincronizacao('');
-    setProdutos([]); setClientes([]); setHistoricoVendas([]); setCaixaMovimentos([]); setDespesas([]); setHistoricoCompras([]); setFornecedores([]); setVouchers([]); setLivroFinanceiro([]); setSessoesCaixa([]);
-    setRegrasDesconto({ ...REGRAS_DESCONTO_PADRAO });
-    setRegrasComissao(normalizarRegrasComissao(REGRAS_COMISSAO_PADRAO));
-    setVendedores([]);
-    setPerfilLoja(normalizarPerfilLoja({}));
-    setPerfilRapidoRascunho(normalizarPerfilLoja({}));
-    setTaxasCambio({ ...TAXAS_CAMBIO_PADRAO });
-    setTaxasInput({ ...TAXAS_INPUT_PADRAO });
-    setMostrarPainelExecutivo(false);
-    setOperadorAtivo(null);
-    setValoresTopoVisiveis(true);
-    setEcraAtual('hub');
+    if(window.confirm(tx('Encerrar a sessão principal desta loja?', '¿Cerrar sesión?', 'End session?'))) {
+      await signOut(auth);
+      // LIMPEZA ABSOLUTA DE MEMÓRIA NO LOGOUT
+      setNuvemSincronizada(false);
+      setProdutos([]); setClientes([]); setHistoricoVendas([]); setCaixaMovimentos([]); setDespesas([]); setHistoricoCompras([]); setFornecedores([]); setSessoesCaixa([]); setVendedores([]);
+      
+      setMostrarPainelExecutivo(false); 
+      setOperadorAtivo(null);
+      setValoresTopoVisiveis(true);
+      setEcraAtual('hub');
+    }
   };
 
   const trocarOperador = () => {
@@ -477,91 +223,68 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
     if (!nuvemSincronizada || !userId) return;
-    void persistV1OperationField({ db, userId, field: 'produtos', value: produtos, localStorageKey: `zenos_${userId}_produtos` }); 
+    localStorage.setItem(`zenos_${userId}_produtos`, JSON.stringify(produtos)); 
+    setDoc(doc(db, "lojas", userId, "dados", "operacao"), { produtos }, { merge: true }).catch(()=>{}); 
   }, [produtos, userId, nuvemSincronizada]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
     if (!nuvemSincronizada || !userId) return;
-    void persistV1OperationField({ db, userId, field: 'clientes', value: clientes, localStorageKey: `zenos_${userId}_clientes` }); 
+    localStorage.setItem(`zenos_${userId}_clientes`, JSON.stringify(clientes)); 
+    setDoc(doc(db, "lojas", userId, "dados", "operacao"), { clientes }, { merge: true }).catch(()=>{}); 
   }, [clientes, userId, nuvemSincronizada]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
     if (!nuvemSincronizada || !userId) return;
-    void persistV1OperationField({ db, userId, field: 'historicoVendas', value: historicoVendas, localStorageKey: `zenos_${userId}_historico_vendas` }); 
+    localStorage.setItem(`zenos_${userId}_historico_vendas`, JSON.stringify(historicoVendas)); 
+    setDoc(doc(db, "lojas", userId, "dados", "operacao"), { historicoVendas }, { merge: true }).catch(()=>{}); 
   }, [historicoVendas, userId, nuvemSincronizada]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
     if (!nuvemSincronizada || !userId) return;
-    void persistV1OperationField({ db, userId, field: 'caixaMovimentos', value: caixaMovimentos, localStorageKey: `zenos_${userId}_caixa_movs` }); 
+    localStorage.setItem(`zenos_${userId}_caixa_movs`, JSON.stringify(caixaMovimentos)); 
+    setDoc(doc(db, "lojas", userId, "dados", "operacao"), { caixaMovimentos }, { merge: true }).catch(()=>{}); 
   }, [caixaMovimentos, userId, nuvemSincronizada]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
     if (!nuvemSincronizada || !userId) return;
-    void persistV1OperationField({ db, userId, field: 'despesas', value: despesas, localStorageKey: `zenos_${userId}_despesas` }); 
+    localStorage.setItem(`zenos_${userId}_despesas`, JSON.stringify(despesas)); 
+    setDoc(doc(db, "lojas", userId, "dados", "operacao"), { despesas }, { merge: true }).catch(()=>{}); 
   }, [despesas, userId, nuvemSincronizada]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
     if (!nuvemSincronizada || !userId) return;
-    void persistV1OperationField({ db, userId, field: 'historicoCompras', value: historicoCompras, localStorageKey: `zenos_${userId}_historico_compras` }); 
+    localStorage.setItem(`zenos_${userId}_historico_compras`, JSON.stringify(historicoCompras)); 
+    setDoc(doc(db, "lojas", userId, "dados", "operacao"), { historicoCompras }, { merge: true }).catch(()=>{}); 
   }, [historicoCompras, userId, nuvemSincronizada]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
     if (!nuvemSincronizada || !userId) return;
-    void persistV1OperationField({ db, userId, field: 'fornecedores', value: fornecedores, localStorageKey: `zenos_${userId}_fornecedores` }); 
+    localStorage.setItem(`zenos_${userId}_fornecedores`, JSON.stringify(fornecedores)); 
+    setDoc(doc(db, "lojas", userId, "dados", "operacao"), { fornecedores }, { merge: true }).catch(()=>{}); 
   }, [fornecedores, userId, nuvemSincronizada]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
     if (!nuvemSincronizada || !userId) return;
-    void persistV1OperationField({ db, userId, field: 'vouchers', value: vouchers, localStorageKey: `zenos_${userId}_vouchers` });
-  }, [vouchers, userId, nuvemSincronizada]);
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { 
-    if (!nuvemSincronizada || !userId) return;
-    void persistV1OperationField({ db, userId, field: 'regrasDesconto', value: regrasDesconto, localStorageKey: `zenos_${userId}_regras_desconto` }); 
+    localStorage.setItem(`zenos_${userId}_regras_desconto`, JSON.stringify(regrasDesconto)); 
+    setDoc(doc(db, "lojas", userId, "dados", "operacao"), { regrasDesconto }, { merge: true }).catch(()=>{}); 
   }, [regrasDesconto, userId, nuvemSincronizada]);
 
-  // ATT 08: regras de comissão/metas sincronizadas entre terminais.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (!nuvemSincronizada || !userId) return;
-    const normalizadas = normalizarRegrasComissao(regrasComissao);
-    void persistV1OperationField({ db, userId, field: 'regrasComissao', value: normalizadas, localStorageKey: `zenos_${userId}_regras_comissao` });
-  }, [regrasComissao, userId, nuvemSincronizada]);
-
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { 
     if (!nuvemSincronizada || !userId) return;
-    void persistV1OperationField({ db, userId, field: 'sessoesCaixa', value: sessoesCaixa, localStorageKey: `zenos_${userId}_sessoes_caixa` }); 
+    localStorage.setItem(`zenos_${userId}_sessoes_caixa`, JSON.stringify(sessoesCaixa)); 
+    setDoc(doc(db, "lojas", userId, "dados", "operacao"), { sessoesCaixa }, { merge: true }).catch(()=>{}); 
   }, [sessoesCaixa, userId, nuvemSincronizada]);
 
   const t = (chave) => traducoes[idioma]?.[chave] || traducoes.pt[chave] || chave;
   const tx = (pt, es, en) => { if (idioma === 'es') return es || pt; if (idioma === 'en') return en || pt; return pt; };
-
-  const registrarFinanceiro = async (lancamento) => {
-    if (!userId) throw new Error('Loja não identificada para o Livro Financeiro.');
-    const confirmado = await registrarLancamentoFinanceiro({
-      db,
-      userId,
-      lancamento: {
-        ...lancamento,
-        operadorId: lancamento?.operadorId || operadorAtivo?.id || 'admin',
-        operadorNome: lancamento?.operadorNome || operadorAtivo?.nome || 'Administrador',
-      },
-    });
-    // Após confirmação real do Firestore, mantém o snapshot local imediatamente
-    // coerente para fechamento/auditoria sem depender da latência do onSnapshot.
-    setLivroFinanceiro(atual => [confirmado, ...(atual || []).filter(item => String(item?.id) !== String(confirmado.id))]
-      .sort((a, b) => String(b?.createdAt || '').localeCompare(String(a?.createdAt || ''))));
-    return confirmado;
-  };
 
   const converterDeBRL = (valor, codigo = moeda) => (Number(valor) || 0) * (taxasCambio[codigo] || 1);
   const converterParaBRL = (valor, codigo = moeda) => (Number(valor) || 0) / (taxasCambio[codigo] || 1);
@@ -571,37 +294,19 @@ export default function App() {
     try { return new Intl.NumberFormat(conf.locale, { style: 'currency', currency: conf.moeda, maximumFractionDigits: conf.moeda === 'PYG' ? 0 : 2 }).format(val); } catch { return `${conf.simbolo} ${Number(val).toFixed(2)}`; }
   };
 
-  const salvarTaxasCambio = async () => {
+  const salvarTaxasCambio = () => {
     const rateUSD = parseFloat(taxasInput.USD.replace(',', '.')) || 5.40;
     const rateEUR = parseFloat(taxasInput.EUR.replace(',', '.')) || 6.05;
     const ratePYG = parseFloat(taxasInput.PYG.replace(',', '.')) || 1380;
-    const novasTaxas = normalizarTaxasCambio({
-      BRL: 1.0,
-      USD: rateUSD > 0 ? 1 / rateUSD : TAXAS_CAMBIO_PADRAO.USD,
-      EUR: rateEUR > 0 ? 1 / rateEUR : TAXAS_CAMBIO_PADRAO.EUR,
-      PYG: ratePYG > 0 ? ratePYG : TAXAS_CAMBIO_PADRAO.PYG,
-    });
-    setTaxasCambio(novasTaxas);
-    if (userId) {
-      try {
-        notifyPersistenceStatus({status:'SALVANDO',field:'configuracoes'});
-        await setDoc(doc(db, 'lojas', userId, 'dados', 'configuracoes'), { taxasCambio: novasTaxas, updatedAtClient:new Date().toISOString(), updatedAtServer:serverTimestamp() }, { merge: true });
-        notifyPersistenceStatus({status:'SINCRONIZADO',field:'configuracoes'});
-      } catch (err) {
-        console.error('[ZenOS][Câmbio] Não foi possível persistir as cotações:', err);
-        notifyPersistenceStatus({status:'ERRO',field:'configuracoes',error:err?.message||String(err)});
-      }
-    }
+    setTaxasCambio({ BRL: 1.0, USD: rateUSD > 0 ? 1 / rateUSD : 0.185, EUR: rateEUR > 0 ? 1 / rateEUR : 0.165, PYG: ratePYG > 0 ? ratePYG : 1380.0 });
     setModalCambioAberto(false);
   };
 
-  const vendasValidas = historicoVendas.filter(v => v.estado === 'concluida' || v.estado === 'parcial');
+  const vendasValidas = historicoVendas.filter(v => v.estado === 'concluida');
   
-  const vendasHoje = vendasValidas.filter(v => registroEhDoDiaLocal(v));
-  const faturamentoHojeBRL = vendasHoje.reduce((acc, v) => acc + obterFinanceiroVenda(v).totalLiquidoBRL, 0);
-  const faturamentoTotalBRL = vendasValidas.reduce((acc, v) => acc + obterFinanceiroVenda(v).totalLiquidoBRL, 0);
-  const lucroBrutoBRL = vendasValidas.reduce((acc, v) => acc + obterFinanceiroVenda(v).lucroLiquidoBRL, 0);
-  const despesasPagasBRL = despesas.filter(d => d.status === 'paga' && d.afetaResultado !== false && d.naturezaContabil !== 'estoque_ativo' && d.categoria !== 'Mercadoria para Revenda').reduce((acc, d) => acc + (parseFloat(d.valorBRL) || 0), 0);
+  const faturamentoTotalBRL = vendasValidas.reduce((acc, v) => acc + (v.totalBRL || 0), 0);
+  const lucroBrutoBRL = vendasValidas.reduce((acc, v) => acc + (v.lucroBRL || 0), 0);
+  const despesasPagasBRL = despesas.filter(d => d.status === 'paga').reduce((acc, d) => acc + (parseFloat(d.valorBRL) || 0), 0);
   const lucroLiquidoRealBRL = lucroBrutoBRL - despesasPagasBRL;
   const totalFiadoAbertoBRL = clientes.reduce((acc, c) => acc + (parseFloat(c.saldoDevedorBRL) || 0), 0);
 
@@ -609,7 +314,7 @@ export default function App() {
     const mapa = {};
     vendasValidas.forEach(v => {
       v.itens.forEach(it => {
-        const id = it.produtoOriginalId || it.sku || it.id;
+        const id = it.id;
         const qtdReal = (parseInt(it.qtd) || 0) - (parseInt(it.qtdDevolvida) || 0);
         if (qtdReal > 0) {
           if (!mapa[id]) mapa[id] = { nome: it.nome, sku: it.sku, qtd: 0, faturamentoBRL: 0 };
@@ -624,21 +329,19 @@ export default function App() {
 
   const idVendedorAtual = (operadorAtivo && operadorAtivo.id) ? operadorAtivo.id : 'admin';
   const sessaoAtiva = sessoesCaixa.find(s => s.operadorId === idVendedorAtual && s.status === 'aberta');
-  // O caixa físico precisa preservar a entrada original mesmo quando a venda é
-  // totalmente devolvida e passa ao estado `cancelada`. O motor canônico de caixa
-  // já distingue quais estados possuem fluxo financeiro; por isso recebe o histórico
-  // completo, enquanto os indicadores comerciais acima continuam usando vendasValidas.
-  const resumoSessaoAtiva = sessaoAtiva ? calcularResumoSessao({ sessao: sessaoAtiva, historicoVendas, caixaMovimentos }) : null;
-  const vendasDestaSessao = sessaoAtiva ? historicoVendas.filter(v => {
-    const estadoComFluxo = v.estado === 'concluida' || v.estado === 'parcial' || (v.estado === 'cancelada' && Array.isArray(v.pagamentos) && v.pagamentos.length > 0);
-    return estadoComFluxo && String(v.vendedorId) === String(idVendedorAtual) && timestampVenda(v) >= timestampSessao(sessaoAtiva);
-  }) : [];
+  const timestampSessao = sessaoAtiva ? parseInt(sessaoAtiva.id.split('-')[1]) : 0;
+
+  const vendasDestaSessao = sessaoAtiva ? vendasValidas.filter(v => v.vendedorId === idVendedorAtual && parseInt(v.id.split('-')[1]) >= timestampSessao) : [];
   const movsSessao = sessaoAtiva ? caixaMovimentos.filter(m => m.sessaoId === sessaoAtiva.id) : [];
-  const saldoSessaoFisicoBRL = resumoSessaoAtiva?.saldoEsperado || 0;
-  // Compatibilidade dos relatórios/fecho: aliases derivados do resumo canônico da sessão.
-  const suprimentosSessaoBRL = Number(resumoSessaoAtiva?.suprimentos || 0);
-  const sangriasSessaoBRL = Number(resumoSessaoAtiva?.sangrias || 0);
-  const saidasComprasDinheiroSessaoBRL = Number(resumoSessaoAtiva?.comprasDinheiro || 0);
+
+  const entradasSessaoBRL = vendasDestaSessao.reduce((acc, v) => {
+    const pagDinheiro = (v.pagamentos || []).filter(p => p.formaId && p.formaId.startsWith('dinheiro')).reduce((sum, p) => sum + (p.valorConvertidoBRL || 0), 0);
+    return acc + Math.max(0, pagDinheiro - (v.trocoBRL || 0));
+  }, 0);
+
+  const suprimentosSessaoBRL = movsSessao.filter(m => m.tipo === 'suprimento').reduce((acc, m) => acc + m.valorBRL, 0);
+  const sangriasSessaoBRL = movsSessao.filter(m => m.tipo === 'sangria').reduce((acc, m) => acc + m.valorBRL, 0);
+  const saldoSessaoFisicoBRL = (sessaoAtiva?.saldoInicial || 0) + entradasSessaoBRL + suprimentosSessaoBRL - sangriasSessaoBRL;
 
   const [modalCaixaAberto, setModalCaixaAberto] = useState(false);
   const [tipoMovCaixa, setTipoMovCaixa] = useState('suprimento'); 
@@ -662,7 +365,6 @@ export default function App() {
       saldoInicial: saldoIni,
       detalheAbertura: { ...valoresMovCaixa },
       status: 'aberta',
-      createdAt: new Date().toISOString(),
       abertura: new Date().toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR')
     };
     setSessoesCaixa([novaSessao, ...sessoesCaixa]);
@@ -670,235 +372,111 @@ export default function App() {
     resetarValoresCaixa();
   };
 
-  const registrarMovimentoCaixa = async () => {
-    if (!sessaoAtiva) return avisarAppZen({ variante:'warning', titulo:'Caixa fechado', mensagem:tx('Precisa de abrir o turno de caixa primeiro.', 'Debe abrir turno primero.', 'Must open shift first.') });
+  const registrarMovimentoCaixa = () => {
+    if (!sessaoAtiva) return alert(tx('Precisa de abrir o turno de caixa primeiro.', 'Debe abrir turno primero.', 'Must open shift first.'));
     const valBRL = calcularTotalMovBRL();
-    if (valBRL <= 0) return avisarAppZen({ variante:'warning', titulo:'Valor inválido', mensagem:tx('Insira um valor válido.', 'Ingrese un valor válido.', 'Enter a valid amount.') });
-    if (tipoMovCaixa === 'sangria' && valBRL > saldoSessaoFisicoBRL + 0.001) {
-      return avisarAppZen({ variante:'danger', titulo:'Saldo insuficiente na gaveta', mensagem:tx('A sangria não pode ser maior que o dinheiro físico disponível.', 'La sangría no puede superar el efectivo disponible.', 'Cash drop cannot exceed physical cash available.'), detalhes:[`Disponível: ${fmt(saldoSessaoFisicoBRL,'BRL')}`, `Solicitado: ${fmt(valBRL,'BRL')}`] });
+    if (valBRL <= 0) return alert(tx('Insira um valor válido.', 'Ingrese un valor válido.', 'Enter a valid amount.'));
+    if (tipoMovCaixa === 'sangria' && valBRL > saldoSessaoFisicoBRL) {
+      if (!window.confirm(tx('O valor é maior que o saldo da SUA gaveta. Continuar?', 'El valor es mayor al saldo. ¿Continuar?', 'Value exceeds balance. Continue?'))) return;
     }
-    const agoraISO = new Date().toISOString();
     const novoMov = { 
-      id: Date.now(), sessaoId: sessaoAtiva.id, dataHora: new Date().toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR'), createdAt: agoraISO,
-      tipo: tipoMovCaixa, valorBRL: valBRL, detalhesMoedas: { ...valoresMovCaixa },
-      direcao: tipoMovCaixa === 'suprimento' ? 'entrada' : 'saida', afetaGaveta: true,
+      id: Date.now(), sessaoId: sessaoAtiva.id, dataHora: new Date().toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR'), 
+      tipo: tipoMovCaixa, valorBRL: valBRL, detalhesMoedas: { ...valoresMovCaixa }, 
       descricao: descMovCaixa || (tipoMovCaixa === 'suprimento' ? tx('Reforço de Fundo', 'Refuerzo de Caja', 'Float Fund') : tx('Retirada de Caixa', 'Retiro de Caja', 'Cash Withdrawal')), 
       operador: operadorAtivo?.nome 
     };
-    try {
-      await registrarFinanceiro({
-        id: `CAIXA-${novoMov.id}`,
-        tipo: tipoMovCaixa,
-        origem: 'caixa_manual',
-        referenciaId: String(novoMov.id),
-        valor: valBRL,
-        formaPagamento: 'dinheiro_gaveta',
-        createdAt: agoraISO,
-        afetaCaixaFisico: true,
-        afetaResultado: false,
-        direcao: tipoMovCaixa === 'suprimento' ? 'entrada' : 'saida',
-        sessaoId: sessaoAtiva.id,
-        observacao: novoMov.descricao,
-      });
-    } catch (err) {
-      console.error('[ZenOS][ATT07] Falha ao registrar movimento financeiro:', err);
-      return;
-    }
     setCaixaMovimentos([novoMov, ...caixaMovimentos]);
     setModalCaixaAberto(false);
     resetarValoresCaixa(); setDescMovCaixa('');
   };
 
   const processarFechamentoCego = () => {
-    if (!sessaoAtiva || !resumoSessaoAtiva) {
-      return avisarAppZen({
-        variante: 'warning',
-        titulo: 'Nenhum turno aberto',
-        mensagem: tx('Não existe turno aberto para encerrar.', 'No hay un turno abierto para cerrar.', 'There is no open shift to close.'),
-        apenasConfirmar: true,
-      });
-    }
-
-    const houveContagem = Object.values(valoresMovCaixa || {}).some(v => String(v ?? '').trim() !== '');
-    if (!houveContagem) {
-      return avisarAppZen({
-        variante: 'warning',
-        titulo: 'Informe a contagem física',
-        mensagem: tx(
-          'Conte a gaveta e informe os valores encontrados. Se uma moeda não existir na gaveta, digite 0.',
-          'Cuente la gaveta e informe los valores encontrados. Si no hay una moneda, ingrese 0.',
-          'Count the drawer and enter the amounts found. If a currency is not present, enter 0.'
-        ),
-        apenasConfirmar: true,
-      });
-    }
-
     const valInformadoBRL = calcularTotalMovBRL();
-    const saldoEsperadoBRL = Number(resumoSessaoAtiva.saldoEsperado || 0);
-    const diferenca = Math.round((valInformadoBRL - saldoEsperadoBRL) * 100) / 100;
-
+    const diferenca = valInformadoBRL - saldoSessaoFisicoBRL;
+    
     const dataFechoISO = new Date().toISOString();
     const dataFechoLocal = new Date().toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR');
-    const conciliacaoEletronica = calcularConciliacaoEletronicaSessao({ sessao: sessaoAtiva, livroFinanceiro }) || {
-      pixEntradas: 0, pixSaidas: 0, pixLiquido: 0,
-      cartaoCreditoEntradas: 0, cartaoCreditoSaidas: 0, cartaoCreditoLiquido: 0,
-      cartaoDebitoEntradas: 0, cartaoDebitoSaidas: 0, cartaoDebitoLiquido: 0,
-      pixLancamentos: [], cartaoCreditoLancamentos: [], cartaoDebitoLancamentos: [],
-    };
-
+    
     const sessoesAtualizadas = sessoesCaixa.map(s => {
       if (s.id === sessaoAtiva.id) {
-        return {
-          ...s,
-          status: 'fechada',
-          fechamento: dataFechoISO,
-          fechamentoLocal: dataFechoLocal,
-          saldoInformado: valInformadoBRL,
-          detalheFechamento: { ...valoresMovCaixa },
-          diferenca,
-          saldoSistema: saldoEsperadoBRL,
-          fechamentoCego: true,
-          conciliacaoEletronica: {
-            pixEntradas: conciliacaoEletronica.pixEntradas,
-            pixSaidas: conciliacaoEletronica.pixSaidas,
-            pixLiquido: conciliacaoEletronica.pixLiquido,
-            cartaoCreditoEntradas: conciliacaoEletronica.cartaoCreditoEntradas,
-            cartaoCreditoSaidas: conciliacaoEletronica.cartaoCreditoSaidas,
-            cartaoCreditoLiquido: conciliacaoEletronica.cartaoCreditoLiquido,
-            cartaoDebitoEntradas: conciliacaoEletronica.cartaoDebitoEntradas,
-            cartaoDebitoSaidas: conciliacaoEletronica.cartaoDebitoSaidas,
-            cartaoDebitoLiquido: conciliacaoEletronica.cartaoDebitoLiquido,
-            pixQuantidade: conciliacaoEletronica.pixLancamentos.length,
-          },
-          auditadoPor: operadorAtivo?.nome || sessaoAtiva.operadorNome || 'Operador',
-        };
+        return { ...s, status: 'fechada', fechamento: dataFechoISO, saldoInformado: valInformadoBRL, detalheFechamento: { ...valoresMovCaixa }, diferenca: diferenca, saldoSistema: saldoSessaoFisicoBRL };
       }
       return s;
     });
+    setSessoesCaixa(sessoesAtualizadas);
 
     const resumoEntradas = vendasDestaSessao.reduce((res, v) => {
       (v.pagamentos || []).forEach(p => {
-        const rotulo = p.rotulo || p.formaId || 'Pagamento';
-        if (!res[rotulo]) res[rotulo] = 0;
-        res[rotulo] += Number(p.valorOriginal || p.valorConvertidoBRL || 0);
+        if (!res[p.rotulo]) res[p.rotulo] = 0;
+        res[p.rotulo] += p.valorOriginal;
       });
       return res;
     }, {});
 
-    const componentes = {
-      fundoInicial: Number(resumoSessaoAtiva.saldoInicial || 0),
-      vendasDinheiro: Number(resumoSessaoAtiva.vendasDinheiro || 0),
-      recebimentosDinheiro: Number(resumoSessaoAtiva.recebimentosDinheiro || 0),
-      suprimentos: suprimentosSessaoBRL,
-      outrasEntradas: Number(resumoSessaoAtiva.outrasEntradas || 0),
-      sangrias: sangriasSessaoBRL,
-      devolucoesDinheiro: Number(resumoSessaoAtiva.devolucoesDinheiro || 0),
-      despesasDinheiro: Number(resumoSessaoAtiva.despesasDinheiro || 0),
-      comprasDinheiro: saidasComprasDinheiroSessaoBRL,
-      outrasSaidas: Number(resumoSessaoAtiva.outrasSaidas || 0),
-    };
-
-    const moedasContadasHTML = Object.entries(valoresMovCaixa)
-      .map(([m, v]) => [m, String(v ?? '').trim() === '' ? 0 : (parseFloat(String(v).replace(',', '.')) || 0)])
-      .map(([m, v]) => `<div style="display:flex;justify-content:space-between;"><span>${m} contado:</span><span>${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: m === 'PYG' ? 0 : 2, maximumFractionDigits: 2 })}</span></div>`)
-      .join('');
-
-    const escaparHTML = (valor = '') => String(valor ?? '').replace(/[&<>"']/g, caractere => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[caractere]));
-    const extratoPixHTML = [...(conciliacaoEletronica.pixLancamentos || [])]
-      .sort((a, b) => Date.parse(a?.createdAt || 0) - Date.parse(b?.createdAt || 0))
-      .map(l => {
-        const data = new Date(l?.createdAt || '');
-        const horario = Number.isNaN(data.getTime()) ? '--:--' : data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-        const saida = l?.direcao === 'saida';
-        const referencia = escaparHTML(l?.clienteNome || l?.referenciaId || l?.tipo || 'Movimento PIX');
-        return `<div style="display:flex;justify-content:space-between;gap:8px;"><span>${horario} ${saida ? 'SAÍDA' : 'ENTRADA'} • ${referencia}</span><span>${saida ? '- ' : '+ '}${fmt(Number(l?.valor) || 0, 'BRL')}</span></div>`;
-      })
-      .join('');
-
+    const moedasContadasHTML = Object.entries(valoresMovCaixa).filter(([_,v]) => parseFloat(String(v).replace(',','.'))>0).map(([m,v]) => `<div style="display: flex; justify-content: space-between;"><span>Informado em ${m}:</span><span>${parseFloat(String(v).replace(',','.')).toFixed(2)}</span></div>`).join('');
     const temQuebra = Math.abs(diferenca) > 0.05;
-    const descQuebra = temQuebra
-      ? (diferenca < 0 ? 'FALTA DE CAIXA' : 'SOBRA DE CAIXA')
-      : 'CAIXA CONCILIADO';
+    const descQuebra = temQuebra ? (diferenca < 0 ? 'FALTA DE CAIXA (QUEBRA NEGATIVA)' : 'SOBRA DE CAIXA (QUEBRA POSITIVA)') : 'CAIXA CONCILIADO CORRETAMENTE';
 
     const reciboFechoHTML = `
-      <div style="font-family:monospace;font-size:12px;width:100%;text-align:left;">
-        <div style="text-align:center;margin-bottom:10px;">
-          <h2 style="margin:0;font-size:14px;">FECHAMENTO CEGO DE TURNO</h2>
+      <div style="font-family: monospace; font-size: 12px; width: 100%; text-align: left;">
+        <div style="text-align: center; margin-bottom: 10px;">
+          <h2 style="margin: 0; font-size: 14px;">FECHAMENTO DE TURNO (FECHO Z)</h2>
           <div>ZenOS - SISTEMA DE GESTÃO</div>
         </div>
-        <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
+        <div style="border-bottom: 1px dashed #000; margin: 10px 0;"></div>
         <div><strong>Operador:</strong> ${sessaoAtiva.operadorNome}</div>
         <div><strong>Abertura:</strong> ${sessaoAtiva.abertura}</div>
-        <div><strong>Fechamento:</strong> ${dataFechoLocal}</div>
-        <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
-
-        <div style="margin-bottom:5px;"><strong>>> COMPOSIÇÃO DO DINHEIRO FÍSICO</strong></div>
-        <div style="display:flex;justify-content:space-between;"><span>Fundo inicial:</span><span>${fmt(componentes.fundoInicial, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span>Vendas em dinheiro:</span><span>+ ${fmt(componentes.vendasDinheiro, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span>Recebimentos em dinheiro:</span><span>+ ${fmt(componentes.recebimentosDinheiro, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span>Suprimentos:</span><span>+ ${fmt(componentes.suprimentos, 'BRL')}</span></div>
-        ${componentes.outrasEntradas ? `<div style="display:flex;justify-content:space-between;"><span>Outras entradas:</span><span>+ ${fmt(componentes.outrasEntradas, 'BRL')}</span></div>` : ''}
-        <div style="display:flex;justify-content:space-between;"><span>Sangrias:</span><span>- ${fmt(componentes.sangrias, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span>Devoluções em dinheiro:</span><span>- ${fmt(componentes.devolucoesDinheiro, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span>Despesas em dinheiro:</span><span>- ${fmt(componentes.despesasDinheiro, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span>Compras em dinheiro:</span><span>- ${fmt(componentes.comprasDinheiro, 'BRL')}</span></div>
-        ${componentes.outrasSaidas ? `<div style="display:flex;justify-content:space-between;"><span>Outras saídas:</span><span>- ${fmt(componentes.outrasSaidas, 'BRL')}</span></div>` : ''}
-
-        <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
-        <div style="margin-bottom:5px;"><strong>>> VENDAS POR FORMA DE PAGAMENTO</strong></div>
-        ${Object.keys(resumoEntradas).length > 0 ? Object.entries(resumoEntradas).map(([forma, valor]) => `<div style="display:flex;justify-content:space-between;"><span>${forma}:</span><span>${Number(valor).toFixed(2)}</span></div>`).join('') : '<div style="text-align:center;">Nenhuma venda</div>'}
-
-        <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
-        <div style="margin-bottom:5px;"><strong>>> CONCILIAÇÃO ELETRÔNICA (NÃO AFETA GAVETA)</strong></div>
-        <div style="display:flex;justify-content:space-between;"><span>PIX recebido:</span><span>+ ${fmt(conciliacaoEletronica.pixEntradas, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span>PIX saídas/estornos:</span><span>- ${fmt(conciliacaoEletronica.pixSaidas, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>PIX líquido:</span><span>${fmt(conciliacaoEletronica.pixLiquido, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span>Cartão crédito líquido:</span><span>${fmt(conciliacaoEletronica.cartaoCreditoLiquido, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span>Cartão débito líquido:</span><span>${fmt(conciliacaoEletronica.cartaoDebitoLiquido, 'BRL')}</span></div>
-        <div style="font-size:10px;margin-top:4px;">Valores eletrônicos são conciliados separadamente e não compõem o saldo físico esperado da gaveta.</div>
-        ${extratoPixHTML ? `<div style="border-top:1px dotted #000;margin-top:7px;padding-top:5px;"><strong>>> EXTRATO PIX DO TURNO</strong>${extratoPixHTML}</div>` : '<div style="margin-top:5px;text-align:center;">Nenhum PIX registrado no turno</div>'}
-
-        <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
-        <div style="margin-bottom:5px;"><strong>>> CONTAGEM INFORMADA PELO OPERADOR</strong></div>
-        ${moedasContadasHTML}
-
-        <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
-        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>SALDO ESPERADO:</span><span>${fmt(saldoEsperadoBRL, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>TOTAL CONTADO:</span><span>${fmt(valInformadoBRL, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>DIFERENÇA:</span><span>${fmt(diferenca, 'BRL')}</span></div>
-        <div style="text-align:center;font-weight:bold;margin-top:8px;">${descQuebra}</div>
-
-        <div style="margin-top:36px;text-align:center;">_________________________________<br/>Assinatura do Operador<br/>${sessaoAtiva.operadorNome}</div>
-        <div style="margin-top:36px;text-align:center;">_________________________________<br/>Conferência da Gerência</div>
+        <div><strong>Fecho:</strong> ${dataFechoLocal}</div>
+        <div style="border-bottom: 1px dashed #000; margin: 10px 0;"></div>
+        
+        <div style="margin-bottom: 5px;"><strong>>> MOVIMENTOS DE GAVETA</strong></div>
+        <div style="display: flex; justify-content: space-between;"><span>Fundo Inicial (BRL):</span><span>${fmt(sessaoAtiva.saldoInicial || 0, 'BRL')}</span></div>
+        <div style="display: flex; justify-content: space-between;"><span>Suprimentos (Reforço):</span><span>${fmt(suprimentosSessaoBRL, 'BRL')}</span></div>
+        <div style="display: flex; justify-content: space-between;"><span>Sangrias (Retirada):</span><span>${fmt(sangriasSessaoBRL, 'BRL')}</span></div>
+        
+        <div style="border-bottom: 1px dashed #000; margin: 10px 0;"></div>
+        <div style="margin-bottom: 5px;"><strong>>> ENTRADAS DE VENDAS</strong></div>
+        ${Object.keys(resumoEntradas).length > 0 ? Object.entries(resumoEntradas).map(([forma, valor]) => `<div style="display: flex; justify-content: space-between;"><span>${forma}:</span><span>${valor.toFixed(2)}</span></div>`).join('') : '<div style="text-align: center;">Nenhuma venda</div>'}
+        
+        <div style="border-bottom: 1px dashed #000; margin: 10px 0;"></div>
+        <div style="margin-bottom: 5px;"><strong>>> GAVETA FÍSICA (MOEDAS CONTADAS)</strong></div>
+        ${moedasContadasHTML || '<div style="display: flex; justify-content: space-between;"><span>Sem moedas</span><span>0.00</span></div>'}
+        <div style="border-bottom: 1px dashed #000; margin: 10px 0;"></div>
+        
+        <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 14px;"><span>SALDO ESPERADO (BRL):</span><span>${fmt(saldoSessaoFisicoBRL, 'BRL')}</span></div>
+        <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 14px;"><span>SALDO INFORMADO (BRL):</span><span>${fmt(valInformadoBRL, 'BRL')}</span></div>
+        
+        <div style="border-bottom: 1px dashed #000; margin: 10px 0;"></div>
+        <div style="text-align: center; font-weight: bold; font-size: 12px; margin-top: 10px; color: #000;">
+          DIFERENÇA (BRL): ${fmt(diferenca, 'BRL')}<br/>
+          ${descQuebra}
+        </div>
+        
+        <div style="margin-top: 40px; text-align: center;">
+          _________________________________<br/>
+          Assinatura do Operador<br/>
+          ${sessaoAtiva.operadorNome}
+        </div>
+        <div style="margin-top: 40px; text-align: center;">
+          _________________________________<br/>
+          Conferência da Gerência
+        </div>
       </div>
     `;
 
-    setSessoesCaixa(sessoesAtualizadas);
-
-    const janelaImpressao = window.open('', '_blank', 'width=400,height=650');
+    const janelaImpressao = window.open('', '_blank', 'width=400,height=600');
     if (janelaImpressao) {
-      janelaImpressao.document.write(`<!DOCTYPE html><html><head><title>Fechamento de Turno</title><style>@page{margin:0;size:80mm auto;}body{margin:0;padding:10px;width:80mm;box-sizing:border-box;}</style></head><body>${reciboFechoHTML}<script>window.onload=function(){window.focus();window.print();};</script></body></html>`);
+      janelaImpressao.document.write(`
+        <!DOCTYPE html><html><head><title>Fecho de Turno</title><style>@page{margin:0;size:80mm auto;}body{margin:0;padding:10px;width:80mm;}</style></head>
+        <body>${reciboFechoHTML}<script>window.onload=function(){window.focus();window.print();setTimeout(function(){window.close();},500);};</script></body></html>
+      `);
       janelaImpressao.document.close();
+    } else {
+      alert("Bloqueador de pop-ups ativo. O talão de fecho não pôde ser impresso.");
     }
 
     setModalCaixaAberto(false);
     resetarValoresCaixa();
-    setDescMovCaixa('');
-
-    avisarAppZen({
-      variante: temQuebra ? 'warning' : 'success',
-      titulo: temQuebra ? 'Fechamento concluído com diferença' : 'Caixa fechado e conciliado',
-      mensagem: temQuebra
-        ? `O turno foi encerrado com ${diferenca < 0 ? 'falta' : 'sobra'} de ${fmt(Math.abs(diferenca), 'BRL')}.`
-        : 'A contagem física confere com o saldo esperado pelo sistema.',
-      detalhes: [
-        `Saldo esperado: ${fmt(saldoEsperadoBRL, 'BRL')}`,
-        `Total contado: ${fmt(valInformadoBRL, 'BRL')}`,
-        `Diferença: ${fmt(diferenca, 'BRL')}`,
-        janelaImpressao ? 'Comprovante de fechamento aberto para impressão.' : 'Impressão bloqueada pelo navegador; o fechamento foi registrado mesmo assim.',
-      ],
-      apenasConfirmar: true,
-    });
   };
 
   const temPermissao = (modulo) => {
@@ -911,68 +489,16 @@ export default function App() {
     ? historicoVendas 
     : historicoVendas.filter(v => String(v.vendedorId) === String(operadorAtivo?.id));
 
-  const navegarPara = (id) => {
-    setEcraAtual(id);
-    setMenuNavAberto(false);
-  };
-
-  const focarMeuTurno = () => {
-    navegarPara('hub');
-    setTimeout(() => document.getElementById('zen-meu-turno')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60);
-  };
-
-  const gruposNavegacao = [
-    {
-      id: 'vendas', titulo: tx('Vendas', 'Ventas', 'Sales'), icone: '🛒', abertaInicial: true,
-      itens: [
-        ...(temPermissao('pdv') ? [{ id:'pdv', tela:'pdv', icone:'🛒', rotulo:t('pdvBalcao'), onClick:()=>navegarPara('pdv') }] : []),
-        ...(temPermissao('mesas') ? [{ id:'mesas', tela:'mesas', icone:'🍽️', rotulo:tx('Mesas / Comandas','Mesas / Comandas','Tables / Tabs'), onClick:()=>navegarPara('mesas') }] : []),
-        ...(temPermissao('vendas') ? [{ id:'vendas', tela:'vendas', icone:'📑', rotulo:t('vendasDevolucoes'), onClick:()=>navegarPara('vendas') }] : []),
-      ],
-    },
-    {
-      id: 'estoque', titulo: tx('Estoque e Compras', 'Stock y Compras', 'Stock & Purchases'), icone: '📦', abertaInicial: true,
-      itens: [
-        ...(temPermissao('produtos') ? [{ id:'compras', tela:'compras', icone:'📥', rotulo:tx('Entrada / Compras','Entrada / Compras','Purchases / Stock In'), onClick:()=>navegarPara('compras') }] : []),
-        ...(temPermissao('produtos') ? [{ id:'produtos', tela:'produtos', icone:'📦', rotulo:t('produtosEstoque'), badge:produtos.length, onClick:()=>navegarPara('produtos') }] : []),
-        ...(temPermissao('produtos') ? [{ id:'fornecedores', tela:'fornecedores', icone:'🏭', rotulo:tx('Fornecedores','Proveedores','Suppliers'), onClick:()=>navegarPara('fornecedores') }] : []),
-        ...(temPermissao('inteligencia') ? [{ id:'inteligencia', tela:'inteligencia', icone:'📊', rotulo:tx('Inteligência de Estoque','Inteligencia de Stock','Stock Intelligence'), onClick:()=>navegarPara('inteligencia') }] : []),
-      ],
-    },
-    {
-      id: 'clientes', titulo: tx('Clientes e Fiado', 'Clientes y Fiado', 'Customers & Credit'), icone: '👥', abertaInicial: false,
-      itens: temPermissao('clientes') ? [{ id:'clientes', tela:'clientes', icone:'👥', rotulo:t('clientesFiado'), badge:totalFiadoAbertoBRL > 0 ? tx('Fiado','Deuda','Debt') : null, onClick:()=>navegarPara('clientes') }] : [],
-    },
-    {
-      id: 'caixa', titulo: tx('Caixa', 'Caja', 'Cash Drawer'), icone: '💵', abertaInicial: true,
-      itens: [
-        ...(temPermissao('pdv') ? [{ id:'meu-turno', tela:'hub', icone:'💵', rotulo:tx('Meu Turno de Caixa','Mi Turno de Caja','My Cash Shift'), onClick:focarMeuTurno }] : []),
-        ...(temPermissao('admin') ? [{ id:'auditoria-caixas', tela:'auditoria_caixas', icone:'🏦', rotulo:tx('Auditoria de Caixas','Auditoría de Cajas','Drawer Audit'), onClick:()=>navegarPara('auditoria_caixas') }] : []),
-      ],
-    },
-    {
-      id: 'gestao', titulo: tx('Gestão e Financeiro', 'Gestión y Finanzas', 'Management & Finance'), icone: '📈', abertaInicial: false,
-      itens: [
-        ...(temPermissao('despesas') ? [{ id:'despesas', tela:'despesas', icone:'💸', rotulo:tx('Contas a Pagar','Cuentas a Pagar','Expenses'), badge:despesas.filter(d=>d.status==='pendente').length || '0', onClick:()=>navegarPara('despesas') }] : []),
-        ...(temPermissao('admin') ? [{ id:'comissoes', tela:'comissoes', icone:'🤝', rotulo:tx('Comissões','Comisiones','Commissions'), onClick:()=>navegarPara('comissoes') }] : []),
-        ...(temPermissao('admin') ? [{ id:'dashboard-mobile', tela:'dashboardMobile', icone:'📱', rotulo:tx('App Mobile (CEO)','App Mobile (CEO)','Mobile App (CEO)'), onClick:()=>navegarPara('dashboardMobile') }] : []),
-      ],
-    },
-    {
-      id: 'administracao', titulo: tx('Administração', 'Administración', 'Administration'), icone: '⚙️', abertaInicial: false,
-      itens: [
-        ...(temPermissao('admin') ? [{ id:'config', tela:'configuracoes', icone:'⚙️', rotulo:tx('Configurações','Configuraciones','Settings'), onClick:()=>navegarPara('configuracoes') }] : []),
-        ...(temPermissao('admin') ? [{ id:'importar', tela:'migracao', icone:'📥', rotulo:tx('Importar Dados','Importar Datos','Import Data'), onClick:()=>navegarPara('migracao') }] : []),
-      ],
-    },
-  ].filter(grupo => grupo.itens.length > 0);
-
   const renderNavButton = (id, icone, texto, badge = null) => {
     const ativo = ecraAtual === id;
     
     const lidarComClique = () => {
-      // Regra aprovada: o PDV pode abrir mesmo sem turno; recebimento continua sujeito às regras do PDV/caixa.
-      setEcraAtual(id);
+      if (id === 'pdv' && !sessaoAtiva) {
+        alert(tx('Acesso Bloqueado: Para iniciar vendas, abra primeiro o seu Turno de Caixa no painel financeiro da Home!', '¡Debe abrir turno de caja primero!', 'You must open a shift first!'));
+        setEcraAtual('hub');
+      } else {
+        setEcraAtual(id);
+      }
       setMenuNavAberto(false);
     };
 
@@ -1016,34 +542,8 @@ export default function App() {
 
   if (!usuarioAutenticado) return <LandingPage/>;
 
-  if (falhaBootstrapNuvem) {
-    return <div style={{minHeight:'100vh',background:'#020617',display:'flex',alignItems:'center',justifyContent:'center',padding:20,fontFamily:'system-ui,sans-serif'}}>
-      <div style={{width:'100%',maxWidth:560,background:'#0b1120',border:'1px solid #f59e0b',borderRadius:24,padding:28,color:'#fff',boxShadow:'0 30px 80px rgba(0,0,0,.6)'}}>
-        <div style={{display:'flex',gap:14,alignItems:'center',marginBottom:18}}><img src="/logo-zenos.png?v=4" alt="ZenOS" style={{width:58,height:58,objectFit:'contain'}}/><div><div style={{fontSize:10,fontWeight:900,letterSpacing:2,color:'#f59e0b'}}>PROTEÇÃO DE DADOS ATIVA</div><h2 style={{margin:'4px 0 0',fontSize:22}}>Nuvem não confirmada</h2></div></div>
-        <p style={{color:'#cbd5e1',lineHeight:1.6,fontSize:14}}>O ZenOS não conseguiu confirmar a base da loja. Para proteger produtos, clientes, vendas e financeiro, <b>todas as gravações na nuvem permanecem bloqueadas</b>. Nenhum array vazio será enviado ao Firestore nesta condição.</p>
-        <div style={{background:'#020617',border:'1px solid #1e293b',borderRadius:14,padding:14,color:'#94a3b8',fontSize:12,margin:'16px 0'}}>Detalhe técnico: {falhaBootstrapNuvem}</div>
-        <button onClick={()=>window.location.reload()} style={{width:'100%',padding:14,borderRadius:11,border:'none',background:'#d97706',color:'#fff',fontWeight:900,cursor:'pointer'}}>Tentar conectar novamente</button>
-      </div>
-    </div>;
-  }
-
   if (statusLoja === 'ativo' && !operadorAtivo) {
     return <TerminalLogin vendedores={vendedores} onLoginSuccess={processarLoginOperador} onSairLoja={fazerLogout} />;
-  }
-
-  if (statusLoja === 'ativo' && operadorAtivo && operadorRequerTrocaPin(operadorAtivo)) {
-    return <div style={{minHeight:'100vh',background:'#020617',display:'flex',alignItems:'center',justifyContent:'center',padding:20,fontFamily:'system-ui,sans-serif'}}>
-      <div style={{width:'100%',maxWidth:460,background:'#0b1120',border:'1px solid #f59e0b',borderRadius:24,padding:28,color:'#fff',boxShadow:'0 30px 80px rgba(0,0,0,.6)'}}>
-        <div style={{display:'flex',gap:14,alignItems:'center',marginBottom:18}}><img src="/logo-zenos.png?v=4" alt="ZenOS" style={{width:54,height:54,objectFit:'contain'}}/><div><div style={{fontSize:10,fontWeight:900,letterSpacing:2,color:'#f59e0b'}}>SEGURANÇA OBRIGATÓRIA</div><h2 style={{margin:'4px 0 0',fontSize:22}}>Defina um novo PIN</h2></div></div>
-        <p style={{color:'#cbd5e1',fontSize:13,lineHeight:1.55}}>O PIN temporário ou previsível não pode continuar sendo usado. Essa troca é obrigatória antes de operar a loja.</p>
-        <div style={{display:'grid',gap:10,margin:'16px 0'}}>
-          <input type="text" autoComplete="one-time-code" name="zenos-new-pin" data-lpignore="true" data-1p-ignore="true" value={novoPinObrigatorio} onChange={e=>setNovoPinObrigatorio(e.target.value)} placeholder="Novo PIN" style={{padding:13,borderRadius:10,border:'1px solid #334155',background:'#020617',color:'#fff',WebkitTextSecurity:'disc'}}/>
-          <input type="text" autoComplete="one-time-code" name="zenos-confirm-pin" data-lpignore="true" data-1p-ignore="true" value={confirmarPinObrigatorio} onChange={e=>setConfirmarPinObrigatorio(e.target.value)} placeholder="Confirmar novo PIN" style={{padding:13,borderRadius:10,border:'1px solid #334155',background:'#020617',color:'#fff',WebkitTextSecurity:'disc'}}/>
-          {erroPinObrigatorio && <div style={{color:'#fb7185',fontSize:12,fontWeight:800}}>{erroPinObrigatorio}</div>}
-        </div>
-        <button onClick={concluirTrocaPinObrigatoria} style={{width:'100%',padding:14,borderRadius:11,border:'none',background:'#d97706',color:'#fff',fontWeight:900,cursor:'pointer'}}>Salvar novo PIN e continuar</button>
-      </div>
-    </div>;
   }
 // RESTAURAÇÃO: TELA DE BLOQUEIO ORIGINAL ZENOS (PADRÃO PREMIUM) E PLANOS
   if (statusLoja !== 'ativo') {
@@ -1205,7 +705,7 @@ export default function App() {
     );
   }
   return (
-    <div className={`zenos-app theme-${temaUi}`} style={{ minHeight: '100vh', padding: 0, margin: 0, overflowX: 'hidden', WebkitOverflowScrolling: 'touch' }}>
+    <div style={{ minHeight: '100vh', height: '100vh', backgroundColor: '#020617', color: '#e2e8f0', fontFamily: 'system-ui, sans-serif', padding: 0, margin: 0, overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch' }}>
       <style>{`
         * { scrollbar-width: thin; scrollbar-color: #334155 #0b1120; box-sizing: border-box; }
         *::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -1222,119 +722,323 @@ export default function App() {
         }
       `}</style>
       
-      <div className={`zen-shell ${sidebarCompacta ? 'sidebar-compact' : ''}`}>
-        <ZenSidebar
-          compacta={sidebarCompacta}
-          onToggleCompacta={() => setSidebarCompacta(v => !v)}
-          mobileAberta={menuNavAberto}
-          onFecharMobile={() => setMenuNavAberto(false)}
-          ecraAtual={ecraAtual}
-          grupos={gruposNavegacao}
-          perfilLoja={perfilLoja}
-          usuarioAutenticado={usuarioAutenticado}
-          patenteUsuario={patenteUsuario}
-          userId={userId}
-          onEditarPerfil={temPermissao('admin') ? () => { setPerfilRapidoErro(''); setPerfilRapidoRascunho(perfilLoja); setModalPerfilRapido(true); } : null}
-          editarPerfilLabel="Editar nome e logo"
-          onHome={() => navegarPara('hub')}
-          onSair={fazerLogout}
-        />
-        <div className="zen-content">
-          <ZenTopbar
-            onAbrirMobile={() => setMenuNavAberto(true)}
-            status={statusSincronizacao}
-            statusTitle={erroSincronizacao || statusSincronizacao}
-            labelErroSincronizacao="Erro ao sincronizar"
-            idioma={idioma}
-            setIdioma={setIdioma}
-            moeda={moeda}
-            setMoeda={setMoeda}
-            onCambio={() => setModalCambioAberto(true)}
-            operador={operadorAtivo?.nome || 'Admin'}
-            patente={patenteUsuario}
-            onTrocarOperador={trocarOperador}
-            tema={temaUi}
-            onAlternarTema={alternarTemaUi}
-          />
+      <header className="no-print" style={{ backgroundColor: '#0b1120', borderBottom: '1px solid #1e293b', padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 100, flexWrap: 'wrap', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => setMenuNavAberto(!menuNavAberto)} style={{ backgroundColor: menuNavAberto ? '#1e293b' : '#020617', border: '1px solid #334155', color: '#f8fafc', padding: '8px 12px', borderRadius: '10px', fontSize: '14px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.4)' }}>
+              <span style={{ fontSize: '18px' }}>☰</span><span className="hide-mobile">{tx('Menu', 'Menú', 'Menu')}</span>
+            </button>
+        {menuNavAberto && (
+              <>
+                <div onClick={() => setMenuNavAberto(false)} style={{ position: 'fixed', inset: 0, zIndex: 40, backgroundColor: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(2px)' }}></div>
+                
+                <div style={{ 
+                  position: 'absolute', top: '100%', left: 0, marginTop: '12px', backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '16px', padding: '16px 12px', zIndex: 50, display: 'flex', flexDirection: 'column', gap: '4px', width: '280px', boxShadow: '0 20px 40px rgba(0,0,0,0.8)', maxHeight: 'calc(100vh - 90px)', overflowY: 'auto' 
+                }}>
+                  
+                  <div style={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '12px', padding: '12px', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ width: '40px', height: '40px', backgroundColor: '#1e293b', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>🏢</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                        <span style={{ fontSize: '14px', fontWeight: 800, color: '#f8fafc', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', textTransform: 'capitalize' }}>
+                          {localStorage.getItem('zenos_nome_loja') || (usuarioAutenticado ? usuarioAutenticado.split('@')[0].replace(/[._-]/g, ' ') : 'Minha Loja')}
+                        </span>
+                        <span style={{ fontSize: '11px', color: '#cbd5e1', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                          {usuarioAutenticado || 'loja@zenos.com'}
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ height: '1px', backgroundColor: '#334155' }}></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600 }}>ID: {userId ? userId.substring(0, 8).toUpperCase() : '---'}</span>
+                      <span style={{ fontSize: '10px', backgroundColor: 'rgba(52, 211, 153, 0.15)', color: '#34d399', padding: '2px 6px', borderRadius: '4px', fontWeight: 800, textTransform: 'uppercase' }}>{patenteUsuario}</span>
+                    </div>
+                  </div>
 
-          <main className="zen-main no-print">
+                  <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', padding: '4px 12px 8px 12px' }}>{t('modulosSistema')}</span>
+                  
+                  {renderNavButton('hub', '🏠', tx('Painel Inicial', 'Panel de Inicio', 'Home Dashboard'))}
+                  {temPermissao('pdv') && renderNavButton('pdv', '🛒', t('pdvBalcao'))}
+                  {temPermissao('produtos') && renderNavButton('compras', '📥', tx('Entrada / Compras', 'Entrada / Compras', 'Purchases / Stock In'))}
+                  {temPermissao('mesas') && renderNavButton('mesas', '🍽️', tx('Mesas / Comandas', 'Mesas / Comandas', 'Tables / Tabs'))}
+                  {temPermissao('produtos') && renderNavButton('produtos', '📦', t('produtosEstoque'), { bg: '#0284c7', color: '#fff', text: produtos.length })}
+                  {temPermissao('clientes') && renderNavButton('clientes', '👥', t('clientesFiado'), totalFiadoAbertoBRL > 0 ? { bg: '#dc2626', color: '#fff', text: tx('Fiado', 'Deuda', 'Debt') } : null)}
+                  {temPermissao('produtos') && renderNavButton('fornecedores', '🏭', tx('Fornecedores', 'Proveedores', 'Suppliers'))}
+                  {temPermissao('vendas') && renderNavButton('vendas', '📑', t('vendasDevolucoes'))}
+                  
+                  <div style={{ height: '1px', backgroundColor: '#334155', margin: '8px 12px' }}></div>
+                  
+                  {temPermissao('inteligencia') && renderNavButton('inteligencia', '📊', tx('Inteligência', 'Inteligencia', 'Intelligence'))}
+                  {temPermissao('admin') && renderNavButton('comissoes', '🤝', tx('Comissões', 'Comisiones', 'Commissions'))}
+                  {temPermissao('admin') && renderNavButton('dashboardMobile', '📱', tx('App Mobile (CEO)', 'App Mobile (CEO)', 'Mobile App (CEO)'))}
+                  {temPermissao('despesas') && renderNavButton('despesas', '💸', tx('Contas a Pagar', 'Cuentas a Pagar', 'Expenses'), { bg: '#e11d48', color: '#fff', text: despesas.filter(d=>d.status==='pendente').length || '0' })}
+                  {temPermissao('admin') && renderNavButton('configuracoes', '⚙️', tx('Configurações', 'Configuraciones', 'Settings'))}
+                  {temPermissao('admin') && renderNavButton('auditoria_caixas', '🏦', tx('Auditoria de Caixas', 'Auditoría de Cajas', 'Drawer Audit'))}
+                  {temPermissao('admin') && renderNavButton('migracao', '📥', tx('Importar Dados', 'Importar Datos', 'Import Data'))}
+                </div>
+              </>
+            )}
+          </div>
+          <ZenosLogo aoClicar={() => setEcraAtual('hub')} />
+        </div>
+
+       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          
+          <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', padding: '4px 8px', gap: '6px', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.5)' }}>
+            <span style={{ fontSize: '12px' }}>🗣</span>
+            <select value={idioma} onChange={(e) => setIdioma(e.target.value)} style={{ backgroundColor: 'transparent', color: '#f8fafc', fontSize: '11px', fontWeight: 900, border: 'none', outline: 'none', cursor: 'pointer' }}>
+              <option value="pt" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>Português (PT)</option>
+              <option value="es" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>Español (ES)</option>
+              <option value="en" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>English (EN)</option>
+            </select>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', padding: '4px 8px', gap: '6px', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.5)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ fontSize: '10px', color: '#818cf8', fontWeight: 900 }}>💵</span>
+                <select value={moeda} onChange={(e) => setMoeda(e.target.value)} style={{ backgroundColor: 'transparent', color: '#34d399', fontSize: '11px', fontWeight: 900, border: 'none', outline: 'none', cursor: 'pointer' }}>
+                  <option value="BRL" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>BRL (R$)</option>
+                  <option value="USD" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>USD ($)</option>
+                  <option value="EUR" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>EUR (€)</option>
+                  <option value="PYG" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>PYG (₲)</option>
+                </select>
+              </div>
+              <div style={{ width: '1px', height: '14px', backgroundColor: '#334155' }}></div>
+              <button onClick={() => setModalCambioAberto(true)} title={tx('Ajustar Cotações', 'Ajustar Cotizaciones', 'Adjust Rates')} style={{ backgroundColor: 'transparent', border: 'none', cursor: 'pointer', fontSize: '12px', padding: '0 2px' }}>⚙️</button>
+            </div>
+          </div>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '8px', padding: '6px 10px' }}>
+            <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 800 }} className="hide-mobile">Operador:</span>
+            <span style={{ color: patenteUsuario === 'gerencia' ? '#fbbf24' : '#818cf8', fontWeight: 900, fontSize: '12px' }}>{operadorAtivo?.nome || 'Admin'}</span>
+          </div>
+          <button onClick={trocarOperador} style={{ backgroundColor: 'rgba(99, 102, 241, 0.1)', border: '1px solid #6366f1', color: '#818cf8', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>{tx('Trocar Operador', 'Cambiar Operador', 'Switch User')}</button>
+        </div>
+      </header>
+
+      <main className="no-print" style={{ padding: '20px 16px', maxWidth: '1600px', margin: '0 auto', boxSizing: 'border-box' }}>
         
  {ecraAtual === 'hub' && (
-          <div className="zen-dashboard-home">
-            <ZenHero operador={operadorAtivo?.nome || 'Administrador (Gerência)'} patente={patenteUsuario} />
-
-            <div className="zen-kpi-grid">
-              <ZenKpiCard icon="🛒" titulo={tx('Vendido Hoje','Vendido Hoy','Sold Today')} valor={valoresTopoVisiveis ? fmt(faturamentoHojeBRL) : '*****'} detalhe={`${historicoVendas.filter(v => registroEhDoDiaLocal(v) && v.status !== 'cancelada').length} vendas realizadas`} tone="teal" trailing={<button onClick={() => setValoresTopoVisiveis(!valoresTopoVisiveis)} style={{border:0,background:'transparent',color:'inherit',cursor:'pointer',fontSize:18}}>{valoresTopoVisiveis ? '◉' : '○'}</button>} />
-              <ZenKpiCard icon="👥" titulo={tx('FIADO NA PRAÇA','FIADO A COBRAR','PENDING CREDIT')} valor={valoresTopoVisiveis ? fmt(totalFiadoAbertoBRL) : '*****'} detalhe={totalFiadoAbertoBRL > 0 ? tx('Valores pendentes de clientes','Valores pendientes','Customer balances due') : tx('Nenhum valor pendente','Sin valores pendientes','No pending balance')} tone="purple" trailing="▥" />
-              <ZenKpiCard icon="↻" titulo={tx('SINCRONIZAÇÃO','SINCRONIZACIÓN','SYNC')} valor={statusSincronizacao === 'SINCRONIZADO' ? 'Online' : statusSincronizacao === 'SALVANDO' ? 'Salvando...' : statusSincronizacao === 'ERRO' ? 'Erro' : statusSincronizacao === 'OFFLINE' ? 'Offline' : 'Pendente'} detalhe={tx('Dados atualizados em tempo real','Datos actualizados en tiempo real','Realtime data status')} tone="cyan" trailing="◯" />
-            </div>
-
-            <div className="zen-dashboard-middle">
-              {temPermissao('pdv') && (
-                <section className="zen-dashboard-card" id="zen-meu-turno">
-                  <div className="zen-dashboard-card-head"><strong>💵 Meu Turno de Caixa</strong><span className={`zen-status-badge ${sessaoAtiva ? 'open' : 'closed'}`}>{sessaoAtiva ? `ABERTO • ${fmt(saldoSessaoFisicoBRL)}` : 'FECHADO'}</span></div>
-                  <div className="zen-cash-card-body">
-                    <div className="zen-cash-illustration" />
-                    {!sessaoAtiva ? <>
-                      <p>Você pode usar o PDV e gerar Pré-Pedidos mesmo sem turno aberto. Abra o turno somente quando for receber ou movimentar a gaveta.</p>
-                      <button className="zen-primary-cash" onClick={() => { setTipoMovCaixa('abertura'); setModalCaixaAberto(true); }}>🔓 Abrir Turno de Caixa</button>
-                    </> : <>
-                      <div className="zen-cash-actions">
-                        <button onClick={() => { setTipoMovCaixa('suprimento'); setModalCaixaAberto(true); }}>+ Entrada (Reforço)</button>
-                        <button onClick={() => { setTipoMovCaixa('sangria'); setModalCaixaAberto(true); }}>− Saída (Sangria)</button>
-                        <button onClick={() => { setTipoMovCaixa('fechamento'); setModalCaixaAberto(true); }}>🔒 Encerrar Turno</button>
-                      </div>
-                      <div className="zen-movements">{movsSessao.length === 0 ? <div className="zen-movement"><span>Nenhuma movimentação neste turno.</span></div> : movsSessao.slice(0,6).map(m => <div className="zen-movement" key={m.id}><span>{m.tipo === 'suprimento' ? 'Entrada' : 'Saída'} • {m.descricao}</span><strong>{m.tipo === 'suprimento' ? '+' : '-'}{fmt(m.valorBRL,'BRL')}</strong></div>)}</div>
-                    </>}
-                  </div>
-                </section>
-              )}
-
-              {temPermissao('inteligencia') ? <section className="zen-dashboard-card">
-                <button className="zen-exec-toggle" onClick={() => setMostrarPainelExecutivo(!mostrarPainelExecutivo)}><span>👁️ Painel Executivo e Financeiro</span><span>{mostrarPainelExecutivo ? '⌃' : '›'}</span></button>
-                {mostrarPainelExecutivo && <div className="zen-exec-body">
-                  <div className="zen-exec-grid">
-                    <div className="zen-exec-stat"><span>Faturamento Real</span><strong>{fmt(faturamentoTotalBRL)}</strong></div>
-                    <div className="zen-exec-stat"><span>Lucro Bruto</span><strong style={{color:'#38bdf8'}}>{fmt(lucroBrutoBRL)}</strong></div>
-                    <div className="zen-exec-stat"><span>Despesas Pagas</span><strong style={{color:'#fbbf24'}}>{fmt(despesasPagasBRL)}</strong></div>
-                    <div className="zen-exec-stat"><span>Lucro Líquido</span><strong style={{color:'#34d399'}}>{fmt(lucroLiquidoRealBRL)}</strong></div>
-                    <div className="zen-exec-stat"><span>Fiado na Praça</span><strong style={{color:'#fb7185'}}>{fmt(totalFiadoAbertoBRL)}</strong></div>
-                  </div>
-                  <div className="zen-abc-list">{curvaABC.slice(0,5).map((item,index)=><div className="zen-abc-row" key={`${item.sku}-${index}`}><b>{index+1}</b><span>{item.nome}</span><strong>{fmt(item.faturamentoBRL,'BRL')}</strong></div>)}</div>
-                </div>}
-              </section> : <div className="zen-dashboard-card"><div className="zen-dashboard-card-head"><strong>ZenOS • Operação do Dia</strong></div><div className="zen-cash-card-body"><p>Acessos operacionais organizados conforme as permissões deste operador.</p></div></div>}
-            </div>
-
-            <section className="zen-quick-section">
-              <div className="zen-quick-title"><span>⚡</span><strong>Acessos Rápidos</strong><small>Principais operações do dia a dia — todos os demais módulos permanecem nas gavetas laterais.</small></div>
-              <div className="zen-quick-grid">
-                {temPermissao('pdv') && <ZenQuickCard icon="🛒" titulo="PDV Balcão" detalhe="Vendas e Pré-Pedidos" tone="teal" onClick={()=>navegarPara('pdv')} />}
-                {temPermissao('produtos') && <ZenQuickCard icon="📥" titulo="PDV Compras" detalhe="Entrada rápida de estoque" tone="orange" onClick={()=>navegarPara('compras')} />}
-                {temPermissao('produtos') && <ZenQuickCard icon="📦" titulo="Produtos & Estoque" detalhe="Cadastrar e gerenciar" tone="purple" onClick={()=>navegarPara('produtos')} />}
-                {temPermissao('clientes') && <ZenQuickCard icon="👥" titulo="Clientes & Fiado" detalhe="Consultar e gerenciar" tone="blue" onClick={()=>navegarPara('clientes')} />}
-                {temPermissao('vendas') && <ZenQuickCard icon="📑" titulo="Histórico" detalhe="Vendas e Devoluções" tone="pink" onClick={()=>navegarPara('vendas')} />}
-                {temPermissao('admin') && <ZenQuickCard icon="🤝" titulo="Comissões" detalhe="Metas e bonificações" tone="orange" onClick={()=>navegarPara('comissoes')} />}
-                {temPermissao('despesas') && <ZenQuickCard icon="💸" titulo="Despesas" detalhe="Contas a pagar" tone="gold" onClick={()=>navegarPara('despesas')} />}
-                {temPermissao('admin') && <ZenQuickCard icon="⚙️" titulo="Configurações" detalhe="Sistema, equipe e backup" tone="purple" onClick={()=>navegarPara('configuracoes')} />}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            
+            {/* 1. CABEÇALHO DA HOME */}
+            <div className="mobile-padding" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', border: '1px solid #334155', borderRadius: '24px', padding: '32px', boxShadow: '0 20px 40px rgba(0,0,0,0.3)', flexWrap: 'wrap', gap: '20px' }}>
+              <div style={{ flex: '1 1 100%', minWidth: '250px' }}>
+                <span style={{ fontSize: '12px', color: '#38bdf8', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '2px' }}>ZenOS (Cloud)</span>
+                <h1 className="mobile-text-lg" style={{ fontSize: '32px', fontWeight: 900, color: '#ffffff', margin: '8px 0 4px 0', letterSpacing: '-0.5px' }}>{tx(`Olá, ${operadorAtivo?.nome || 'Admin'}!`, `¡Hola, ${operadorAtivo?.nome || 'Admin'}!`, `Hello, ${operadorAtivo?.nome || 'Admin'}!`)}</h1>
+                <span style={{ fontSize: '15px', color: '#94a3b8', fontWeight: 500 }}>{tx('Pronto para vender?', '¿Listo para vender?', 'Ready to sell?')}</span>
               </div>
-            </section>
-          </div>
+              
+              <div className="mobile-stack" style={{ display: 'flex', gap: '24px', alignItems: 'center', width: '100%' }}>
+                <div style={{ textAlign: 'right', borderRight: '1px solid rgba(255,255,255,0.1)', paddingRight: '24px', flex: 1 }}>
+                  <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>{tx('Vendido Hoje', 'Vendido Hoy', 'Sold Today')}</span>
+                  <div style={{ fontSize: '26px', fontWeight: 900, color: '#34d399', marginTop: '4px', textShadow: '0 2px 10px rgba(52,211,153,0.2)' }}>{valoresTopoVisiveis ? fmt(faturamentoTotalBRL) : '*****'}</div>
+                </div>
+                <div style={{ textAlign: 'right', flex: 1 }}>
+                  <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>{tx('Fiado na Praça', 'Fiado a Cobrar', 'Pending Credit')}</span>
+                  <div style={{ fontSize: '26px', fontWeight: 900, color: totalFiadoAbertoBRL > 0 && valoresTopoVisiveis ? '#fb7185' : '#34d399', marginTop: '4px' }}>{valoresTopoVisiveis ? fmt(totalFiadoAbertoBRL) : '*****'}</div>
+                </div>
+                <button onClick={() => setValoresTopoVisiveis(!valoresTopoVisiveis)} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#e2e8f0', fontSize: '20px', cursor: 'pointer', padding: '12px', outline: 'none', transition: 'all 0.3s' }}>
+                  {valoresTopoVisiveis ? '👁️' : '🙈'}
+                </button>
+              </div>
+            </div>
+
+            {/* 2. TURNO DE CAIXA (LIVRE PARA TODOS QUE TÊM ACESSO AO CAIXA/PDV) */}
+            {temPermissao('pdv') && (
+              <div className="mobile-padding" style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '24px', padding: '32px', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}><span style={{ fontSize: '24px' }}>💵</span><h3 style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff', margin: 0 }}>Meu Turno de Caixa</h3></div>
+                  <span style={{ backgroundColor: sessaoAtiva ? 'rgba(16, 185, 129, 0.1)' : 'rgba(244, 63, 94, 0.1)', color: sessaoAtiva ? '#10b981' : '#f43f5e', padding: '8px 12px', borderRadius: '12px', fontSize: '12px', fontWeight: 900, border: `1px solid ${sessaoAtiva ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)'}` }}>
+                    {sessaoAtiva ? `Aberto • Saldo: ${fmt(saldoSessaoFisicoBRL)}` : 'FECHADO'}
+                  </span>
+                </div>
+                
+                {!sessaoAtiva ? (
+                  <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                    <span style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '16px' }}>Você precisa de abrir o seu turno com um fundo de troco para começar a vender no caixa.</span>
+                    <button onClick={() => { setTipoMovCaixa('abertura'); setModalCaixaAberto(true); }} style={{ padding: '14px 24px', background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', color: '#ffffff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '14px', boxShadow: '0 4px 15px rgba(16, 185, 129, 0.3)' }}>🔓 Abrir Turno de Caixa</button>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', gap: '10px', marginBottom: '24px', flexWrap: 'wrap' }}>
+                      <button onClick={() => { setTipoMovCaixa('suprimento'); setModalCaixaAberto(true); }} style={{ flex: '1 1 calc(50% - 5px)', padding: '14px 10px', backgroundColor: '#021e15', border: '1px solid rgba(16, 185, 129, 0.5)', color: '#34d399', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '12px' }}>+ Entrada (Reforço)</button>
+                      <button onClick={() => { setTipoMovCaixa('sangria'); setModalCaixaAberto(true); }} style={{ flex: '1 1 calc(50% - 5px)', padding: '14px 10px', backgroundColor: '#2e0a16', border: '1px solid rgba(244, 63, 94, 0.5)', color: '#fb7185', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '12px' }}>- Saída (Sangria)</button>
+                      <button onClick={() => { setTipoMovCaixa('fechamento'); setModalCaixaAberto(true); }} style={{ flex: '1 1 100%', padding: '14px', background: 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#ffffff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '13px' }}>🔒 Encerrar Turno</button>
+                    </div>
+                    <div style={{ flex: 1, backgroundColor: '#020617', borderRadius: '12px', border: '1px solid #1e293b', padding: '16px', overflowY: 'auto', maxHeight: '250px' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '16px', display: 'block', letterSpacing: '1px' }}>Movimentações Deste Turno</span>
+                      {movsSessao.length === 0 ? <div style={{ color: '#475569', fontSize: '13px', textAlign: 'center', marginTop: '30px' }}>-</div> : (
+                        movsSessao.map(m => (
+                          <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '13px' }}>
+                            <div><span style={{ color: '#e2e8f0', fontWeight: 700 }}>{m.tipo === 'suprimento' ? 'Entrada' : 'Saída'}: {m.descricao}</span><br/><span style={{ color: '#64748b', fontSize: '10px', marginTop: '4px', display: 'inline-block' }}>{m.dataHora}</span></div>
+                            <span style={{ fontWeight: 900, color: m.tipo === 'suprimento' ? '#34d399' : '#fb7185', fontSize: '14px' }}>{m.tipo === 'suprimento' ? '+' : '-'}{fmt(m.valorBRL, 'BRL')}</span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* 3. PAINEL EXECUTIVO E FINANCEIRO (RESTRITO AO ADMIN) */}
+            {temPermissao('inteligencia') && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                <div onClick={() => setMostrarPainelExecutivo(!mostrarPainelExecutivo)} style={{ background: mostrarPainelExecutivo ? '#0f172a' : 'linear-gradient(135deg, #1e293b, #0f172a)', border: `1px solid ${mostrarPainelExecutivo ? '#1e293b' : '#334155'}`, borderRadius: '20px', padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', transition: 'all 0.3s', boxShadow: mostrarPainelExecutivo ? 'none' : '0 10px 30px rgba(0,0,0,0.4)', flexWrap: 'wrap', gap: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>{mostrarPainelExecutivo ? '🙈' : '👁️'}</div>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}><h3 style={{ margin: 0, fontSize: '16px', color: mostrarPainelExecutivo ? '#94a3b8' : '#e2e8f0', fontWeight: 900 }}>Painel Executivo e Financeiro</h3></div>
+                  </div>
+                </div>
+
+                {mostrarPainelExecutivo && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', animation: 'fadeIn 0.5s ease-out' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                      <div style={{ backgroundColor: '#021e15', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '20px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><span style={{ fontSize: '20px' }}>💰</span><span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px' }}>Faturamento Real</span></div>
+                        <span style={{ fontSize: '24px', fontWeight: 900, color: '#f8fafc', marginTop: '12px' }}>{fmt(faturamentoTotalBRL)}</span>
+                      </div>
+                      <div style={{ backgroundColor: '#06283d', border: '1px solid rgba(14, 165, 233, 0.3)', borderRadius: '20px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><span style={{ fontSize: '20px' }}>💎</span><span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px' }}>Lucro Bruto</span></div>
+                        <span style={{ fontSize: '24px', fontWeight: 900, color: '#38bdf8', marginTop: '12px' }}>{fmt(lucroBrutoBRL)}</span>
+                      </div>
+                      <div style={{ backgroundColor: '#2e0a16', border: '1px solid rgba(244, 63, 94, 0.3)', borderRadius: '20px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><span style={{ fontSize: '20px' }}>💸</span><span style={{ fontSize: '11px', fontWeight: 800, color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '1px' }}>Despesas Pagas</span></div>
+                        <span style={{ fontSize: '24px', fontWeight: 900, color: '#fef3c7', marginTop: '12px' }}>{fmt(despesasPagasBRL)}</span>
+                      </div>
+                      <div style={{ background: 'linear-gradient(135deg, #064e3b 0%, #022c22 100%)', border: '1px solid rgba(16, 185, 129, 0.5)', borderRadius: '20px', padding: '20px', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(16,185,129,0.15)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><span style={{ fontSize: '20px' }}>🏆</span><span style={{ fontSize: '11px', fontWeight: 900, color: '#a7f3d0', textTransform: 'uppercase', letterSpacing: '1px' }}>Lucro Líquido Real</span></div>
+                        <span style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', marginTop: '12px', textShadow: '0 2px 10px rgba(0,0,0,0.3)' }}>{fmt(lucroLiquidoRealBRL)}</span>
+                      </div>
+                      <div style={{ backgroundColor: '#2b1404', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: '20px', padding: '20px', display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><span style={{ fontSize: '20px' }}>📒</span><span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px' }}>Fiado na Praça</span></div>
+                        <span style={{ fontSize: '24px', fontWeight: 900, color: '#fb7185', marginTop: '12px' }}>{fmt(totalFiadoAbertoBRL)}</span>
+                      </div>
+                    </div>
+
+                    <div className="mobile-padding" style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '24px', padding: '32px', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}><span style={{ fontSize: '24px' }}>📈</span><h3 style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff', margin: 0 }}>Curva ABC (Top 5)</h3></div>
+                      <div style={{ backgroundColor: '#020617', borderRadius: '12px', border: '1px solid #1e293b', padding: '4px 16px', flex: 1, overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '280px' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', color: '#64748b', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                              <th style={{ padding: '16px 0' }}>Item</th><th style={{ padding: '16px 0', textAlign: 'center' }}>Qtd</th><th style={{ padding: '16px 0', textAlign: 'right' }}>Faturamento</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {curvaABC.length === 0 ? <tr><td colSpan="3" style={{ textAlign: 'center', padding: '40px', color: '#475569', fontSize: '13px' }}>-</td></tr> : (
+                              curvaABC.map((item, index) => (
+                                <tr key={index} style={{ borderBottom: index === curvaABC.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.05)' }}>
+                                  <td style={{ padding: '16px 0' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                      <span style={{ background: index === 0 ? 'linear-gradient(135deg, #fbbf24, #d97706)' : index === 1 ? 'linear-gradient(135deg, #94a3b8, #64748b)' : index === 2 ? 'linear-gradient(135deg, #b45309, #78350f)' : 'rgba(255,255,255,0.1)', color: index < 3 ? '#ffffff' : '#94a3b8', minWidth: '24px', height: '24px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 900 }}>{index + 1}</span>
+                                      <div style={{ display: 'flex', flexDirection: 'column' }}><span style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: 800 }}>{item.nome.substring(0, 20)}</span><span style={{ color: '#64748b', fontSize: '10px', marginTop: '2px' }}>{item.sku}</span></div>
+                                    </div>
+                                  </td>
+                                  <td style={{ textAlign: 'center', color: '#38bdf8', fontWeight: 900, fontSize: '13px' }}>{item.qtd} <span style={{fontSize: '10px', color: '#64748b'}}>UN</span></td>
+                                  <td style={{ textAlign: 'right', color: '#34d399', fontWeight: 900, fontSize: '14px' }}>{fmt(item.faturamentoBRL, 'BRL')}</td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+     {/* 4. ACESSOS OPERACIONAIS */}
+     <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginTop: '16px', marginBottom: '8px' }}>
+       <div style={{ height: '1px', flex: 1, background: 'linear-gradient(to right, transparent, rgba(255,255,255,0.1))' }}></div>
+       <span style={{ fontSize: '11px', fontWeight: 900, color: '#64748b', textTransform: 'uppercase', letterSpacing: '2px', textAlign: 'center' }}>{tx('Acessos Operacionais', 'Accesos Operativos', 'Operational Access')}</span>
+       <div style={{ height: '1px', flex: 1, background: 'linear-gradient(to left, transparent, rgba(255,255,255,0.1))' }}></div>
+     </div>
+
+     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '16px' }}>
+
+       {temPermissao('pdv') && (
+         <div onClick={() => setEcraAtual('pdv')} style={{ backgroundColor: '#021e15', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '20px', padding: '24px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
+           <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #10b981, #059669)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', boxShadow: '0 8px 20px rgba(16,185,129,0.4)' }}>🛒</div>
+           <div><h2 style={{ fontSize: '15px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>PDV Balcão</h2><span style={{fontSize: '11px', color: '#94a3b8'}}>Frente de Caixa / Pré-pedidos</span></div>
+         </div>
+       )}
+       {temPermissao('produtos') && (
+         <div onClick={() => setEcraAtual('compras')} style={{ backgroundColor: '#2b1404', border: '1px solid rgba(249, 115, 22, 0.3)', borderRadius: '20px', padding: '24px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
+           <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #f97316, #ea580c)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', boxShadow: '0 8px 20px rgba(249,115,22,0.4)' }}>📥</div>
+           <div><h2 style={{ fontSize: '15px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>PDV Compras</h2><span style={{fontSize: '11px', color: '#94a3b8'}}>Entrada rápida de estoque</span></div>
+         </div>
+       )}
+
+       {temPermissao('mesas') && (
+         <div onClick={() => setEcraAtual('mesas')} style={{ backgroundColor: '#2e0a16', border: '1px solid rgba(225, 29, 72, 0.3)', borderRadius: '20px', padding: '24px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
+           <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #e11d48, #be123c)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', boxShadow: '0 8px 20px rgba(225,29,72,0.4)' }}>🍽️</div>
+           <div><h2 style={{ fontSize: '15px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>Mesas</h2><span style={{fontSize: '11px', color: '#94a3b8'}}>Pedidos/Comandas</span></div>
+         </div>
+       )}
+
+       {temPermissao('produtos') && (
+         <div onClick={() => setEcraAtual('produtos')} style={{ backgroundColor: '#052336', border: '1px solid rgba(2, 132, 199, 0.3)', borderRadius: '20px', padding: '24px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
+           <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #0284c7, #0369a1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', boxShadow: '0 8px 20px rgba(2,132,199,0.4)' }}>📦</div>
+           <div><h2 style={{ fontSize: '15px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>Catálogo</h2><span style={{fontSize: '11px', color: '#94a3b8'}}>Produtos e Estoque</span></div>
+         </div>
+       )}
+
+       {temPermissao('clientes') && (
+         <div onClick={() => setEcraAtual('clientes')} style={{ backgroundColor: '#2b1604', border: '1px solid rgba(217, 119, 6, 0.3)', borderRadius: '20px', padding: '24px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
+           <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #d97706, #b45309)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', boxShadow: '0 8px 20px rgba(217,119,6,0.4)' }}>👥</div>
+           <div><h2 style={{ fontSize: '15px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>Clientes</h2><span style={{fontSize: '11px', color: '#94a3b8'}}>CRM e Fiados</span></div>
+         </div>
+       )}
+
+       {temPermissao('vendas') && (
+         <div onClick={() => setEcraAtual('vendas')} style={{ backgroundColor: '#111030', border: '1px solid rgba(79, 70, 229, 0.3)', borderRadius: '20px', padding: '24px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
+           <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #4f46e5, #4338ca)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', boxShadow: '0 8px 20px rgba(79,70,229,0.4)' }}>📑</div>
+           <div><h2 style={{ fontSize: '15px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>{tx('Histórico', 'Historial', 'History')}</h2><span style={{fontSize: '11px', color: '#94a3b8'}}>Relatórios</span></div>
+         </div>
+       )}
+
+       {temPermissao('admin') && (
+         <>
+           <div onClick={() => setEcraAtual('comissoes')} style={{ backgroundColor: '#2e071c', border: '1px solid rgba(219, 39, 119, 0.3)', borderRadius: '20px', padding: '24px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
+             <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #db2777, #be185d)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', boxShadow: '0 8px 20px rgba(219,39,119,0.4)' }}>🤝</div>
+             <div><h2 style={{ fontSize: '15px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>{tx('Comissões', 'Comisiones', 'Commissions')}</h2><span style={{fontSize: '11px', color: '#94a3b8'}}>Equipa</span></div>
+           </div>
+
+           <div onClick={() => setEcraAtual('dashboardMobile')} style={{ backgroundColor: '#2b1704', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: '20px', padding: '24px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(245,158,11,0.15)' }}>
+             <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #f59e0b, #d97706)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', boxShadow: '0 8px 20px rgba(245,158,11,0.4)' }}>📱</div>
+             <div><h2 style={{ fontSize: '15px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>App CEO</h2><span style={{fontSize: '11px', color: '#94a3b8'}}>Mobile</span></div>
+           </div>
+         </>
+       )}
+
+       {temPermissao('despesas') && (
+         <div onClick={() => setEcraAtual('despesas')} style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '20px', padding: '24px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', transition: 'transform 0.2s', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}>
+           <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #64748b, #475569)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', boxShadow: '0 8px 20px rgba(0,0,0,0.3)' }}>💸</div>
+           <div><h2 style={{ fontSize: '15px', fontWeight: 900, color: '#ffffff', margin: '0 0 4px 0' }}>{tx('Despesas', 'Gastos', 'Expenses')}</h2><span style={{fontSize: '11px', color: '#94a3b8'}}>A Pagar</span></div>
+         </div>
+       )}
+     </div>
+   </div>
  )}
 
-        {ecraAtual === 'pdv' && <PDV perfilLoja={perfilLoja} taxasCambio={taxasCambio} registrarFinanceiro={registrarFinanceiro} vouchers={vouchers} setVouchers={setVouchers} userId={userId} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} patenteUsuario={patenteUsuario} idioma={idioma} regrasDesconto={regrasDesconto} vendedores={vendedores} operadorAtivo={operadorAtivo} sessaoAtiva={sessaoAtiva} />}
-        {ecraAtual === 'compras' && <PDVCompras registrarFinanceiro={registrarFinanceiro} saldoSessaoFisicoBRL={saldoSessaoFisicoBRL} userId={userId} produtos={produtos} setProdutos={setProdutos} fornecedores={fornecedores} setFornecedores={setFornecedores} despesas={despesas} setDespesas={setDespesas} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoCompras={historicoCompras} setHistoricoCompras={setHistoricoCompras} operadorAtivo={operadorAtivo} />}
+        {ecraAtual === 'pdv' && <PDV produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} patenteUsuario={patenteUsuario} idioma={idioma} regrasDesconto={regrasDesconto} operadorAtivo={operadorAtivo} sessaoAtiva={sessaoAtiva} />}
+        {ecraAtual === 'compras' && <PDVCompras produtos={produtos} setProdutos={setProdutos} fornecedores={fornecedores} setFornecedores={setFornecedores} despesas={despesas} setDespesas={setDespesas} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoCompras={historicoCompras} setHistoricoCompras={setHistoricoCompras} operadorAtivo={operadorAtivo} />}
         {ecraAtual === 'fornecedores' && <Fornecedores fornecedores={fornecedores} setFornecedores={setFornecedores} moeda={moeda} tx={tx} />}
-        {ecraAtual === 'mesas' && <Mesas userId={userId} produtos={produtos} fmt={fmt} tx={tx} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} moeda={moeda} idioma={idioma} operadorAtivo={operadorAtivo} />}
-        {ecraAtual === 'produtos' && <Produtos historicoVendas={historicoVendas} historicoCompras={historicoCompras} patenteUsuario={patenteUsuario} regrasDesconto={regrasDesconto} vendedores={vendedores} userId={userId} operadorAtivo={operadorAtivo} planoLoja={planoLoja} produtos={produtos} setProdutos={setProdutos} fornecedoresGlobais={fornecedores} moeda={moeda} fmt={fmt} t={t} tx={tx} />}
+        {ecraAtual === 'mesas' && <Mesas produtos={produtos} fmt={fmt} tx={tx} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} moeda={moeda} idioma={idioma} />}
+        {ecraAtual === 'produtos' && <Produtos produtos={produtos} setProdutos={setProdutos} fornecedoresGlobais={fornecedores} moeda={moeda} fmt={fmt} t={t} tx={tx} />}
         {ecraAtual === 'inteligencia' && <EstoqueInteligente produtos={produtos} fmt={fmt} />}
-        {ecraAtual === 'comissoes' && <Comissoes historicoVendas={historicoVisivelParaOperador} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} operadorAtivo={operadorAtivo} regrasDesconto={regrasDesconto} regrasComissao={regrasComissao} setRegrasComissao={setRegrasComissao} />}
-        {ecraAtual === 'dashboardMobile' && <DashboardMobile historicoVendas={historicoVendas} despesas={despesas} clientes={clientes} produtos={produtos} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} regrasDesconto={regrasDesconto} />}
-        {ecraAtual === 'clientes' && <Clientes livroFinanceiro={livroFinanceiro} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} operadorAtivo={operadorAtivo} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} />}
-        {ecraAtual === 'vendas' && <Vendas taxasCambio={taxasCambio} sessoesCaixa={sessoesCaixa} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} saldoSessaoFisicoBRL={saldoSessaoFisicoBRL} perfilLoja={perfilLoja} vouchers={vouchers} setVouchers={setVouchers} userId={userId} operadorAtivo={operadorAtivo} historicoVendas={historicoVisivelParaOperador} setHistoricoVendas={setHistoricoVendas} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} fmt={fmt} t={t} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterDeBRL={converterDeBRL} />}
+        {ecraAtual === 'comissoes' && <Comissoes historicoVendas={historicoVisivelParaOperador} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} operadorAtivo={operadorAtivo} regrasDesconto={regrasDesconto} />}
+        {ecraAtual === 'dashboardMobile' && <DashboardMobile historicoVendas={historicoVendas} despesas={despesas} clientes={clientes} produtos={produtos} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} />}
+        {ecraAtual === 'clientes' && <Clientes clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} />}
+        {ecraAtual === 'vendas' && <Vendas historicoVendas={historicoVisivelParaOperador} setHistoricoVendas={setHistoricoVendas} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} fmt={fmt} t={t} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterDeBRL={converterDeBRL} />}
         {ecraAtual === 'migracao' && <Migracao produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} t={t} tx={tx} />}
-        {ecraAtual === 'configuracoes' && <Configuracoes userId={userId} operadorAtivo={operadorAtivo} perfilLojaGlobal={perfilLoja} setPerfilLojaGlobal={setPerfilLoja} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} despesas={despesas} setDespesas={setDespesas} moeda={moeda} fmt={fmt} tx={tx} regrasDesconto={regrasDesconto} setRegrasDesconto={setRegrasDesconto} vendedores={vendedores} setVendedores={(novosVendedores) => { setVendedores(novosVendedores); if (userId) void persistV1OperationField({ db, userId, field: 'vendedores', value: novosVendedores, localStorageKey: `zenos_${userId}_vendedores` }); }} />}
-        {ecraAtual === 'auditoria_caixas' && <GestaoCaixas sessoesCaixa={sessoesCaixa} historicoVendas={historicoVendas} caixaMovimentos={caixaMovimentos} livroFinanceiro={livroFinanceiro} fmt={fmt} tx={tx} />}
-        {ecraAtual === 'despesas' && <Despesas registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} saldoSessaoFisicoBRL={saldoSessaoFisicoBRL} operadorAtivo={operadorAtivo} despesas={despesas} setDespesas={setDespesas} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterParaBRL={converterParaBRL} />}
+        {ecraAtual === 'configuracoes' && <Configuracoes produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} despesas={despesas} setDespesas={setDespesas} moeda={moeda} fmt={fmt} tx={tx} regrasDesconto={regrasDesconto} setRegrasDesconto={setRegrasDesconto} vendedores={vendedores} setVendedores={(novosVendedores) => { setVendedores(novosVendedores); localStorage.setItem(`zenos_${userId}_vendedores`, JSON.stringify(novosVendedores)); if (userId) setDoc(doc(db, "lojas", userId, "dados", "operacao"), { vendedores: novosVendedores }, { merge: true }); }} />}
+        {ecraAtual === 'auditoria_caixas' && <GestaoCaixas sessoesCaixa={sessoesCaixa} fmt={fmt} tx={tx} />}
+        {ecraAtual === 'despesas' && <Despesas despesas={despesas} setDespesas={setDespesas} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterParaBRL={converterParaBRL} />}
       </main>
 
       {modalCambioAberto && (
@@ -1368,9 +1072,7 @@ export default function App() {
             {tipoMovCaixa === 'fechamento' || tipoMovCaixa === 'abertura' ? (
               <div style={{ marginBottom: '20px' }}>
                 <p style={{ fontSize: '13px', color: '#94a3b8', lineHeight: 1.5, marginBottom: '16px' }}>
-                  {tipoMovCaixa === 'fechamento'
-                    ? tx('FECHAMENTO CEGO: conte todo o dinheiro físico da gaveta sem consultar o saldo do sistema. Informe abaixo quanto encontrou em cada moeda. O ZenOS só revelará o saldo esperado e a diferença depois de concluir a auditoria. Se não houver uma moeda, digite 0.', 'CIERRE CIEGO: cuente todo el efectivo físico sin consultar el saldo del sistema. Informe cuánto encontró en cada moneda. ZenOS solo revelará el saldo esperado y la diferencia después de concluir la auditoría. Si no hay una moneda, ingrese 0.', 'BLIND CLOSE: count all physical cash without checking the system balance. Enter what you found in each currency. ZenOS will reveal the expected balance and difference only after the audit. Enter 0 for currencies not present.')
-                    : tx('Informe o fundo físico que está sendo colocado na gaveta para iniciar o turno.', 'Informe el efectivo inicial colocado en la gaveta.', 'Enter the physical opening float placed in the drawer.')}
+                  {tx('Conte as notas e moedas físicas na gaveta e digite o total exato abaixo.', 'Cuente el efectivo físico en la gaveta e ingrese el total exacto.', 'Count the physical cash in the drawer and enter the exact total below.')}
                 </p>
                 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
@@ -1381,13 +1083,6 @@ export default function App() {
                     </div>
                   ))}
                 </div>
-                {tipoMovCaixa === 'fechamento' && (
-                  <div style={{ marginTop:'14px', padding:'12px 14px', borderRadius:'12px', background:'#020617', border:'1px solid #1e293b' }}>
-                    <div style={{fontSize:'10px',fontWeight:900,letterSpacing:'1px',color:'#64748b',marginBottom:'5px'}}>TOTAL FÍSICO INFORMADO • CONVERTIDO PARA BRL</div>
-                    <div style={{fontSize:'20px',fontWeight:950,color:'#f8fafc'}}>{fmt(calcularTotalMovBRL(), 'BRL')}</div>
-                    <div style={{fontSize:'10px',color:'#64748b',marginTop:'5px'}}>O saldo esperado pelo ZenOS permanece oculto até a auditoria ser concluída.</div>
-                  </div>
-                )}
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '20px' }}>
@@ -1407,23 +1102,11 @@ export default function App() {
             )}
 
             <button onClick={tipoMovCaixa === 'fechamento' ? processarFechamentoCego : (tipoMovCaixa === 'abertura' ? abrirTurnoDeCaixa : registrarMovimentoCaixa)} style={{ width: '100%', background: tipoMovCaixa === 'sangria' ? 'linear-gradient(135deg, #e11d48, #be123c)' : tipoMovCaixa === 'suprimento' ? 'linear-gradient(135deg, #10b981, #059669)' : 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#ffffff', padding: '16px', borderRadius: '12px', fontSize: '14px', fontWeight: 900, cursor: 'pointer' }}>
-              {tipoMovCaixa === 'fechamento' ? tx('Concluir Contagem, Auditar e Imprimir', 'Concluir Conteo, Auditar e Imprimir', 'Finish Count, Audit & Print') : (tipoMovCaixa === 'abertura' ? tx('Abrir Turno com Saldo', 'Abrir Turno', 'Open Shift') : tx('Registrar na Gaveta', 'Registrar', 'Save Record'))}
+              {tipoMovCaixa === 'fechamento' ? tx('Auditar e Imprimir Fecho', 'Auditar e Imprimir', 'Audit & Print') : (tipoMovCaixa === 'abertura' ? tx('Abrir Turno com Saldo', 'Abrir Turno', 'Open Shift') : tx('Registrar na Gaveta', 'Registrar', 'Save Record'))}
             </button>
           </div>
         </div>
       )}
-    
-      <ZenModal aberto={!!modalAppZen} variante={modalAppZen?.variante} titulo={modalAppZen?.titulo} mensagem={modalAppZen?.mensagem} detalhes={modalAppZen?.detalhes} confirmarTexto={modalAppZen?.confirmarTexto || 'OK'} cancelarTexto={modalAppZen?.cancelarTexto || 'Cancelar'} apenasConfirmar={!!modalAppZen?.apenasConfirmar} onConfirmar={()=>{ const resolver=modalAppZen?.resolver; setModalAppZen(null); if(resolver) resolver(true); }} onCancelar={()=>{ const resolver=modalAppZen?.resolver; setModalAppZen(null); if(resolver) resolver(false); }} />
-
-      {modalPerfilRapido && <div style={{position:'fixed',inset:0,zIndex:21000,background:'rgba(2,6,23,.88)',backdropFilter:'blur(8px)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}><div style={{width:'100%',maxWidth:460,background:'#0b1120',border:'1px solid #38bdf8',borderRadius:22,padding:22,color:'#fff'}}>
-        <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:18}}>{perfilRapidoRascunho.logoLoja?<img src={perfilRapidoRascunho.logoLoja} style={{width:56,height:56,borderRadius:12,objectFit:'cover'}}/>:<img src="/logo-zenos.png?v=4" style={{width:56,height:56,objectFit:'contain'}}/>}<div><div style={{fontSize:11,color:'#38bdf8',fontWeight:900}}>IDENTIDADE RÁPIDA</div><div style={{fontSize:18,fontWeight:900}}>Nome e logo da loja</div></div></div>
-        <label style={{fontSize:11,color:'#94a3b8',fontWeight:900}}>NOME FANTASIA</label><input value={perfilRapidoRascunho.nomeFantasia||''} onChange={e=>setPerfilRapidoRascunho({...perfilRapidoRascunho,nomeFantasia:e.target.value})} style={{width:'100%',boxSizing:'border-box',margin:'6px 0 14px',padding:12,borderRadius:10,border:'1px solid #334155',background:'#020617',color:'#fff'}}/>
-        <label style={{fontSize:11,color:'#94a3b8',fontWeight:900}}>LOGO DA LOJA (máx. 300 KB)</label><input type="file" accept="image/*" onChange={e=>{const f=e.target.files?.[0]; if(!f)return; if(f.size>300*1024){setPerfilRapidoErro('A logo deve ter no máximo 300 KB.');return;} setPerfilRapidoErro(''); const r=new FileReader();r.onload=()=>setPerfilRapidoRascunho(x=>({...x,logoLoja:r.result}));r.readAsDataURL(f);}} style={{width:'100%',margin:'8px 0 18px'}}/>
-        {perfilRapidoErro && <div style={{margin:'-8px 0 14px',padding:'9px 10px',borderRadius:8,border:'1px solid #f43f5e',background:'#2e0a16',color:'#fda4af',fontSize:11,fontWeight:800}}>{perfilRapidoErro}</div>}
-        <div style={{display:'flex',gap:10}}><button onClick={()=>setModalPerfilRapido(false)} style={{flex:1,padding:11,borderRadius:10,border:'1px solid #334155',background:'#020617',color:'#cbd5e1',fontWeight:900}}>Cancelar</button><button onClick={salvarPerfilRapido} style={{flex:1,padding:11,borderRadius:10,border:'none',background:'#0284c7',color:'#fff',fontWeight:900}}>Salvar</button></div>
-      </div></div>}
-        </div>
-      </div>
     </div>
   );
 }
