@@ -113,6 +113,22 @@ const failGuard = (message, code = 'ZENOS_CONCURRENT_CONFLICT') => {
   throw error;
 };
 
+const applyGuardedEntityRemovals = ({ field, mergedValue, removeEntityIds, guards = [] }) => {
+  if (!Array.isArray(mergedValue) || !removeEntityIds?.length) return mergedValue;
+  const idsToRemove = new Set(removeEntityIds.map(id => String(id)));
+  for (const id of idsToRemove) {
+    const guarded = (guards || []).some(guard =>
+      guard?.type === 'entity_field_equals' &&
+      guard.field === field &&
+      String(guard.entityId) === id &&
+      guard.property === 'estado' &&
+      guard.expected === 'pendente'
+    );
+    if (!guarded) failGuard(`Remoção do registro ${id} em ${field} sem guard de estado pendente.`, 'ZENOS_UNGUARDED_ENTITY_REMOVAL');
+  }
+  return mergedValue.filter(entity => !idsToRemove.has(String(entity?.id)));
+};
+
 const assertBusinessGuards = (data, guards = []) => {
   for (const guard of guards || []) {
     if (!guard?.type) continue;
@@ -417,7 +433,13 @@ export const persistV1BusinessOperationSafe = async ({
       const revisions = { ...(existingSyncMeta.fieldRevisions || {}) };
       const values = {};
       for (const change of valid) {
-        const mergedValue = mergeV1FieldThreeWay({ field: change.field, baseValue: change.baseValue, localValue: change.value, remoteValue: data[change.field] });
+        let mergedValue = mergeV1FieldThreeWay({ field: change.field, baseValue: change.baseValue, localValue: change.value, remoteValue: data[change.field] });
+        mergedValue = applyGuardedEntityRemovals({
+          field: change.field,
+          mergedValue,
+          removeEntityIds: change.removeEntityIds,
+          guards,
+        });
         assertMergedFieldInvariants({ field: change.field, mergedValue, baseValue: change.baseValue, localValue: change.value });
         payload[change.field] = mergedValue;
         values[change.field] = cloneSyncValue(mergedValue);

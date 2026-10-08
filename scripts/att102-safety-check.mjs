@@ -158,10 +158,45 @@ check('Operações críticas possuem idempotência por operationKey',()=>{
 });
 
 
-check('Pré-pedido exige snapshot remoto inalterado antes de converter em venda',()=>{
-  assert.match(persistence,/guard\.type === 'entity_unchanged'/);
+check('Pré-pedido exige estado pendente e remoção protegida na transação crítica',()=>{
   const pdv=fs.readFileSync(new URL('../src/components/PDV.jsx',import.meta.url),'utf8');
-  assert.match(pdv,/type:'entity_unchanged'/);
+  assert.doesNotMatch(pdv,/\{(?=[^{}]*type:\s*'entity_unchanged')(?=[^{}]*entityId:\s*prePedidoEmAbertoId\b)[^{}]*\}/);
+  assert.match(pdv,/if\s*\(prePedidoEmAbertoId\)\s*\{\s*guards\.push\(\{\s*type:\s*'entity_field_equals',\s*field:\s*'historicoVendas',\s*entityId:\s*prePedidoEmAbertoId,\s*entityKey:\s*'id',\s*property:\s*'estado',\s*expected:\s*'pendente',/);
+  assert.match(pdv,/\{\s*field:\s*'historicoVendas',\s*value:\s*historicoProposto,\s*storageSuffix:\s*'historico_vendas',\s*removeEntityIds:\s*prePedidoEmAbertoId\s*\?\s*\[prePedidoEmAbertoId\]\s*:\s*\[\]\s*\}/);
+
+  const helper=persistence.match(/const applyGuardedEntityRemovals = [\s\S]*?(?=\nconst assertBusinessGuards)/);
+  assert.ok(helper,'Helper de remoção protegida deve existir');
+  const remove=new Function('failGuard',`${helper[0]}\nreturn applyGuardedEntityRemovals;`)((message,code)=>{
+    const error=new Error(message);
+    error.code=code;
+    throw error;
+  });
+  const guard={type:'entity_field_equals',field:'historicoVendas',entityId:'P1',entityKey:'id',property:'estado',expected:'pendente'};
+  const merged=[{id:'P1',estado:'pendente'},{id:'P2',estado:'pendente'},{id:'V1',estado:'concluida'}];
+  const args={field:'historicoVendas',mergedValue:merged,removeEntityIds:['P1'],guards:[guard]};
+  assert.deepEqual(remove(args),merged.slice(1));
+  assert.equal(merged.length,3);
+  assert.strictEqual(remove({...args,removeEntityIds:[]}),merged);
+  assert.strictEqual(remove({...args,mergedValue:null}),null);
+  assert.throws(()=>remove({...args,guards:[]}),{code:'ZENOS_UNGUARDED_ENTITY_REMOVAL'});
+  for(const invalid of [
+    {...guard,type:'entity_unchanged'},
+    {...guard,field:'produtos'},
+    {...guard,entityId:'P2'},
+    {...guard,property:'status'},
+    {...guard,expected:'concluida'},
+  ]){
+    assert.throws(()=>remove({...args,guards:[invalid]}),{code:'ZENOS_UNGUARDED_ENTITY_REMOVAL'});
+  }
+  assert.throws(()=>remove({...args,removeEntityIds:['P1','P2']}),{code:'ZENOS_UNGUARDED_ENTITY_REMOVAL'});
+  assert.deepEqual(remove({...args,removeEntityIds:['P1','P2'],guards:[guard,{...guard,entityId:'P2'}]}),[merged[2]]);
+  assert.deepEqual(remove({...args,mergedValue:[{id:1},{id:2}],removeEntityIds:[1],guards:[{...guard,entityId:'1'}]}),[{id:2}]);
+
+  const critical=persistence.slice(persistence.indexOf('export const persistV1BusinessOperationSafe ='));
+  assert.match(critical,/runTransaction\(db,\s*async tx =>/);
+  assert.match(critical,/assertBusinessGuards\(data,\s*guards\);[\s\S]*?for \(const change of valid\) \{\s*let mergedValue = mergeV1FieldThreeWay\([^;]*\);\s*mergedValue = applyGuardedEntityRemovals\(\{\s*field: change\.field,\s*mergedValue,\s*removeEntityIds: change\.removeEntityIds,\s*guards,\s*\}\);\s*assertMergedFieldInvariants\(/);
+  const reactive=persistence.slice(persistence.indexOf('export const persistV1OperationFieldsSafe ='),persistence.indexOf('export const persistV1BusinessOperationSafe ='));
+  assert.doesNotMatch(reactive,/applyGuardedEntityRemovals/);
 });
 
 check('Saídas de caixa críticas revalidam saldo dentro da transação',()=>{
