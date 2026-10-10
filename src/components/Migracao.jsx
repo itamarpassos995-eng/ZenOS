@@ -64,13 +64,13 @@ export default function Migracao({ commitOperacaoNegocio, produtos, setProdutos,
       <h2 style={{ fontSize: '24px', fontWeight: 900, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}><span>📥</span> Importador Universal</h2>
       <p style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '24px', lineHeight: 1.5 }}>
         Cole abaixo os dados copiados do seu Excel ou sistema antigo.<br/>
-        Formato para Produtos: <code style={{ color: '#38bdf8' }}>Nome | Custo | Preço Venda | Estoque</code><br/>
-        Formato para Clientes: <code style={{ color: '#fbbf24' }}>Nome | Documento | Telefone</code>
+        Formato para Produtos: <code style={{ color: '#38bdf8' }}>{tx('Nome | Custo | Preço Venda | Estoque','Nombre | Costo | Precio Venta | Stock','Name | Cost | Sale Price | Stock')}</code><br/>
+        Formato para Clientes: <code style={{ color: '#fbbf24' }}>{tx('Nome | Documento | Telefone','Nombre | Documento | Teléfono','Name | Document | Phone')}</code>
       </p>
 
       <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
-        <button onClick={() => setTipoMigracao('produtos')} style={{ flex: 1, padding: '12px', backgroundColor: tipoMigracao === 'produtos' ? '#0284c7' : '#020617', border: `1px solid ${tipoMigracao === 'produtos' ? '#38bdf8' : '#334155'}`, borderRadius: '10px', color: '#fff', fontWeight: 800, cursor: 'pointer' }}>Importar Produtos</button>
-        <button onClick={() => setTipoMigracao('clientes')} style={{ flex: 1, padding: '12px', backgroundColor: tipoMigracao === 'clientes' ? '#d97706' : '#020617', border: `1px solid ${tipoMigracao === 'clientes' ? '#fbbf24' : '#334155'}`, borderRadius: '10px', color: '#fff', fontWeight: 800, cursor: 'pointer' }}>Importar Clientes</button>
+        <button onClick={() => setTipoMigracao('produtos')} style={{ flex: 1, padding: '12px', backgroundColor: tipoMigracao === 'produtos' ? '#0284c7' : '#020617', border: `1px solid ${tipoMigracao === 'produtos' ? '#38bdf8' : '#334155'}`, borderRadius: '10px', color: '#fff', fontWeight: 800, cursor: 'pointer' }}>{tx('Importar Produtos','Importar Productos','Import Products')}</button>
+        <button onClick={() => setTipoMigracao('clientes')} style={{ flex: 1, padding: '12px', backgroundColor: tipoMigracao === 'clientes' ? '#d97706' : '#020617', border: `1px solid ${tipoMigracao === 'clientes' ? '#fbbf24' : '#334155'}`, borderRadius: '10px', color: '#fff', fontWeight: 800, cursor: 'pointer' }}>{tx('Importar Clientes','Importar Clientes','Import Customers')}</button>
       </div>
 
       <textarea rows="10" value={dadosInput} onChange={e => setDadosInput(e.target.value)} placeholder={tipoMigracao === 'produtos' ? "Ex:\nTinta Acrílica 18L\t150.00\t250.00\t20\nMassa Corrida\t35.00\t70.00\t15" : "Ex:\nJoão da Silva\t048.912.839-44\t45 99841-2233\nConstrutora Alfa\t80054231-4"} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '12px', padding: '16px', color: '#34d399', fontFamily: 'monospace', fontSize: '14px', outline: 'none', marginBottom: '16px', boxSizing: 'border-box' }} />
