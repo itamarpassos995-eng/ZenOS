@@ -24,8 +24,8 @@ export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, c
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh', color: '#64748b' }}>
         <span style={{ fontSize: '48px', marginBottom: '16px' }}>🔒</span>
-        <h2 style={{ color: '#f8fafc' }}>Acesso Restrito</h2>
-        <p>Apenas a Gerência tem acesso ao módulo financeiro de Contas a Pagar.</p>
+        <h2 style={{ color: '#f8fafc' }}>{tx('Acesso Restrito','Acceso Restringido','Restricted Access')}</h2>
+        <p>{tx('Apenas a Gerência tem acesso ao módulo financeiro de Contas a Pagar.','Solo la Gerencia tiene acceso al módulo financiero de Cuentas a Pagar.','Only Management has access to the Accounts Payable financial module.')}</p>
       </div>
     );
   }
@@ -160,8 +160,8 @@ export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, c
       <ZenModal aberto={!!modalZen} variante={modalZen?.variante} titulo={modalZen?.titulo} mensagem={modalZen?.mensagem} detalhes={modalZen?.detalhes} confirmarTexto={modalZen?.confirmarTexto || "OK"} cancelarTexto={modalZen?.cancelarTexto || "Cancelar"} apenasConfirmar={!!modalZen?.apenasConfirmar} onConfirmar={()=>{const r=modalZen?.resolver;setModalZen(null);if(r)r(true);}} onCancelar={()=>{const r=modalZen?.resolver;setModalZen(null);if(r)r(false);}} />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h2 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>Contas a Pagar & Despesas</h2>
-          <span style={{ fontSize: '13px', color: '#64748b' }}>Gestão de custos fixos, variáveis e fornecedores.</span>
+          <h2 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>{tx('Contas a Pagar & Despesas','Cuentas a Pagar y Gastos','Accounts Payable & Expenses')}</h2>
+          <span style={{ fontSize: '13px', color: '#64748b' }}>{tx('Gestão de custos fixos, variáveis e fornecedores.','Gestión de costos fijos, variables y proveedores.','Manage fixed, variable and supplier costs.')}</span>
         </div>
         <button onClick={abrirNovaDespesa} style={{ background: 'linear-gradient(135deg, #e11d48, #be123c)', border: 'none', color: '#ffffff', padding: '12px 24px', borderRadius: '12px', fontSize: '13px', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 15px rgba(225, 29, 72, 0.3)' }}>
           + Lançar Nova Despesa
@@ -169,26 +169,26 @@ export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, c
       </div>
 
       <div style={{ display: 'flex', gap: '10px' }}>
-        <button onClick={() => setFiltroStatus('pendente')} style={{ flex: 1, padding: '14px', backgroundColor: filtroStatus === 'pendente' ? '#451a03' : '#0b1120', border: `1px solid ${filtroStatus === 'pendente' ? '#d97706' : '#1e293b'}`, color: filtroStatus === 'pendente' ? '#fbbf24' : '#64748b', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' }}>⏳ Pendentes</button>
-        <button onClick={() => setFiltroStatus('paga')} style={{ flex: 1, padding: '14px', backgroundColor: filtroStatus === 'paga' ? '#064e3b' : '#0b1120', border: `1px solid ${filtroStatus === 'paga' ? '#10b981' : '#1e293b'}`, color: filtroStatus === 'paga' ? '#34d399' : '#64748b', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' }}>✅ Pagas</button>
-        <button onClick={() => setFiltroStatus('todas')} style={{ flex: 1, padding: '14px', backgroundColor: filtroStatus === 'todas' ? '#1e1b4b' : '#0b1120', border: `1px solid ${filtroStatus === 'todas' ? '#6366f1' : '#1e293b'}`, color: filtroStatus === 'todas' ? '#a5b4fc' : '#64748b', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' }}>📋 Todas as Despesas</button>
+        <button onClick={() => setFiltroStatus('pendente')} style={{ flex: 1, padding: '14px', backgroundColor: filtroStatus === 'pendente' ? '#451a03' : '#0b1120', border: `1px solid ${filtroStatus === 'pendente' ? '#d97706' : '#1e293b'}`, color: filtroStatus === 'pendente' ? '#fbbf24' : '#64748b', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' }}>⏳ {tx('Pendentes','Pendientes','Pending')}</button>
+        <button onClick={() => setFiltroStatus('paga')} style={{ flex: 1, padding: '14px', backgroundColor: filtroStatus === 'paga' ? '#064e3b' : '#0b1120', border: `1px solid ${filtroStatus === 'paga' ? '#10b981' : '#1e293b'}`, color: filtroStatus === 'paga' ? '#34d399' : '#64748b', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' }}>✅ {tx('Pagas','Pagadas','Paid')}</button>
+        <button onClick={() => setFiltroStatus('todas')} style={{ flex: 1, padding: '14px', backgroundColor: filtroStatus === 'todas' ? '#1e1b4b' : '#0b1120', border: `1px solid ${filtroStatus === 'todas' ? '#6366f1' : '#1e293b'}`, color: filtroStatus === 'todas' ? '#a5b4fc' : '#64748b', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' }}>📋 {tx('Todas as Despesas','Todos los Gastos','All Expenses')}</button>
       </div>
 
       <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid #1e293b', color: '#64748b', fontSize: '11px', textTransform: 'uppercase', backgroundColor: '#020617' }}>
-              <th style={{ padding: '16px 20px' }}>Vencimento</th>
-              <th style={{ padding: '16px 12px' }}>Descrição</th>
-              <th style={{ padding: '16px 12px' }}>Categoria</th>
-              <th style={{ padding: '16px 12px', textAlign: 'right' }}>Valor (R$)</th>
-              <th style={{ padding: '16px 12px', textAlign: 'center' }}>Status</th>
-              <th style={{ padding: '16px 20px', textAlign: 'right' }}>Ações</th>
+              <th style={{ padding: '16px 20px' }}>{tx('Vencimento','Vencimiento','Due Date')}</th>
+              <th style={{ padding: '16px 12px' }}>{tx('Descrição','Descripción','Description')}</th>
+              <th style={{ padding: '16px 12px' }}>{tx('Categoria','Categoría','Category')}</th>
+              <th style={{ padding: '16px 12px', textAlign: 'right' }}>{tx('Valor (R$)','Valor (R$)','Amount (R$)')}</th>
+              <th style={{ padding: '16px 12px', textAlign: 'center' }}>{tx('Status','Estado','Status')}</th>
+              <th style={{ padding: '16px 20px', textAlign: 'right' }}>{tx('Ações','Acciones','Actions')}</th>
             </tr>
           </thead>
           <tbody>
             {despesasFiltradas.length === 0 ? (
-              <tr><td colSpan="6" style={{ padding: '40px', textAlign: 'center', color: '#475569' }}>Nenhuma despesa encontrada nesta visão.</td></tr>
+              <tr><td colSpan="6" style={{ padding: '40px', textAlign: 'center', color: '#475569' }}>{tx('Nenhuma despesa encontrada nesta visão.','Ningún gasto encontrado en esta vista.','No expense found in this view.')}</td></tr>
             ) : (
               despesasFiltradas.map(d => (
                 <tr key={d.id} style={{ borderBottom: '1px solid #1e293b' }}>
@@ -198,7 +198,7 @@ export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, c
                   <td style={{ padding: '16px 12px', color: '#f8fafc', fontWeight: 700 }}>
                     {d.descricao}
                     {d.status === 'paga' && <div style={{ fontSize: '10px', color: '#10b981', marginTop: '4px' }}>Pago em: {d.dataPagamento ? d.dataPagamento.split('T')[0].split('-').reverse().join('/') : '-'} via {d.formaPagamento || '-'}</div>}
-                    {d.afetaResultado === false && <div style={{ fontSize: '10px', color: '#38bdf8', marginTop: '4px', fontWeight: 800 }}>Estoque / ativo — não reduz o lucro novamente</div>}
+                    {d.afetaResultado === false && <div style={{ fontSize: '10px', color: '#38bdf8', marginTop: '4px', fontWeight: 800 }}>{tx('Estoque / ativo — não reduz o lucro novamente','Stock / activo — no reduce la ganancia nuevamente','Stock / asset — does not reduce profit again')}</div>}
                   </td>
                   <td style={{ padding: '16px 12px' }}>
                     <span style={{ backgroundColor: '#020617', border: '1px solid #334155', color: '#94a3b8', padding: '4px 8px', borderRadius: '6px', fontSize: '11px' }}>{d.categoria}</span>
@@ -208,14 +208,14 @@ export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, c
                   </td>
                   <td style={{ padding: '16px 12px', textAlign: 'center' }}>
                     {d.status === 'paga' 
-                      ? <span style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#34d399', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>Paga</span>
-                      : <span style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#fbbf24', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>Pendente</span>}
+                      ? <span style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#34d399', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>{tx('Paga','Pagada','Paid')}</span>
+                      : <span style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#fbbf24', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>{tx('Pendente','Pendiente','Pending')}</span>}
                   </td>
                   <td style={{ padding: '16px 20px', textAlign: 'right' }}>
                     {d.status === 'pendente' && (
-                      <button onClick={() => abrirPagamento(d)} style={{ backgroundColor: '#064e3b', border: '1px solid #10b981', color: '#34d399', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer', marginRight: '8px' }}>Baixar Pgto</button>
+                      <button onClick={() => abrirPagamento(d)} style={{ backgroundColor: '#064e3b', border: '1px solid #10b981', color: '#34d399', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer', marginRight: '8px' }}>{tx('Baixar Pgto','Registrar Pago','Post Payment')}</button>
                     )}
-                    <button onClick={() => excluirDespesa(d.id)} style={{ backgroundColor: 'transparent', border: '1px solid #334155', color: '#f43f5e', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>Excluir</button>
+                    <button onClick={() => excluirDespesa(d.id)} style={{ backgroundColor: 'transparent', border: '1px solid #334155', color: '#f43f5e', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>{tx('Excluir','Eliminar','Delete')}</button>
                   </td>
                 </tr>
               ))
@@ -223,7 +223,7 @@ export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, c
             {/* Linha de Total */}
             {despesasFiltradas.length > 0 && (
               <tr style={{ backgroundColor: '#020617' }}>
-                <td colSpan="3" style={{ padding: '16px 20px', textAlign: 'right', fontWeight: 800, color: '#94a3b8' }}>TOTAL DESTA VISÃO:</td>
+                <td colSpan="3" style={{ padding: '16px 20px', textAlign: 'right', fontWeight: 800, color: '#94a3b8' }}>{tx('TOTAL DESTA VISÃO:','TOTAL DE ESTA VISTA:','TOTAL IN THIS VIEW:')}</td>
                 <td style={{ padding: '16px 12px', textAlign: 'right', fontWeight: 900, color: filtroStatus === 'paga' ? '#64748b' : '#f43f5e', fontSize: '16px' }}>{fmt(totalFiltradoBRL, 'BRL')}</td>
                 <td colSpan="2"></td>
               </tr>
@@ -237,14 +237,14 @@ export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, c
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1500 }}>
           <div style={{ backgroundColor: '#0b1120', border: '1px solid #f43f5e', borderRadius: '24px', width: '100%', maxWidth: '500px', padding: '28px', color: '#fff' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <div><span style={{ fontSize: '11px', fontWeight: 800, color: '#fb7185', textTransform: 'uppercase' }}>Contas a Pagar</span><h3 style={{ fontSize: '20px', fontWeight: 900, margin: '2px 0 0 0' }}>Lançar Nova Despesa</h3></div>
+              <div><span style={{ fontSize: '11px', fontWeight: 800, color: '#fb7185', textTransform: 'uppercase' }}>{tx('Contas a Pagar','Cuentas a Pagar','Accounts Payable')}</span><h3 style={{ fontSize: '20px', fontWeight: 900, margin: '2px 0 0 0' }}>{tx('Lançar Nova Despesa','Registrar Nuevo Gasto','Add New Expense')}</h3></div>
               <button onClick={() => setModalAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#64748b', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>✕</button>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
               <div>
-                <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Descrição da Despesa</label>
-                <input type="text" value={descricao} onChange={e => setDescricao(e.target.value)} placeholder="Ex: Pagamento Fornecedor Tintas" style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '12px', outline: 'none', marginTop: '4px', boxSizing: 'border-box' }} />
+                <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Descrição da Despesa','Descripción del Gasto','Expense Description')}</label>
+                <input type="text" value={descricao} onChange={e => setDescricao(e.target.value)} placeholder={tx('Ex: Pagamento Fornecedor Tintas','Ej: Pago Proveedor Pinturas','Ex: Paint Supplier Payment')} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '12px', outline: 'none', marginTop: '4px', boxSizing: 'border-box' }} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
@@ -252,19 +252,19 @@ export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, c
                   <input type="text" value={valorInput} onChange={e => setValorInput(e.target.value)} placeholder="0.00" style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #f43f5e', borderRadius: '8px', color: '#fb7185', fontWeight: 900, fontSize: '16px', padding: '12px', outline: 'none', marginTop: '4px', boxSizing: 'border-box' }} />
                 </div>
                 <div>
-                  <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Data de Vencimento</label>
+                  <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Data de Vencimento','Fecha de Vencimiento','Due Date')}</label>
                   <input type="date" value={dataVencimento} onChange={e => setDataVencimento(e.target.value)} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '12px', outline: 'none', marginTop: '4px', boxSizing: 'border-box' }} />
                 </div>
               </div>
               <div>
-                <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Categoria</label>
+                <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Categoria','Categoría','Category')}</label>
                 <select value={categoria} onChange={e => setCategoria(e.target.value)} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '12px', outline: 'none', marginTop: '4px', boxSizing: 'border-box' }}>
-                  <option value="Fornecedor">📦 Fornecedor de Mercadorias</option>
-                  <option value="Infraestrutura">🏢 Aluguel / Água / Luz / Net</option>
-                  <option value="Salários">👥 Salários / Comissões</option>
-                  <option value="Impostos">⚖️ Impostos / Taxas Fiscais</option>
-                  <option value="Marketing">📢 Marketing / Publicidade</option>
-                  <option value="Outros">🔄 Outras Despesas</option>
+                  <option value="Fornecedor">📦 {tx('Fornecedor de Mercadorias','Proveedor de Mercaderías','Merchandise Supplier')}</option>
+                  <option value="Infraestrutura">🏢 {tx('Aluguel / Água / Luz / Net','Alquiler / Agua / Luz / Internet','Rent / Water / Power / Internet')}</option>
+                  <option value="Salários">👥 {tx('Salários / Comissões','Salarios / Comisiones','Salaries / Commissions')}</option>
+                  <option value="Impostos">⚖️ {tx('Impostos / Taxas Fiscais','Impuestos / Tasas Fiscales','Taxes / Fiscal Fees')}</option>
+                  <option value="Marketing">📢 {tx('Marketing / Publicidade','Marketing / Publicidad','Marketing / Advertising')}</option>
+                  <option value="Outros">🔄 {tx('Outras Despesas','Otros Gastos','Other Expenses')}</option>
                 </select>
               </div>
             </div>
@@ -280,22 +280,22 @@ export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, c
       {modalPagamentoAberto && despesaParaPagar && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1500 }}>
           <div style={{ backgroundColor: '#0b1120', border: '1px solid #10b981', borderRadius: '24px', width: '100%', maxWidth: '400px', padding: '28px', color: '#fff' }}>
-            <h3 style={{ fontSize: '18px', fontWeight: 900, margin: '0 0 16px 0', color: '#34d399' }}>Baixar Pagamento</h3>
+            <h3 style={{ fontSize: '18px', fontWeight: 900, margin: '0 0 16px 0', color: '#34d399' }}>{tx('Baixar Pagamento','Registrar Pago','Post Payment')}</h3>
             <div style={{ backgroundColor: '#020617', padding: '16px', borderRadius: '12px', marginBottom: '20px', border: '1px solid #1e293b' }}>
               <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '4px' }}>{despesaParaPagar.descricao}</div>
               <div style={{ fontSize: '24px', fontWeight: 900, color: '#f8fafc' }}>{fmt(despesaParaPagar.valorBRL, 'BRL')}</div>
             </div>
             
-            <label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800 }}>De onde saiu o dinheiro?</label>
+            <label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800 }}>{tx('De onde saiu o dinheiro?','¿De dónde salió el dinero?','Where did the money come from?')}</label>
             <select value={formaPagamento} onChange={e => setFormaPagamento(e.target.value)} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '12px', outline: 'none', marginTop: '8px', marginBottom: '24px', boxSizing: 'border-box' }}>
-              <option value="Dinheiro / Gaveta">💵 Dinheiro da Gaveta do Caixa</option>
-              <option value="Pix / Banco">🏦 Transferência Bancária / Pix</option>
-              <option value="Cartão Corporativo">💳 Cartão Corporativo</option>
+              <option value="Dinheiro / Gaveta">💵 {tx('Dinheiro da Gaveta do Caixa','Dinero de la Caja','Cash Drawer Money')}</option>
+              <option value="Pix / Banco">🏦 {tx('Transferência Bancária / Pix','Transferencia Bancaria / Pix','Bank Transfer / Pix')}</option>
+              <option value="Cartão Corporativo">💳 {tx('Cartão Corporativo','Tarjeta Corporativa','Corporate Card')}</option>
             </select>
 
             <div style={{ display: 'flex', gap: '12px' }}>
-              <button onClick={() => setModalPagamentoAberto(false)} style={{ flex: 1, backgroundColor: '#020617', border: '1px solid #1e293b', color: '#94a3b8', padding: '12px', borderRadius: '10px', fontWeight: 800, cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={confirmarPagamento} style={{ flex: 2, background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', color: '#ffffff', padding: '12px', borderRadius: '10px', fontWeight: 900, cursor: 'pointer' }}>Confirmar Pago</button>
+              <button onClick={() => setModalPagamentoAberto(false)} style={{ flex: 1, backgroundColor: '#020617', border: '1px solid #1e293b', color: '#94a3b8', padding: '12px', borderRadius: '10px', fontWeight: 800, cursor: 'pointer' }}>{tx('Cancelar','Cancelar','Cancel')}</button>
+              <button onClick={confirmarPagamento} style={{ flex: 2, background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', color: '#ffffff', padding: '12px', borderRadius: '10px', fontWeight: 900, cursor: 'pointer' }}>{tx('Confirmar Pago','Confirmar Pago','Confirm Paid')}</button>
             </div>
           </div>
         </div>
