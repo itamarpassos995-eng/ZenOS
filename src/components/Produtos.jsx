@@ -623,8 +623,8 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
                   <div style={{ padding: '18px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: '14px' }}>
                       <div>
-                        <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Plano: <span style={{ color: '#38bdf8' }}>{obterPoliticaHistoricoEstoque(planoLoja).rotulo}</span></div>
-                        <div style={{ fontSize: '10px', color: '#64748b' }}>Janela consultável: últimos {obterPoliticaHistoricoEstoque(planoLoja).dias} dias. A exclusão física automática não é feita nesta ATT.</div>
+                        <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Plano:','Plan:','Plan:')} <span style={{ color: '#38bdf8' }}>{obterPoliticaHistoricoEstoque(planoLoja).rotulo}</span></div>
+                        <div style={{ fontSize: '10px', color: '#64748b' }}>{tx('Janela consultável: últimos','Ventana consultable: últimos','Available window: last')} {obterPoliticaHistoricoEstoque(planoLoja).dias} {tx('dias. A exclusão física automática não é feita nesta ATT.','días. La eliminación física automática no se realiza en esta ATT.','days. Automatic physical deletion is not performed in this ATT.')}</div>
                       </div>
                       <button type="button" onClick={() => carregarHistoricoProduto(produtoEmEdicao.id)} style={{ backgroundColor: '#082f49', border: '1px solid #0284c7', color: '#38bdf8', borderRadius: '8px', padding: '7px 12px', fontWeight: 800, cursor: 'pointer' }}>{tx('Atualizar','Actualizar','Refresh')}</button>
                     </div>
