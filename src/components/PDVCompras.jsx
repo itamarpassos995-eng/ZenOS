@@ -47,7 +47,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
   const compraEmAndamentoRef = useRef(false);
   const [modalZen, setModalZen] = useState(null);
   const avisarZen = (variante, titulo, mensagem, detalhes = []) => setModalZen({ variante, titulo, mensagem, detalhes, apenasConfirmar:true });
-  const confirmarZen = ({ variante='warning', titulo, mensagem, detalhes=[], confirmarTexto='Confirmar' }) => new Promise(resolve => setModalZen({ variante, titulo, mensagem, detalhes, confirmarTexto, cancelarTexto:'Cancelar', resolver:resolve }));
+  const confirmarZen = ({ variante='warning', titulo, mensagem, detalhes=[], confirmarTexto='Confirmar' }) => new Promise(resolve => setModalZen({ variante, titulo, mensagem, detalhes, confirmarTexto, cancelarTexto:tx('Cancelar','Cancelar','Cancel'), resolver:resolve }));
 
   const inputBuscaRef = useRef(null);
   const inputQtdRapidaRef = useRef(null);
@@ -91,7 +91,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
     setModalFornecedorAberto(true);
   };
   const salvarFornecedor = async () => {
-    if (!formFornecedor.nome.trim()) return avisarZen('warning','Fornecedor incompleto','Informe a Razão Social/Nome do fornecedor.');
+    if (!formFornecedor.nome.trim()) return avisarZen('warning',tx('Fornecedor incompleto','Proveedor incompleto','Incomplete supplier'),tx('Informe a Razão Social/Nome do fornecedor.','Informe la Razón Social/Nombre del proveedor.','Enter the supplier company/name.'));
     const novoForn = { ...formFornecedor, id: `FORN-${Date.now()}` };
     const listaProposta = [novoForn, ...(fornecedores || [])];
     try {
@@ -105,7 +105,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
       selecionarFornecedor(confirmados.find(f => String(f.id) === String(novoForn.id)) || novoForn);
       setModalFornecedorAberto(false);
     } catch (erro) {
-      avisarZen('danger','Fornecedor não salvo','A nuvem não confirmou o cadastro do fornecedor.',[erro?.message || 'Falha de persistência']);
+      avisarZen('danger',tx('Fornecedor não salvo','Proveedor no guardado','Supplier not saved'),tx('A nuvem não confirmou o cadastro do fornecedor.','La nube no confirmó el registro del proveedor.','The cloud did not confirm the supplier registration.'),[erro?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
     }
   };
 
@@ -123,12 +123,12 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
     setModalProdutoAberto(true);
   };
   const salvarProduto = async () => {
-    if (!formProduto.nome.trim()) return avisarZen('warning','Produto incompleto','Informe o nome do produto.');
+    if (!formProduto.nome.trim()) return avisarZen('warning',tx('Produto incompleto','Producto incompleto','Incomplete product'),tx('Informe o nome do produto.','Informe el nombre del producto.','Enter the product name.'));
     const custo = parseFloat(String(formProduto.custoBRL).replace(',', '.')) || 0;
     const preco = parseFloat(String(formProduto.precoBRL).replace(',', '.')) || 0;
     const estoque = parseInt(String(formProduto.estoque)) || 0;
 
-    if (skuJaExiste(produtos, formProduto.sku, produtoEmEdicao)) return avisarZen('danger','SKU duplicado',`Já existe outro produto com o SKU ${formProduto.sku}. Use um SKU diferente.`);
+    if (skuJaExiste(produtos, formProduto.sku, produtoEmEdicao)) return avisarZen('danger',tx('SKU duplicado','SKU duplicado','Duplicate SKU'),`${tx('Já existe outro produto com o SKU','Ya existe otro producto con el SKU','Another product already uses SKU')} ${formProduto.sku}. ${tx('Use um SKU diferente.','Use un SKU diferente.','Use a different SKU.')}`);
     const dadosFinais = normalizarProduto({ ...formProduto, custoBRL: custo, precoBRL: preco, estoque: estoque });
     if (!dadosFinais.id) dadosFinais.id = `PROD-${Date.now()}`;
 
