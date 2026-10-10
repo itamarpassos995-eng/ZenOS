@@ -61,11 +61,11 @@ export default function Migracao({ commitOperacaoNegocio, produtos, setProdutos,
   return (
     <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '20px', padding: '32px', maxWidth: '800px', margin: '0 auto', color: '#fff' }}>
       <ZenModal aberto={!!modalZen} variante={modalZen?.variante} titulo={modalZen?.titulo} mensagem={modalZen?.mensagem} apenasConfirmar confirmarTexto="OK" onConfirmar={()=>setModalZen(null)} onCancelar={()=>setModalZen(null)} />
-      <h2 style={{ fontSize: '24px', fontWeight: 900, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}><span>📥</span> Importador Universal</h2>
+      <h2 style={{ fontSize: '24px', fontWeight: 900, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}><span>📥</span> {tx('Importador Universal','Importador Universal','Universal Importer')}</h2>
       <p style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '24px', lineHeight: 1.5 }}>
-        Cole abaixo os dados copiados do seu Excel ou sistema antigo.<br/>
-        Formato para Produtos: <code style={{ color: '#38bdf8' }}>{tx('Nome | Custo | Preço Venda | Estoque','Nombre | Costo | Precio Venta | Stock','Name | Cost | Sale Price | Stock')}</code><br/>
-        Formato para Clientes: <code style={{ color: '#fbbf24' }}>{tx('Nome | Documento | Telefone','Nombre | Documento | Teléfono','Name | Document | Phone')}</code>
+        {tx('Cole abaixo os dados copiados do seu Excel ou sistema antigo.','Pegue abajo los datos copiados de su Excel o sistema anterior.','Paste below the data copied from your Excel or previous system.')}<br/>
+        {tx('Formato para Produtos:','Formato para Productos:','Format for Products:')} <code style={{ color: '#38bdf8' }}>{tx('Nome | Custo | Preço Venda | Estoque','Nombre | Costo | Precio Venta | Stock','Name | Cost | Sale Price | Stock')}</code><br/>
+        {tx('Formato para Clientes:','Formato para Clientes:','Format for Customers:')} <code style={{ color: '#fbbf24' }}>{tx('Nome | Documento | Telefone','Nombre | Documento | Teléfono','Name | Document | Phone')}</code>
       </p>
 
       <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
