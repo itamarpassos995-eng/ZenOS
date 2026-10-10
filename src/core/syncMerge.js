@@ -148,6 +148,36 @@ const mergeArrayGeneric = ({ field, base = [], local = [], remote = [], entityMe
   return result;
 };
 
+const quantidadeProduto = (produto) => {
+  const total = numericFinite(produto?.estoque);
+  if (total !== null) return Math.max(0, total);
+  const vitrine = numericFinite(produto?.estoqueVitrine) ?? 0;
+  const galpao = numericFinite(produto?.estoqueGalpao) ?? 0;
+  return Math.max(0, vitrine) + Math.max(0, galpao);
+};
+
+const mergeProdutoEntity = ({ base = {}, local = {}, remote = {} }) => {
+  const merged = mergeObjectThreeWay({ field:'produtos', base, local, remote });
+  const custoBase = numericFinite(base?.custoBRL);
+  const custoLocal = numericFinite(local?.custoBRL);
+  const custoRemote = numericFinite(remote?.custoBRL);
+  const quantidadeBase = quantidadeProduto(base);
+  const quantidadeLocal = quantidadeProduto(local);
+  const quantidadeRemota = quantidadeProduto(remote);
+  const quantidadeMesclada = quantidadeProduto(merged);
+
+  // Merge inventory value deltas, then derive the unit average to preserve concurrent purchases/sales.
+  if ([custoBase, custoLocal, custoRemote].every(custo => custo !== null) && quantidadeMesclada > 0) {
+    const valorRemoto = quantidadeRemota * custoRemote;
+    const deltaValorLocal = (quantidadeLocal * custoLocal) - (quantidadeBase * custoBase);
+    const valorMesclado = valorRemoto + deltaValorLocal;
+    if (Number.isFinite(valorMesclado) && valorMesclado >= 0) {
+      merged.custoBRL = Math.round((valorMesclado / quantidadeMesclada + Number.EPSILON) * 1e8) / 1e8;
+    }
+  }
+  return merged;
+};
+
 const mergeHistoricoVendaEntity = ({ base = {}, local = {}, remote = {} }) => {
   const merged = mergeObjectThreeWay({ field: 'historicoVendas', base, local, remote });
 
@@ -213,7 +243,11 @@ export const mergeArrayThreeWay = ({ field, base = [], local = [], remote = [] }
     base,
     local,
     remote,
-    entityMerger: field === 'historicoVendas' ? mergeHistoricoVendaEntity : null,
+    entityMerger: field === 'historicoVendas'
+      ? mergeHistoricoVendaEntity
+      : field === 'produtos'
+        ? mergeProdutoEntity
+        : null,
   });
 };
 

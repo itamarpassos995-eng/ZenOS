@@ -431,7 +431,14 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
                           </div>
                         )}
                       </td>
-                      <td style={{ padding: '16px 12px', textAlign: 'right', color: '#94a3b8', fontWeight: 700 }}>{fmt(custo)}</td>
+                      <td style={{ padding: '16px 12px', textAlign: 'right', fontWeight: 700 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'auto auto', justifyContent: 'end', alignItems: 'center', gap: '4px 6px', fontSize: '12px', lineHeight: '16px', whiteSpace: 'nowrap' }}>
+                          <span title="Último custo do fornecedor" style={{ backgroundColor: 'rgba(168, 85, 247, 0.08)', border: '1px solid rgba(168, 85, 247, 0.2)', borderRadius: '4px', padding: '0 4px', fontSize: '9px', fontWeight: 800, color: '#c4b5fd', textAlign: 'center' }}>CF</span>
+                          <span style={{ color: '#c4b5fd' }}>{Number.isFinite(prod.ultimoCustoFornecedorBRL) && prod.ultimoCustoFornecedorBRL >= 0 ? fmt(prod.ultimoCustoFornecedorBRL) : '—'}</span>
+                          <span title="Custo médio/efetivo atual" style={{ backgroundColor: 'rgba(34, 211, 238, 0.08)', border: '1px solid rgba(34, 211, 238, 0.2)', borderRadius: '4px', padding: '0 4px', fontSize: '9px', fontWeight: 800, color: '#67e8f9', textAlign: 'center' }}>CMV</span>
+                          <span style={{ color: '#67e8f9' }}>{fmt(custo)}</span>
+                        </div>
+                      </td>
                       <td style={{ padding: '16px 12px', textAlign: 'right', fontWeight: 900, color: '#34d399', fontSize: '15px' }}>{fmt(preco)}</td>
                       <td style={{ padding: '16px 12px', textAlign: 'right', fontWeight: 700, color: prod.habilitarPreco2 ? '#38bdf8' : '#475569' }}>{prod.habilitarPreco2 && prod.preco2BRL > 0 ? fmt(prod.preco2BRL) : '—'}</td>
                       <td style={{ padding: '16px 12px', textAlign: 'center' }}><span style={{ backgroundColor: margem >= 40 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)', color: margem >= 40 ? '#34d399' : '#fbbf24', border: `1px solid ${margem >= 40 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`, padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>{margem}%</span></td>

@@ -776,6 +776,7 @@ export default function App() {
   const vendasHoje = vendasValidas.filter(v => registroEhDoDiaLocal(v));
   const faturamentoHojeBRL = vendasHoje.reduce((acc, v) => acc + obterFinanceiroVenda(v).totalLiquidoBRL, 0);
   const faturamentoTotalBRL = vendasValidas.reduce((acc, v) => acc + obterFinanceiroVenda(v).totalLiquidoBRL, 0);
+  const cmvTotalBRL = vendasValidas.reduce((acc, v) => acc + obterFinanceiroVenda(v).cmvLiquidoBRL, 0);
   const lucroBrutoBRL = vendasValidas.reduce((acc, v) => acc + obterFinanceiroVenda(v).lucroLiquidoBRL, 0);
   const despesasPagasBRL = despesas.filter(d => d.status === 'paga' && d.afetaResultado !== false && d.naturezaContabil !== 'estoque_ativo' && d.categoria !== 'Mercadoria para Revenda').reduce((acc, d) => acc + (parseFloat(d.valorBRL) || 0), 0);
   const lucroLiquidoRealBRL = lucroBrutoBRL - despesasPagasBRL;
@@ -1506,6 +1507,7 @@ export default function App() {
                 {mostrarPainelExecutivo && <div className="zen-exec-body">
                   <div className="zen-exec-grid">
                     <div className="zen-exec-stat"><span>Faturamento Real</span><strong>{fmt(faturamentoTotalBRL)}</strong></div>
+                    <div className="zen-exec-stat"><span>CMV</span><strong>{fmt(cmvTotalBRL)}</strong></div>
                     <div className="zen-exec-stat"><span>Lucro Bruto</span><strong style={{color:'#38bdf8'}}>{fmt(lucroBrutoBRL)}</strong></div>
                     <div className="zen-exec-stat"><span>Despesas Pagas</span><strong style={{color:'#fbbf24'}}>{fmt(despesasPagasBRL)}</strong></div>
                     <div className="zen-exec-stat"><span>Lucro Líquido</span><strong style={{color:'#34d399'}}>{fmt(lucroLiquidoRealBRL)}</strong></div>
