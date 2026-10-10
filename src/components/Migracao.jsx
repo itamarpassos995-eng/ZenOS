@@ -2,14 +2,14 @@ import React, { useState } from 'react';
 import { normalizarProduto, normalizarCliente } from '../data';
 import ZenModal from './ZenModal';
 
-export default function Migracao({ commitOperacaoNegocio, produtos, setProdutos, clientes, setClientes, t }) {
+export default function Migracao({ commitOperacaoNegocio, produtos, setProdutos, clientes, setClientes, t, tx = (pt) => pt }) {
   const [dadosInput, setDadosInput] = useState('');
   const [tipoMigracao, setTipoMigracao] = useState('produtos');
   const [mensagemSucesso, setMensagemSucesso] = useState('');
   const [modalZen,setModalZen]=useState(null);
 
   const importarDadosEmMassa = async () => {
-    if (!dadosInput.trim()) return setModalZen({variante:'warning',titulo:'Dados ausentes',mensagem:'Cole os dados na caixa de texto primeiro.',apenasConfirmar:true});
+    if (!dadosInput.trim()) return setModalZen({variante:'warning',titulo:tx('Dados ausentes','Datos ausentes','Missing data'),mensagem:tx('Cole os dados na caixa de texto primeiro.','Pegue los datos en el cuadro de texto primero.','Paste the data into the text box first.'),apenasConfirmar:true});
     try {
       const linhas = dadosInput.split('\n');
       let contador = 0;
@@ -29,7 +29,7 @@ export default function Migracao({ commitOperacaoNegocio, produtos, setProdutos,
         });
         if (typeof commitOperacaoNegocio === 'function') {
           const confirmado = await commitOperacaoNegocio({ changes:[{ field:'produtos', value:novos, storageSuffix:'produtos' }] });
-          if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou a importação de produtos.');
+          if (!confirmado?.cloudOk) throw confirmado?.error || new Error(tx('A nuvem não confirmou a importação de produtos.','La nube no confirmó la importación de productos.','The cloud did not confirm the product import.'));
           setProdutos(confirmado.values?.produtos || novos);
         } else setProdutos(novos);
       } else {
@@ -46,7 +46,7 @@ export default function Migracao({ commitOperacaoNegocio, produtos, setProdutos,
         });
         if (typeof commitOperacaoNegocio === 'function') {
           const confirmado = await commitOperacaoNegocio({ changes:[{ field:'clientes', value:novosCli, storageSuffix:'clientes' }] });
-          if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou a importação de clientes.');
+          if (!confirmado?.cloudOk) throw confirmado?.error || new Error(tx('A nuvem não confirmou a importação de clientes.','La nube no confirmó la importación de clientes.','The cloud did not confirm the customer import.'));
           setClientes(confirmado.values?.clientes || novosCli);
         } else setClientes(novosCli);
       }
@@ -54,7 +54,7 @@ export default function Migracao({ commitOperacaoNegocio, produtos, setProdutos,
       setDadosInput('');
       setTimeout(() => setMensagemSucesso(''), 5000);
     } catch (err) {
-      setModalZen({variante:'danger',titulo:'Importação não concluída',mensagem:err?.message || 'Erro ao processar. Verifique se copiou corretamente.',apenasConfirmar:true});
+      setModalZen({variante:'danger',titulo:tx('Importação não concluída','Importación no concluida','Import not completed'),mensagem:err?.message || tx('Erro ao processar. Verifique se copiou corretamente.','Error al procesar. Verifique si copió correctamente.','Processing error. Check that the data was copied correctly.'),apenasConfirmar:true});
     }
   };
 
@@ -73,7 +73,7 @@ export default function Migracao({ commitOperacaoNegocio, produtos, setProdutos,
         <button onClick={() => setTipoMigracao('clientes')} style={{ flex: 1, padding: '12px', backgroundColor: tipoMigracao === 'clientes' ? '#d97706' : '#020617', border: `1px solid ${tipoMigracao === 'clientes' ? '#fbbf24' : '#334155'}`, borderRadius: '10px', color: '#fff', fontWeight: 800, cursor: 'pointer' }}>{tx('Importar Clientes','Importar Clientes','Import Customers')}</button>
       </div>
 
-      <textarea rows="10" value={dadosInput} onChange={e => setDadosInput(e.target.value)} placeholder={tipoMigracao === 'produtos' ? "Ex:\nTinta Acrílica 18L\t150.00\t250.00\t20\nMassa Corrida\t35.00\t70.00\t15" : "Ex:\nJoão da Silva\t048.912.839-44\t45 99841-2233\nConstrutora Alfa\t80054231-4"} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '12px', padding: '16px', color: '#34d399', fontFamily: 'monospace', fontSize: '14px', outline: 'none', marginBottom: '16px', boxSizing: 'border-box' }} />
+      <textarea rows="10" value={dadosInput} onChange={e => setDadosInput(e.target.value)} placeholder={tipoMigracao === 'produtos' ? tx("Ex:\nTinta Acrílica 18L\t150.00\t250.00\t20\nMassa Corrida\t35.00\t70.00\t15","Ej:\nPintura Acrílica 18L\t150.00\t250.00\t20\nMasilla\t35.00\t70.00\t15","Ex:\nAcrylic Paint 18L\t150.00\t250.00\t20\nWall Putty\t35.00\t70.00\t15") : tx("Ex:\nJoão da Silva\t048.912.839-44\t45 99841-2233\nConstrutora Alfa\t80054231-4","Ej:\nJuan Silva\t048.912.839-44\t45 99841-2233\nConstructora Alfa\t80054231-4","Ex:\nJohn Smith\t048.912.839-44\t45 99841-2233\nAlpha Construction\t80054231-4")} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '12px', padding: '16px', color: '#34d399', fontFamily: 'monospace', fontSize: '14px', outline: 'none', marginBottom: '16px', boxSizing: 'border-box' }} />
 
       {mensagemSucesso && <div style={{ padding: '14px', backgroundColor: 'rgba(16, 185, 129, 0.1)', border: '1px solid #10b981', color: '#34d399', borderRadius: '10px', marginBottom: '16px', fontWeight: 800 }}>{mensagemSucesso}</div>}
 
