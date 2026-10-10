@@ -211,9 +211,9 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
       const confirmados = await confirmarVendedoresNaNuvem(proposta);
       if (setVendedores) setVendedores(confirmados);
       setPinEdicaoPorId(prev => ({ ...prev, [operador.id]: '' }));
-      avisarZen('success','PIN atualizado',`PIN de ${operador.nome} confirmado na nuvem com sucesso.`);
+      avisarZen('success',tx('PIN atualizado','PIN actualizado','PIN updated'),`${tx('PIN de','PIN de','PIN for')} ${operador.nome} ${tx('confirmado na nuvem com sucesso.','confirmado correctamente en la nube.','successfully confirmed in the cloud.')}`);
     } catch (error) {
-      avisarZen('danger','PIN não atualizado','A nuvem não confirmou o novo PIN. O PIN anterior continua válido.',[error?.message || 'Falha de persistência']);
+      avisarZen('danger',tx('PIN não atualizado','PIN no actualizado','PIN not updated'),tx('A nuvem não confirmou o novo PIN. O PIN anterior continua válido.','La nube no confirmó el nuevo PIN. El PIN anterior sigue válido.','The cloud did not confirm the new PIN. The previous PIN remains valid.'),[error?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
     }
   };
 
@@ -351,7 +351,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
             disabled={salvandoPerfil}
             style={{ background: 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#ffffff', padding: '14px 32px', borderRadius: '12px', fontSize: '14px', fontWeight: 900, cursor: salvandoPerfil ? 'not-allowed' : 'pointer', opacity: salvandoPerfil ? 0.7 : 1, transition: 'all 0.2s', boxShadow: '0 4px 15px rgba(79, 70, 229, 0.4)' }}
           >
-            {salvandoPerfil ? 'A Guardar...' : (tx ? tx('Guardar Informações Fiscais', 'Guardar Datos Fiscales', 'Save Fiscal Data') : 'Guardar Informações Fiscais')}
+            {salvandoPerfil ? tx('A Guardar...','Guardando...','Saving...') : tx('Guardar Informações Fiscais','Guardar Datos Fiscales','Save Fiscal Data')}
           </button>
         </div>
       </div>
@@ -362,7 +362,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
           <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#fff', margin: 0 }}>{tx('Semáforo de Lucratividade','Semáforo de Rentabilidad','Profitability Signal')}</h3>
         </div>
         <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
-          Proteja o seu lucro. O sistema avalia a margem real de cada venda em tempo real <b>({tx('Total da Venda vs Custo dos Produtos','Total de Venta vs Costo de Productos','Sale Total vs Product Cost')})</b>.
+          {tx('Proteja o seu lucro. O sistema avalia a margem real de cada venda em tempo real','Proteja su ganancia. El sistema evalúa el margen real de cada venta en tiempo real','Protect your profit. The system evaluates the real margin of every sale in real time')} <b>({tx('Total da Venda vs Custo dos Produtos','Total de Venta vs Costo de Productos','Sale Total vs Product Cost')})</b>.
         </p>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px' }}>
@@ -396,7 +396,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
 
           <div style={{ backgroundColor: '#2e0a16', border: '1px solid rgba(225,29,72,0.3)', padding: '16px', borderRadius: '12px' }}>
             <span style={{ display: 'block', color: '#e11d48', fontSize: '12px', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>🔴 {tx('Margem Crítica / Prejuízo','Margen Crítica / Pérdida','Critical Margin / Loss')}</span>
-            <span style={{ color: '#fca5a5', fontSize: '12px', fontWeight: 800 }}>Abaixo de {regrasDesconto?.margemMinima ?? 15}%</span>
+            <span style={{ color: '#fca5a5', fontSize: '12px', fontWeight: 800 }}>{tx('Abaixo de','Por debajo de','Below')} {regrasDesconto?.margemMinima ?? 15}%</span>
             
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginTop: '10px' }}>
               <input 
@@ -409,7 +409,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
 
             {(regrasDesconto?.exigirSenhaVermelho ?? true) && (
               <div style={{ marginTop: '12px', padding:'10px 12px', borderRadius:8, border:'1px solid rgba(225,29,72,.25)', background:'rgba(225,29,72,.06)', color:'#cbd5e1', fontSize:11, lineHeight:1.45 }}>
-                A autorização usa o <b>{tx('PIN de qualquer Administrador/Gerência cadastrado','PIN de cualquier Administrador/Gerencia registrado','PIN of any registered Administrator/Management user')}</b>. Altere esses PINs em “Gestão de Equipa e Controlo de Acessos”.
+                {tx('A autorização usa o','La autorización utiliza el','Authorization uses the')} <b>{tx('PIN de qualquer Administrador/Gerência cadastrado','PIN de cualquier Administrador/Gerencia registrado','PIN of any registered Administrator/Management user')}</b>. {tx('Altere esses PINs em “Gestão de Equipa e Controlo de Acessos”.','Cambie estos PIN en “Gestión de Equipo y Control de Accesos”.','Change these PINs under “Team & Access Control”.')}
               </div>
             )}
           </div>
@@ -421,7 +421,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
           <span style={{ fontSize: '20px' }}>🔐</span><h3 style={{ fontSize: '18px', fontWeight: 900, color: '#fff', margin: 0 }}>{tx('Gestão de Equipa e Controlo de Acessos','Gestión de Equipo y Control de Accesos','Team & Access Control')}</h3>
         </div>
         <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
-          Crie utilizadores, defina cargos customizados e marque exatamente quais os módulos do sistema cada um pode aceder.
+          {tx('Crie utilizadores, defina cargos customizados e marque exatamente quais os módulos do sistema cada um pode aceder.','Cree usuarios, defina cargos personalizados y marque exactamente a qué módulos del sistema puede acceder cada uno.','Create users, define custom roles and choose exactly which system modules each one can access.')}
         </p>
 
         <div style={{ backgroundColor: '#020617', padding: '20px', borderRadius: '16px', border: '1px solid #334155', display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -454,35 +454,35 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                 <input type="checkbox" disabled={novoVendedorPermissoes.admin} checked={novoVendedorPermissoes.admin || novoVendedorPermissoes.pdv} onChange={e => setNovoVendedorPermissoes({...novoVendedorPermissoes, pdv: e.target.checked})} style={{ width: '16px', height: '16px', accentColor: '#10b981' }} />
-                🛒 Operar PDV (Vendas)
+                🛒 {tx('Operar PDV (Vendas)','Operar TPV (Ventas)','Operate POS (Sales)')}
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                 <input type="checkbox" disabled={novoVendedorPermissoes.admin} checked={novoVendedorPermissoes.admin || novoVendedorPermissoes.mesas} onChange={e => setNovoVendedorPermissoes({...novoVendedorPermissoes, mesas: e.target.checked})} style={{ width: '16px', height: '16px', accentColor: '#10b981' }} />
-                🍽 Gestão de Mesas
+                🍽 {tx('Gestão de Mesas','Gestión de Mesas','Table Management')}
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                 <input type="checkbox" disabled={novoVendedorPermissoes.admin} checked={novoVendedorPermissoes.admin || novoVendedorPermissoes.produtos} onChange={e => setNovoVendedorPermissoes({...novoVendedorPermissoes, produtos: e.target.checked})} style={{ width: '16px', height: '16px', accentColor: '#0284c7' }} />
-                📦 Cadastrar/Editar Produtos
+                📦 {tx('Cadastrar/Editar Produtos','Registrar/Editar Productos','Register/Edit Products')}
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                 <input type="checkbox" disabled={novoVendedorPermissoes.admin} checked={novoVendedorPermissoes.admin || novoVendedorPermissoes.clientes} onChange={e => setNovoVendedorPermissoes({...novoVendedorPermissoes, clientes: e.target.checked})} style={{ width: '16px', height: '16px', accentColor: '#d97706' }} />
-                👥 Clientes e Fiados
+                👥 {tx('Clientes e Fiados','Clientes y Créditos','Customers & Credit')}
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                 <input type="checkbox" disabled={novoVendedorPermissoes.admin} checked={novoVendedorPermissoes.admin || novoVendedorPermissoes.caixa} onChange={e => setNovoVendedorPermissoes({...novoVendedorPermissoes, caixa: e.target.checked})} style={{ width: '16px', height: '16px', accentColor: '#8b5cf6' }} />
-                💵 Movimentar Caixa
+                💵 {tx('Movimentar Caixa','Mover Caja','Manage Cash')}
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                 <input type="checkbox" disabled={novoVendedorPermissoes.admin} checked={novoVendedorPermissoes.admin || novoVendedorPermissoes.vendas} onChange={e => setNovoVendedorPermissoes({...novoVendedorPermissoes, vendas: e.target.checked})} style={{ width: '16px', height: '16px', accentColor: '#8b5cf6' }} />
-                📑 Ver Histórico
+                📑 {tx('Ver Histórico','Ver Historial','View History')}
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                 <input type="checkbox" disabled={novoVendedorPermissoes.admin} checked={novoVendedorPermissoes.admin || novoVendedorPermissoes.despesas} onChange={e => setNovoVendedorPermissoes({...novoVendedorPermissoes, despesas: e.target.checked})} style={{ width: '16px', height: '16px', accentColor: '#8b5cf6' }} />
-                💸 Lançar Despesas
+                💸 {tx('Lançar Despesas','Registrar Gastos','Add Expenses')}
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                 <input type="checkbox" disabled={novoVendedorPermissoes.admin} checked={novoVendedorPermissoes.admin || novoVendedorPermissoes.inteligencia} onChange={e => setNovoVendedorPermissoes({...novoVendedorPermissoes, inteligencia: e.target.checked})} style={{ width: '16px', height: '16px', accentColor: '#a855f7' }} />
-                📊 Painel Executivo
+                📊 {tx('Painel Executivo','Panel Ejecutivo','Executive Dashboard')}
               </label>
             </div>
           </div>
@@ -491,7 +491,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
 
         {/* LISTA DE UTILIZADORES COM EDIÇÃO DE PERMISSÃO */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>Utilizadores Cadastrados ({vendedores?.length || 0})</span>
+          <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>{tx('Utilizadores Cadastrados','Usuarios Registrados','Registered Users')} ({vendedores?.length || 0})</span>
           {vendedores?.map(v => (
             <div key={v.id} style={{ display: 'flex', flexDirection: 'column', backgroundColor: '#020617', padding: '16px', borderRadius: '12px', border: '1px solid #1e293b', gap: '16px' }}>
               
@@ -527,11 +527,11 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                       <input type="checkbox" disabled={v.permissoes?.admin || false} checked={v.permissoes?.admin || v.permissoes?.pdv || false} onChange={e => atualizarPermissaoVendedor(v.id, 'pdv', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#10b981' }} />
-                      🛒 Operar PDV (Vendas)
+                      🛒 {tx('Operar PDV (Vendas)','Operar TPV (Ventas)','Operate POS (Sales)')}
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                       <input type="checkbox" disabled={v.permissoes?.admin || false} checked={v.permissoes?.admin || v.permissoes?.mesas || false} onChange={e => atualizarPermissaoVendedor(v.id, 'mesas', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#10b981' }} />
-                      🍽 Gestão de Mesas
+                      🍽 {tx('Gestão de Mesas','Gestión de Mesas','Table Management')}
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                       <input type="checkbox" disabled={v.permissoes?.admin || false} checked={v.permissoes?.admin || v.permissoes?.produtos || false} onChange={e => atualizarPermissaoVendedor(v.id, 'produtos', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#0284c7' }} />
@@ -539,23 +539,23 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                       <input type="checkbox" disabled={v.permissoes?.admin || false} checked={v.permissoes?.admin || v.permissoes?.clientes || false} onChange={e => atualizarPermissaoVendedor(v.id, 'clientes', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#d97706' }} />
-                      👥 Clientes e Fiados
+                      👥 {tx('Clientes e Fiados','Clientes y Créditos','Customers & Credit')}
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                       <input type="checkbox" disabled={v.permissoes?.admin || false} checked={v.permissoes?.admin || v.permissoes?.caixa || false} onChange={e => atualizarPermissaoVendedor(v.id, 'caixa', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#8b5cf6' }} />
-                      💵 Movimentar Caixa
+                      💵 {tx('Movimentar Caixa','Mover Caja','Manage Cash')}
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                       <input type="checkbox" disabled={v.permissoes?.admin || false} checked={v.permissoes?.admin || v.permissoes?.vendas || false} onChange={e => atualizarPermissaoVendedor(v.id, 'vendas', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#8b5cf6' }} />
-                      📑 Ver Histórico
+                      📑 {tx('Ver Histórico','Ver Historial','View History')}
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                       <input type="checkbox" disabled={v.permissoes?.admin || false} checked={v.permissoes?.admin || v.permissoes?.despesas || false} onChange={e => atualizarPermissaoVendedor(v.id, 'despesas', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#8b5cf6' }} />
-                      💸 Lançar Despesas
+                      💸 {tx('Lançar Despesas','Registrar Gastos','Add Expenses')}
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                       <input type="checkbox" disabled={v.permissoes?.admin || false} checked={v.permissoes?.admin || v.permissoes?.inteligencia || false} onChange={e => atualizarPermissaoVendedor(v.id, 'inteligencia', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#a855f7' }} />
-                      📊 Painel Executivo
+                      📊 {tx('Painel Executivo','Panel Ejecutivo','Executive Dashboard')}
                     </label>
                   </div>
                 </div>
