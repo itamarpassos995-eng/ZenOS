@@ -21,6 +21,18 @@ export const listarFilaFiscalOperacional = ({
   return fila.map(item => ({ ...item, venda:vendasPorId.get(item.vendaId) || null }));
 };
 
+export const derivarFilaFiscalSegura = dados => {
+  if (!dados?.lojaId) return { fila:[], erro:null };
+  try {
+    return { fila:listarFilaFiscalOperacional(dados), erro:null };
+  } catch (error) {
+    return {
+      fila:[],
+      erro:`${error?.code ? `${error.code}: ` : ''}${error?.message || 'Falha ao derivar pendências fiscais.'}`,
+    };
+  }
+};
+
 export const prepararPreviaFiscal = ({
   lojaId,
   perfilLoja,

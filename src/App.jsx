@@ -1,5 +1,5 @@
 import TerminalLogin from './components/TerminalLogin';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { traducoes, moedasConfig, normalizarProduto, normalizarCliente, produtosIniciais, clientesIniciais } from './data';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -27,6 +27,7 @@ import DashboardMobile from './components/DashboardMobile';
 import Configuracoes from './components/Configuracoes';
 import GestaoCaixas from './components/GestaoCaixas';
 import Fiscal from './components/Fiscal';
+import FiscalErrorBoundary from './components/FiscalErrorBoundary';
 import ZenModal from './components/ZenModal';
 import { normalizarPerfilLoja, lerPerfilLojaLocal, salvarPerfilLojaLocal, limparPerfilLojaLocal } from './core/storeProfile';
 import { assinarLivroFinanceiro, registrarLancamentoFinanceiro } from './core/financialLedger';
@@ -34,7 +35,7 @@ import { calcularResumoSessao, calcularConciliacaoEletronicaSessao, timestampSes
 import { normalizarRegrasComissao, REGRAS_COMISSAO_PADRAO } from './core/commissionEngine';
 import { normalizarRegrasMargem } from './core/profitability';
 import { patenteEfetivaOperador } from './core/accessControl';
-import { listarFilaFiscalOperacional } from './core/fiscalUi';
+import { derivarFilaFiscalSegura } from './core/fiscalUi';
 import { criarCredencialPin, operadorRequerTrocaPin, pinEhFraco } from './core/operatorPin';
 import { ZenSidebar, ZenTopbar, ZenHero, ZenKpiCard, ZenQuickCard } from './components/ZenVisualLayout';
 import './zenos-dashboard.css';
@@ -1126,24 +1127,13 @@ export default function App() {
     : historicoVendas.filter(v => String(v.vendedorId) === String(operadorAtivo?.id));
 
   const resultadoFilaFiscal = useMemo(() => {
-    if (!userId) return { fila:[], erro:null };
-    try {
-      return {
-        fila:listarFilaFiscalOperacional({
-          lojaId:userId,
-          perfilLoja,
-          vendas:historicoVisivelParaOperador,
-          documentos:[],
-          ambiente:'homologacao',
-        }),
-        erro:null,
-      };
-    } catch (error) {
-      return {
-        fila:[],
-        erro:`${error?.code ? `${error.code}: ` : ''}${error?.message || 'Falha ao derivar pendências fiscais.'}`,
-      };
-    }
+    return derivarFilaFiscalSegura({
+      lojaId:userId,
+      perfilLoja,
+      vendas:historicoVisivelParaOperador,
+      documentos:[],
+      ambiente:'homologacao',
+    });
   }, [historicoVisivelParaOperador, perfilLoja, userId]);
 
   const navegarPara = (id) => {
@@ -1569,7 +1559,7 @@ export default function App() {
         {ecraAtual === 'dashboardMobile' && <DashboardMobile historicoVendas={historicoVendas} despesas={despesas} clientes={clientes} produtos={produtos} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} regrasDesconto={regrasDesconto} />}
         {ecraAtual === 'clientes' && <Clientes commitOperacaoNegocio={commitVendaCritica} livroFinanceiro={livroFinanceiro} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} operadorAtivo={operadorAtivo} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} />}
         {ecraAtual === 'vendas' && <Vendas commitOperacaoNegocio={commitVendaCritica} taxasCambio={taxasCambio} sessoesCaixa={sessoesCaixa} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} saldoSessaoFisicoBRL={saldoSessaoFisicoBRL} perfilLoja={perfilLoja} vouchers={vouchers} setVouchers={setVouchers} userId={userId} operadorAtivo={operadorAtivo} historicoVendas={historicoVisivelParaOperador} setHistoricoVendas={setHistoricoVendas} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} fmt={fmt} t={t} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterDeBRL={converterDeBRL} />}
-        {ecraAtual === 'fiscal' && <Fiscal lojaId={userId} perfilLoja={perfilLoja} filaFiscal={resultadoFilaFiscal.fila} erroFila={resultadoFilaFiscal.erro} clientes={clientes} ambiente="homologacao" onVerVenda={() => navegarPara('vendas')} />}
+        {ecraAtual === 'fiscal' && <FiscalErrorBoundary resetKey={`${userId || ''}:${perfilLoja?.pais || ''}:${resultadoFilaFiscal.erro || ''}`} onVoltar={() => navegarPara('hub')}><Fiscal lojaId={userId} perfilLoja={perfilLoja} filaFiscal={resultadoFilaFiscal.fila} erroFila={resultadoFilaFiscal.erro} clientes={clientes} ambiente="homologacao" onVerVenda={() => navegarPara('vendas')} /></FiscalErrorBoundary>}
         {ecraAtual === 'migracao' && <Migracao commitOperacaoNegocio={commitVendaCritica} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} t={t} tx={tx} />}
         {ecraAtual === 'configuracoes' && <Configuracoes commitOperacaoNegocio={commitVendaCritica} userId={userId} operadorAtivo={operadorAtivo} perfilLojaGlobal={perfilLoja} setPerfilLojaGlobal={setPerfilLoja} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} despesas={despesas} setDespesas={setDespesas} moeda={moeda} fmt={fmt} tx={tx} regrasDesconto={regrasDesconto} setRegrasDesconto={setRegrasDesconto} vendedores={vendedores} setVendedores={(novosVendedores) => { setVendedores(novosVendedores); persistirCampoSeguro({ field: 'vendedores', value:novosVendedores, setter:setVendedores, localStorageKey:`zenos_${userId}_vendedores` }); }} />}
         {ecraAtual === 'auditoria_caixas' && <GestaoCaixas sessoesCaixa={sessoesCaixa} historicoVendas={historicoVendas} caixaMovimentos={caixaMovimentos} livroFinanceiro={livroFinanceiro} fmt={fmt} tx={tx} />}
