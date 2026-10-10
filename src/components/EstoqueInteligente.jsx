@@ -133,7 +133,7 @@ export default function EstoqueInteligente({ produtos, fmt, tx = (pt) => pt }) {
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid #1e293b', color: '#64748b', fontSize: '11px', textTransform: 'uppercase' }}>
-                <th style={{ padding: '16px 20px' }}>Curva</th>
+                <th style={{ padding: '16px 20px' }}>{tx('Curva','Curva','Curve')}</th>
                 <th style={{ padding: '16px 12px' }}>{tx('Produto','Producto','Product')}</th>
                 <th style={{ padding: '16px 12px', textAlign: 'center' }}>{tx('Qtd. Estoque','Cant. Stock','Stock Qty.')}</th>
                 <th style={{ padding: '16px 12px', textAlign: 'right' }}>{tx('Custo Un.','Costo Un.','Unit Cost')}</th>
