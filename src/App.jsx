@@ -78,7 +78,7 @@ const taxasInputAPartirDasTaxas = (taxas = TAXAS_CAMBIO_PADRAO) => {
 // ATT 01: somente inspeciona a versão. Nenhuma migração é executada automaticamente.
 inspectLocalSchemaVersion(CURRENT_SCHEMA_VERSION);
 
-function ZenosLogo({ aoClicar }) {
+function ZenosLogo({ aoClicar, tx = (pt) => pt }) {
   return (
     <div onClick={aoClicar} style={{ display: 'flex', alignItems: 'center', gap: '14px', cursor: 'pointer', userSelect: 'none' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '42px', minWidth: '42px' }}>
@@ -86,7 +86,7 @@ function ZenosLogo({ aoClicar }) {
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', whiteSpace: 'nowrap' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}><span style={{ color: '#f8fafc', fontWeight: 900, fontSize: '18px', letterSpacing: '2.5px', textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>Zen</span><span style={{ color: '#818cf8', fontWeight: 800, fontSize: '16px', letterSpacing: '1px' }}>OS</span></div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '3px' }}><div style={{ height: '1.5px', width: '10px', backgroundColor: '#6366f1' }}></div><span style={{ color: '#cbd5e1', fontSize: '8.5px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase' }}>SISTEMA DE GESTÃO</span><div style={{ height: '1.5px', width: '10px', backgroundColor: '#6366f1' }}></div></div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '3px' }}><div style={{ height: '1.5px', width: '10px', backgroundColor: '#6366f1' }}></div><span style={{ color: '#cbd5e1', fontSize: '8.5px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase' }}>{tx('SISTEMA DE GESTÃO','SISTEMA DE GESTIÓN','MANAGEMENT SYSTEM')}</span><div style={{ height: '1.5px', width: '10px', backgroundColor: '#6366f1' }}></div></div>
       </div>
     </div>
   );
@@ -1233,8 +1233,8 @@ export default function App() {
     return (
       <div style={{ minHeight: '100vh', backgroundColor: '#020617', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
-          <ZenosLogo aoClicar={() => {}} />
-          <span style={{ color: '#64748b', fontSize: '14px', fontWeight: 700, letterSpacing: '2px' }}>A INICIAR SISTEMA...</span>
+          <ZenosLogo aoClicar={() => {}} tx={tx} />
+          <span style={{ color: '#64748b', fontSize: '14px', fontWeight: 700, letterSpacing: '2px' }}>{tx('A INICIAR SISTEMA...','INICIANDO SISTEMA...','STARTING SYSTEM...')}</span>
         </div>
       </div>
     );
@@ -1245,10 +1245,10 @@ export default function App() {
   if (falhaBootstrapNuvem) {
     return <div style={{minHeight:'100vh',background:'#020617',display:'flex',alignItems:'center',justifyContent:'center',padding:20,fontFamily:'system-ui,sans-serif'}}>
       <div style={{width:'100%',maxWidth:560,background:'#0b1120',border:'1px solid #f59e0b',borderRadius:24,padding:28,color:'#fff',boxShadow:'0 30px 80px rgba(0,0,0,.6)'}}>
-        <div style={{display:'flex',gap:14,alignItems:'center',marginBottom:18}}><img src="/logo-zenos.png?v=4" alt="ZenOS" style={{width:58,height:58,objectFit:'contain'}}/><div><div style={{fontSize:10,fontWeight:900,letterSpacing:2,color:'#f59e0b'}}>PROTEÇÃO DE DADOS ATIVA</div><h2 style={{margin:'4px 0 0',fontSize:22}}>Nuvem não confirmada</h2></div></div>
-        <p style={{color:'#cbd5e1',lineHeight:1.6,fontSize:14}}>O ZenOS não conseguiu confirmar a base da loja. Para proteger produtos, clientes, vendas e financeiro, <b>todas as gravações na nuvem permanecem bloqueadas</b>. Nenhum array vazio será enviado ao Firestore nesta condição.</p>
-        <div style={{background:'#020617',border:'1px solid #1e293b',borderRadius:14,padding:14,color:'#94a3b8',fontSize:12,margin:'16px 0'}}>Detalhe técnico: {falhaBootstrapNuvem}</div>
-        <button onClick={()=>window.location.reload()} style={{width:'100%',padding:14,borderRadius:11,border:'none',background:'#d97706',color:'#fff',fontWeight:900,cursor:'pointer'}}>Tentar conectar novamente</button>
+        <div style={{display:'flex',gap:14,alignItems:'center',marginBottom:18}}><img src="/logo-zenos.png?v=4" alt="ZenOS" style={{width:58,height:58,objectFit:'contain'}}/><div><div style={{fontSize:10,fontWeight:900,letterSpacing:2,color:'#f59e0b'}}>{tx('PROTEÇÃO DE DADOS ATIVA','PROTECCIÓN DE DATOS ACTIVA','DATA PROTECTION ACTIVE')}</div><h2 style={{margin:'4px 0 0',fontSize:22}}>{tx('Nuvem não confirmada','Nube no confirmada','Cloud not confirmed')}</h2></div></div>
+        <p style={{color:'#cbd5e1',lineHeight:1.6,fontSize:14}}>{tx('O ZenOS não conseguiu confirmar a base da loja. Para proteger produtos, clientes, vendas e financeiro,','ZenOS no pudo confirmar la base de la tienda. Para proteger productos, clientes, ventas y finanzas,','ZenOS could not confirm the store database. To protect products, customers, sales and finances,')} <b>{tx('todas as gravações na nuvem permanecem bloqueadas','todas las escrituras en la nube permanecen bloqueadas','all cloud writes remain blocked')}</b>. {tx('Nenhum array vazio será enviado ao Firestore nesta condição.','Ningún array vacío será enviado a Firestore en esta condición.','No empty array will be sent to Firestore in this condition.')}</p>
+        <div style={{background:'#020617',border:'1px solid #1e293b',borderRadius:14,padding:14,color:'#94a3b8',fontSize:12,margin:'16px 0'}}>{tx('Detalhe técnico:','Detalle técnico:','Technical detail:')} {falhaBootstrapNuvem}</div>
+        <button onClick={()=>window.location.reload()} style={{width:'100%',padding:14,borderRadius:11,border:'none',background:'#d97706',color:'#fff',fontWeight:900,cursor:'pointer'}}>{tx('Tentar conectar novamente','Intentar conectar nuevamente','Try to connect again')}</button>
       </div>
     </div>;
   }
@@ -1260,14 +1260,14 @@ export default function App() {
   if (statusLoja === 'ativo' && operadorAtivo && operadorRequerTrocaPin(operadorAtivo)) {
     return <div style={{minHeight:'100vh',background:'#020617',display:'flex',alignItems:'center',justifyContent:'center',padding:20,fontFamily:'system-ui,sans-serif'}}>
       <div style={{width:'100%',maxWidth:460,background:'#0b1120',border:'1px solid #f59e0b',borderRadius:24,padding:28,color:'#fff',boxShadow:'0 30px 80px rgba(0,0,0,.6)'}}>
-        <div style={{display:'flex',gap:14,alignItems:'center',marginBottom:18}}><img src="/logo-zenos.png?v=4" alt="ZenOS" style={{width:54,height:54,objectFit:'contain'}}/><div><div style={{fontSize:10,fontWeight:900,letterSpacing:2,color:'#f59e0b'}}>SEGURANÇA OBRIGATÓRIA</div><h2 style={{margin:'4px 0 0',fontSize:22}}>Defina um novo PIN</h2></div></div>
-        <p style={{color:'#cbd5e1',fontSize:13,lineHeight:1.55}}>O PIN temporário ou previsível não pode continuar sendo usado. Essa troca é obrigatória antes de operar a loja.</p>
+        <div style={{display:'flex',gap:14,alignItems:'center',marginBottom:18}}><img src="/logo-zenos.png?v=4" alt="ZenOS" style={{width:54,height:54,objectFit:'contain'}}/><div><div style={{fontSize:10,fontWeight:900,letterSpacing:2,color:'#f59e0b'}}>{tx('SEGURANÇA OBRIGATÓRIA','SEGURIDAD OBLIGATORIA','SECURITY REQUIRED')}</div><h2 style={{margin:'4px 0 0',fontSize:22}}>{tx('Defina um novo PIN','Defina un nuevo PIN','Set a new PIN')}</h2></div></div>
+        <p style={{color:'#cbd5e1',fontSize:13,lineHeight:1.55}}>{tx('O PIN temporário ou previsível não pode continuar sendo usado. Essa troca é obrigatória antes de operar a loja.','El PIN temporal o previsible no puede seguir siendo usado. Este cambio es obligatorio antes de operar la tienda.','The temporary or predictable PIN cannot continue to be used. This change is required before operating the store.')}</p>
         <div style={{display:'grid',gap:10,margin:'16px 0'}}>
-          <input type="text" autoComplete="one-time-code" name="zenos-new-pin" data-lpignore="true" data-1p-ignore="true" value={novoPinObrigatorio} onChange={e=>setNovoPinObrigatorio(e.target.value)} placeholder="Novo PIN" style={{padding:13,borderRadius:10,border:'1px solid #334155',background:'#020617',color:'#fff',WebkitTextSecurity:'disc'}}/>
-          <input type="text" autoComplete="one-time-code" name="zenos-confirm-pin" data-lpignore="true" data-1p-ignore="true" value={confirmarPinObrigatorio} onChange={e=>setConfirmarPinObrigatorio(e.target.value)} placeholder="Confirmar novo PIN" style={{padding:13,borderRadius:10,border:'1px solid #334155',background:'#020617',color:'#fff',WebkitTextSecurity:'disc'}}/>
+          <input type="text" autoComplete="one-time-code" name="zenos-new-pin" data-lpignore="true" data-1p-ignore="true" value={novoPinObrigatorio} onChange={e=>setNovoPinObrigatorio(e.target.value)} placeholder={tx('Novo PIN','Nuevo PIN','New PIN')} style={{padding:13,borderRadius:10,border:'1px solid #334155',background:'#020617',color:'#fff',WebkitTextSecurity:'disc'}}/>
+          <input type="text" autoComplete="one-time-code" name="zenos-confirm-pin" data-lpignore="true" data-1p-ignore="true" value={confirmarPinObrigatorio} onChange={e=>setConfirmarPinObrigatorio(e.target.value)} placeholder={tx('Confirmar novo PIN','Confirmar nuevo PIN','Confirm new PIN')} style={{padding:13,borderRadius:10,border:'1px solid #334155',background:'#020617',color:'#fff',WebkitTextSecurity:'disc'}}/>
           {erroPinObrigatorio && <div style={{color:'#fb7185',fontSize:12,fontWeight:800}}>{erroPinObrigatorio}</div>}
         </div>
-        <button onClick={concluirTrocaPinObrigatoria} style={{width:'100%',padding:14,borderRadius:11,border:'none',background:'#d97706',color:'#fff',fontWeight:900,cursor:'pointer'}}>Salvar novo PIN e continuar</button>
+        <button onClick={concluirTrocaPinObrigatoria} style={{width:'100%',padding:14,borderRadius:11,border:'none',background:'#d97706',color:'#fff',fontWeight:900,cursor:'pointer'}}>{tx('Salvar novo PIN e continuar','Guardar nuevo PIN y continuar','Save new PIN and continue')}</button>
       </div>
     </div>;
   }
@@ -1307,9 +1307,9 @@ export default function App() {
 
           {/* INNER CARD - CLOUD SAAS ENTERPRISE */}
           <div style={{ backgroundColor: '#020617', borderRadius: '16px', padding: '20px', marginBottom: '24px', border: '1px solid #1e293b' }}>
-            <span style={{ display: 'block', color: '#cbd5e1', fontSize: '12px', fontWeight: 700, marginBottom: '8px' }}>Ativação Instantânea:</span>
+            <span style={{ display: 'block', color: '#cbd5e1', fontSize: '12px', fontWeight: 700, marginBottom: '8px' }}>{tx('Ativação Instantânea:','Activación Instantánea:','Instant Activation:')}</span>
             <span style={{ display: 'block', color: '#2dd4bf', fontSize: '16px', fontWeight: 900, marginBottom: '8px' }}>ZenOS Cloud SaaS Enterprise</span>
-            <span style={{ display: 'block', color: '#64748b', fontSize: '11px', lineHeight: 1.5 }}>Aceda a relatórios avançados, gestão de filiais em tempo real e suporte prioritário.</span>
+            <span style={{ display: 'block', color: '#64748b', fontSize: '11px', lineHeight: 1.5 }}>{tx('Aceda a relatórios avançados, gestão de filiais em tempo real e suporte prioritário.','Acceda a reportes avanzados, gestión de sucursales en tiempo real y soporte prioritario.','Access advanced reports, real-time branch management and priority support.')}</span>
           </div>
 
           {/* BOTÕES */}
@@ -1323,7 +1323,7 @@ export default function App() {
               disabled={demoSolicitada}
               style={{ padding: '16px', backgroundColor: '#1e293b', border: '1px solid #334155', color: demoSolicitada ? '#34d399' : '#e2e8f0', borderRadius: '12px', fontWeight: 800, cursor: demoSolicitada ? 'not-allowed' : 'pointer', fontSize: '14px', transition: 'all 0.2s' }}
             >
-              {demoSolicitada ? 'Solicitação em Análise ✓' : 'Solicitar Extensão de Teste'}
+              {demoSolicitada ? tx('Solicitação em Análise ✓','Solicitud en Análisis ✓','Request Under Review ✓') : tx('Solicitar Extensão de Teste','Solicitar Extensión de Prueba','Request Trial Extension')}
             </button>
 
             <button onClick={() => signOut(auth)} style={{ background: 'transparent', color: '#f43f5e', border: 'none', cursor: 'pointer', fontWeight: 800, fontSize: '13px', padding: '10px' }}>
@@ -1337,16 +1337,16 @@ export default function App() {
           <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.95)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', backdropFilter: 'blur(5px)' }}>
             <div style={{ backgroundColor: '#0b1120', border: '1px solid #334155', padding: '32px', borderRadius: '24px', textAlign: 'center', color: '#fff', maxWidth: '900px', width: '100%', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)', maxHeight: '90vh', overflowY: 'auto' }}>
               <span style={{ fontSize: '40px' }}>💎</span>
-              <h3 style={{ margin: '12px 0 8px 0', fontSize: '24px', fontWeight: 900, color: '#f8fafc' }}>Escolha o seu Plano ZenOS</h3>
+              <h3 style={{ margin: '12px 0 8px 0', fontSize: '24px', fontWeight: 900, color: '#f8fafc' }}>{tx('Escolha o seu Plano ZenOS','Elija su Plan ZenOS','Choose Your ZenOS Plan')}</h3>
               <p style={{ color: '#94a3b8', marginBottom: '24px', fontSize: '14px', lineHeight: 1.5 }}>
                 Selecione o plano ideal para a sua operação e o ciclo de faturação.
               </p>
 
               {/* SELETORES DE CICLO */}
               <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '32px', backgroundColor: '#020617', padding: '6px', borderRadius: '12px', width: 'fit-content', margin: '0 auto 32px auto', flexWrap: 'wrap' }}>
-                <button onClick={() => setCicloPlano('mensal')} style={{ backgroundColor: cicloPlano === 'mensal' ? '#4f46e5' : 'transparent', color: cicloPlano === 'mensal' ? '#fff' : '#94a3b8', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' }}>Mensal</button>
-                <button onClick={() => setCicloPlano('semestral')} style={{ backgroundColor: cicloPlano === 'semestral' ? '#4f46e5' : 'transparent', color: cicloPlano === 'semestral' ? '#fff' : '#94a3b8', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' }}>Semestral (-10%)</button>
-                <button onClick={() => setCicloPlano('anual')} style={{ backgroundColor: cicloPlano === 'anual' ? '#4f46e5' : 'transparent', color: cicloPlano === 'anual' ? '#fff' : '#94a3b8', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' }}>Anual (Desconto Máx)</button>
+                <button onClick={() => setCicloPlano('mensal')} style={{ backgroundColor: cicloPlano === 'mensal' ? '#4f46e5' : 'transparent', color: cicloPlano === 'mensal' ? '#fff' : '#94a3b8', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' }}>{tx('Mensal','Mensual','Monthly')}</button>
+                <button onClick={() => setCicloPlano('semestral')} style={{ backgroundColor: cicloPlano === 'semestral' ? '#4f46e5' : 'transparent', color: cicloPlano === 'semestral' ? '#fff' : '#94a3b8', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' }}>{tx('Semestral (-10%)','Semestral (-10%)','Semiannual (-10%)')}</button>
+                <button onClick={() => setCicloPlano('anual')} style={{ backgroundColor: cicloPlano === 'anual' ? '#4f46e5' : 'transparent', color: cicloPlano === 'anual' ? '#fff' : '#94a3b8', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' }}>{tx('Anual (Desconto Máx)','Anual (Descuento Máx)','Annual (Max Discount)')}</button>
               </div>
 
               {/* TABELA DE PREÇOS */}
@@ -1354,63 +1354,63 @@ export default function App() {
                 
                 {/* Básico */}
                 <div style={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column' }}>
-                  <h4 style={{ margin: '0 0 4px 0', color: '#e2e8f0', fontSize: '18px', fontWeight: 800 }}>Básico</h4>
-                  <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: '#64748b' }}>Para pequenos lojistas.</p>
+                  <h4 style={{ margin: '0 0 4px 0', color: '#e2e8f0', fontSize: '18px', fontWeight: 800 }}>{tx('Básico','Básico','Basic')}</h4>
+                  <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: '#64748b' }}>{tx('Para pequenos lojistas.','Para pequeños comercios.','For small retailers.')}</p>
                   <div style={{ marginBottom: '20px' }}>
                     <span style={{ fontSize: '14px', color: '#94a3b8', fontWeight: 700 }}>R$</span>
                     <span style={{ fontSize: '32px', color: '#fff', fontWeight: 900 }}>
                       {cicloPlano === 'mensal' ? '35,00' : cicloPlano === 'semestral' ? '31,50' : '28,48'}
                     </span>
-                    <span style={{ fontSize: '12px', color: '#64748b' }}>/mês</span>
+                    <span style={{ fontSize: '12px', color: '#64748b' }}>/{tx('mês','mes','month')}</span>
                   </div>
                   <ul style={{ padding: 0, margin: '0 0 24px 0', listStyle: 'none', fontSize: '13px', color: '#cbd5e1', display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
-                    <li>✓ 1 Operador</li>
-                    <li>✓ PDV Frente de Caixa</li>
-                    <li>✓ Gestão de Produtos</li>
-                    <li>✓ Controlo de Fiado</li>
+                    <li>✓ {tx('1 Operador','1 Operador','1 Operator')}</li>
+                    <li>✓ {tx('PDV Frente de Caixa','TPV Frente de Caja','POS Checkout')}</li>
+                    <li>✓ {tx('Gestão de Produtos','Gestión de Productos','Product Management')}</li>
+                    <li>✓ {tx('Controlo de Fiado','Control de Crédito','Customer Credit Control')}</li>
                   </ul>
-                  <button onClick={() => { window.open(`https://wa.me/5519995855839?text=Olá,%20quero%20assinar%20o%20plano%20Básico%20${cicloPlano}.`, '_blank'); }} style={{ width: '100%', padding: '12px', borderRadius: '10px', backgroundColor: '#1e293b', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 800 }}>Assinar Básico</button>
+                  <button onClick={() => { window.open(`https://wa.me/5519995855839?text=Olá,%20quero%20assinar%20o%20plano%20Básico%20${cicloPlano}.`, '_blank'); }} style={{ width: '100%', padding: '12px', borderRadius: '10px', backgroundColor: '#1e293b', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 800 }}>{tx('Assinar Básico','Contratar Básico','Subscribe Basic')}</button>
                 </div>
 
                 {/* Essencial (Mais Popular) */}
                 <div style={{ backgroundColor: '#0f172a', border: '2px solid #2dd4bf', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', position: 'relative', transform: 'scale(1.02)' }}>
-                  <span style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#2dd4bf', color: '#020617', fontSize: '10px', fontWeight: 900, padding: '4px 12px', borderRadius: '12px', textTransform: 'uppercase' }}>Mais Popular</span>
-                  <h4 style={{ margin: '0 0 4px 0', color: '#2dd4bf', fontSize: '18px', fontWeight: 800 }}>Essencial</h4>
-                  <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: '#94a3b8' }}>A operação completa.</p>
+                  <span style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#2dd4bf', color: '#020617', fontSize: '10px', fontWeight: 900, padding: '4px 12px', borderRadius: '12px', textTransform: 'uppercase' }}>{tx('Mais Popular','Más Popular','Most Popular')}</span>
+                  <h4 style={{ margin: '0 0 4px 0', color: '#2dd4bf', fontSize: '18px', fontWeight: 800 }}>{tx('Essencial','Esencial','Essential')}</h4>
+                  <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: '#94a3b8' }}>{tx('A operação completa.','La operación completa.','The complete operation.')}</p>
                   <div style={{ marginBottom: '20px' }}>
                     <span style={{ fontSize: '14px', color: '#2dd4bf', fontWeight: 700 }}>R$</span>
                     <span style={{ fontSize: '32px', color: '#fff', fontWeight: 900 }}>
                       {cicloPlano === 'mensal' ? '44,90' : cicloPlano === 'semestral' ? '40,41' : '33,57'}
                     </span>
-                    <span style={{ fontSize: '12px', color: '#94a3b8' }}>/mês</span>
+                    <span style={{ fontSize: '12px', color: '#94a3b8' }}>/{tx('mês','mes','month')}</span>
                   </div>
                   <ul style={{ padding: 0, margin: '0 0 24px 0', listStyle: 'none', fontSize: '13px', color: '#cbd5e1', display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
-                    <li>✓ Múltiplos Operadores</li>
-                    <li>✓ Controlo de Permissões</li>
-                    <li>✓ Painel Executivo / Dashboard</li>
-                    <li>✓ Gestão de Despesas</li>
+                    <li>✓ {tx('Múltiplos Operadores','Múltiples Operadores','Multiple Operators')}</li>
+                    <li>✓ {tx('Controlo de Permissões','Control de Permisos','Permission Control')}</li>
+                    <li>✓ {tx('Painel Executivo / Dashboard','Panel Ejecutivo / Dashboard','Executive Dashboard')}</li>
+                    <li>✓ {tx('Gestão de Despesas','Gestión de Gastos','Expense Management')}</li>
                   </ul>
-                  <button onClick={() => { window.open(`https://wa.me/5519995855839?text=Olá,%20quero%20assinar%20o%20plano%20Essencial%20${cicloPlano}.`, '_blank'); }} style={{ width: '100%', padding: '12px', borderRadius: '10px', background: 'linear-gradient(135deg, #2dd4bf, #0d9488)', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 900, boxShadow: '0 4px 15px rgba(45, 212, 191, 0.4)' }}>Assinar Essencial</button>
+                  <button onClick={() => { window.open(`https://wa.me/5519995855839?text=Olá,%20quero%20assinar%20o%20plano%20Essencial%20${cicloPlano}.`, '_blank'); }} style={{ width: '100%', padding: '12px', borderRadius: '10px', background: 'linear-gradient(135deg, #2dd4bf, #0d9488)', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 900, boxShadow: '0 4px 15px rgba(45, 212, 191, 0.4)' }}>{tx('Assinar Essencial','Contratar Esencial','Subscribe Essential')}</button>
                 </div>
 
                 {/* Pro Avançado */}
                 <div style={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column' }}>
-                  <h4 style={{ margin: '0 0 4px 0', color: '#e2e8f0', fontSize: '18px', fontWeight: 800 }}>Pro Avançado</h4>
-                  <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: '#64748b' }}>Comissão e alta gestão.</p>
+                  <h4 style={{ margin: '0 0 4px 0', color: '#e2e8f0', fontSize: '18px', fontWeight: 800 }}>{tx('Pro Avançado','Pro Avanzado','Advanced Pro')}</h4>
+                  <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: '#64748b' }}>{tx('Comissão e alta gestão.','Comisiones y alta gestión.','Commissions and advanced management.')}</p>
                   <div style={{ marginBottom: '20px' }}>
                     <span style={{ fontSize: '14px', color: '#94a3b8', fontWeight: 700 }}>R$</span>
                     <span style={{ fontSize: '32px', color: '#fff', fontWeight: 900 }}>
                       {cicloPlano === 'mensal' ? '59,90' : cicloPlano === 'semestral' ? '53,91' : '43,75'}
                     </span>
-                    <span style={{ fontSize: '12px', color: '#64748b' }}>/mês</span>
+                    <span style={{ fontSize: '12px', color: '#64748b' }}>/{tx('mês','mes','month')}</span>
                   </div>
                   <ul style={{ padding: 0, margin: '0 0 24px 0', listStyle: 'none', fontSize: '13px', color: '#cbd5e1', display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
-                    <li>✓ Módulo de Comissões</li>
-                    <li>✓ Gestão de Mesas/Comandas</li>
-                    <li>✓ Relatórios Avançados</li>
-                    <li>✓ Suporte Prioritário</li>
+                    <li>✓ {tx('Módulo de Comissões','Módulo de Comisiones','Commission Module')}</li>
+                    <li>✓ {tx('Gestão de Mesas/Comandas','Gestión de Mesas/Comandas','Tables/Tabs Management')}</li>
+                    <li>✓ {tx('Relatórios Avançados','Reportes Avanzados','Advanced Reports')}</li>
+                    <li>✓ {tx('Suporte Prioritário','Soporte Prioritario','Priority Support')}</li>
                   </ul>
-                  <button onClick={() => { window.open(`https://wa.me/5519995855839?text=Olá,%20quero%20assinar%20o%20plano%20Pro%20Avançado%20${cicloPlano}.`, '_blank'); }} style={{ width: '100%', padding: '12px', borderRadius: '10px', backgroundColor: '#1e293b', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 800 }}>Assinar Pro</button>
+                  <button onClick={() => { window.open(`https://wa.me/5519995855839?text=Olá,%20quero%20assinar%20o%20plano%20Pro%20Avançado%20${cicloPlano}.`, '_blank'); }} style={{ width: '100%', padding: '12px', borderRadius: '10px', backgroundColor: '#1e293b', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 800 }}>{tx('Assinar Pro','Contratar Pro','Subscribe Pro')}</button>
                 </div>
               </div>
 
@@ -1576,9 +1576,9 @@ export default function App() {
               <button onClick={() => setModalCambioAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#64748b', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>✕</button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '24px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#020617', padding: '12px 16px', borderRadius: '12px', border: '1px solid #1e293b' }}><span style={{ fontSize: '13px', fontWeight: 700, color: '#cbd5e1' }}>1 Dólar (USD) =</span><div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ color: '#64748b', fontSize: '12px' }}>R$</span><input type="text" value={taxasInput.USD} onChange={(e) => setTaxasInput({ ...taxasInput, USD: e.target.value })} onFocus={e=>e.target.select()} style={{ backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', width: '90px', padding: '6px', outline: 'none' }} /></div></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#020617', padding: '12px 16px', borderRadius: '12px', border: '1px solid #1e293b' }}><span style={{ fontSize: '13px', fontWeight: 700, color: '#cbd5e1' }}>1 Euro (EUR) =</span><div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ color: '#64748b', fontSize: '12px' }}>R$</span><input type="text" value={taxasInput.EUR} onChange={(e) => setTaxasInput({ ...taxasInput, EUR: e.target.value })} onFocus={e=>e.target.select()} style={{ backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', width: '90px', padding: '6px', outline: 'none' }} /></div></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#020617', padding: '12px 16px', borderRadius: '12px', border: '1px solid #1e293b' }}><span style={{ fontSize: '13px', fontWeight: 700, color: '#cbd5e1' }}>1 Real (BRL) =</span><div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><input type="text" value={taxasInput.PYG} onChange={(e) => setTaxasInput({ ...taxasInput, PYG: e.target.value })} onFocus={e=>e.target.select()} style={{ backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#38bdf8', fontWeight: 900, fontSize: '15px', textAlign: 'right', width: '90px', padding: '6px', outline: 'none' }} /><span style={{ color: '#64748b', fontSize: '12px' }}>₲</span></div></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#020617', padding: '12px 16px', borderRadius: '12px', border: '1px solid #1e293b' }}><span style={{ fontSize: '13px', fontWeight: 700, color: '#cbd5e1' }}>{tx('1 Dólar (USD) =','1 Dólar (USD) =','1 Dollar (USD) =')}</span><div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ color: '#64748b', fontSize: '12px' }}>R$</span><input type="text" value={taxasInput.USD} onChange={(e) => setTaxasInput({ ...taxasInput, USD: e.target.value })} onFocus={e=>e.target.select()} style={{ backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', width: '90px', padding: '6px', outline: 'none' }} /></div></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#020617', padding: '12px 16px', borderRadius: '12px', border: '1px solid #1e293b' }}><span style={{ fontSize: '13px', fontWeight: 700, color: '#cbd5e1' }}>{tx('1 Euro (EUR) =','1 Euro (EUR) =','1 Euro (EUR) =')}</span><div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ color: '#64748b', fontSize: '12px' }}>R$</span><input type="text" value={taxasInput.EUR} onChange={(e) => setTaxasInput({ ...taxasInput, EUR: e.target.value })} onFocus={e=>e.target.select()} style={{ backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', width: '90px', padding: '6px', outline: 'none' }} /></div></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#020617', padding: '12px 16px', borderRadius: '12px', border: '1px solid #1e293b' }}><span style={{ fontSize: '13px', fontWeight: 700, color: '#cbd5e1' }}>{tx('1 Real (BRL) =','1 Real (BRL) =','1 Real (BRL) =')}</span><div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><input type="text" value={taxasInput.PYG} onChange={(e) => setTaxasInput({ ...taxasInput, PYG: e.target.value })} onFocus={e=>e.target.select()} style={{ backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#38bdf8', fontWeight: 900, fontSize: '15px', textAlign: 'right', width: '90px', padding: '6px', outline: 'none' }} /><span style={{ color: '#64748b', fontSize: '12px' }}>₲</span></div></div>
             </div>
             <button onClick={salvarTaxasCambio} style={{ width: '100%', background: 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#ffffff', padding: '14px', borderRadius: '12px', fontSize: '14px', fontWeight: 900, cursor: 'pointer' }}>{tx('Salvar Câmbio', 'Guardar Cambio', 'Save Exchange')}</button>
           </div>
@@ -1614,9 +1614,9 @@ export default function App() {
                 </div>
                 {tipoMovCaixa === 'fechamento' && (
                   <div style={{ marginTop:'14px', padding:'12px 14px', borderRadius:'12px', background:'#020617', border:'1px solid #1e293b' }}>
-                    <div style={{fontSize:'10px',fontWeight:900,letterSpacing:'1px',color:'#64748b',marginBottom:'5px'}}>TOTAL FÍSICO INFORMADO • CONVERTIDO PARA BRL</div>
+                    <div style={{fontSize:'10px',fontWeight:900,letterSpacing:'1px',color:'#64748b',marginBottom:'5px'}}>{tx('TOTAL FÍSICO INFORMADO • CONVERTIDO PARA BRL','TOTAL FÍSICO INFORMADO • CONVERTIDO A BRL','PHYSICAL TOTAL ENTERED • CONVERTED TO BRL')}</div>
                     <div style={{fontSize:'20px',fontWeight:950,color:'#f8fafc'}}>{fmt(calcularTotalMovBRL(), 'BRL')}</div>
-                    <div style={{fontSize:'10px',color:'#64748b',marginTop:'5px'}}>O saldo esperado pelo ZenOS permanece oculto até a auditoria ser concluída.</div>
+                    <div style={{fontSize:'10px',color:'#64748b',marginTop:'5px'}}>{tx('O saldo esperado pelo ZenOS permanece oculto até a auditoria ser concluída.','El saldo esperado por ZenOS permanece oculto hasta finalizar la auditoría.','The balance expected by ZenOS remains hidden until the audit is completed.')}</div>
                   </div>
                 )}
               </div>
@@ -1647,11 +1647,11 @@ export default function App() {
       <ZenModal aberto={!!modalAppZen} variante={modalAppZen?.variante} titulo={modalAppZen?.titulo} mensagem={modalAppZen?.mensagem} detalhes={modalAppZen?.detalhes} confirmarTexto={modalAppZen?.confirmarTexto || 'OK'} cancelarTexto={modalAppZen?.cancelarTexto || 'Cancelar'} apenasConfirmar={!!modalAppZen?.apenasConfirmar} onConfirmar={()=>{ const resolver=modalAppZen?.resolver; setModalAppZen(null); if(resolver) resolver(true); }} onCancelar={()=>{ const resolver=modalAppZen?.resolver; setModalAppZen(null); if(resolver) resolver(false); }} />
 
       {modalPerfilRapido && <div style={{position:'fixed',inset:0,zIndex:21000,background:'rgba(2,6,23,.88)',backdropFilter:'blur(8px)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}><div style={{width:'100%',maxWidth:460,background:'#0b1120',border:'1px solid #38bdf8',borderRadius:22,padding:22,color:'#fff'}}>
-        <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:18}}>{perfilRapidoRascunho.logoLoja?<img src={perfilRapidoRascunho.logoLoja} style={{width:56,height:56,borderRadius:12,objectFit:'cover'}}/>:<img src="/logo-zenos.png?v=4" style={{width:56,height:56,objectFit:'contain'}}/>}<div><div style={{fontSize:11,color:'#38bdf8',fontWeight:900}}>IDENTIDADE RÁPIDA</div><div style={{fontSize:18,fontWeight:900}}>Nome e logo da loja</div></div></div>
-        <label style={{fontSize:11,color:'#94a3b8',fontWeight:900}}>NOME FANTASIA</label><input value={perfilRapidoRascunho.nomeFantasia||''} onChange={e=>setPerfilRapidoRascunho({...perfilRapidoRascunho,nomeFantasia:e.target.value})} style={{width:'100%',boxSizing:'border-box',margin:'6px 0 14px',padding:12,borderRadius:10,border:'1px solid #334155',background:'#020617',color:'#fff'}}/>
-        <label style={{fontSize:11,color:'#94a3b8',fontWeight:900}}>LOGO DA LOJA (máx. 300 KB)</label><input type="file" accept="image/*" onChange={e=>{const f=e.target.files?.[0]; if(!f)return; if(f.size>300*1024){setPerfilRapidoErro('A logo deve ter no máximo 300 KB.');return;} setPerfilRapidoErro(''); const r=new FileReader();r.onload=()=>setPerfilRapidoRascunho(x=>({...x,logoLoja:r.result}));r.readAsDataURL(f);}} style={{width:'100%',margin:'8px 0 18px'}}/>
+        <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:18}}>{perfilRapidoRascunho.logoLoja?<img src={perfilRapidoRascunho.logoLoja} style={{width:56,height:56,borderRadius:12,objectFit:'cover'}}/>:<img src="/logo-zenos.png?v=4" style={{width:56,height:56,objectFit:'contain'}}/>}<div><div style={{fontSize:11,color:'#38bdf8',fontWeight:900}}>{tx('IDENTIDADE RÁPIDA','IDENTIDAD RÁPIDA','QUICK IDENTITY')}</div><div style={{fontSize:18,fontWeight:900}}>{tx('Nome e logo da loja','Nombre y logo de la tienda','Store name and logo')}</div></div></div>
+        <label style={{fontSize:11,color:'#94a3b8',fontWeight:900}}>{tx('NOME FANTASIA','NOMBRE COMERCIAL','DISPLAY NAME')}</label><input value={perfilRapidoRascunho.nomeFantasia||''} onChange={e=>setPerfilRapidoRascunho({...perfilRapidoRascunho,nomeFantasia:e.target.value})} style={{width:'100%',boxSizing:'border-box',margin:'6px 0 14px',padding:12,borderRadius:10,border:'1px solid #334155',background:'#020617',color:'#fff'}}/>
+        <label style={{fontSize:11,color:'#94a3b8',fontWeight:900}}>{tx('LOGO DA LOJA (máx. 300 KB)','LOGO DE LA TIENDA (máx. 300 KB)','STORE LOGO (max. 300 KB)')}</label><input type="file" accept="image/*" onChange={e=>{const f=e.target.files?.[0]; if(!f)return; if(f.size>300*1024){setPerfilRapidoErro('A logo deve ter no máximo 300 KB.');return;} setPerfilRapidoErro(''); const r=new FileReader();r.onload=()=>setPerfilRapidoRascunho(x=>({...x,logoLoja:r.result}));r.readAsDataURL(f);}} style={{width:'100%',margin:'8px 0 18px'}}/>
         {perfilRapidoErro && <div style={{margin:'-8px 0 14px',padding:'9px 10px',borderRadius:8,border:'1px solid #f43f5e',background:'#2e0a16',color:'#fda4af',fontSize:11,fontWeight:800}}>{perfilRapidoErro}</div>}
-        <div style={{display:'flex',gap:10}}><button onClick={()=>setModalPerfilRapido(false)} style={{flex:1,padding:11,borderRadius:10,border:'1px solid #334155',background:'#020617',color:'#cbd5e1',fontWeight:900}}>Cancelar</button><button onClick={salvarPerfilRapido} style={{flex:1,padding:11,borderRadius:10,border:'none',background:'#0284c7',color:'#fff',fontWeight:900}}>Salvar</button></div>
+        <div style={{display:'flex',gap:10}}><button onClick={()=>setModalPerfilRapido(false)} style={{flex:1,padding:11,borderRadius:10,border:'1px solid #334155',background:'#020617',color:'#cbd5e1',fontWeight:900}}>{tx('Cancelar','Cancelar','Cancel')}</button><button onClick={salvarPerfilRapido} style={{flex:1,padding:11,borderRadius:10,border:'none',background:'#0284c7',color:'#fff',fontWeight:900}}>{tx('Salvar','Guardar','Save')}</button></div>
       </div></div>}
         </div>
       </div>
