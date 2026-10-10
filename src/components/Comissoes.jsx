@@ -145,9 +145,9 @@ export default function Comissoes({ commitOperacaoNegocio, historicoVendas, fmt,
                 <option value="faturamento">{tx('Faturamento líquido da venda','Facturación neta de la venta','Net sale revenue')}</option>
               </select>
             </div>
-            <div><label style={{ fontSize: '11px', color: '#34d399', fontWeight: 900 }}>% Verde</label><input min="0" max="100" step="0.01" type="number" value={rascunho.pctVerde} onChange={e => setRascunho({ ...rascunho, pctVerde: e.target.value })} style={estiloInput} /></div>
-            <div><label style={{ fontSize: '11px', color: '#fbbf24', fontWeight: 900 }}>% Amarelo</label><input min="0" max="100" step="0.01" type="number" value={rascunho.pctAmarelo} onChange={e => setRascunho({ ...rascunho, pctAmarelo: e.target.value })} style={estiloInput} /></div>
-            <div><label style={{ fontSize: '11px', color: '#fb7185', fontWeight: 900 }}>% Vermelho</label><input min="0" max="100" step="0.01" type="number" value={rascunho.pctVermelho} onChange={e => setRascunho({ ...rascunho, pctVermelho: e.target.value })} style={estiloInput} /></div>
+            <div><label style={{ fontSize: '11px', color: '#34d399', fontWeight: 900 }}>% {tx('Verde','Verde','Green')}</label><input min="0" max="100" step="0.01" type="number" value={rascunho.pctVerde} onChange={e => setRascunho({ ...rascunho, pctVerde: e.target.value })} style={estiloInput} /></div>
+            <div><label style={{ fontSize: '11px', color: '#fbbf24', fontWeight: 900 }}>% {tx('Amarelo','Amarillo','Yellow')}</label><input min="0" max="100" step="0.01" type="number" value={rascunho.pctAmarelo} onChange={e => setRascunho({ ...rascunho, pctAmarelo: e.target.value })} style={estiloInput} /></div>
+            <div><label style={{ fontSize: '11px', color: '#fb7185', fontWeight: 900 }}>% {tx('Vermelho','Rojo','Red')}</label><input min="0" max="100" step="0.01" type="number" value={rascunho.pctVermelho} onChange={e => setRascunho({ ...rascunho, pctVermelho: e.target.value })} style={estiloInput} /></div>
             <div><label style={{ fontSize: '11px', color: '#c084fc', fontWeight: 900 }}>{tx('Bônus fixo por venda','Bono fijo por venta','Fixed bonus per sale')}</label><input min="0" step="0.01" type="number" value={rascunho.bonusFixo} onChange={e => setRascunho({ ...rascunho, bonusFixo: e.target.value })} style={estiloInput} /></div>
           </div>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', fontSize: '11px', fontWeight: 900 }}>
