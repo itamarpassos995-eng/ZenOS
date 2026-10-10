@@ -380,7 +380,7 @@ export default function App() {
         email: usuarioAutenticado, uid: userId, dataSolicitacao: new Date().toISOString(), dataSolicitacaoServer: serverTimestamp(), status: 'pendente_analise'
       }, { merge: true });
       setDemoSolicitada(true);
-      avisarAppZen({ variante:'success', titulo:'Solicitação enviada', mensagem:'A solicitação foi registrada com sucesso.' });
+      avisarAppZen({ variante:'success', titulo:tx('Solicitação enviada','Solicitud enviada','Request sent'), mensagem:tx('A solicitação foi registrada com sucesso.','La solicitud fue registrada correctamente.','The request was registered successfully.') });
     } catch (err) {
       avisarAppZen({ variante:'danger', titulo:'Não foi possível enviar', mensagem:tx('Erro ao enviar solicitação.', 'Error al enviar solicitud.', 'Error sending request.') });
     }
