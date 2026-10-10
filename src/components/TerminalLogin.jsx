@@ -30,18 +30,18 @@ export default function TerminalLogin({ vendedores, onLoginSuccess, onSairLoja, 
     setErro('');
 
     const operador = vendedores.find(v => String(v.id) === String(idSelecionado));
-    if (!operador) return setErro('Selecione um operador.');
+    if (!operador) return setErro(tx('Selecione um operador.','Seleccione un operador.','Select an operator.'));
 
     try {
       if (!(await verificarPinOperador(operador, senhaDigitada))) {
         setSenhaDigitada('');
-        return setErro('PIN / Senha incorreta! Tente novamente.');
+        return setErro(tx('PIN / Senha incorreta! Tente novamente.','PIN / Contraseña incorrecta. Intente nuevamente.','Incorrect PIN / Password. Try again.'));
       }
 
       onLoginSuccess(operador);
     } catch (error) {
       console.error('[ZenOS][TERMINAL] Falha ao validar PIN do operador.', error);
-      setErro(error?.message || 'Não foi possível validar o PIN neste dispositivo.');
+      setErro(error?.message || tx('Não foi possível validar o PIN neste dispositivo.','No fue posible validar el PIN en este dispositivo.','Could not validate the PIN on this device.'));
     }
   };
 
