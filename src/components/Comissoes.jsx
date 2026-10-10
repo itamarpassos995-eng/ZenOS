@@ -15,7 +15,7 @@ const estiloInput = {
 };
 
 const formatarMetricaBonus = (bonus, fmt) => {
-  if (bonus.tipo === 'sem_devolucoes') return bonus.atingida ? 'Nenhuma devolução' : `${bonus.atual || 0} devolução(ões)`;
+  if (bonus.tipo === 'sem_devolucoes') return bonus.atingida ? tx('Nenhuma devolução','Ninguna devolución','No returns') : `${bonus.atual || 0} ${tx('devolução(ões)','devolución(es)','return(s)')}`;
   if (['faturamento', 'lucro', 'ticket_medio'].includes(bonus.tipo)) return fmt(bonus.atual || 0);
   if (bonus.tipo === 'margem_media') return `${Number(bonus.atual || 0).toFixed(1)}%`;
   return String(Math.round(Number(bonus.atual || 0)));
@@ -68,7 +68,7 @@ export default function Comissoes({ commitOperacaoNegocio, historicoVendas, fmt,
       let confirmadas = normalizadas;
       if (typeof commitOperacaoNegocio === 'function') {
         const resultado = await commitOperacaoNegocio({ changes:[{ field:'regrasComissao', value:normalizadas, storageSuffix:'regras_comissao' }] });
-        if (!resultado?.cloudOk) throw resultado?.error || new Error('A nuvem não confirmou as regras de comissão.');
+        if (!resultado?.cloudOk) throw resultado?.error || new Error(tx('A nuvem não confirmou as regras de comissão.','La nube no confirmó las reglas de comisión.','The cloud did not confirm the commission rules.'));
         confirmadas = resultado.values?.regrasComissao || normalizadas;
       }
       if (typeof setRegrasComissao === 'function') setRegrasComissao(confirmadas);
@@ -76,7 +76,7 @@ export default function Comissoes({ commitOperacaoNegocio, historicoVendas, fmt,
       setSalvoAgora(true);
       window.setTimeout(() => setSalvoAgora(false), 1800);
     } catch (error) {
-      setErroSalvarRegras(error?.message || 'Não foi possível confirmar as regras na nuvem.');
+      setErroSalvarRegras(error?.message || tx('Não foi possível confirmar as regras na nuvem.','No fue posible confirmar las reglas en la nube.','Could not confirm the rules in the cloud.'));
     } finally {
       setSalvandoRegras(false);
     }
@@ -103,7 +103,7 @@ export default function Comissoes({ commitOperacaoNegocio, historicoVendas, fmt,
         <div>
           <h2 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>{tx('Comissões, Metas e Bonificações', 'Comisiones, Metas y Bonificaciones', 'Commissions, Goals and Bonuses')}</h2>
           <span style={{ fontSize: '13px', color: '#64748b' }}>
-            {ehAdmin ? 'Visão gerencial da equipa com proteção permanente de margem.' : 'Acompanhe suas vendas, margem, metas e comissão.'}
+            {ehAdmin ? tx('Visão gerencial da equipa com proteção permanente de margem.','Vista gerencial del equipo con protección permanente de margen.','Management view of the team with permanent margin protection.') : tx('Acompanhe suas vendas, margem, metas e comissão.','Acompañe sus ventas, margen, metas y comisión.','Track your sales, margin, targets and commission.')}
           </span>
         </div>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -195,7 +195,7 @@ export default function Comissoes({ commitOperacaoNegocio, historicoVendas, fmt,
               const metasAtingidas = linha.bonusAvaliados.filter(b => b.atingida).length;
               const faixaMedia = classificarMargem(linha.margemMediaPct, regrasDesconto || {});
               return <tr key={linha.id} style={{ borderBottom: '1px solid rgba(255,255,255,.05)', color: '#cbd5e1', fontSize: '12px' }}>
-                <td style={{ padding: '16px 8px', color: '#f8fafc', fontWeight: 900 }}>{linha.nome}{linha.qtdPrejuizo > 0 && <div style={{ color: '#fb7185', fontSize: '10px', marginTop: '4px' }}>⛔ {linha.qtdPrejuizo} venda(s) sem comissão por prejuízo</div>}{linha.qtdComissaoLimitada > 0 && <div style={{ color: '#fbbf24', fontSize: '10px', marginTop: '3px' }}>🛡️ {linha.qtdComissaoLimitada} comissão(ões) limitada(s) ao lucro da venda</div>}</td>
+                <td style={{ padding: '16px 8px', color: '#f8fafc', fontWeight: 900 }}>{linha.nome}{linha.qtdPrejuizo > 0 && <div style={{ color: '#fb7185', fontSize: '10px', marginTop: '4px' }}>⛔ {linha.qtdPrejuizo} {tx('venda(s) sem comissão por prejuízo','venta(s) sin comisión por pérdida','sale(s) with no commission due to loss')}</div>}{linha.qtdComissaoLimitada > 0 && <div style={{ color: '#fbbf24', fontSize: '10px', marginTop: '3px' }}>🛡️ {linha.qtdComissaoLimitada} {tx('comissão(ões) limitada(s) ao lucro','comisión(es) limitada(s) a la ganancia','commission(s) capped by profit')} da venda</div>}</td>
                 <td style={{ textAlign: 'center' }}>{linha.totalAtendimentos}</td><td style={{ textAlign: 'right' }}>{fmt(linha.totalVendas)}</td><td style={{ textAlign: 'right' }}>{fmt(linha.totalLucro)}</td>
                 <td style={{ textAlign: 'center' }}><span style={{ color: faixaMedia.cor, background: faixaMedia.fundo, border: `1px solid ${faixaMedia.borda}`, padding: '4px 7px', borderRadius: '6px', fontWeight: 900 }}>{linha.margemMediaPct.toFixed(1)}%</span></td>
                 <td style={{ textAlign: 'center' }}><div style={{ display: 'flex', gap: '5px', justifyContent: 'center', fontWeight: 900 }}><span style={{ color: '#34d399' }}>● {linha.qtdVerde}</span><span style={{ color: '#fbbf24' }}>● {linha.qtdAmarelo}</span><span style={{ color: '#fb7185' }}>● {linha.qtdVermelho}</span></div></td>
@@ -251,7 +251,7 @@ export default function Comissoes({ commitOperacaoNegocio, historicoVendas, fmt,
               const metasAtingidas = linha.bonusAvaliados.filter(b => b.atingida).length;
               const faixaMedia = classificarMargem(linha.margemMediaPct, regrasDesconto || {});
               return <tr key={linha.id} style={{ borderBottom: '1px solid rgba(255,255,255,.05)', color: '#cbd5e1', fontSize: '12px' }}>
-                <td style={{ padding: '16px 8px', color: '#f8fafc', fontWeight: 900 }}>{linha.nome}{linha.qtdPrejuizo > 0 && <div style={{ color: '#fb7185', fontSize: '10px', marginTop: '4px' }}>⛔ {linha.qtdPrejuizo} venda(s) sem comissão por prejuízo</div>}{linha.qtdComissaoLimitada > 0 && <div style={{ color: '#fbbf24', fontSize: '10px', marginTop: '3px' }}>🛡️ {linha.qtdComissaoLimitada} comissão(ões) limitada(s) ao lucro da venda</div>}</td>
+                <td style={{ padding: '16px 8px', color: '#f8fafc', fontWeight: 900 }}>{linha.nome}{linha.qtdPrejuizo > 0 && <div style={{ color: '#fb7185', fontSize: '10px', marginTop: '4px' }}>⛔ {linha.qtdPrejuizo} {tx('venda(s) sem comissão por prejuízo','venta(s) sin comisión por pérdida','sale(s) with no commission due to loss')}</div>}{linha.qtdComissaoLimitada > 0 && <div style={{ color: '#fbbf24', fontSize: '10px', marginTop: '3px' }}>🛡️ {linha.qtdComissaoLimitada} {tx('comissão(ões) limitada(s) ao lucro','comisión(es) limitada(s) a la ganancia','commission(s) capped by profit')} da venda</div>}</td>
                 <td style={{ textAlign: 'center' }}>{linha.totalAtendimentos}</td><td style={{ textAlign: 'right' }}>{fmt(linha.totalVendas)}</td><td style={{ textAlign: 'right' }}>{fmt(linha.totalLucro)}</td>
                 <td style={{ textAlign: 'center' }}><span style={{ color: faixaMedia.cor, background: faixaMedia.fundo, border: `1px solid ${faixaMedia.borda}`, padding: '4px 7px', borderRadius: '6px', fontWeight: 900 }}>{linha.margemMediaPct.toFixed(1)}%</span></td>
                 <td style={{ textAlign: 'center' }}><div style={{ display: 'flex', gap: '5px', justifyContent: 'center', fontWeight: 900 }}><span style={{ color: '#34d399' }}>● {linha.qtdVerde}</span><span style={{ color: '#fbbf24' }}>● {linha.qtdAmarelo}</span><span style={{ color: '#fb7185' }}>● {linha.qtdVermelho}</span></div></td>
@@ -307,7 +307,7 @@ export default function Comissoes({ commitOperacaoNegocio, historicoVendas, fmt,
               const metasAtingidas = linha.bonusAvaliados.filter(b => b.atingida).length;
               const faixaMedia = classificarMargem(linha.margemMediaPct, regrasDesconto || {});
               return <tr key={linha.id} style={{ borderBottom: '1px solid rgba(255,255,255,.05)', color: '#cbd5e1', fontSize: '12px' }}>
-                <td style={{ padding: '16px 8px', color: '#f8fafc', fontWeight: 900 }}>{linha.nome}{linha.qtdPrejuizo > 0 && <div style={{ color: '#fb7185', fontSize: '10px', marginTop: '4px' }}>⛔ {linha.qtdPrejuizo} venda(s) sem comissão por prejuízo</div>}{linha.qtdComissaoLimitada > 0 && <div style={{ color: '#fbbf24', fontSize: '10px', marginTop: '3px' }}>🛡️ {linha.qtdComissaoLimitada} comissão(ões) limitada(s) ao lucro da venda</div>}</td>
+                <td style={{ padding: '16px 8px', color: '#f8fafc', fontWeight: 900 }}>{linha.nome}{linha.qtdPrejuizo > 0 && <div style={{ color: '#fb7185', fontSize: '10px', marginTop: '4px' }}>⛔ {linha.qtdPrejuizo} {tx('venda(s) sem comissão por prejuízo','venta(s) sin comisión por pérdida','sale(s) with no commission due to loss')}</div>}{linha.qtdComissaoLimitada > 0 && <div style={{ color: '#fbbf24', fontSize: '10px', marginTop: '3px' }}>🛡️ {linha.qtdComissaoLimitada} {tx('comissão(ões) limitada(s) ao lucro','comisión(es) limitada(s) a la ganancia','commission(s) capped by profit')} da venda</div>}</td>
                 <td style={{ textAlign: 'center' }}>{linha.totalAtendimentos}</td><td style={{ textAlign: 'right' }}>{fmt(linha.totalVendas)}</td><td style={{ textAlign: 'right' }}>{fmt(linha.totalLucro)}</td>
                 <td style={{ textAlign: 'center' }}><span style={{ color: faixaMedia.cor, background: faixaMedia.fundo, border: `1px solid ${faixaMedia.borda}`, padding: '4px 7px', borderRadius: '6px', fontWeight: 900 }}>{linha.margemMediaPct.toFixed(1)}%</span></td>
                 <td style={{ textAlign: 'center' }}><div style={{ display: 'flex', gap: '5px', justifyContent: 'center', fontWeight: 900 }}><span style={{ color: '#34d399' }}>● {linha.qtdVerde}</span><span style={{ color: '#fbbf24' }}>● {linha.qtdAmarelo}</span><span style={{ color: '#fb7185' }}>● {linha.qtdVermelho}</span></div></td>
@@ -363,7 +363,7 @@ export default function Comissoes({ commitOperacaoNegocio, historicoVendas, fmt,
               const metasAtingidas = linha.bonusAvaliados.filter(b => b.atingida).length;
               const faixaMedia = classificarMargem(linha.margemMediaPct, regrasDesconto || {});
               return <tr key={linha.id} style={{ borderBottom: '1px solid rgba(255,255,255,.05)', color: '#cbd5e1', fontSize: '12px' }}>
-                <td style={{ padding: '16px 8px', color: '#f8fafc', fontWeight: 900 }}>{linha.nome}{linha.qtdPrejuizo > 0 && <div style={{ color: '#fb7185', fontSize: '10px', marginTop: '4px' }}>⛔ {linha.qtdPrejuizo} venda(s) sem comissão por prejuízo</div>}{linha.qtdComissaoLimitada > 0 && <div style={{ color: '#fbbf24', fontSize: '10px', marginTop: '3px' }}>🛡️ {linha.qtdComissaoLimitada} comissão(ões) limitada(s) ao lucro da venda</div>}</td>
+                <td style={{ padding: '16px 8px', color: '#f8fafc', fontWeight: 900 }}>{linha.nome}{linha.qtdPrejuizo > 0 && <div style={{ color: '#fb7185', fontSize: '10px', marginTop: '4px' }}>⛔ {linha.qtdPrejuizo} {tx('venda(s) sem comissão por prejuízo','venta(s) sin comisión por pérdida','sale(s) with no commission due to loss')}</div>}{linha.qtdComissaoLimitada > 0 && <div style={{ color: '#fbbf24', fontSize: '10px', marginTop: '3px' }}>🛡️ {linha.qtdComissaoLimitada} {tx('comissão(ões) limitada(s) ao lucro','comisión(es) limitada(s) a la ganancia','commission(s) capped by profit')} da venda</div>}</td>
                 <td style={{ textAlign: 'center' }}>{linha.totalAtendimentos}</td><td style={{ textAlign: 'right' }}>{fmt(linha.totalVendas)}</td><td style={{ textAlign: 'right' }}>{fmt(linha.totalLucro)}</td>
                 <td style={{ textAlign: 'center' }}><span style={{ color: faixaMedia.cor, background: faixaMedia.fundo, border: `1px solid ${faixaMedia.borda}`, padding: '4px 7px', borderRadius: '6px', fontWeight: 900 }}>{linha.margemMediaPct.toFixed(1)}%</span></td>
                 <td style={{ textAlign: 'center' }}><div style={{ display: 'flex', gap: '5px', justifyContent: 'center', fontWeight: 900 }}><span style={{ color: '#34d399' }}>● {linha.qtdVerde}</span><span style={{ color: '#fbbf24' }}>● {linha.qtdAmarelo}</span><span style={{ color: '#fb7185' }}>● {linha.qtdVermelho}</span></div></td>
