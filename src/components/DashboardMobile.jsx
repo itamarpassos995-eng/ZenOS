@@ -5,7 +5,7 @@ import { classificarMargem } from '../core/profitability';
 export default function DashboardMobile({ historicoVendas, despesas, clientes, produtos, fmt, tx, patenteUsuario, regrasDesconto }) {
   // Bloqueio Absoluto: Vendedores não podem ver a saúde financeira da empresa
   if (patenteUsuario !== 'gerencia') {
-    return <div style={{ color: '#fb7185', textAlign: 'center', padding: '40px', fontSize: '18px', fontWeight: 900 }}>Acesso Restrito à Direção.</div>;
+    return <div style={{ color: '#fb7185', textAlign: 'center', padding: '40px', fontSize: '18px', fontWeight: 900 }}>{tx('Acesso Restrito à Direção.','Acceso Restringido a la Dirección.','Restricted to Management.')}</div>;
   }
 
   // Motor Analítico: Processamento de Dados para o CEO
@@ -97,22 +97,22 @@ export default function DashboardMobile({ historicoVendas, despesas, clientes, p
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div style={{ backgroundColor: '#064e3b', border: '1px solid #10b981', borderRadius: '20px', padding: '16px', display: 'flex', flexDirection: 'column' }}>
               <span style={{ fontSize: '20px', marginBottom: '4px' }}>🏆</span>
-              <span style={{ fontSize: '10px', color: '#a7f3d0', fontWeight: 800, textTransform: 'uppercase' }}>Lucro Real</span>
+              <span style={{ fontSize: '10px', color: '#a7f3d0', fontWeight: 800, textTransform: 'uppercase' }}>{tx('Lucro Real','Ganancia Real','Actual Profit')}</span>
               <span style={{ fontSize: '18px', fontWeight: 900, color: '#fff' }}>{fmt(painel.lucroLiquidoReal)}</span>
             </div>
             <div style={{ backgroundColor: '#451a03', border: '1px solid #d97706', borderRadius: '20px', padding: '16px', display: 'flex', flexDirection: 'column' }}>
               <span style={{ fontSize: '20px', marginBottom: '4px' }}>📒</span>
-              <span style={{ fontSize: '10px', color: '#fde68a', fontWeight: 800, textTransform: 'uppercase' }}>Na Praça (Fiado)</span>
+              <span style={{ fontSize: '10px', color: '#fde68a', fontWeight: 800, textTransform: 'uppercase' }}>{tx('Na Praça (Fiado)','Crédito Pendiente','Outstanding Credit')}</span>
               <span style={{ fontSize: '18px', fontWeight: 900, color: '#fff' }}>{fmt(painel.fiadoTotal)}</span>
             </div>
             <div style={{ backgroundColor: '#1e1b4b', border: '1px solid #6366f1', borderRadius: '20px', padding: '16px', display: 'flex', flexDirection: 'column' }}>
               <span style={{ fontSize: '20px', marginBottom: '4px' }}>🛒</span>
-              <span style={{ fontSize: '10px', color: '#c7d2fe', fontWeight: 800, textTransform: 'uppercase' }}>Ticket Médio</span>
+              <span style={{ fontSize: '10px', color: '#c7d2fe', fontWeight: 800, textTransform: 'uppercase' }}>{tx('Ticket Médio','Ticket Promedio','Average Ticket')}</span>
               <span style={{ fontSize: '18px', fontWeight: 900, color: '#fff' }}>{fmt(painel.ticketMedio)}</span>
             </div>
             <div style={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '20px', padding: '16px', display: 'flex', flexDirection: 'column' }}>
               <span style={{ fontSize: '20px', marginBottom: '4px' }}>🎯</span>
-              <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase' }}>Margem Média</span>
+              <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase' }}>{tx('Margem Média','Margen Promedio','Average Margin')}</span>
               <span style={{ fontSize: '20px', fontWeight: 900, color: '#38bdf8' }}>{painel.margemMedia.toFixed(1)}%</span>
             </div>
           </div>
@@ -121,12 +121,12 @@ export default function DashboardMobile({ historicoVendas, despesas, clientes, p
           <div style={{ marginTop: '10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
               <span style={{ fontSize: '18px' }}>🧠</span>
-              <h3 style={{ margin: 0, fontSize: '14px', color: '#e2e8f0', fontWeight: 900 }}>Assistente de Decisão</h3>
+              <h3 style={{ margin: 0, fontSize: '14px', color: '#e2e8f0', fontWeight: 900 }}>{tx('Assistente de Decisão','Asistente de Decisión','Decision Assistant')}</h3>
             </div>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {painel.insights.length === 0 ? (
-                <div style={{ textAlign: 'center', color: '#64748b', fontSize: '12px', padding: '20px' }}>Aguardando mais dados de vendas para gerar análises.</div>
+                <div style={{ textAlign: 'center', color: '#64748b', fontSize: '12px', padding: '20px' }}>{tx('Aguardando mais dados de vendas para gerar análises.','Esperando más datos de ventas para generar análisis.','Waiting for more sales data to generate analysis.')}</div>
               ) : (
                 painel.insights.map((insight, index) => (
                   <div key={index} style={{ backgroundColor: '#0b1120', borderLeft: `4px solid ${insight.cor}`, borderRadius: '12px', padding: '16px', display: 'flex', gap: '12px' }}>
