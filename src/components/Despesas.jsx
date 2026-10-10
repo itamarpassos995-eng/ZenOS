@@ -18,7 +18,7 @@ export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, c
   const [formaPagamento, setFormaPagamento] = useState('Dinheiro / Caixa');
   const [modalZen, setModalZen] = useState(null);
   const avisarZen=(variante,titulo,mensagem,detalhes=[])=>setModalZen({variante,titulo,mensagem,detalhes,apenasConfirmar:true});
-  const confirmarZen=({titulo,mensagem,confirmarTexto='Confirmar',variante='warning'})=>new Promise(resolve=>setModalZen({variante,titulo,mensagem,confirmarTexto,cancelarTexto:'Cancelar',resolver}));
+  const confirmarZen=({titulo,mensagem,confirmarTexto=null,variante='warning'})=>new Promise(resolve=>setModalZen({variante,titulo,mensagem,confirmarTexto:confirmarTexto || tx('Confirmar','Confirmar','Confirm'),cancelarTexto:tx('Cancelar','Cancelar','Cancel'),resolver}));
 
   if (patenteUsuario !== 'gerencia') {
     return (
@@ -40,9 +40,9 @@ export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, c
   };
 
   const salvarDespesa = async () => {
-    if (!descricao.trim()) return avisarZen('warning','Descrição obrigatória','Informe a descrição da despesa.');
+    if (!descricao.trim()) return avisarZen('warning',tx('Descrição obrigatória','Descripción obligatoria','Description required'),tx('Informe a descrição da despesa.','Informe la descripción del gasto.','Enter the expense description.'));
     const valBRL = converterParaBRL(parseFloat(valorInput.replace(',', '.')) || 0, moeda);
-    if (valBRL <= 0) return avisarZen('warning','Valor inválido','Informe um valor válido maior que zero.');
+    if (valBRL <= 0) return avisarZen('warning',tx('Valor inválido','Valor inválido','Invalid amount'),tx('Informe um valor válido maior que zero.','Informe un valor válido mayor que cero.','Enter a valid amount greater than zero.'));
 
     const novaDespesa = {
       id: despesaEmEdicao ? despesaEmEdicao.id : `DESP-${Date.now()}`,
@@ -67,7 +67,7 @@ export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, c
       setDespesas(confirmadas);
       setModalAberto(false);
     } catch (erro) {
-      avisarZen('danger','Despesa não salva','A nuvem não confirmou o lançamento. Nenhuma alteração foi considerada concluída.',[erro?.message || 'Falha de persistência']);
+      avisarZen('danger',tx('Despesa não salva','Gasto no guardado','Expense not saved'),tx('A nuvem não confirmou o lançamento. Nenhuma alteração foi considerada concluída.','La nube no confirmó el registro. Ningún cambio fue considerado concluido.','The cloud did not confirm the entry. No change was considered complete.'),[erro?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
     }
   };
 
@@ -80,8 +80,8 @@ export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, c
   const confirmarPagamento = async () => {
     const dinheiro = String(formaPagamento || '').toLowerCase().includes('dinheiro');
     const valor = Number(despesaParaPagar?.valorBRL || 0);
-    if (dinheiro && !sessaoAtiva) return setModalZen({ variante:'danger', titulo:'Caixa fechado', mensagem:'Para pagar uma despesa em dinheiro é necessário um turno de caixa aberto.', apenasConfirmar:true });
-    if (dinheiro && valor > Number(saldoSessaoFisicoBRL || 0) + 0.001) return setModalZen({ variante:'danger', titulo:'Saldo insuficiente na gaveta', mensagem:`Disponível: ${fmt(saldoSessaoFisicoBRL,'BRL')}`, detalhes:[`Despesa: ${fmt(valor,'BRL')}`], apenasConfirmar:true });
+    if (dinheiro && !sessaoAtiva) return setModalZen({ variante:'danger', titulo:tx('Caixa fechado','Caja cerrada','Register closed'), mensagem:tx('Para pagar uma despesa em dinheiro é necessário um turno de caixa aberto.','Para pagar un gasto en efectivo es necesario un turno de caja abierto.','An open cash shift is required to pay an expense in cash.'), apenasConfirmar:true });
+    if (dinheiro && valor > Number(saldoSessaoFisicoBRL || 0) + 0.001) return setModalZen({ variante:'danger', titulo:tx('Saldo insuficiente na gaveta','Saldo insuficiente en caja','Insufficient drawer balance'), mensagem:`${tx('Disponível:','Disponible:','Available:')} ${fmt(saldoSessaoFisicoBRL,'BRL')}`, detalhes:[`${tx('Despesa:','Gasto:','Expense:')} ${fmt(valor,'BRL')}`], apenasConfirmar:true });
 
     const createdAt = new Date().toISOString();
     const despesasPropostas = despesas.map(d => d.id === despesaParaPagar.id ? { ...d, status:'paga', dataPagamento:createdAt, formaPagamento } : d);
@@ -126,7 +126,7 @@ export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, c
       if (mov && typeof setCaixaMovimentos === 'function') setCaixaMovimentos(caixaConfirmado);
     } catch (err) {
       console.error('[ZenOS][ATT10.2] Falha no pagamento da despesa:', err);
-      return setModalZen({ variante:'danger', titulo:'Pagamento não concluído', mensagem:'A nuvem não confirmou o pagamento. A despesa continua pendente.', detalhes:[err?.message || 'Falha de persistência'], apenasConfirmar:true });
+      return setModalZen({ variante:'danger', titulo:tx('Pagamento não concluído','Pago no concluido','Payment not completed'), mensagem:tx('A nuvem não confirmou o pagamento. A despesa continua pendente.','La nube no confirmó el pago. El gasto sigue pendiente.','The cloud did not confirm the payment. The expense remains pending.'), detalhes:[err?.message || 'Falha de persistência'], apenasConfirmar:true });
     }
 
     setModalPagamentoAberto(false);
@@ -135,7 +135,7 @@ export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, c
 
   const excluirDespesa = async (id) => {
     const alvo=(despesas||[]).find(d=>d.id===id);
-    const confirmou=await confirmarZen({titulo:'Excluir registro',mensagem:`Excluir permanentemente “${alvo?.descricao || 'este registro'}”?`,confirmarTexto:'Excluir',variante:'danger'});
+    const confirmou=await confirmarZen({titulo:tx('Excluir registro','Eliminar registro','Delete record'),mensagem:`${tx('Excluir permanentemente','Eliminar permanentemente','Permanently delete')} “${alvo?.descricao || tx('este registro','este registro','this record')}”?`,confirmarTexto:tx('Excluir','Eliminar','Delete'),variante:'danger'});
     if(!confirmou) return;
     const listaProposta = despesas.filter(d=>d.id!==id);
     try {
@@ -147,7 +147,7 @@ export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, c
       }
       setDespesas(confirmadas);
     } catch (erro) {
-      avisarZen('danger','Registro não excluído','A nuvem não confirmou a exclusão. O registro foi preservado.',[erro?.message || 'Falha de persistência']);
+      avisarZen('danger',tx('Registro não excluído','Registro no eliminado','Record not deleted'),tx('A nuvem não confirmou a exclusão. O registro foi preservado.','La nube no confirmó la eliminación. El registro fue preservado.','The cloud did not confirm deletion. The record was preserved.'),[erro?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
     }
   };
 
@@ -157,7 +157,7 @@ export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, c
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
-      <ZenModal aberto={!!modalZen} variante={modalZen?.variante} titulo={modalZen?.titulo} mensagem={modalZen?.mensagem} detalhes={modalZen?.detalhes} confirmarTexto={modalZen?.confirmarTexto || "OK"} cancelarTexto={modalZen?.cancelarTexto || "Cancelar"} apenasConfirmar={!!modalZen?.apenasConfirmar} onConfirmar={()=>{const r=modalZen?.resolver;setModalZen(null);if(r)r(true);}} onCancelar={()=>{const r=modalZen?.resolver;setModalZen(null);if(r)r(false);}} />
+      <ZenModal aberto={!!modalZen} variante={modalZen?.variante} titulo={modalZen?.titulo} mensagem={modalZen?.mensagem} detalhes={modalZen?.detalhes} confirmarTexto={modalZen?.confirmarTexto || "OK"} cancelarTexto={modalZen?.cancelarTexto || tx('Cancelar','Cancelar','Cancel')} apenasConfirmar={!!modalZen?.apenasConfirmar} onConfirmar={()=>{const r=modalZen?.resolver;setModalZen(null);if(r)r(true);}} onCancelar={()=>{const r=modalZen?.resolver;setModalZen(null);if(r)r(false);}} />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h2 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>{tx('Contas a Pagar & Despesas','Cuentas a Pagar y Gastos','Accounts Payable & Expenses')}</h2>
