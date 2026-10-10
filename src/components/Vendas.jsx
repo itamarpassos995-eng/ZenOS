@@ -35,7 +35,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
   const cotacoesReimpressao = cupomParaImprimir?.taxasCambio || taxasCambio || {};
   const moedasReimpressao = moedasAtivasRecibo(cotacoesReimpressao);
 
-  const pedirConfirmacaoZen = ({ titulo, mensagem, detalhes = [], confirmarTexto = 'Confirmar', variante = 'warning' }) =>
+  const pedirConfirmacaoZen = ({ titulo, mensagem, detalhes = [], confirmarTexto = null, variante = 'warning' }) =>
     new Promise(resolve => setModalZen({ variante, titulo, mensagem, detalhes, confirmarTexto, cancelarTexto: 'Cancelar', resolver: resolve }));
 
   const avisarZen = ({ titulo, mensagem, detalhes = [], variante = 'info' }) =>
@@ -103,15 +103,15 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
     if (totalEstornoBRL <= 0) return avisarZen({ variante:'warning', titulo:'Nenhum item selecionado', mensagem:tx('Selecione pelo menos 1 item para devolver.', 'Seleccione al menos 1 ítem.', 'Select at least 1 item.') });
 
     if (metodoReembolso === 'credito_fiado' && !vendaSendoDevolvida?.clienteId) {
-      return avisarZen({ variante:'warning', titulo:'Cliente não vinculado', mensagem:'Esta venda não tem cliente. Escolha Dinheiro, Pix ou Voucher.' });
+      return avisarZen({ variante:'warning', titulo:tx('Cliente não vinculado','Cliente no vinculado','Customer not linked'), mensagem:tx('Esta venda não tem cliente. Escolha Dinheiro, Pix ou Voucher.','Esta venta no tiene cliente. Elija Efectivo, Pix o Voucher.','This sale has no customer. Choose Cash, Pix or Voucher.') });
     }
     if (metodoReembolso === 'dinheiro' && !caixaReembolsoSelecionado) {
-      return avisarZen({ variante:'danger', titulo:'Nenhum caixa disponível', mensagem:'Para devolver em dinheiro, selecione um turno de caixa aberto. Se não houver caixa com saldo, use Pix/Banco ou Voucher.' });
+      return avisarZen({ variante:'danger', titulo:tx('Nenhum caixa disponível','Ninguna caja disponible','No register available'), mensagem:tx('Para devolver em dinheiro, selecione um turno de caixa aberto. Se não houver caixa com saldo, use Pix/Banco ou Voucher.','Para devolver en efectivo, seleccione un turno de caja abierto. Si no hay caja con saldo, use Pix/Banco o Voucher.','For a cash refund, select an open register shift. If no register has balance, use Pix/Bank or Voucher.') });
     }
     if (metodoReembolso === 'dinheiro' && totalEstornoBRL > Number(caixaReembolsoSelecionado?.resumo?.saldoEsperado || 0) + 0.001) {
       return avisarZen({
         variante:'danger',
-        titulo:'Saldo insuficiente no caixa selecionado',
+        titulo:tx('Saldo insuficiente no caixa selecionado','Saldo insuficiente en la caja seleccionada','Insufficient balance in selected register'),
         mensagem:`Disponível: ${fmt(caixaReembolsoSelecionado?.resumo?.saldoEsperado || 0, 'BRL')}`,
         detalhes:[
           `Caixa: ${caixaReembolsoSelecionado?.sessao?.operadorNome || '—'}`,
@@ -129,7 +129,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
     const metodoLabel = metodoReembolso === 'voucher' ? 'Gerar Voucher' : metodoReembolso === 'credito_fiado' ? 'Abater do Fiado' : metodoReembolso === 'pix' ? 'Pix / Banco' : 'Dinheiro da Gaveta';
     const confirmou = await pedirConfirmacaoZen({
       variante:'danger',
-      titulo:'Confirmar estorno / devolução',
+      titulo:tx('Confirmar estorno / devolução','Confirmar reversión / devolución','Confirm refund / return'),
       mensagem:`Total a devolver: ${fmt(totalEstornoBRL, 'BRL')}`,
       detalhes:[
         `Forma de reembolso: ${metodoLabel}`,
@@ -137,7 +137,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
         `Venda: ${vendaSendoDevolvida?.id || '—'}`,
         'Esta ação ficará registrada no histórico da venda.'
       ],
-      confirmarTexto:'Confirmar estorno'
+      confirmarTexto:tx('Confirmar estorno','Confirmar reversión','Confirm refund')
     });
     if (!confirmou) return;
 
@@ -145,7 +145,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
       const sessaoAtualizada = (sessoesCaixa || []).find(s => String(s.id) === String(sessaoReembolsoId) && s.status === 'aberta');
       const resumoAtualizado = sessaoAtualizada ? calcularResumoSessao({ sessao: sessaoAtualizada, historicoVendas, caixaMovimentos }) : null;
       if (!resumoAtualizado || totalEstornoBRL > Number(resumoAtualizado.saldoEsperado || 0) + 0.001) {
-        return avisarZen({ variante:'danger', titulo:'Saldo do caixa mudou', mensagem:'O caixa selecionado não possui mais saldo físico suficiente para esta devolução.', detalhes:[`Disponível agora: ${fmt(resumoAtualizado?.saldoEsperado || 0,'BRL')}`, `Devolução: ${fmt(totalEstornoBRL,'BRL')}`, 'Selecione outro caixa com saldo ou use Pix/Banco ou Voucher.'] });
+        return avisarZen({ variante:'danger', titulo:tx('Saldo do caixa mudou','El saldo de caja cambió','Register balance changed'), mensagem:tx('O caixa selecionado não possui mais saldo físico suficiente para esta devolução.','La caja seleccionada ya no posee saldo físico suficiente para esta devolución.','The selected register no longer has enough physical cash for this return.'), detalhes:[`Disponível agora: ${fmt(resumoAtualizado?.saldoEsperado || 0,'BRL')}`, `Devolução: ${fmt(totalEstornoBRL,'BRL')}`, 'Selecione outro caixa com saldo ou use Pix/Banco ou Voucher.'] });
       }
     }
 
@@ -213,7 +213,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
       if (typeof commitOperacaoNegocio !== 'function') await registrarEventosEstoque({ db, userId, eventos: eventosEstoque });
     } catch (erro) {
       console.error('[ZenOS][ATT02] Falha ao preparar devolução:', erro);
-      avisarZen({ variante:'danger', titulo:'Estorno não concluído', mensagem:erro.message || 'Não foi possível preparar a devolução sem risco de inconsistência.' });
+      avisarZen({ variante:'danger', titulo:tx('Estorno não concluído','Reversión no concluida','Refund not completed'), mensagem:erro.message || 'Não foi possível preparar a devolução sem risco de inconsistência.' });
       return;
     }
 
@@ -373,12 +373,12 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
       if (novoVoucher && setVouchers) setVouchers(confirmados.vouchers || vouchersPropostos);
     } catch (err) {
       console.error('[ZenOS][ATT10.2] Devolução não confirmada:', err);
-      avisarZen({ variante:'danger', titulo:'Estorno não concluído', mensagem:'A nuvem não confirmou a devolução. Estoque, histórico, caixa e fiado foram preservados.', detalhes:[err?.message || 'Falha de persistência'] });
+      avisarZen({ variante:'danger', titulo:tx('Estorno não concluído','Reversión no concluida','Refund not completed'), mensagem:tx('A nuvem não confirmou a devolução. Estoque, histórico, caixa e fiado foram preservados.','La nube no confirmó la devolución. Stock, historial, caja y crédito fueron preservados.','The cloud did not confirm the return. Stock, history, cash and credit were preserved.'), detalhes:[err?.message || 'Falha de persistência'] });
       return;
     }
 
     if (voucherCodigo) {
-      setModalZen({variante:'success',titulo:'Voucher gerado',mensagem:`Código: ${voucherCodigo}`,detalhes:[`Valor: ${fmt(totalEstornoBRL, 'BRL')}`,'O voucher foi registrado e poderá ser usado como pagamento no PDV.'],apenasConfirmar:true});
+      setModalZen({variante:'success',titulo:tx('Voucher gerado','Voucher generado','Voucher generated'),mensagem:`Código: ${voucherCodigo}`,detalhes:[`Valor: ${fmt(totalEstornoBRL, 'BRL')}`,tx('O voucher foi registrado e poderá ser usado como pagamento no PDV.','El voucher fue registrado y podrá usarse como pago en el TPV.','The voucher was recorded and can be used as payment in the POS.')],apenasConfirmar:true});
     }
 
     devolucaoOperacaoRef.current = { assinatura:null, id:null };
@@ -394,7 +394,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
   const imprimirVoucher = (voucher) => {
     if (!voucher) return;
     const janela = window.open('', '_blank', 'width=420,height=700');
-    if (!janela) return avisarZen({ variante:'danger', titulo:'Impressão bloqueada', mensagem:'Permita pop-ups para imprimir o voucher.' });
+    if (!janela) return avisarZen({ variante:'danger', titulo:tx('Impressão bloqueada','Impresión bloqueada','Printing blocked'), mensagem:tx('Permita pop-ups para imprimir o voucher.','Permita ventanas emergentes para imprimir el voucher.','Allow pop-ups to print the voucher.') });
     const impressoes = Array.isArray(voucher.impressoes) ? voucher.impressoes : [];
     const via = impressoes.length + 1;
     const solicitadoEm = new Date().toISOString();
@@ -411,7 +411,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
     const elementoCupom = document.getElementById('area-cupom-reimpressao');
     if (!elementoCupom) return;
     const janelaImpressao = window.open('', '_blank', 'width=400,height=600');
-    if (!janelaImpressao) return avisarZen({ variante:'danger', titulo:'Impressão bloqueada', mensagem:'Permita pop-ups para imprimir a segunda via.' });
+    if (!janelaImpressao) return avisarZen({ variante:'danger', titulo:tx('Impressão bloqueada','Impresión bloqueada','Printing blocked'), mensagem:tx('Permita pop-ups para imprimir a segunda via.','Permita ventanas emergentes para imprimir la segunda copia.','Allow pop-ups to print the second copy.') });
     janelaImpressao.document.write(`
       <!DOCTYPE html><html><head><title>{tx('Cupom - 2a Via','Ticket - 2ª Copia','Receipt - 2nd Copy')}</title><style>@page{margin:0;size:${larguraCssRecibo(perfilRecibo)} auto;}body{font-family:'Courier New',Courier,monospace;font-size:12px;color:#000;background:#fff;margin:0;padding:10px;width:${larguraCssRecibo(perfilRecibo)};box-sizing:border-box;}table{width:100%;border-collapse:collapse;font-size:11px;}th,td{padding:3px 0;}</style></head>
       <body>${elementoCupom.innerHTML}<script>window.onload=function(){window.focus();window.print();setTimeout(function(){window.close();},500);};</script></body></html>
@@ -445,7 +445,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
             <div style={{ marginTop: '10px', fontSize: '11px' }}><strong>{tx('Pagamentos:','Pagos:','Payments:')}</strong><br/>
               {cupomParaImprimir.pagamentos && cupomParaImprimir.pagamentos.length > 0 ? (
                 cupomParaImprimir.pagamentos.map((p, idx) => (<div key={idx} style={{ display: 'flex', justifyContent: 'space-between' }}><span>{p.rotulo}</span><span>{fmt(p.valorConvertidoBRL || p.valorOriginal || 0)}</span></div>))
-              ) : (<div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{cupomParaImprimir.detalhesPagamento || 'Dinheiro'}</span></div>)}
+              ) : (<div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{cupomParaImprimir.detalhesPagamento || tx('Dinheiro','Efectivo','Cash')}</span></div>)}
             </div>
             <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
             <div style={{ textAlign: 'center', fontSize: '10px' }}>{tx('Obrigado pela preferência!','¡Gracias por su preferencia!','Thank you for your business!')}<br/>{tx('Documento sem valor fiscal.','Documento sin valor fiscal.','Document with no fiscal value.')}</div>
