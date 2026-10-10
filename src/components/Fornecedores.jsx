@@ -7,7 +7,7 @@ export default function Fornecedores({ commitOperacaoNegocio, fornecedores, setF
   const [fornecedorEmEdicao, setFornecedorEmEdicao] = useState(null);
   const [modalZen, setModalZen] = useState(null);
   const avisarZen=(variante,titulo,mensagem)=>setModalZen({variante,titulo,mensagem,apenasConfirmar:true});
-  const confirmarZen=({titulo,mensagem,confirmarTexto='Confirmar',variante='warning'})=>new Promise(resolve=>setModalZen({variante,titulo,mensagem,confirmarTexto,cancelarTexto:'Cancelar',resolver}));
+  const confirmarZen=({titulo,mensagem,confirmarTexto=null,variante='warning'})=>new Promise(resolve=>setModalZen({variante,titulo,mensagem,confirmarTexto:confirmarTexto || tx('Confirmar','Confirmar','Confirm'),cancelarTexto:tx('Cancelar','Cancelar','Cancel'),resolver}));
   
   // Detecção da legislação fiscal baseada na moeda
   const eParaguai = moeda === 'PYG';
@@ -55,7 +55,7 @@ export default function Fornecedores({ commitOperacaoNegocio, fornecedores, setF
       setFornecedores(confirmados);
       setModalAberto(false);
     } catch (erro) {
-      avisarZen('danger','Fornecedor não salvo',`A nuvem não confirmou o cadastro. ${erro?.message || ''}`.trim());
+      avisarZen('danger',tx('Fornecedor não salvo','Proveedor no guardado','Supplier not saved'),`${tx('A nuvem não confirmou o cadastro.','La nube no confirmó el registro.','The cloud did not confirm the registration.')} ${erro?.message || ''}`.trim());
     }
   };
 
@@ -72,7 +72,7 @@ export default function Fornecedores({ commitOperacaoNegocio, fornecedores, setF
           confirmados = resultado.values?.fornecedores || listaProposta;
         }
         setFornecedores(confirmados);
-      } catch (erro) { avisarZen('danger','Fornecedor não excluído',`O cadastro foi preservado. ${erro?.message || ''}`.trim()); }
+      } catch (erro) { avisarZen('danger',tx('Fornecedor não excluído','Proveedor no eliminado','Supplier not deleted'),`${tx('O cadastro foi preservado.','El registro fue preservado.','The record was preserved.')} ${erro?.message || ''}`.trim()); }
     }
   };
 
