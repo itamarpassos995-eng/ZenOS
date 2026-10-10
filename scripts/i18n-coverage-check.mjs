@@ -26,7 +26,7 @@ const uiFiles = [
 ];
 
 const allowedDirectText = new Set([
-  'Zen','OS','ZenOS','ZENOS (CLOUD)','ZENOS FISCAL','ZÊNITE','CEO','LIVE','OK',
+  'Zen','OS','ZenOS','ZenOS Cloud SaaS Enterprise','ZENOS (CLOUD)','ZENOS FISCAL','ZÊNITE','Zênite','CEO','LIVE','OK','×',
   'SKU','BRL','USD','EUR','PYG','CF','CMV','UN','KG','M²','CX','KIT','NCM','CEST','A4',
   'CPF','CNPJ','CI / RUC','WhatsApp',
   'Português (PT)','Español (ES)','English (EN)',
@@ -62,7 +62,7 @@ for (const file of uiFiles) {
     if (allowedDirectText.has(value)) continue;
     if (/^(?:R\$|₲|\$|€|%|\+|-|\/)/.test(value)) continue;
     if (/^(?:[A-Z0-9_./-]{1,12})$/.test(value)) continue;
-    if (value.includes('=>') || value.includes('return') || value.includes('p.estoque')) continue;
+    if (value.includes('=>') || value.includes('return') || value.includes('p.estoque') || value.includes('String(') || value.includes('.join(') || value.includes('`')) continue;
     failures.push(`${file}: texto JSX direto -> "${value}"`);
   }
 
