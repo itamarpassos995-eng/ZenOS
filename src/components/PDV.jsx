@@ -185,7 +185,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
       ? Math.max(0, Number(normalizarProduto(produtoEmEdicaoPDV).estoque) || 0)
       : estoqueVitrineNovo + estoqueGalpaoNovo;
 
-    if (skuJaExiste(produtos, formProdutoPDV.sku, produtoEmEdicaoPDV)) return mostrarZen('danger', 'SKU duplicado', `Já existe outro produto com o SKU ${formProdutoPDV.sku}. Use um SKU diferente.`);
+    if (skuJaExiste(produtos, formProdutoPDV.sku, produtoEmEdicaoPDV)) return mostrarZen('danger', tx('SKU duplicado','SKU duplicado','Duplicate SKU'), `${tx('Já existe outro produto com o SKU','Ya existe otro producto con el SKU','Another product already uses SKU')} ${formProdutoPDV.sku}. ${tx('Use um SKU diferente.','Use un SKU diferente.','Use a different SKU.')}`);
     const usoUnicoEncomendado = Boolean(formProdutoPDV.usoUnicoEncomendado);
     const skuAjustado = ajustarSkuPorTipoProdutoRapido(formProdutoPDV.sku, usoUnicoEncomendado);
     const dadosFinais = normalizarProduto({
@@ -427,25 +427,25 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
     if (configForma.id === 'voucher') {
       const codigo = String(voucherCodigoInput || '').trim().toUpperCase();
       voucherSelecionado = (vouchers || []).find(v => String(v.codigo || '').toUpperCase() === codigo && v.status === 'ativo' && Number(v.saldoBRL || 0) > 0);
-      if (!voucherSelecionado) return setModalZen({variante:'danger',titulo:'Voucher inválido',mensagem:'Código não encontrado, já utilizado ou sem saldo.',apenasConfirmar:true});
-      if (valorNum > Number(voucherSelecionado.saldoBRL || 0) + 0.001) return setModalZen({variante:'warning',titulo:'Saldo insuficiente no voucher',mensagem:`Saldo disponível: ${fmt(voucherSelecionado.saldoBRL, 'BRL')}`,apenasConfirmar:true});
+      if (!voucherSelecionado) return setModalZen({variante:'danger',titulo:tx('Voucher inválido','Voucher inválido','Invalid voucher'),mensagem:tx('Código não encontrado, já utilizado ou sem saldo.','Código no encontrado, ya utilizado o sin saldo.','Code not found, already used, or has no balance.'),apenasConfirmar:true});
+      if (valorNum > Number(voucherSelecionado.saldoBRL || 0) + 0.001) return setModalZen({variante:'warning',titulo:tx('Saldo insuficiente no voucher','Saldo insuficiente en el voucher','Insufficient voucher balance'),mensagem:`${tx('Saldo disponível:','Saldo disponible:','Available balance:')} ${fmt(voucherSelecionado.saldoBRL, 'BRL')}`,apenasConfirmar:true});
     }
     const valorBRL = converterParaBRL(valorNum, configForma.moedaOrigem);
 
   if (configForma.id === 'crediario') {
-      if (!clienteSelecionadoPDV) return mostrarZen('warning', 'Cliente obrigatório', 'Para vender fiado, vincule um cliente antes de finalizar.');
+      if (!clienteSelecionadoPDV) return mostrarZen('warning', tx('Cliente obrigatório','Cliente obligatorio','Customer required'), tx('Para vender fiado, vincule um cliente antes de finalizar.','Para vender a crédito, vincule un cliente antes de finalizar.','To sell on credit, link a customer before completing the sale.'));
 
       const limite = parseFloat(clienteSelecionadoPDV.limiteCreditoBRL) || 0;
       
       // TRAVA 1: Se o cliente não tem limite ou o limite é zero
       if (limite <= 0) {
-        return mostrarZen('danger', 'Venda bloqueada', 'Este cliente não possui limite de crédito cadastrado ou o limite é zero.');
+        return mostrarZen('danger', tx('Venda bloqueada','Venta bloqueada','Sale blocked'), tx('Este cliente não possui limite de crédito cadastrado ou o limite é zero.','Este cliente no posee límite de crédito registrado o el límite es cero.','This customer has no registered credit limit or the limit is zero.'));
       }
 
       // TRAVA 2: Se a compra ultrapassar o limite (Sem opção de confirmar)
       const novoDevedor = (parseFloat(clienteSelecionadoPDV.saldoDevedorBRL) || 0) + valorBRL;
       if (novoDevedor > limite) {
-        return mostrarZen('danger', 'Limite de crédito excedido', `Limite: ${fmt(limite, 'BRL')}. Com esta compra, a dívida iria para ${fmt(novoDevedor, 'BRL')}.`);
+        return mostrarZen('danger', tx('Limite de crédito excedido','Límite de crédito excedido','Credit limit exceeded'), `${tx('Limite:','Límite:','Limit:')} ${fmt(limite, 'BRL')}. ${tx('Com esta compra, a dívida iria para','Con esta compra, la deuda quedaría en','With this purchase, the debt would become')} ${fmt(novoDevedor, 'BRL')}.`);
       }
     }
 
@@ -1034,7 +1034,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
               if (itemParaAdicionar.tipoItem === 'servico' || ehEncomendaUsoUnico(itemParaAdicionar)) return null;
               const saldo = obterEstoqueProduto(itemParaAdicionar);
               const previsao = preverBaixaEstoqueProduto(itemParaAdicionar, Math.max(1, parseInt(qtdDigitadaRapida) || 1));
-              if (saldo.estoqueVitrine > 0) return <div style={{ marginBottom: '14px', padding: '10px 12px', backgroundColor: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.45)', borderRadius: '10px', color: '#fbbf24', fontSize: '12px', fontWeight: 800 }}>⚠️ Disponibilidade: Vitrine {saldo.estoqueVitrine} • Depósito {saldo.estoqueGalpao} • Total {saldo.estoque}. Para esta quantidade, a baixa prevista é Vitrine {previsao.movimento.vitrine} + Depósito {previsao.movimento.galpao}. {saldo.estoqueGalpao > 0 ? 'Considere repor a vitrine após a venda.' : 'O produto está disponível somente na vitrine.'}</div>;
+              if (saldo.estoqueVitrine > 0) return <div style={{ marginBottom: '14px', padding: '10px 12px', backgroundColor: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.45)', borderRadius: '10px', color: '#fbbf24', fontSize: '12px', fontWeight: 800 }}>⚠️ {tx('Disponibilidade:','Disponibilidad:','Availability:')} {tx('Vitrine','Exhibición','Display')} {saldo.estoqueVitrine} • {tx('Depósito','Depósito','Warehouse')} {saldo.estoqueGalpao} • {tx('Total','Total','Total')} {saldo.estoque}. {tx('Para esta quantidade, a baixa prevista é','Para esta cantidad, la baja prevista es','For this quantity, the expected deduction is')} {tx('Vitrine','Exhibición','Display')} {previsao.movimento.vitrine} + {tx('Depósito','Depósito','Warehouse')} {previsao.movimento.galpao}. {saldo.estoqueGalpao > 0 ? 'Considere repor a vitrine após a venda.' : 'O produto está disponível somente na vitrine.'}</div>;
               return <div style={{ marginBottom: '12px', color: '#64748b', fontSize: '11px' }}>Vitrine: {saldo.estoqueVitrine} • Depósito: {saldo.estoqueGalpao} • Total: {saldo.estoque}</div>;
             })()}
             <input ref={inputQtdRapidaRef} type="number" value={qtdDigitadaRapida} onChange={e => setQtdDigitadaRapida(e.target.value)} onFocus={e=>e.target.select()} onKeyDown={e=>{if(e.key==='Enter') confirmarAdicaoRapida(); if(e.key==='Escape') setItemParaAdicionar(null);}} style={{ width: '80px', padding: '10px', fontSize: '20px', textAlign: 'center', backgroundColor: '#020617', border: '1px solid #6366f1', color: '#fff', borderRadius: '8px', marginBottom: '20px', outline: 'none' }} />
