@@ -33,7 +33,8 @@
     "test:att102": "node scripts/att102-safety-check.mjs",
     "test:att1021": "node scripts/att1021-prepedido-check.mjs",
     "test:fiscal": "node scripts/fiscal-foundation-check.mjs",
-    "test:fiscal2": "node scripts/fiscal-phase2-check.mjs"
+    "test:fiscal2": "node scripts/fiscal-phase2-check.mjs",
+    "test:fiscal-boot": "node scripts/fiscal-boot-check.mjs"
   },
   "dependencies": {
     "firebase": "^12.19.0",
