@@ -152,7 +152,7 @@ export default function Fornecedores({ commitOperacaoNegocio, fornecedores, setF
                   <label style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 800 }}>{tx('País / Regra Fiscal','País / Regla Fiscal','Country / Fiscal Rule')}</label>
                   <select value={form.pais} onChange={e => setForm({...form, pais: e.target.value})} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#a855f7', padding: '12px', outline: 'none', marginTop: '6px', boxSizing: 'border-box', fontWeight: 900 }}>
                     <option value="BR">{tx('Brasil (CNPJ/CPF)','Brasil (CNPJ/CPF)','Brazil (CNPJ/CPF)')}</option>
-                    <option value="PY">Paraguay (RUC)</option>
+                    <option value="PY">{tx('Paraguai (RUC)','Paraguay (RUC)','Paraguay (RUC)')}</option>
                     <option value="OUTROS">{tx('Exterior / Outros','Exterior / Otros','Foreign / Other')}</option>
                   </select>
                 </div>
