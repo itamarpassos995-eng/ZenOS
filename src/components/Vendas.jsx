@@ -123,7 +123,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
     if (metodoReembolso === 'credito_fiado') {
       const cli = (clientes || []).find(c => String(c.id) === String(vendaSendoDevolvida.clienteId));
       const saldo = Number(cli?.saldoDevedorBRL || 0);
-      if (totalEstornoBRL > saldo + 0.001) return avisarZen({ variante:'warning', titulo:'Abatimento maior que a dívida', mensagem:`O cliente possui ${fmt(saldo, 'BRL')} em aberto.`, detalhes:['Use Dinheiro, Pix ou Voucher para o valor que exceder o saldo devedor.'] });
+      if (totalEstornoBRL > saldo + 0.001) return avisarZen({ variante:'warning', titulo:tx('Abatimento maior que a dívida','Crédito mayor que la deuda','Credit exceeds debt'), mensagem:`${tx('O cliente possui','El cliente posee','The customer has')} ${fmt(saldo, 'BRL')} ${tx('em aberto.','pendiente.','outstanding.')}`, detalhes:[tx('Use Dinheiro, Pix ou Voucher para o valor que exceder o saldo devedor.','Use Efectivo, Pix o Voucher para el valor que exceda el saldo deudor.','Use Cash, Pix or Voucher for the amount exceeding the outstanding balance.')] });
     }
 
     const metodoLabel = metodoReembolso === 'voucher' ? 'Gerar Voucher' : metodoReembolso === 'credito_fiado' ? 'Abater do Fiado' : metodoReembolso === 'pix' ? 'Pix / Banco' : 'Dinheiro da Gaveta';
