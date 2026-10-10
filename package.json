@@ -31,7 +31,8 @@
     "test:att101": "node scripts/att101-check.mjs",
     "test:mobile": "node scripts/mobile-homologacao-check.mjs",
     "test:att102": "node scripts/att102-safety-check.mjs",
-    "test:att1021": "node scripts/att1021-prepedido-check.mjs"
+    "test:att1021": "node scripts/att1021-prepedido-check.mjs",
+    "test:fiscal": "node scripts/fiscal-foundation-check.mjs"
   },
   "dependencies": {
     "firebase": "^12.19.0",

@@ -21,6 +21,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
   
   const [nomeClienteVulso, setNomeClienteVulso] = useState('');
   const [clienteSelecionadoPDV, setClienteSelecionadoPDV] = useState(null);
+  const [clienteQuerFiscal, setClienteQuerFiscal] = useState(false);
   const [focoInputCliente, setFocoInputCliente] = useState(false);
 
   const [modalProdutoPDVAberto, setModalProdutoPDVAberto] = useState(false);
@@ -306,6 +307,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
 
   const carregarPrePedido = (pedido) => {
     setItensVenda(itensVendaComCustoAtual(pedido.itens));
+    setClienteQuerFiscal(pedido.clienteQuerFiscal === true);
     if (pedido.clienteId) {
       const cli = clientes.find(c => c.id === pedido.clienteId);
       if (cli) setClienteSelecionadoPDV(cli);
@@ -577,6 +579,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
         createdAt: instanteVenda.toISOString(),
         dataHora: instanteVenda.toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR'),
         clienteId: clienteSelecionadoPDV ? clienteSelecionadoPDV.id : null,
+        clienteQuerFiscal,
         clienteNome: (String(clienteSelecionadoPDV?.nome || '').trim() || String(nomeClienteVulso || '').trim() || tx('Consumidor Balcão', 'Consumidor', 'Walk-in')),
         vendedorId: idSeguro,
         vendedorNome: nomeSeguro,
@@ -798,6 +801,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
     operacaoDocumentoRef.current = { assinatura: null, id: null };
     setItensVenda([]); setDescontoTexto('0'); setPagamentosLancados([]);
     setClienteSelecionadoPDV(null); setNomeClienteVulso('');
+    setClienteQuerFiscal(false);
     setPrePedidoEmAbertoId(null); 
     setModalFechamentoAberto(false); setVendaSucesso(false); setVendaConcluidaObj(null);
   };
@@ -981,6 +985,10 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
         
         <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
           <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', letterSpacing: '1px', textTransform: 'uppercase' }}>{t('resumoVenda')}</span>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#cbd5e1', cursor: 'pointer', minHeight: '44px' }}>
+            <input type="checkbox" checked={clienteQuerFiscal} disabled={processandoTransacao || vendaSucesso} onChange={(e) => setClienteQuerFiscal(e.target.checked)} style={{ width: '18px', height: '18px', flexShrink: 0, accentColor: '#38bdf8' }} />
+            <span>{tx('Cliente quer nota fiscal / factura legal', 'Cliente solicita factura legal / nota fiscal', 'Customer requests a fiscal document')}<small style={{ display: 'block', color: '#64748b', marginTop: '3px' }}>{tx('Somente registra a solicitação. Não emite documento.', 'Solo registra la solicitud. No emite documentos.', 'Records the request only. Does not issue a document.')}</small></span>
+          </label>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#cbd5e1' }}><span>{t('subtotal')}</span><span style={{ fontWeight: 700, color: '#fff' }}>{fmt(subtotalBrutoBRL)}</span></div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px', color: '#cbd5e1' }}>
             <span>{t('descontoGlobal')}</span>
