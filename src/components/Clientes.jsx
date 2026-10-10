@@ -344,7 +344,7 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
                   <select value={formCliente.pais} onChange={e => setFormCliente({ ...formCliente, pais: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '12px', outline: 'none', marginTop: '4px', boxSizing: 'border-box' }}>
                     <option value="BR">{tx('Brasil (BR)','Brasil (BR)','Brazil (BR)')}</option>
                     <option value="PY">{tx('Paraguai (PY)','Paraguay (PY)','Paraguay (PY)')}</option>
-                    <option value="AR">Argentina (AR)</option>
+                    <option value="AR">{tx('Argentina (AR)','Argentina (AR)','Argentina (AR)')}</option>
                     <option value="US">{tx('Estados Unidos (US)','Estados Unidos (US)','United States (US)')}</option>
                     <option value="OUTRO">{tx('Outro / Internacional','Otro / Internacional','Other / International')}</option>
                   </select>
@@ -405,7 +405,7 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
         return <div style={{ position:'fixed', inset:0, zIndex:1800, background:'rgba(2,6,23,.88)', backdropFilter:'blur(7px)', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
           <div style={{ width:'100%', maxWidth:900, maxHeight:'82vh', overflow:'hidden', background:'#0b1120', border:'1px solid #38bdf8', borderRadius:22, color:'#fff', boxShadow:'0 30px 80px rgba(0,0,0,.55)' }}>
             <div style={{ padding:22, borderBottom:'1px solid #1e293b', display:'flex', justifyContent:'space-between', gap:16, alignItems:'center' }}>
-              <div><div style={{ color:'#38bdf8', fontSize:11, fontWeight:900, letterSpacing:1 }}>{tx('CONTA CORRENTE DO CLIENTE','CUENTA CORRIENTE DEL CLIENTE','CUSTOMER ACCOUNT')}</div><h3 style={{ margin:'4px 0 0', fontSize:20 }}>{clienteExtrato.nome}</h3><div style={{ color:'#94a3b8', fontSize:12, marginTop:4 }}>Saldo atual cadastrado: <strong style={{color:'#fb7185'}}>{fmt(clienteExtrato.saldoDevedorBRL||0,'BRL')}</strong></div></div>
+              <div><div style={{ color:'#38bdf8', fontSize:11, fontWeight:900, letterSpacing:1 }}>{tx('CONTA CORRENTE DO CLIENTE','CUENTA CORRIENTE DEL CLIENTE','CUSTOMER ACCOUNT')}</div><h3 style={{ margin:'4px 0 0', fontSize:20 }}>{clienteExtrato.nome}</h3><div style={{ color:'#94a3b8', fontSize:12, marginTop:4 }}>{tx('Saldo atual cadastrado:','Saldo actual registrado:','Current registered balance:')} <strong style={{color:'#fb7185'}}>{fmt(clienteExtrato.saldoDevedorBRL||0,'BRL')}</strong></div></div>
               <button onClick={()=>setClienteExtrato(null)} style={{width:36,height:36,borderRadius:9,border:'1px solid #334155',background:'#020617',color:'#94a3b8',cursor:'pointer'}}>✕</button>
             </div>
             <div style={{ padding:14, color:'#94a3b8', fontSize:11, borderBottom:'1px solid #1e293b' }}>{tx('O extrato auditável começa com os novos lançamentos da ATT 07. O histórico anterior não é reconstruído por inferência.','El extracto auditable comienza con los nuevos movimientos de ATT 07. El historial anterior no se reconstruye por inferencia.','The auditable statement starts with new ATT 07 entries. Previous history is not reconstructed by inference.')}</div>
