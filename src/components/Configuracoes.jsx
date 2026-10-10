@@ -81,11 +81,11 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
       if (!validacao.ok) throw new Error(validacao.erros.join(' '));
       baixarBackupJson(backup);
       setBackupValidadoNestaSessao(true);
-      avisarZen('success','Backup validado e exportado',`Backup íntegro. Produtos: ${validacao.counts.produtos} • Clientes: ${validacao.counts.clientes} • Vendas: ${validacao.counts.vendas}.`);
+      avisarZen('success',tx('Backup validado e exportado','Backup validado y exportado','Backup validated and exported'),`${tx('Backup íntegro. Produtos:','Backup íntegro. Productos:','Valid backup. Products:')} ${validacao.counts.produtos} • ${tx('Clientes:','Clientes:','Customers:')} ${validacao.counts.clientes} • ${tx('Vendas:','Ventas:','Sales:')} ${validacao.counts.vendas}.`);
     } catch (error) {
       console.error('[ZenOS Backup]', error);
       setBackupValidadoNestaSessao(false);
-      avisarZen('danger','Falha no backup',error?.message || 'Não foi possível gerar um backup validado.');
+      avisarZen('danger',tx('Falha no backup','Falla de backup','Backup failure'),error?.message || tx('Não foi possível gerar um backup validado.','No fue posible generar un backup validado.','Could not generate a validated backup.'));
     } finally { setProcessandoBackup(false); }
   };
 
@@ -96,24 +96,24 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
       const resultado = await validarBackup(parsed);
       if (!resultado.ok) throw new Error(resultado.erros.join(' '));
       setArquivoBackupSelecionado(parsed);
-      avisarZen('success','Backup íntegro',`Checksum confirmado. Produtos: ${resultado.counts.produtos} • Vendas: ${resultado.counts.vendas}.`);
+      avisarZen('success',tx('Backup íntegro','Backup íntegro','Valid backup'),`${tx('Checksum confirmado. Produtos:','Checksum confirmado. Productos:','Checksum confirmed. Products:')} ${resultado.counts.produtos} • ${tx('Vendas:','Ventas:','Sales:')} ${resultado.counts.vendas}.`);
     } catch (error) {
       setArquivoBackupSelecionado(null);
-      avisarZen('danger','Backup inválido',error?.message || 'O arquivo não passou na validação.');
+      avisarZen('danger',tx('Backup inválido','Backup inválido','Invalid backup'),error?.message || tx('O arquivo não passou na validação.','El archivo no pasó la validación.','The file did not pass validation.'));
     }
   };
 
   const restaurarBackupHomologacao = async () => {
-    if (!ZENOS_RUNTIME.isHomologacao) return avisarZen('danger','Restauração bloqueada','A restauração só é permitida no ambiente de homologação.');
+    if (!ZENOS_RUNTIME.isHomologacao) return avisarZen('danger',tx('Restauração bloqueada','Restauración bloqueada','Restore blocked'),tx('A restauração só é permitida no ambiente de homologação.','La restauración solo está permitida en el ambiente de homologación.','Restore is only allowed in the test environment.'));
     if (!arquivoBackupSelecionado) return avisarZen('warning','Selecione um backup','Valide primeiro um arquivo de backup.');
     const confirmou = await confirmarZen({ titulo:'Restaurar em homologação vazia', mensagem:'Esta operação é permitida somente em uma loja de homologação vazia e não apaga registros existentes.', confirmarTexto:'Restaurar', variante:'warning' });
     if (!confirmou) return;
     setProcessandoBackup(true);
     try {
       const r = await restaurarBackupSomenteHomologacao({ db, userId, backup: arquivoBackupSelecionado });
-      avisarZen('success','Restauração concluída',`Backup restaurado na homologação. Produtos: ${r.counts.produtos} • Vendas: ${r.counts.vendas}.`);
+      avisarZen('success',tx('Restauração concluída','Restauración concluida','Restore completed'),`${tx('Backup restaurado na homologação. Produtos:','Backup restaurado en homologación. Productos:','Backup restored in test environment. Products:')} ${r.counts.produtos} • ${tx('Vendas:','Ventas:','Sales:')} ${r.counts.vendas}.`);
     } catch (error) {
-      avisarZen('danger','Restauração bloqueada',error?.message || 'Não foi possível restaurar o backup.');
+      avisarZen('danger',tx('Restauração bloqueada','Restauración bloqueada','Restore blocked'),error?.message || tx('Não foi possível restaurar o backup.','No fue posible restaurar el backup.','Could not restore the backup.'));
     } finally { setProcessandoBackup(false); }
   };
 
@@ -162,7 +162,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
       setNovoVendedorPermissoes({ admin: false, pdv: true, produtos: false, clientes: false, vendas: false, caixa: false, despesas: false, mesas: false, inteligencia: false });
       avisarZen('success',tx('Operador cadastrado','Operador registrado','Operator registered'),tx('Utilizador confirmado na nuvem com sucesso!','Usuario confirmado en la nube correctamente.','User successfully confirmed in the cloud.'));
     } catch (error) {
-      avisarZen('danger','Operador não cadastrado','A nuvem não confirmou o cadastro. Nenhuma alteração foi aplicada.',[error?.message || 'Falha de persistência']);
+      avisarZen('danger',tx('Operador não cadastrado','Operador no registrado','Operator not registered'),tx('A nuvem não confirmou o cadastro. Nenhuma alteração foi aplicada.','La nube no confirmó el registro. No se aplicó ningún cambio.','The cloud did not confirm registration. No change was applied.'),[error?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
     }
   };
 
@@ -176,7 +176,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
       const confirmados = await confirmarVendedoresNaNuvem(vendedores.filter(v => String(v.id) !== String(idParaRemover)));
       if (setVendedores) setVendedores(confirmados);
     } catch (error) {
-      avisarZen('danger','Operador não removido','A nuvem não confirmou a remoção. O operador foi preservado.',[error?.message || 'Falha de persistência']);
+      avisarZen('danger',tx('Operador não removido','Operador no eliminado','Operator not removed'),tx('A nuvem não confirmou a remoção. O operador foi preservado.','La nube no confirmó la eliminación. El operador fue preservado.','The cloud did not confirm removal. The operator was preserved.'),[error?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
     }
   };
 
@@ -198,7 +198,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
       const confirmados = await confirmarVendedoresNaNuvem(novaLista);
       if (setVendedores) setVendedores(confirmados);
     } catch (error) {
-      avisarZen('danger','Permissão não alterada','A nuvem não confirmou a alteração. A permissão anterior foi preservada.',[error?.message || 'Falha de persistência']);
+      avisarZen('danger',tx('Permissão não alterada','Permiso no modificado','Permission not changed'),tx('A nuvem não confirmou a alteração. A permissão anterior foi preservada.','La nube no confirmó el cambio. El permiso anterior fue preservado.','The cloud did not confirm the change. The previous permission was preserved.'),[error?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
     }
   };
 
@@ -249,7 +249,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
       } else {
         throw new Error('Persistência segura indisponível. Reset/restauração bloqueado para evitar sobrescrita concorrente.');
       }
-      avisarZen('success','Operação concluída','Itens selecionados limpos/restaurados com sucesso!');
+      avisarZen('success',tx('Operação concluída','Operación concluida','Operation completed'),tx('Itens selecionados limpos/restaurados com sucesso!','Ítems seleccionados limpiados/restaurados correctamente.','Selected items were cleaned/restored successfully.'));
       setModalResetAberto(false); setSenhaAdmin(''); setEtapaAviso(1); handleSelTudo(false);
     } catch (err) {
       console.error("Erro ao validar senha:", err);
