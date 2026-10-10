@@ -23,7 +23,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
   const [processandoBackup, setProcessandoBackup] = useState(false);
   const [arquivoBackupSelecionado, setArquivoBackupSelecionado] = useState(null);
   const avisarZen = (variante, titulo, mensagem, detalhes = []) => setModalZen({ variante, titulo, mensagem, detalhes, apenasConfirmar:true });
-  const confirmarZen = ({ titulo, mensagem, detalhes = [], confirmarTexto = 'Confirmar', variante = 'warning' }) => new Promise(resolve => setModalZen({ variante, titulo, mensagem, detalhes, confirmarTexto, cancelarTexto:'Cancelar', resolver:resolve }));
+  const confirmarZen = ({ titulo, mensagem, detalhes = [], confirmarTexto = null, variante = 'warning' }) => new Promise(resolve => setModalZen({ variante, titulo, mensagem, detalhes, confirmarTexto:confirmarTexto || tx('Confirmar','Confirmar','Confirm'), cancelarTexto:tx('Cancelar','Cancelar','Cancel'), resolver:resolve }));
 
   const [selProdutos, setSelProdutos] = useState(false);
   const [selClientes, setSelClientes] = useState(false);
@@ -66,14 +66,14 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
       window.location.reload(); 
     } catch (err) {
       console.error("Erro ao guardar perfil:", err);
-      avisarZen('danger','Falha ao salvar','Erro ao guardar. Verifique a conexão.');
+      avisarZen('danger',tx('Falha ao salvar','Error al guardar','Save failed'),tx('Erro ao guardar. Verifique a conexão.','Error al guardar. Verifique la conexión.','Could not save. Check the connection.'));
     }
     setSalvandoPerfil(false);
   };
 
 
   const exportarBackupCompleto = async () => {
-    if (!userId) return avisarZen('danger','Loja não identificada','Não foi possível identificar a loja para gerar o backup.');
+    if (!userId) return avisarZen('danger',tx('Loja não identificada','Tienda no identificada','Store not identified'),tx('Não foi possível identificar a loja para gerar o backup.','No fue posible identificar la tienda para generar el backup.','Could not identify the store to generate the backup.'));
     setProcessandoBackup(true);
     try {
       const backup = await coletarBackupLoja({ db, userId, operadorNome: operadorAtivo?.nome || auth.currentUser?.email || 'Administrador' });
@@ -137,8 +137,8 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
   };
 
   const adicionarVendedor = async () => {
-    if (!novoVendedorNome.trim() || !novoVendedorSenha.trim()) return avisarZen('warning','Dados incompletos','Informe o nome e o PIN do operador.');
-    if (pinEhFraco(novoVendedorSenha)) return avisarZen('warning','PIN muito previsível','Escolha um PIN diferente de admin, 1234, 0000, 1111 e sequências triviais.');
+    if (!novoVendedorNome.trim() || !novoVendedorSenha.trim()) return avisarZen('warning',tx('Dados incompletos','Datos incompletos','Incomplete data'),tx('Informe o nome e o PIN do operador.','Informe el nombre y PIN del operador.','Enter the operator name and PIN.'));
+    if (pinEhFraco(novoVendedorSenha)) return avisarZen('warning',tx('PIN muito previsível','PIN demasiado previsible','PIN too predictable'),tx('Escolha um PIN diferente de admin, 1234, 0000, 1111 e sequências triviais.','Elija un PIN diferente de admin, 1234, 0000, 1111 y secuencias triviales.','Choose a PIN other than admin, 1234, 0000, 1111 and trivial sequences.'));
     const credencialPin = await criarCredencialPin(novoVendedorSenha);
     
     const nv = { 
@@ -160,17 +160,17 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
       setNovoVendedorSenha('');
       setNovoVendedorPercentual('');
       setNovoVendedorPermissoes({ admin: false, pdv: true, produtos: false, clientes: false, vendas: false, caixa: false, despesas: false, mesas: false, inteligencia: false });
-      avisarZen('success','Operador cadastrado','Utilizador confirmado na nuvem com sucesso!');
+      avisarZen('success',tx('Operador cadastrado','Operador registrado','Operator registered'),tx('Utilizador confirmado na nuvem com sucesso!','Usuario confirmado en la nube correctamente.','User successfully confirmed in the cloud.'));
     } catch (error) {
       avisarZen('danger','Operador não cadastrado','A nuvem não confirmou o cadastro. Nenhuma alteração foi aplicada.',[error?.message || 'Falha de persistência']);
     }
   };
 
   const removerVendedor = async (idParaRemover) => {
-    if (String(idParaRemover) === 'admin') return avisarZen('warning','Administrador principal protegido','O administrador principal não pode ser removido. Altere o PIN se necessário.');
-    if (!vendedores || vendedores.length <= 1) return avisarZen('warning','Operação bloqueada','Você não pode excluir o último utilizador do sistema.');
+    if (String(idParaRemover) === 'admin') return avisarZen('warning',tx('Administrador principal protegido','Administrador principal protegido','Main administrator protected'),tx('O administrador principal não pode ser removido. Altere o PIN se necessário.','El administrador principal no puede ser eliminado. Cambie el PIN si es necesario.','The main administrator cannot be removed. Change the PIN if necessary.'));
+    if (!vendedores || vendedores.length <= 1) return avisarZen('warning',tx('Operação bloqueada','Operación bloqueada','Operation blocked'),tx('Você não pode excluir o último utilizador do sistema.','No puede eliminar el último usuario del sistema.','You cannot delete the last user in the system.'));
     const alvo=(vendedores||[]).find(v=>String(v.id)===String(idParaRemover));
-    const confirmou=await confirmarZen({ titulo:'Remover operador', mensagem:`Remover ${alvo?.nome || 'este operador'} do sistema?`, confirmarTexto:'Remover', variante:'danger' });
+    const confirmou=await confirmarZen({ titulo:tx('Remover operador','Eliminar operador','Remove operator'), mensagem:`Remover ${alvo?.nome || 'este operador'} do sistema?`, confirmarTexto:tx('Remover','Eliminar','Remove'), variante:'danger' });
     if (!confirmou) return;
     try {
       const confirmados = await confirmarVendedoresNaNuvem(vendedores.filter(v => String(v.id) !== String(idParaRemover)));
@@ -204,7 +204,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
 
   const atualizarPinOperador = async (operador) => {
     const novoPin = String(pinEdicaoPorId[operador.id] ?? '').trim();
-    if (!novoPin || pinEhFraco(novoPin)) return avisarZen('warning','PIN inválido','Escolha um PIN com pelo menos 4 caracteres, diferente dos padrões previsíveis bloqueados.');
+    if (!novoPin || pinEhFraco(novoPin)) return avisarZen('warning',tx('PIN inválido','PIN inválido','Invalid PIN'),tx('Escolha um PIN com pelo menos 4 caracteres, diferente dos padrões previsíveis bloqueados.','Elija un PIN de al menos 4 caracteres, diferente de los patrones previsibles bloqueados.','Choose a PIN with at least 4 characters, different from blocked predictable patterns.'));
     const credencialPin = await criarCredencialPin(novoPin);
     try {
       const proposta = (vendedores || []).map(v => String(v.id) === String(operador.id) ? { ...v, ...credencialPin } : v);
@@ -218,9 +218,9 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
   };
 
   const executarResetGranular = async () => {
-    if (!backupValidadoNestaSessao) return avisarZen('danger','Backup obrigatório','Antes de restaurar/limpar dados, gere e valide um backup completo nesta sessão.');
-    if (!senhaAdmin) return avisarZen('warning','Senha necessária','Por favor, digite a senha da conta administradora.');
-    if (!selProdutos && !selClientes && !selVendas && !selCaixa && !selDespesas) { return avisarZen('warning','Nada selecionado','Selecione pelo menos uma opção para restaurar ou limpar.'); }
+    if (!backupValidadoNestaSessao) return avisarZen('danger',tx('Backup obrigatório','Backup obligatorio','Backup required'),tx('Antes de restaurar/limpar dados, gere e valide um backup completo nesta sessão.','Antes de restaurar/limpiar datos, genere y valide un backup completo en esta sesión.','Before restoring/cleaning data, generate and validate a complete backup in this session.'));
+    if (!senhaAdmin) return avisarZen('warning',tx('Senha necessária','Contraseña necesaria','Password required'),tx('Por favor, digite a senha da conta administradora.','Ingrese la contraseña de la cuenta administradora.','Enter the administrator account password.'));
+    if (!selProdutos && !selClientes && !selVendas && !selCaixa && !selDespesas) { return avisarZen('warning',tx('Nada selecionado','Nada seleccionado','Nothing selected'),tx('Selecione pelo menos uma opção para restaurar ou limpar.','Seleccione al menos una opción para restaurar o limpiar.','Select at least one option to restore or clean.')); }
     setCarregandoReset(true);
     try {
       const user = auth.currentUser;
@@ -253,7 +253,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
       setModalResetAberto(false); setSenhaAdmin(''); setEtapaAviso(1); handleSelTudo(false);
     } catch (err) {
       console.error("Erro ao validar senha:", err);
-      avisarZen('danger','Autenticação falhou','Senha incorreta ou erro de autenticação.');
+      avisarZen('danger',tx('Autenticação falhou','Autenticación fallida','Authentication failed'),tx('Senha incorreta ou erro de autenticação.','Contraseña incorrecta o error de autenticación.','Incorrect password or authentication error.'));
     } finally {
       setCarregandoReset(false);
     }
@@ -279,7 +279,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
 
   return (
     <>
-      <ZenModal aberto={!!modalZen} variante={modalZen?.variante} titulo={modalZen?.titulo} mensagem={modalZen?.mensagem} detalhes={modalZen?.detalhes} confirmarTexto={modalZen?.confirmarTexto || 'OK'} cancelarTexto={modalZen?.cancelarTexto || 'Cancelar'} apenasConfirmar={!!modalZen?.apenasConfirmar} onConfirmar={()=>{ const r=modalZen?.resolver; setModalZen(null); if(r) r(true); }} onCancelar={()=>{ const r=modalZen?.resolver; setModalZen(null); if(r) r(false); }} />
+      <ZenModal aberto={!!modalZen} variante={modalZen?.variante} titulo={modalZen?.titulo} mensagem={modalZen?.mensagem} detalhes={modalZen?.detalhes} confirmarTexto={modalZen?.confirmarTexto || 'OK'} cancelarTexto={modalZen?.cancelarTexto || tx('Cancelar','Cancelar','Cancel')} apenasConfirmar={!!modalZen?.apenasConfirmar} onConfirmar={()=>{ const r=modalZen?.resolver; setModalZen(null); if(r) r(true); }} onCancelar={()=>{ const r=modalZen?.resolver; setModalZen(null); if(r) r(false); }} />
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px', maxWidth: '1000px', margin: '0 auto' }}>
       <div>
         <h2 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>{tx('Configurações do Sistema','Configuración del Sistema','System Settings')}</h2>
