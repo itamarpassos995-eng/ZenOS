@@ -1298,11 +1298,11 @@ export default function App() {
           </div>
 
           <h2 style={{ color: '#fbbf24', fontSize: '24px', fontWeight: 900, margin: '0 0 16px 0', lineHeight: 1.2 }}>
-            Licença Pendente /<br/>Teste Expirado
+            {tx('Licença Pendente /','Licencia Pendiente /','License Pending /')}<br/>{tx('Teste Expirado','Prueba Expirada','Trial Expired')}
           </h2>
 
           <p style={{ color: '#94a3b8', fontSize: '13px', lineHeight: 1.6, marginBottom: '24px' }}>
-            O seu período de teste gratuito de 7 dias terminou ou a licença da loja aguarda ativação. Escolha um plano para desbloquear o terminal ZenOS de imediato.
+            {tx('O seu período de teste gratuito de 7 dias terminou ou a licença da loja aguarda ativação. Escolha um plano para desbloquear o terminal ZenOS de imediato.','Su período de prueba gratuito de 7 días terminó o la licencia de la tienda espera activación. Elija un plan para desbloquear el terminal ZenOS de inmediato.','Your 7-day free trial has ended or the store license is awaiting activation. Choose a plan to unlock the ZenOS terminal immediately.')}
           </p>
 
           {/* INNER CARD - CLOUD SAAS ENTERPRISE */}
@@ -1315,7 +1315,7 @@ export default function App() {
           {/* BOTÕES */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <button onClick={() => setModalPlanosAberto(true)} style={{ padding: '16px', background: 'linear-gradient(135deg, #2dd4bf, #0f766e)', border: 'none', color: '#ffffff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '14px', boxShadow: '0 4px 15px rgba(45, 212, 191, 0.3)', transition: 'all 0.2s' }}>
-              Ver Opções de Planos
+              {tx('Ver Opções de Planos','Ver Opciones de Planes','View Plan Options')}
             </button>
 
             <button 
@@ -1327,7 +1327,7 @@ export default function App() {
             </button>
 
             <button onClick={() => signOut(auth)} style={{ background: 'transparent', color: '#f43f5e', border: 'none', cursor: 'pointer', fontWeight: 800, fontSize: '13px', padding: '10px' }}>
-              Sair e Voltar mais tarde
+              {tx('Sair e Voltar mais tarde','Salir y Volver más tarde','Sign Out and Return Later')}
             </button>
           </div>
         </div>
@@ -1339,7 +1339,7 @@ export default function App() {
               <span style={{ fontSize: '40px' }}>💎</span>
               <h3 style={{ margin: '12px 0 8px 0', fontSize: '24px', fontWeight: 900, color: '#f8fafc' }}>{tx('Escolha o seu Plano ZenOS','Elija su Plan ZenOS','Choose Your ZenOS Plan')}</h3>
               <p style={{ color: '#94a3b8', marginBottom: '24px', fontSize: '14px', lineHeight: 1.5 }}>
-                Selecione o plano ideal para a sua operação e o ciclo de faturação.
+                {tx('Selecione o plano ideal para a sua operação e o ciclo de faturação.','Seleccione el plan ideal para su operación y el ciclo de facturación.','Select the ideal plan for your operation and billing cycle.')}
               </p>
 
               {/* SELETORES DE CICLO */}
@@ -1417,10 +1417,10 @@ export default function App() {
               {/* Botões Inferiores */}
               <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
                 <button onClick={() => setModalPlanosAberto(false)} style={{ flex: 1, minWidth: '200px', padding: '16px', borderRadius: '12px', backgroundColor: '#1e293b', color: '#f8fafc', border: 'none', cursor: 'pointer', fontWeight: 800, fontSize: '14px' }}>
-                  Voltar para Bloqueio
+                  {tx('Voltar para Bloqueio','Volver al Bloqueo','Back to License Screen')}
                 </button>
                 <button onClick={() => { window.open('https://wa.me/5519995855839?text=Olá,%20gostaria%20de%20saber%20sobre%20o%20plano%20Multi-Filiais.', '_blank'); }} style={{ flex: 1, minWidth: '200px', padding: '16px', borderRadius: '12px', backgroundColor: '#020617', border: '1px solid #334155', color: '#38bdf8', cursor: 'pointer', fontWeight: 900, fontSize: '14px' }}>
-                  🏢 Consultar Plano Multi-Filiais
+                  🏢 {tx('Consultar Plano Multi-Filiais','Consultar Plan Multi-Sucursales','Ask About Multi-Branch Plan')}
                 </button>
               </div>
 
