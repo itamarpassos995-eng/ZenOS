@@ -135,7 +135,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
     let listaProposta;
     if (produtoEmEdicao) {
       try { listaProposta = atualizarProdutoUnico(produtos, produtoEmEdicao, { ...produtoEmEdicao, ...dadosFinais }, 'edição de produto na compra'); }
-      catch (erro) { return avisarZen('danger','Edição bloqueada',erro.message || 'Não foi possível editar este produto com segurança.'); }
+      catch (erro) { return avisarZen('danger',tx('Edição bloqueada','Edición bloqueada','Edit blocked'),erro.message || tx('Não foi possível editar este produto com segurança.','No fue posible editar este producto con seguridad.','Could not safely edit this product.')); }
     } else {
       listaProposta = [dadosFinais, ...(produtos || [])];
     }
@@ -157,7 +157,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
       }
       setModalProdutoAberto(false);
     } catch (erro) {
-      avisarZen('danger','Produto não salvo','A nuvem não confirmou o produto. O cadastro não foi considerado concluído.',[erro?.message || 'Falha de persistência']);
+      avisarZen('danger',tx('Produto não salvo','Producto no guardado','Product not saved'),tx('A nuvem não confirmou o produto. O cadastro não foi considerado concluído.','La nube no confirmó el producto. El registro no fue considerado concluido.','The cloud did not confirm the product. Registration was not considered complete.'),[erro?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
     }
   };
 
@@ -320,10 +320,10 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
     if (compraEmAndamentoRef.current || !podeFinalizarCompra) return;
     const totalDinheiroImediato = pagamentosLancados.filter(p => !p.aPrazo && p.formaId === 'dinheiro').reduce((a,p)=>a+(Number(p.valorConvertidoBRL)||0),0);
     if (totalDinheiroImediato > 0 && !sessaoAtiva) {
-      return setModalZen({ variante:'danger', titulo:'Caixa fechado', mensagem:'Para pagar uma compra em dinheiro é necessário um turno de caixa aberto.', apenasConfirmar:true });
+      return setModalZen({ variante:'danger', titulo:tx('Caixa fechado','Caja cerrada','Register closed'), mensagem:tx('Para pagar uma compra em dinheiro é necessário um turno de caixa aberto.','Para pagar una compra en efectivo se requiere un turno de caja abierto.','An open cash shift is required to pay a purchase in cash.'), apenasConfirmar:true });
     }
     if (totalDinheiroImediato > Number(saldoSessaoFisicoBRL || 0) + 0.001) {
-      return setModalZen({ variante:'danger', titulo:'Saldo insuficiente na gaveta', mensagem:`Disponível: ${fmt(saldoSessaoFisicoBRL, 'BRL')}`, detalhes:[`Pagamento em dinheiro: ${fmt(totalDinheiroImediato, 'BRL')}`], apenasConfirmar:true });
+      return setModalZen({ variante:'danger', titulo:tx('Saldo insuficiente na gaveta','Saldo insuficiente en caja','Insufficient drawer balance'), mensagem:`${tx('Disponível:','Disponible:','Available:')} ${fmt(saldoSessaoFisicoBRL, 'BRL')}`, detalhes:[`${tx('Pagamento em dinheiro:','Pago en efectivo:','Cash payment:')} ${fmt(totalDinheiroImediato, 'BRL')}`], apenasConfirmar:true });
     }
     compraEmAndamentoRef.current = true;
     setProcessandoCompra(true);
@@ -493,7 +493,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
     } catch (err) {
       // Compatibilidade de contrato ATT07: titulo:'Compra não concluída' / Falha ao registrar compra no Livro Financeiro.
       console.error('Falha ao registrar compra no Livro Financeiro / operação atômica:', err);
-      avisarZen('danger','Compra não concluída','A nuvem não confirmou a compra. Estoque, financeiro e caixa foram preservados.',[err?.message || 'Falha de persistência']);
+      avisarZen('danger',tx('Compra não concluída','Compra no concluida','Purchase not completed'),tx('A nuvem não confirmou a compra. Estoque, financeiro e caixa foram preservados.','La nube no confirmó la compra. Stock, finanzas y caja fueron preservados.','The cloud did not confirm the purchase. Stock, financials and cash were preserved.'),[err?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
     } finally {
       compraEmAndamentoRef.current = false;
       setProcessandoCompra(false);
@@ -799,7 +799,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800 }}>{tx('Restante a Lançar','Restante por Registrar','Remaining to Post')}</span>
-                <div style={{ fontSize: '18px', fontWeight: 900, color: saldoRestanteBRL > 0.01 ? '#f97316' : '#38bdf8' }}>{saldoRestanteBRL > 0.01 ? fmt(saldoRestanteBRL, 'BRL') : 'TUDO LANÇADO ✓'}</div>
+                <div style={{ fontSize: '18px', fontWeight: 900, color: saldoRestanteBRL > 0.01 ? '#f97316' : '#38bdf8' }}>{saldoRestanteBRL > 0.01 ? fmt(saldoRestanteBRL, 'BRL') : tx('TUDO LANÇADO ✓','TODO REGISTRADO ✓','FULLY POSTED ✓')}</div>
               </div>
             </div>
             
