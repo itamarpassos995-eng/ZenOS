@@ -1461,16 +1461,17 @@ export default function App() {
           patenteUsuario={patenteUsuario}
           userId={userId}
           onEditarPerfil={temPermissao('admin') ? () => { setPerfilRapidoErro(''); setPerfilRapidoRascunho(perfilLoja); setModalPerfilRapido(true); } : null}
-          editarPerfilLabel="Editar nome e logo"
+          editarPerfilLabel={tx('Editar nome e logo','Editar nombre y logo','Edit name and logo')}
           onHome={() => navegarPara('hub')}
           onSair={fazerLogout}
+          tx={tx}
         />
         <div className="zen-content">
           <ZenTopbar
             onAbrirMobile={() => setMenuNavAberto(true)}
             status={statusSincronizacao}
             statusTitle={erroSincronizacao || statusSincronizacao}
-            labelErroSincronizacao="Erro ao sincronizar"
+            labelErroSincronizacao={tx('Erro ao sincronizar','Error al sincronizar','Sync error')}
             idioma={idioma}
             setIdioma={setIdioma}
             moeda={moeda}
@@ -1481,69 +1482,70 @@ export default function App() {
             onTrocarOperador={trocarOperador}
             tema={temaUi}
             onAlternarTema={alternarTemaUi}
+            tx={tx}
           />
 
           <main className="zen-main no-print">
         
  {ecraAtual === 'hub' && (
           <div className="zen-dashboard-home">
-            <ZenHero operador={operadorAtivo?.nome || 'Administrador (Gerência)'} patente={patenteUsuario} />
+            <ZenHero operador={operadorAtivo?.nome || tx('Administrador (Gerência)','Administrador (Gerencia)','Administrator (Management)')} patente={patenteUsuario} idioma={idioma} tx={tx} />
 
             <div className="zen-kpi-grid">
-              <ZenKpiCard icon="🛒" titulo={tx('Vendido Hoje','Vendido Hoy','Sold Today')} valor={valoresTopoVisiveis ? fmt(faturamentoHojeBRL) : '*****'} detalhe={`${historicoVendas.filter(v => registroEhDoDiaLocal(v) && v.status !== 'cancelada').length} vendas realizadas`} tone="teal" trailing={<button onClick={() => setValoresTopoVisiveis(!valoresTopoVisiveis)} style={{border:0,background:'transparent',color:'inherit',cursor:'pointer',fontSize:18}}>{valoresTopoVisiveis ? '◉' : '○'}</button>} />
+              <ZenKpiCard icon="🛒" titulo={tx('Vendido Hoje','Vendido Hoy','Sold Today')} valor={valoresTopoVisiveis ? fmt(faturamentoHojeBRL) : '*****'} detalhe={`${historicoVendas.filter(v => registroEhDoDiaLocal(v) && v.status !== 'cancelada').length} ${tx('vendas realizadas','ventas realizadas','sales completed')}`} tone="teal" trailing={<button onClick={() => setValoresTopoVisiveis(!valoresTopoVisiveis)} style={{border:0,background:'transparent',color:'inherit',cursor:'pointer',fontSize:18}}>{valoresTopoVisiveis ? '◉' : '○'}</button>} />
               <ZenKpiCard icon="👥" titulo={tx('FIADO NA PRAÇA','FIADO A COBRAR','PENDING CREDIT')} valor={valoresTopoVisiveis ? fmt(totalFiadoAbertoBRL) : '*****'} detalhe={totalFiadoAbertoBRL > 0 ? tx('Valores pendentes de clientes','Valores pendientes','Customer balances due') : tx('Nenhum valor pendente','Sin valores pendientes','No pending balance')} tone="purple" trailing="▥" />
-              <ZenKpiCard icon="↻" titulo={tx('SINCRONIZAÇÃO','SINCRONIZACIÓN','SYNC')} valor={statusSincronizacao === 'SINCRONIZADO' ? 'Online' : statusSincronizacao === 'SALVANDO' ? 'Salvando...' : statusSincronizacao === 'ERRO' ? 'Erro' : statusSincronizacao === 'OFFLINE' ? 'Offline' : 'Pendente'} detalhe={tx('Dados atualizados em tempo real','Datos actualizados en tiempo real','Realtime data status')} tone="cyan" trailing="◯" />
+              <ZenKpiCard icon="↻" titulo={tx('SINCRONIZAÇÃO','SINCRONIZACIÓN','SYNC')} valor={statusSincronizacao === 'SINCRONIZADO' ? 'Online' : statusSincronizacao === 'SALVANDO' ? tx('Salvando...','Guardando...','Saving...') : statusSincronizacao === 'ERRO' ? tx('Erro','Error','Error') : statusSincronizacao === 'OFFLINE' ? 'Offline' : tx('Pendente','Pendiente','Pending')} detalhe={tx('Dados atualizados em tempo real','Datos actualizados en tiempo real','Realtime data status')} tone="cyan" trailing="◯" />
             </div>
 
             <div className="zen-dashboard-middle">
               {temPermissao('pdv') && (
                 <section className="zen-dashboard-card" id="zen-meu-turno">
-                  <div className="zen-dashboard-card-head"><strong>💵 Meu Turno de Caixa</strong><span className={`zen-status-badge ${sessaoAtiva ? 'open' : 'closed'}`}>{sessaoAtiva ? `ABERTO • ${fmt(saldoSessaoFisicoBRL)}` : 'FECHADO'}</span></div>
+                  <div className="zen-dashboard-card-head"><strong>💵 {tx('Meu Turno de Caixa','Mi Turno de Caja','My Cash Shift')}</strong><span className={`zen-status-badge ${sessaoAtiva ? 'open' : 'closed'}`}>{sessaoAtiva ? `${tx('ABERTO','ABIERTO','OPEN')} • ${fmt(saldoSessaoFisicoBRL)}` : tx('FECHADO','CERRADO','CLOSED')}</span></div>
                   <div className="zen-cash-card-body">
                     <div className="zen-cash-illustration" />
                     {!sessaoAtiva ? <>
-                      <p>Você pode usar o PDV e gerar Pré-Pedidos mesmo sem turno aberto. Abra o turno somente quando for receber ou movimentar a gaveta.</p>
-                      <button className="zen-primary-cash" onClick={() => { setTipoMovCaixa('abertura'); setModalCaixaAberto(true); }}>🔓 Abrir Turno de Caixa</button>
+                      <p>{tx('Você pode usar o PDV e gerar Pré-Pedidos mesmo sem turno aberto. Abra o turno somente quando for receber ou movimentar a gaveta.','Puede usar el TPV y generar Pre-Pedidos incluso sin turno abierto. Abra el turno solamente cuando vaya a cobrar o mover la caja.','You can use the POS and create Pre-Orders even without an open shift. Open the shift only when receiving payment or moving cash.')}</p>
+                      <button className="zen-primary-cash" onClick={() => { setTipoMovCaixa('abertura'); setModalCaixaAberto(true); }}>🔓 {tx('Abrir Turno de Caixa','Abrir Turno de Caja','Open Cash Shift')}</button>
                     </> : <>
                       <div className="zen-cash-actions">
-                        <button onClick={() => { setTipoMovCaixa('suprimento'); setModalCaixaAberto(true); }}>+ Entrada (Reforço)</button>
-                        <button onClick={() => { setTipoMovCaixa('sangria'); setModalCaixaAberto(true); }}>− Saída (Sangria)</button>
-                        <button onClick={() => { setTipoMovCaixa('fechamento'); setModalCaixaAberto(true); }}>🔒 Encerrar Turno</button>
+                        <button onClick={() => { setTipoMovCaixa('suprimento'); setModalCaixaAberto(true); }}>+ {tx('Entrada (Reforço)','Entrada (Refuerzo)','Cash In (Float)')}</button>
+                        <button onClick={() => { setTipoMovCaixa('sangria'); setModalCaixaAberto(true); }}>− {tx('Saída (Sangria)','Salida (Retiro)','Cash Out (Withdrawal)')}</button>
+                        <button onClick={() => { setTipoMovCaixa('fechamento'); setModalCaixaAberto(true); }}>🔒 {tx('Encerrar Turno','Cerrar Turno','Close Shift')}</button>
                       </div>
-                      <div className="zen-movements">{movsSessao.length === 0 ? <div className="zen-movement"><span>Nenhuma movimentação neste turno.</span></div> : movsSessao.slice(0,6).map(m => <div className="zen-movement" key={m.id}><span>{m.tipo === 'suprimento' ? 'Entrada' : 'Saída'} • {m.descricao}</span><strong>{m.tipo === 'suprimento' ? '+' : '-'}{fmt(m.valorBRL,'BRL')}</strong></div>)}</div>
+                      <div className="zen-movements">{movsSessao.length === 0 ? <div className="zen-movement"><span>{tx('Nenhuma movimentação neste turno.','Ningún movimiento en este turno.','No movements in this shift.')}</span></div> : movsSessao.slice(0,6).map(m => <div className="zen-movement" key={m.id}><span>{m.tipo === 'suprimento' ? tx('Entrada','Entrada','Cash In') : tx('Saída','Salida','Cash Out')} • {m.descricao}</span><strong>{m.tipo === 'suprimento' ? '+' : '-'}{fmt(m.valorBRL,'BRL')}</strong></div>)}</div>
                     </>}
                   </div>
                 </section>
               )}
 
               {temPermissao('inteligencia') ? <section className="zen-dashboard-card">
-                <button className="zen-exec-toggle" onClick={() => setMostrarPainelExecutivo(!mostrarPainelExecutivo)}><span>👁️ Painel Executivo e Financeiro</span><span>{mostrarPainelExecutivo ? '⌃' : '›'}</span></button>
+                <button className="zen-exec-toggle" onClick={() => setMostrarPainelExecutivo(!mostrarPainelExecutivo)}><span>👁️ {tx('Painel Executivo e Financeiro','Panel Ejecutivo y Financiero','Executive & Financial Dashboard')}</span><span>{mostrarPainelExecutivo ? '⌃' : '›'}</span></button>
                 {mostrarPainelExecutivo && <div className="zen-exec-body">
                   <div className="zen-exec-grid">
-                    <div className="zen-exec-stat"><span>Faturamento Real</span><strong>{fmt(faturamentoTotalBRL)}</strong></div>
+                    <div className="zen-exec-stat"><span>{tx('Faturamento Real','Facturación Real','Actual Revenue')}</span><strong>{fmt(faturamentoTotalBRL)}</strong></div>
                     <div className="zen-exec-stat"><span>CMV</span><strong>{fmt(cmvTotalBRL)}</strong></div>
-                    <div className="zen-exec-stat"><span>Lucro Bruto</span><strong style={{color:'#38bdf8'}}>{fmt(lucroBrutoBRL)}</strong></div>
-                    <div className="zen-exec-stat"><span>Despesas Pagas</span><strong style={{color:'#fbbf24'}}>{fmt(despesasPagasBRL)}</strong></div>
-                    <div className="zen-exec-stat"><span>Lucro Líquido</span><strong style={{color:'#34d399'}}>{fmt(lucroLiquidoRealBRL)}</strong></div>
-                    <div className="zen-exec-stat"><span>Fiado na Praça</span><strong style={{color:'#fb7185'}}>{fmt(totalFiadoAbertoBRL)}</strong></div>
+                    <div className="zen-exec-stat"><span>{tx('Lucro Bruto','Ganancia Bruta','Gross Profit')}</span><strong style={{color:'#38bdf8'}}>{fmt(lucroBrutoBRL)}</strong></div>
+                    <div className="zen-exec-stat"><span>{tx('Despesas Pagas','Gastos Pagados','Paid Expenses')}</span><strong style={{color:'#fbbf24'}}>{fmt(despesasPagasBRL)}</strong></div>
+                    <div className="zen-exec-stat"><span>{tx('Lucro Líquido','Ganancia Neta','Net Profit')}</span><strong style={{color:'#34d399'}}>{fmt(lucroLiquidoRealBRL)}</strong></div>
+                    <div className="zen-exec-stat"><span>{tx('Fiado na Praça','Crédito Pendiente','Outstanding Credit')}</span><strong style={{color:'#fb7185'}}>{fmt(totalFiadoAbertoBRL)}</strong></div>
                   </div>
                   <div className="zen-abc-list">{curvaABC.slice(0,5).map((item,index)=><div className="zen-abc-row" key={`${item.sku}-${index}`}><b>{index+1}</b><span>{item.nome}</span><strong>{fmt(item.faturamentoBRL,'BRL')}</strong></div>)}</div>
                 </div>}
-              </section> : <div className="zen-dashboard-card"><div className="zen-dashboard-card-head"><strong>ZenOS • Operação do Dia</strong></div><div className="zen-cash-card-body"><p>Acessos operacionais organizados conforme as permissões deste operador.</p></div></div>}
+              </section> : <div className="zen-dashboard-card"><div className="zen-dashboard-card-head"><strong>ZenOS • {tx('Operação do Dia','Operación del Día','Daily Operations')}</strong></div><div className="zen-cash-card-body"><p>{tx('Acessos operacionais organizados conforme as permissões deste operador.','Accesos operativos organizados según los permisos de este operador.','Operational access organized according to this operator’s permissions.')}</p></div></div>}
             </div>
 
             <section className="zen-quick-section">
-              <div className="zen-quick-title"><span>⚡</span><strong>Acessos Rápidos</strong><small>Principais operações do dia a dia — todos os demais módulos permanecem nas gavetas laterais.</small></div>
+              <div className="zen-quick-title"><span>⚡</span><strong>{tx('Acessos Rápidos','Accesos Rápidos','Quick Access')}</strong><small>{tx('Principais operações do dia a dia — todos os demais módulos permanecem nas gavetas laterais.','Principales operaciones del día a día — los demás módulos permanecen en el menú lateral.','Main daily operations — all other modules remain in the side menu.')}</small></div>
               <div className="zen-quick-grid">
-                {temPermissao('pdv') && <ZenQuickCard icon="🛒" titulo="PDV Balcão" detalhe="Vendas e Pré-Pedidos" tone="teal" onClick={()=>navegarPara('pdv')} />}
-                {temPermissao('produtos') && <ZenQuickCard icon="📥" titulo="PDV Compras" detalhe="Entrada rápida de estoque" tone="orange" onClick={()=>navegarPara('compras')} />}
-                {temPermissao('produtos') && <ZenQuickCard icon="📦" titulo="Produtos & Estoque" detalhe="Cadastrar e gerenciar" tone="purple" onClick={()=>navegarPara('produtos')} />}
-                {temPermissao('clientes') && <ZenQuickCard icon="👥" titulo="Clientes & Fiado" detalhe="Consultar e gerenciar" tone="blue" onClick={()=>navegarPara('clientes')} />}
-                {temPermissao('vendas') && <ZenQuickCard icon="📑" titulo="Histórico" detalhe="Vendas e Devoluções" tone="pink" onClick={()=>navegarPara('vendas')} />}
-                {temPermissao('vendas') && <ZenQuickCard icon="🧾" titulo="Fiscal" detalhe={`${resultadoFilaFiscal.fila.length} pendência(s)`} tone="blue" onClick={()=>navegarPara('fiscal')} />}
-                {temPermissao('admin') && <ZenQuickCard icon="🤝" titulo="Comissões" detalhe="Metas e bonificações" tone="orange" onClick={()=>navegarPara('comissoes')} />}
-                {temPermissao('despesas') && <ZenQuickCard icon="💸" titulo="Despesas" detalhe="Contas a pagar" tone="gold" onClick={()=>navegarPara('despesas')} />}
-                {temPermissao('admin') && <ZenQuickCard icon="⚙️" titulo="Configurações" detalhe="Sistema, equipe e backup" tone="purple" onClick={()=>navegarPara('configuracoes')} />}
+                {temPermissao('pdv') && <ZenQuickCard icon="🛒" titulo={tx('PDV Balcão','TPV Mostrador','POS Counter')} detalhe={tx('Vendas e Pré-Pedidos','Ventas y Pre-Pedidos','Sales & Pre-Orders')} tone="teal" onClick={()=>navegarPara('pdv')} />}
+                {temPermissao('produtos') && <ZenQuickCard icon="📥" titulo={tx('PDV Compras','TPV Compras','Purchase Entry')} detalhe={tx('Entrada rápida de estoque','Entrada rápida de stock','Quick stock entry')} tone="orange" onClick={()=>navegarPara('compras')} />}
+                {temPermissao('produtos') && <ZenQuickCard icon="📦" titulo={tx('Produtos & Estoque','Productos y Stock','Products & Stock')} detalhe={tx('Cadastrar e gerenciar','Registrar y gestionar','Register and manage')} tone="purple" onClick={()=>navegarPara('produtos')} />}
+                {temPermissao('clientes') && <ZenQuickCard icon="👥" titulo={tx('Clientes & Fiado','Clientes y Crédito','Customers & Credit')} detalhe={tx('Consultar e gerenciar','Consultar y gestionar','View and manage')} tone="blue" onClick={()=>navegarPara('clientes')} />}
+                {temPermissao('vendas') && <ZenQuickCard icon="📑" titulo={tx('Histórico','Historial','History')} detalhe={tx('Vendas e Devoluções','Ventas y Devoluciones','Sales & Returns')} tone="pink" onClick={()=>navegarPara('vendas')} />}
+                {temPermissao('vendas') && <ZenQuickCard icon="🧾" titulo={tx('Fiscal','Fiscal','Fiscal')} detalhe={`${resultadoFilaFiscal.fila.length} ${tx('pendência(s)','pendiente(s)','pending')}`} tone="blue" onClick={()=>navegarPara('fiscal')} />}
+                {temPermissao('admin') && <ZenQuickCard icon="🤝" titulo={tx('Comissões','Comisiones','Commissions')} detalhe={tx('Metas e bonificações','Metas y bonificaciones','Targets and bonuses')} tone="orange" onClick={()=>navegarPara('comissoes')} />}
+                {temPermissao('despesas') && <ZenQuickCard icon="💸" titulo={tx('Despesas','Gastos','Expenses')} detalhe={tx('Contas a pagar','Cuentas a pagar','Accounts payable')} tone="gold" onClick={()=>navegarPara('despesas')} />}
+                {temPermissao('admin') && <ZenQuickCard icon="⚙️" titulo={tx('Configurações','Configuraciones','Settings')} detalhe={tx('Sistema, equipe e backup','Sistema, equipo y respaldo','System, team and backup')} tone="purple" onClick={()=>navegarPara('configuracoes')} />}
               </div>
             </section>
           </div>
