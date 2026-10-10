@@ -63,7 +63,7 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
   };
 
   const salvarCliente = async () => {
-    if (!formCliente.nome || !formCliente.nome.trim()) return setModalZen({ variante:'warning', titulo:'Nome obrigatório', mensagem:'Informe o nome do cliente antes de salvar.', apenasConfirmar:true });
+    if (!formCliente.nome || !formCliente.nome.trim()) return setModalZen({ variante:'warning', titulo:tx('Nome obrigatório','Nombre obligatorio','Name required'), mensagem:tx('Informe o nome do cliente antes de salvar.','Informe el nombre del cliente antes de guardar.','Enter the customer name before saving.'), apenasConfirmar:true });
     const limiteNum = Math.max(0, parseFloat(String(formCliente.limiteCreditoBRL).replace(',', '.')) || 0);
     const diasNum = Math.max(0, parseInt(formCliente.diasAtraso) || 0);
     const dadosFinais = normalizarCliente({ ...formCliente, limiteCreditoBRL: limiteNum, diasAtraso: diasNum });
@@ -80,19 +80,19 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
       setClientes(clientesConfirmados);
       setModalClienteAberto(false);
     } catch (erro) {
-      setModalZen({ variante:'danger', titulo:'Cliente não salvo', mensagem:'A nuvem não confirmou o cadastro. Nenhuma alteração foi considerada concluída.', detalhes:[erro?.message || 'Falha de persistência'], apenasConfirmar:true });
+      setModalZen({ variante:'danger', titulo:tx('Cliente não salvo','Cliente no guardado','Customer not saved'), mensagem:tx('A nuvem não confirmou o cadastro. Nenhuma alteração foi considerada concluída.','La nube no confirmó el registro. Ningún cambio fue considerado concluido.','The cloud did not confirm the registration. No change was considered complete.'), detalhes:[erro?.message || 'Falha de persistência'], apenasConfirmar:true });
     }
   };
 
   const excluirCliente = (id, saldoDevedor) => {
     if (saldoDevedor > 0) {
-      return setModalZen({ variante:'danger', titulo:'Exclusão bloqueada', mensagem:'Não é possível excluir um cliente que possui saldo devedor (fiado) em aberto.', apenasConfirmar:true });
+      return setModalZen({ variante:'danger', titulo:tx('Exclusão bloqueada','Eliminación bloqueada','Deletion blocked'), mensagem:tx('Não é possível excluir um cliente que possui saldo devedor (fiado) em aberto.','No es posible eliminar un cliente con saldo deudor pendiente.','A customer with an outstanding balance cannot be deleted.'), apenasConfirmar:true });
     }
     setModalZen({
       variante:'warning',
-      titulo:'Excluir cliente?',
-      mensagem:'Confirme a exclusão deste cadastro de cliente.',
-      confirmarTexto:'Excluir',
+      titulo:tx('Excluir cliente?','¿Eliminar cliente?','Delete customer?'),
+      mensagem:tx('Confirme a exclusão deste cadastro de cliente.','Confirme la eliminación de este registro de cliente.','Confirm deletion of this customer record.'),
+      confirmarTexto:tx('Excluir','Eliminar','Delete'),
       cancelarTexto:'Cancelar',
       apenasConfirmar:false,
       aoConfirmar: async () => {
@@ -106,7 +106,7 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
           }
           setClientes(clientesConfirmados);
         } catch (erro) {
-          setModalZen({ variante:'danger', titulo:'Cliente não excluído', mensagem:'A nuvem não confirmou a exclusão. O cadastro foi preservado.', detalhes:[erro?.message || 'Falha de persistência'], apenasConfirmar:true });
+          setModalZen({ variante:'danger', titulo:tx('Cliente não excluído','Cliente no eliminado','Customer not deleted'), mensagem:tx('A nuvem não confirmou a exclusão. O cadastro foi preservado.','La nube no confirmó la eliminación. El registro fue preservado.','The cloud did not confirm deletion. The record was preserved.'), detalhes:[erro?.message || 'Falha de persistência'], apenasConfirmar:true });
         }
       },
     });
@@ -124,16 +124,16 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
     const formaCfg = catalogoFormas.find(f => f.id === formaAmortizacaoSel) || catalogoFormas[0];
     const valorOriginal = parseFloat(valorAmortizacaoInput.replace(',', '.')) || 0;
     const valBRL = converterParaBRL(valorOriginal, formaCfg.moedaOrigem || moeda);
-    if (valBRL <= 0) return setModalZen({ variante:'warning', titulo:'Valor inválido', mensagem:'Informe um valor válido para recebimento.', apenasConfirmar:true });
+    if (valBRL <= 0) return setModalZen({ variante:'warning', titulo:tx('Valor inválido','Valor inválido','Invalid amount'), mensagem:tx('Informe um valor válido para recebimento.','Informe un valor válido para el cobro.','Enter a valid amount to receive.'), apenasConfirmar:true });
 
     const saldoAntes = Number(clienteReceberFiado?.saldoDevedorBRL || 0);
     if (valBRL > saldoAntes + 0.001) {
-      return setModalZen({ variante:'warning', titulo:'Valor acima da dívida', mensagem:`A dívida atual é ${fmt(saldoAntes, 'BRL')}. O recebimento não pode ultrapassar esse saldo.`, apenasConfirmar:true });
+      return setModalZen({ variante:'warning', titulo:tx('Valor acima da dívida','Valor superior a la deuda','Amount exceeds debt'), mensagem:`A dívida atual é ${fmt(saldoAntes, 'BRL')}. O recebimento não pode ultrapassar esse saldo.`, apenasConfirmar:true });
     }
 
     const dinheiroFisico = formaEhDinheiro(formaAmortizacaoSel);
     if (dinheiroFisico && !sessaoAtiva) {
-      return setModalZen({ variante:'danger', titulo:'Caixa fechado', mensagem:'Para receber fiado em dinheiro, abra primeiro o turno de caixa do operador.', apenasConfirmar:true });
+      return setModalZen({ variante:'danger', titulo:tx('Caixa fechado','Caja cerrada','Register closed'), mensagem:tx('Para receber fiado em dinheiro, abra primeiro o turno de caixa do operador.','Para recibir crédito en efectivo, abra primero el turno de caja del operador.','To receive customer credit in cash, first open the operator cash shift.'), apenasConfirmar:true });
     }
 
     const saldoDepois = Math.max(0, saldoAntes - valBRL);
@@ -193,17 +193,17 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
       if (mov && typeof setCaixaMovimentos === 'function') setCaixaMovimentos(caixaConfirmado);
     } catch (err) {
       console.error('[ZenOS][ATT10.2] Falha no recebimento:', err);
-      return setModalZen({ variante:'danger', titulo:'Recebimento não concluído', mensagem:'A nuvem não confirmou o recebimento. Nenhum saldo foi alterado.', detalhes:[err?.message || 'Falha de persistência'], apenasConfirmar:true });
+      return setModalZen({ variante:'danger', titulo:tx('Recebimento não concluído','Cobro no concluido','Payment not completed'), mensagem:tx('A nuvem não confirmou o recebimento. Nenhum saldo foi alterado.','La nube no confirmó el cobro. Ningún saldo fue alterado.','The cloud did not confirm the payment. No balance was changed.'), detalhes:[err?.message || 'Falha de persistência'], apenasConfirmar:true });
     }
 
-    setModalZen({ variante:'success', titulo:'Recebimento registrado', mensagem:`${fmt(valBRL, 'BRL')} recebidos de ${clienteReceberFiado.nome}.`, detalhes:[`Saldo anterior: ${fmt(saldoAntes, 'BRL')}`, `Saldo atual: ${fmt(saldoDepois, 'BRL')}`, dinheiroFisico ? 'Entrada registrada na gaveta do turno.' : 'Recebimento financeiro sem movimentar a gaveta física.'], apenasConfirmar:true });
+    setModalZen({ variante:'success', titulo:tx('Recebimento registrado','Cobro registrado','Payment recorded'), mensagem:`${fmt(valBRL, 'BRL')} recebidos de ${clienteReceberFiado.nome}.`, detalhes:[`Saldo anterior: ${fmt(saldoAntes, 'BRL')}`, `Saldo atual: ${fmt(saldoDepois, 'BRL')}`, dinheiroFisico ? 'Entrada registrada na gaveta do turno.' : 'Recebimento financeiro sem movimentar a gaveta física.'], apenasConfirmar:true });
     setModalReceberFiadoAberto(false);
     setClienteReceberFiado(null);
   };
 
   const abrirWhatsApp = (cli) => {
-    if (!cli.telefone) return setModalZen({ variante:'warning', titulo:'Telefone não cadastrado', mensagem:'Este cliente não possui telefone/WhatsApp cadastrado.', apenasConfirmar:true });
-    const msg = encodeURIComponent(`Olá, ${cli.nome}! O saldo da sua conta é de R$ ${(cli.saldoDevedorBRL || 0).toFixed(2)}.`);
+    if (!cli.telefone) return setModalZen({ variante:'warning', titulo:tx('Telefone não cadastrado','Teléfono no registrado','Phone not registered'), mensagem:tx('Este cliente não possui telefone/WhatsApp cadastrado.','Este cliente no posee teléfono/WhatsApp registrado.','This customer has no phone/WhatsApp registered.'), apenasConfirmar:true });
+    const msg = encodeURIComponent(`${tx('Olá','Hola','Hello')}, ${cli.nome}! ${tx('O saldo da sua conta é de','El saldo de su cuenta es de','Your account balance is')} R$ ${(cli.saldoDevedorBRL || 0).toFixed(2)}.`);
     window.open(`https://wa.me/${cli.telefone.replace(/\D/g, '')}?text=${msg}`, '_blank');
   };
 
@@ -327,7 +327,7 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div>
                 <span style={{ fontSize: '11px', fontWeight: 800, color: '#fbbf24', textTransform: 'uppercase' }}>{tx('CRM Zênite OS','CRM Zênite OS','Zênite OS CRM')}</span>
-                <h3 style={{ fontSize: '20px', fontWeight: 900, margin: '2px 0 0 0' }}>{clienteEmEdicao ? 'Editar Cliente' : 'Cadastrar Novo Cliente'}</h3>
+                <h3 style={{ fontSize: '20px', fontWeight: 900, margin: '2px 0 0 0' }}>{clienteEmEdicao ? tx('Editar Cliente','Editar Cliente','Edit Customer') : tx('Cadastrar Novo Cliente','Registrar Nuevo Cliente','Register New Customer')}</h3>
               </div>
               <button onClick={() => setModalClienteAberto(false)} type="button" style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#64748b', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>✕</button>
             </div>
@@ -392,7 +392,7 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
             </div>
 
             <button onClick={salvarCliente} type="button" style={{ width: '100%', background: 'linear-gradient(135deg, #d97706, #b45309)', border: 'none', color: '#fff', padding: '16px', borderRadius: '12px', fontSize: '14px', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 15px rgba(217, 119, 6, 0.3)' }}>
-              {clienteEmEdicao ? 'Salvar Alterações' : 'Cadastrar Cliente'}
+              {clienteEmEdicao ? tx('Salvar Alterações','Guardar Cambios','Save Changes') : tx('Cadastrar Cliente','Registrar Cliente','Register Customer')}
             </button>
           </div>
         </div>
