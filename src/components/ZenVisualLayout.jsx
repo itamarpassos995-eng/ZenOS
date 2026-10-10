@@ -64,7 +64,7 @@ export function ZenSidebar({
         {!compacta && onEditarPerfil && <button className="zen-edit-profile" onClick={onEditarPerfil}>✏️ {editarPerfilLabel}</button>}
 
         <nav className="zen-nav" aria-label={tx('Navegação principal','Navegación principal','Main navigation')}>
-          <button className={cx('zen-nav-direct', ecraAtual === 'hub' && 'active')} onClick={() => selecionar({ onClick: onHome })} title="Painel Inicial">
+          <button className={cx('zen-nav-direct', ecraAtual === 'hub' && 'active')} onClick={() => selecionar({ onClick: onHome })} title={tx('Painel Inicial','Panel Inicial','Dashboard')}>
             <span className="zen-nav-icon">⌂</span>{!compacta && <span>{tx('Painel Inicial','Panel Inicial','Dashboard')}</span>}
           </button>
 
