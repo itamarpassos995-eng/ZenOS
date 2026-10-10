@@ -352,8 +352,8 @@ export default function App() {
   const concluirTrocaPinObrigatoria = async () => {
     setErroPinObrigatorio('');
     if (!operadorAtivo) return;
-    if (novoPinObrigatorio !== confirmarPinObrigatorio) return setErroPinObrigatorio('Os PINs informados não coincidem.');
-    if (pinEhFraco(novoPinObrigatorio)) return setErroPinObrigatorio('Escolha um PIN menos previsível. Não use admin, 1234, 0000, 1111 ou sequências simples.');
+    if (novoPinObrigatorio !== confirmarPinObrigatorio) return setErroPinObrigatorio(tx('Os PINs informados não coincidem.','Los PIN informados no coinciden.','The PINs do not match.'));
+    if (pinEhFraco(novoPinObrigatorio)) return setErroPinObrigatorio(tx('Escolha um PIN menos previsível. Não use admin, 1234, 0000, 1111 ou sequências simples.','Elija un PIN menos previsible. No use admin, 1234, 0000, 1111 ni secuencias simples.','Choose a less predictable PIN. Do not use admin, 1234, 0000, 1111 or simple sequences.'));
     try {
       const credencial = await criarCredencialPin(novoPinObrigatorio);
       const atualizados = vendedores.map(v => String(v.id) === String(operadorAtivo.id) ? { ...v, ...credencial } : v);
@@ -361,7 +361,7 @@ export default function App() {
         const persistencia = await persistV1OperationFieldSafe({
           db, userId, field: 'vendedores', value: atualizados, baseValue: syncBaseRef.current.get('vendedores'), localStorageKey: `zenos_${userId}_vendedores`
         });
-        if (!persistencia?.cloudOk) throw new Error('O novo PIN não foi confirmado na nuvem. Nenhuma alteração de acesso foi finalizada.');
+        if (!persistencia?.cloudOk) throw new Error(tx('O novo PIN não foi confirmado na nuvem. Nenhuma alteração de acesso foi finalizada.','El nuevo PIN no fue confirmado en la nube. No se finalizó ningún cambio de acceso.','The new PIN was not confirmed in the cloud. No access change was finalized.'));
         const confirmados = persistencia.value || atualizados;
         registrarBaseSyncCampo('vendedores', confirmados, persistencia.revision);
         setVendedores(confirmados);
@@ -370,7 +370,7 @@ export default function App() {
       }
       setOperadorAtivo(prev => prev ? { ...prev, ...credencial } : prev);
       setNovoPinObrigatorio(''); setConfirmarPinObrigatorio('');
-    } catch (error) { setErroPinObrigatorio(error?.message || 'Não foi possível atualizar o PIN.'); }
+    } catch (error) { setErroPinObrigatorio(error?.message || tx('Não foi possível atualizar o PIN.','No fue posible actualizar el PIN.','Could not update the PIN.')); }
   };
 
   const solicitarDemoFirebase = async () => {
@@ -509,8 +509,8 @@ export default function App() {
           setPlanoLoja('basico');
           setNuvemSincronizada(false);
           setStatusSincronizacao(typeof navigator !== 'undefined' && !navigator.onLine ? 'OFFLINE' : 'ERRO');
-          setErroSincronizacao(err?.message || 'Não foi possível confirmar os dados da nuvem.');
-          setFalhaBootstrapNuvem(err?.message || 'Não foi possível confirmar os dados da nuvem.'); 
+          setErroSincronizacao(err?.message || tx('Não foi possível confirmar os dados da nuvem.','No fue posible confirmar los datos de la nube.','Could not confirm cloud data.'));
+          setFalhaBootstrapNuvem(err?.message || tx('Não foi possível confirmar os dados da nuvem.','No fue posible confirmar los datos de la nube.','Could not confirm cloud data.')); 
           // FALLBACK OFFLINE SEGURO: Puxa o cache isolado ou o legado genérico se for a primeira vez offline
           try {
             const puxar = (chave) => {
@@ -725,7 +725,7 @@ export default function App() {
   const tx = (pt, es, en) => { if (idioma === 'es') return es || pt; if (idioma === 'en') return en || pt; return pt; };
 
   const registrarFinanceiro = async (lancamento) => {
-    if (!userId) throw new Error('Loja não identificada para o Livro Financeiro.');
+    if (!userId) throw new Error(tx('Loja não identificada para o Livro Financeiro.','Tienda no identificada para el Libro Financiero.','Store not identified for the Financial Ledger.'));
     const confirmado = await registrarLancamentoFinanceiro({
       db,
       userId,
@@ -854,7 +854,7 @@ export default function App() {
       }
     );
     if (!confirmado?.cloudOk) {
-      return avisarAppZen({ variante:'danger', titulo:'Caixa não aberto', mensagem:'A nuvem não confirmou a abertura do turno.', detalhes:[confirmado?.error?.message || 'Tente novamente quando a sincronização estiver disponível.'] });
+      return avisarAppZen({ variante:'danger', titulo:tx('Caixa não aberto','Caja no abierta','Register not opened'), mensagem:tx('A nuvem não confirmou a abertura do turno.','La nube no confirmó la apertura del turno.','The cloud did not confirm opening the shift.'), detalhes:[confirmado?.error?.message || tx('Tente novamente quando a sincronização estiver disponível.','Intente nuevamente cuando la sincronización esté disponible.','Try again when synchronization is available.')] });
     }
     setSessoesCaixa(confirmado.values?.sessoesCaixa || sessoesPropostas);
     setModalCaixaAberto(false);
@@ -897,12 +897,12 @@ export default function App() {
       }],
       guards: [
         { type:'cash_session_open', sessionId:sessaoAtiva.id },
-        ...(tipoMovCaixa === 'sangria' ? [{ type:'cash_balance_at_least', sessionId:sessaoAtiva.id, amount:valBRL, message:'O saldo físico do caixa mudou em outro terminal. A sangria não foi realizada.' }] : []),
+        ...(tipoMovCaixa === 'sangria' ? [{ type:'cash_balance_at_least', sessionId:sessaoAtiva.id, amount:valBRL, message:tx('O saldo físico do caixa mudou em outro terminal. A sangria não foi realizada.','El saldo físico de caja cambió en otro terminal. El retiro no fue realizado.','The physical cash balance changed on another terminal. The cash drop was not performed.') }] : []),
       ],
       operationKey: `mov-caixa:${novoMov.id}`,
     });
     if (!confirmado?.cloudOk) {
-      return avisarAppZen({ variante:'danger', titulo:'Movimento não registrado', mensagem:'A nuvem não confirmou o movimento de caixa.', detalhes:[confirmado?.error?.message || 'Nenhum movimento foi finalizado.'] });
+      return avisarAppZen({ variante:'danger', titulo:tx('Movimento não registrado','Movimiento no registrado','Movement not recorded'), mensagem:tx('A nuvem não confirmou o movimento de caixa.','La nube no confirmó el movimiento de caja.','The cloud did not confirm the cash movement.'), detalhes:[confirmado?.error?.message || tx('Nenhum movimento foi finalizado.','Ningún movimiento fue finalizado.','No movement was finalized.')] });
     }
     setCaixaMovimentos(confirmado.values?.caixaMovimentos || movimentosPropostos);
     setModalCaixaAberto(false);
@@ -913,7 +913,7 @@ export default function App() {
     if (!sessaoAtiva || !resumoSessaoAtiva) {
       return avisarAppZen({
         variante: 'warning',
-        titulo: 'Nenhum turno aberto',
+        titulo: tx('Nenhum turno aberto','Ningún turno abierto','No open shift'),
         mensagem: tx('Não existe turno aberto para encerrar.', 'No hay un turno abierto para cerrar.', 'There is no open shift to close.'),
         apenasConfirmar: true,
       });
@@ -923,7 +923,7 @@ export default function App() {
     if (!houveContagem) {
       return avisarAppZen({
         variante: 'warning',
-        titulo: 'Informe a contagem física',
+        titulo: tx('Informe a contagem física','Informe el conteo físico','Enter the physical count'),
         mensagem: tx(
           'Conte a gaveta e informe os valores encontrados. Se uma moeda não existir na gaveta, digite 0.',
           'Cuente la gaveta e informe los valores encontrados. Si no hay una moneda, ingrese 0.',
@@ -1083,9 +1083,9 @@ export default function App() {
     if (!fechamentoConfirmado?.cloudOk) {
       return avisarAppZen({
         variante:'danger',
-        titulo:'Caixa não fechado',
-        mensagem:'A nuvem não confirmou o fechamento. O turno continua aberto.',
-        detalhes:[fechamentoConfirmado?.error?.message || 'Tente novamente sem encerrar a tela.'],
+        titulo:tx('Caixa não fechado','Caja no cerrada','Register not closed'),
+        mensagem:tx('A nuvem não confirmou o fechamento. O turno continua aberto.','La nube no confirmó el cierre. El turno sigue abierto.','The cloud did not confirm closing. The shift remains open.'),
+        detalhes:[fechamentoConfirmado?.error?.message || tx('Tente novamente sem encerrar a tela.','Intente nuevamente sin cerrar la pantalla.','Try again without closing the screen.')],
       });
     }
     setSessoesCaixa(fechamentoConfirmado.values?.sessoesCaixa || sessoesAtualizadas);
@@ -1102,15 +1102,15 @@ export default function App() {
 
     avisarAppZen({
       variante: temQuebra ? 'warning' : 'success',
-      titulo: temQuebra ? 'Fechamento concluído com diferença' : 'Caixa fechado e conciliado',
+      titulo: temQuebra ? tx('Fechamento concluído com diferença','Cierre concluido con diferencia','Close completed with difference') : tx('Caixa fechado e conciliado','Caja cerrada y conciliada','Register closed and reconciled'),
       mensagem: temQuebra
-        ? `O turno foi encerrado com ${diferenca < 0 ? 'falta' : 'sobra'} de ${fmt(Math.abs(diferenca), 'BRL')}.`
-        : 'A contagem física confere com o saldo esperado pelo sistema.',
+        ? `${tx('O turno foi encerrado com','El turno fue cerrado con','The shift was closed with')} ${diferenca < 0 ? tx('falta','faltante','a shortage') : tx('sobra','sobrante','an overage')} ${tx('de','de','of')} ${fmt(Math.abs(diferenca), 'BRL')}.`
+        : tx('A contagem física confere com o saldo esperado pelo sistema.','El conteo físico coincide con el saldo esperado por el sistema.','The physical count matches the balance expected by the system.'),
       detalhes: [
-        `Saldo esperado: ${fmt(saldoEsperadoBRL, 'BRL')}`,
-        `Total contado: ${fmt(valInformadoBRL, 'BRL')}`,
-        `Diferença: ${fmt(diferenca, 'BRL')}`,
-        janelaImpressao ? 'Comprovante de fechamento aberto para impressão.' : 'Impressão bloqueada pelo navegador; o fechamento foi registrado mesmo assim.',
+        `${tx('Saldo esperado:','Saldo esperado:','Expected balance:')} ${fmt(saldoEsperadoBRL, 'BRL')}`,
+        `${tx('Total contado:','Total contado:','Total counted:')} ${fmt(valInformadoBRL, 'BRL')}`,
+        `${tx('Diferença:','Diferencia:','Difference:')} ${fmt(diferenca, 'BRL')}`,
+        janelaImpressao ? tx('Comprovante de fechamento aberto para impressão.','Comprobante de cierre abierto para impresión.','Closing receipt opened for printing.') : tx('Impressão bloqueada pelo navegador; o fechamento foi registrado mesmo assim.','Impresión bloqueada por el navegador; el cierre fue registrado de todos modos.','Printing was blocked by the browser; the closing was still recorded.'),
       ],
       apenasConfirmar: true,
     });
@@ -1153,7 +1153,7 @@ export default function App() {
         ...(temPermissao('pdv') ? [{ id:'pdv', tela:'pdv', icone:'🛒', rotulo:t('pdvBalcao'), onClick:()=>navegarPara('pdv') }] : []),
         ...(temPermissao('mesas') ? [{ id:'mesas', tela:'mesas', icone:'🍽️', rotulo:tx('Mesas / Comandas','Mesas / Comandas','Tables / Tabs'), onClick:()=>navegarPara('mesas') }] : []),
         ...(temPermissao('vendas') ? [{ id:'vendas', tela:'vendas', icone:'📑', rotulo:t('vendasDevolucoes'), onClick:()=>navegarPara('vendas') }] : []),
-        ...(temPermissao('vendas') ? [{ id:'fiscal', tela:'fiscal', icone:'🧾', rotulo:'Fiscal', badge:resultadoFilaFiscal.erro ? '!' : (resultadoFilaFiscal.fila.length || null), onClick:()=>navegarPara('fiscal') }] : []),
+        ...(temPermissao('vendas') ? [{ id:'fiscal', tela:'fiscal', icone:'🧾', rotulo:tx('Fiscal','Fiscal','Fiscal'), badge:resultadoFilaFiscal.erro ? '!' : (resultadoFilaFiscal.fila.length || null), onClick:()=>navegarPara('fiscal') }] : []),
       ],
     },
     {
