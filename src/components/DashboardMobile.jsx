@@ -34,7 +34,7 @@ export default function DashboardMobile({ historicoVendas, despesas, clientes, p
       });
     });
     
-    let topProduto = 'Ainda sem dados';
+    let topProduto = tx('Ainda sem dados','Aún sin datos','Not enough data yet');
     let maxQtd = 0;
     Object.entries(contagemItens).forEach(([nome, qtd]) => {
       if (qtd > maxQtd) { maxQtd = qtd; topProduto = nome; }
@@ -55,14 +55,14 @@ export default function DashboardMobile({ historicoVendas, despesas, clientes, p
 
     // Insight 2: Fiado vs Faturamento
     if (fiadoTotal > (faturamentoTotal * 0.5) && faturamentoTotal > 0) {
-      insights.push({ icone: '🛑', cor: '#ef4444', titulo: 'Risco de Crédito Alto', texto: `O volume de dinheiro na rua (fiado) está perigosamente alto em relação ao seu volume de vendas.` });
+      insights.push({ icone: '🛑', cor: '#ef4444', titulo: tx('Risco de Crédito Alto','Riesgo de Crédito Alto','High Credit Risk'), texto: tx('O volume de dinheiro na rua (fiado) está perigosamente alto em relação ao seu volume de vendas.','El volumen de crédito pendiente está peligrosamente alto en relación con su volumen de ventas.','Outstanding customer credit is dangerously high relative to your sales volume.') });
     } else {
-      insights.push({ icone: '💸', cor: '#38bdf8', titulo: 'Controle de Inadimplência', texto: `O limite de fiados parece estar sob controlo em relação à saúde do caixa.` });
+      insights.push({ icone: '💸', cor: '#38bdf8', titulo: tx('Controle de Inadimplência','Control de Morosidad','Delinquency Control'), texto: tx('O limite de fiados parece estar sob controlo em relação à saúde do caixa.','El límite de créditos parece estar bajo control respecto a la salud de caja.','Customer credit appears to be under control relative to cash health.') });
     }
 
     // Insight 3: Produto Destaque
     if (maxQtd > 0) {
-      insights.push({ icone: '⭐', cor: '#fbbf24', titulo: 'Campeão de Vendas', texto: `O item "${topProduto}" é o seu motor atual. Garanta que o estoque no Galpão está cheio!` });
+      insights.push({ icone: '⭐', cor: '#fbbf24', titulo: tx('Campeão de Vendas','Campeón de Ventas','Top Seller'), texto: `${tx('O item','El ítem','The item')} "${topProduto}" ${tx('é o seu motor atual. Garanta que o estoque no Galpão está cheio!','es su motor actual. ¡Asegure stock suficiente en el depósito!','is your current top driver. Make sure warehouse stock is sufficient!')}` });
     }
 
     return {
