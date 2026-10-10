@@ -1017,59 +1017,59 @@ export default function App() {
 
     const temQuebra = Math.abs(diferenca) > 0.05;
     const descQuebra = temQuebra
-      ? (diferenca < 0 ? 'FALTA DE CAIXA' : 'SOBRA DE CAIXA')
-      : 'CAIXA CONCILIADO';
+      ? (diferenca < 0 ? tx('FALTA DE CAIXA','FALTA DE CAJA','CASH SHORTAGE') : tx('SOBRA DE CAIXA','SOBRANTE DE CAJA','CASH OVERAGE'))
+      : tx('CAIXA CONCILIADO','CAJA CONCILIADA','CASH RECONCILED');
 
     const reciboFechoHTML = `
       <div style="font-family:monospace;font-size:12px;width:100%;text-align:left;">
         <div style="text-align:center;margin-bottom:10px;">
-          <h2 style="margin:0;font-size:14px;">FECHAMENTO CEGO DE TURNO</h2>
-          <div>ZenOS - SISTEMA DE GESTÃO</div>
+          <h2 style="margin:0;font-size:14px;">${tx('FECHAMENTO CEGO DE TURNO','CIERRE CIEGO DE TURNO','BLIND SHIFT CLOSE')}</h2>
+          <div>ZenOS - ${tx('SISTEMA DE GESTÃO','SISTEMA DE GESTIÓN','MANAGEMENT SYSTEM')}</div>
         </div>
         <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
-        <div><strong>Operador:</strong> ${sessaoAtiva.operadorNome}</div>
-        <div><strong>Abertura:</strong> ${sessaoAtiva.abertura}</div>
-        <div><strong>Fechamento:</strong> ${dataFechoLocal}</div>
+        <div><strong>${tx('Operador:','Operador:','Operator:')}</strong> ${sessaoAtiva.operadorNome}</div>
+        <div><strong>${tx('Abertura:','Apertura:','Opening:')}</strong> ${sessaoAtiva.abertura}</div>
+        <div><strong>${tx('Fechamento:','Cierre:','Closing:')}</strong> ${dataFechoLocal}</div>
         <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
 
-        <div style="margin-bottom:5px;"><strong>>> COMPOSIÇÃO DO DINHEIRO FÍSICO</strong></div>
-        <div style="display:flex;justify-content:space-between;"><span>Fundo inicial:</span><span>${fmt(componentes.fundoInicial, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span>Vendas em dinheiro:</span><span>+ ${fmt(componentes.vendasDinheiro, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span>Recebimentos em dinheiro:</span><span>+ ${fmt(componentes.recebimentosDinheiro, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span>Suprimentos:</span><span>+ ${fmt(componentes.suprimentos, 'BRL')}</span></div>
-        ${componentes.outrasEntradas ? `<div style="display:flex;justify-content:space-between;"><span>Outras entradas:</span><span>+ ${fmt(componentes.outrasEntradas, 'BRL')}</span></div>` : ''}
-        <div style="display:flex;justify-content:space-between;"><span>Sangrias:</span><span>- ${fmt(componentes.sangrias, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span>Devoluções em dinheiro:</span><span>- ${fmt(componentes.devolucoesDinheiro, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span>Despesas em dinheiro:</span><span>- ${fmt(componentes.despesasDinheiro, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span>Compras em dinheiro:</span><span>- ${fmt(componentes.comprasDinheiro, 'BRL')}</span></div>
-        ${componentes.outrasSaidas ? `<div style="display:flex;justify-content:space-between;"><span>Outras saídas:</span><span>- ${fmt(componentes.outrasSaidas, 'BRL')}</span></div>` : ''}
+        <div style="margin-bottom:5px;"><strong>>> ${tx('COMPOSIÇÃO DO DINHEIRO FÍSICO','COMPOSICIÓN DEL DINERO FÍSICO','PHYSICAL CASH COMPOSITION')}</strong></div>
+        <div style="display:flex;justify-content:space-between;"><span>${tx('Fundo inicial:','Fondo inicial:','Opening float:')}</span><span>${fmt(componentes.fundoInicial, 'BRL')}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>${tx('Vendas em dinheiro:','Ventas en efectivo:','Cash sales:')}</span><span>+ ${fmt(componentes.vendasDinheiro, 'BRL')}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>${tx('Recebimentos em dinheiro:','Cobros en efectivo:','Cash receipts:')}</span><span>+ ${fmt(componentes.recebimentosDinheiro, 'BRL')}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>${tx('Suprimentos:','Refuerzos:','Cash in:')}</span><span>+ ${fmt(componentes.suprimentos, 'BRL')}</span></div>
+        ${componentes.outrasEntradas ? `<div style="display:flex;justify-content:space-between;"><span>${tx('Outras entradas:','Otras entradas:','Other inflows:')}</span><span>+ ${fmt(componentes.outrasEntradas, 'BRL')}</span></div>` : ''}
+        <div style="display:flex;justify-content:space-between;"><span>${tx('Sangrias:','Retiros:','Cash drops:')}</span><span>- ${fmt(componentes.sangrias, 'BRL')}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>${tx('Devoluções em dinheiro:','Devoluciones en efectivo:','Cash returns:')}</span><span>- ${fmt(componentes.devolucoesDinheiro, 'BRL')}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>${tx('Despesas em dinheiro:','Gastos en efectivo:','Cash expenses:')}</span><span>- ${fmt(componentes.despesasDinheiro, 'BRL')}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>${tx('Compras em dinheiro:','Compras en efectivo:','Cash purchases:')}</span><span>- ${fmt(componentes.comprasDinheiro, 'BRL')}</span></div>
+        ${componentes.outrasSaidas ? `<div style="display:flex;justify-content:space-between;"><span>${tx('Outras saídas:','Otras salidas:','Other outflows:')}</span><span>- ${fmt(componentes.outrasSaidas, 'BRL')}</span></div>` : ''}
 
         <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
-        <div style="margin-bottom:5px;"><strong>>> VENDAS POR FORMA DE PAGAMENTO</strong></div>
-        ${Object.keys(resumoEntradas).length > 0 ? Object.entries(resumoEntradas).map(([forma, valor]) => `<div style="display:flex;justify-content:space-between;"><span>${forma}:</span><span>${Number(valor).toFixed(2)}</span></div>`).join('') : '<div style="text-align:center;">Nenhuma venda</div>'}
+        <div style="margin-bottom:5px;"><strong>>> ${tx('VENDAS POR FORMA DE PAGAMENTO','VENTAS POR FORMA DE PAGO','SALES BY PAYMENT METHOD')}</strong></div>
+        ${Object.keys(resumoEntradas).length > 0 ? Object.entries(resumoEntradas).map(([forma, valor]) => `<div style="display:flex;justify-content:space-between;"><span>${forma}:</span><span>${Number(valor).toFixed(2)}</span></div>`).join('') : `<div style="text-align:center;">${tx('Nenhuma venda','Ninguna venta','No sales')}</div>`}
 
         <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
-        <div style="margin-bottom:5px;"><strong>>> CONCILIAÇÃO ELETRÔNICA (NÃO AFETA GAVETA)</strong></div>
-        <div style="display:flex;justify-content:space-between;"><span>PIX recebido:</span><span>+ ${fmt(conciliacaoEletronica.pixEntradas, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span>PIX saídas/estornos:</span><span>- ${fmt(conciliacaoEletronica.pixSaidas, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>PIX líquido:</span><span>${fmt(conciliacaoEletronica.pixLiquido, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span>Cartão crédito líquido:</span><span>${fmt(conciliacaoEletronica.cartaoCreditoLiquido, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span>Cartão débito líquido:</span><span>${fmt(conciliacaoEletronica.cartaoDebitoLiquido, 'BRL')}</span></div>
-        <div style="font-size:10px;margin-top:4px;">Valores eletrônicos são conciliados separadamente e não compõem o saldo físico esperado da gaveta.</div>
-        ${extratoPixHTML ? `<div style="border-top:1px dotted #000;margin-top:7px;padding-top:5px;"><strong>>> EXTRATO PIX DO TURNO</strong>${extratoPixHTML}</div>` : '<div style="margin-top:5px;text-align:center;">Nenhum PIX registrado no turno</div>'}
+        <div style="margin-bottom:5px;"><strong>>> ${tx('CONCILIAÇÃO ELETRÔNICA (NÃO AFETA GAVETA)','CONCILIACIÓN ELECTRÓNICA (NO AFECTA CAJA)','ELECTRONIC RECONCILIATION (DOES NOT AFFECT DRAWER)')}</strong></div>
+        <div style="display:flex;justify-content:space-between;"><span>${tx('PIX recebido:','PIX recibido:','PIX received:')}</span><span>+ ${fmt(conciliacaoEletronica.pixEntradas, 'BRL')}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>${tx('PIX saídas/estornos:','PIX salidas/reversiones:','PIX outflows/refunds:')}</span><span>- ${fmt(conciliacaoEletronica.pixSaidas, 'BRL')}</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('PIX líquido:','PIX neto:','Net PIX:')}</span><span>${fmt(conciliacaoEletronica.pixLiquido, 'BRL')}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>${tx('Cartão crédito líquido:','Tarjeta crédito neta:','Net credit card:')}</span><span>${fmt(conciliacaoEletronica.cartaoCreditoLiquido, 'BRL')}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>${tx('Cartão débito líquido:','Tarjeta débito neta:','Net debit card:')}</span><span>${fmt(conciliacaoEletronica.cartaoDebitoLiquido, 'BRL')}</span></div>
+        <div style="font-size:10px;margin-top:4px;">${tx('Valores eletrônicos são conciliados separadamente e não compõem o saldo físico esperado da gaveta.','Los valores electrónicos se concilian por separado y no componen el saldo físico esperado de la caja.','Electronic amounts are reconciled separately and do not make up the expected physical cash balance.')}</div>
+        ${extratoPixHTML ? `<div style="border-top:1px dotted #000;margin-top:7px;padding-top:5px;"><strong>>> ${tx('EXTRATO PIX DO TURNO','EXTRACTO PIX DEL TURNO','SHIFT PIX STATEMENT')}</strong>${extratoPixHTML}</div>` : `<div style="margin-top:5px;text-align:center;">${tx('Nenhum PIX registrado no turno','Ningún PIX registrado en el turno','No PIX recorded in the shift')}</div>`}
 
         <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
-        <div style="margin-bottom:5px;"><strong>>> CONTAGEM INFORMADA PELO OPERADOR</strong></div>
+        <div style="margin-bottom:5px;"><strong>>> ${tx('CONTAGEM INFORMADA PELO OPERADOR','CONTEO INFORMADO POR EL OPERADOR','COUNT ENTERED BY OPERATOR')}</strong></div>
         ${moedasContadasHTML}
 
         <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
-        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>SALDO ESPERADO:</span><span>${fmt(saldoEsperadoBRL, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>TOTAL CONTADO:</span><span>${fmt(valInformadoBRL, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>DIFERENÇA:</span><span>${fmt(diferenca, 'BRL')}</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('SALDO ESPERADO:','SALDO ESPERADO:','EXPECTED BALANCE:')}</span><span>${fmt(saldoEsperadoBRL, 'BRL')}</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('TOTAL CONTADO:','TOTAL CONTADO:','TOTAL COUNTED:')}</span><span>${fmt(valInformadoBRL, 'BRL')}</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('DIFERENÇA:','DIFERENCIA:','DIFFERENCE:')}</span><span>${fmt(diferenca, 'BRL')}</span></div>
         <div style="text-align:center;font-weight:bold;margin-top:8px;">${descQuebra}</div>
 
-        <div style="margin-top:36px;text-align:center;">_________________________________<br/>Assinatura do Operador<br/>${sessaoAtiva.operadorNome}</div>
-        <div style="margin-top:36px;text-align:center;">_________________________________<br/>Conferência da Gerência</div>
+        <div style="margin-top:36px;text-align:center;">_________________________________<br/>${tx('Assinatura do Operador','Firma del Operador','Operator Signature')}<br/>${sessaoAtiva.operadorNome}</div>
+        <div style="margin-top:36px;text-align:center;">_________________________________<br/>${tx('Conferência da Gerência','Revisión de Gerencia','Management Review')}</div>
       </div>
     `;
 
@@ -1092,7 +1092,7 @@ export default function App() {
 
     const janelaImpressao = window.open('', '_blank', 'width=400,height=650');
     if (janelaImpressao) {
-      janelaImpressao.document.write(`<!DOCTYPE html><html><head><title>Fechamento de Turno</title><style>@page{margin:0;size:80mm auto;}body{margin:0;padding:10px;width:80mm;box-sizing:border-box;}</style></head><body>${reciboFechoHTML}<script>window.onload=function(){window.focus();window.print();};</script></body></html>`);
+      janelaImpressao.document.write(`<!DOCTYPE html><html><head><title>${tx('Fechamento de Turno','Cierre de Turno','Shift Closing')}</title><style>@page{margin:0;size:80mm auto;}body{margin:0;padding:10px;width:80mm;box-sizing:border-box;}</style></head><body>${reciboFechoHTML}<script>window.onload=function(){window.focus();window.print();};</script></body></html>`);
       janelaImpressao.document.close();
     }
 
