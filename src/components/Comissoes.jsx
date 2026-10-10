@@ -170,7 +170,7 @@ export default function Comissoes({ commitOperacaoNegocio, historicoVendas, fmt,
                     <div><label style={{ color: '#94a3b8', fontSize: '10px', fontWeight: 900 }}>{tx('Critério','Criterio','Criterion')}</label><select value={regra.tipo} onChange={e => atualizarBonus(regra.id, 'tipo', e.target.value)} style={estiloInput}>{TIPOS_BONUS.map(tipo => <option key={tipo.id} value={tipo.id}>{tipo.label}</option>)}</select></div>
                     <div><label style={{ color: '#94a3b8', fontSize: '10px', fontWeight: 900 }}>{tx('Meta','Meta','Target')}</label><input disabled={regra.tipo === 'sem_devolucoes'} min="0" step="0.01" type="number" value={regra.meta} onChange={e => atualizarBonus(regra.id, 'meta', e.target.value)} style={{ ...estiloInput, opacity: regra.tipo === 'sem_devolucoes' ? .45 : 1 }} /></div>
                     <div><label style={{ color: '#c084fc', fontSize: '10px', fontWeight: 900 }}>{tx('Bônus R/label><input min="0" step="0.01" type="number" value={regra.valorBonus} onChange={e => atualizarBonus(regra.id, 'valorBonus', e.target.value)} style={estiloInput} /></div>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#cbd5e1', fontSize: '11px', paddingBottom: '10px' }}><input type="checkbox" checked={regra.ativo !== false} onChange={e => atualizarBonus(regra.id, 'ativo', e.target.checked)} /> Ativa</label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#cbd5e1', fontSize: '11px', paddingBottom: '10px' }}><input type="checkbox" checked={regra.ativo !== false} onChange={e => atualizarBonus(regra.id, 'ativo', e.target.checked)} /> {tx('Ativa','Activa','Active')}</label>
                     <button onClick={() => removerBonus(regra.id)} style={{ padding: '10px', borderRadius: '8px', border: '1px solid rgba(244,63,94,.35)', background: 'rgba(244,63,94,.08)', color: '#fb7185', cursor: 'pointer', fontWeight: 900 }}>{tx('Remover','Eliminar','Remove')}</button>
                   </div>
                 ))}
@@ -226,7 +226,7 @@ export default function Comissoes({ commitOperacaoNegocio, historicoVendas, fmt,
   );
 }
 ,'Bono R/label><input min="0" step="0.01" type="number" value={regra.valorBonus} onChange={e => atualizarBonus(regra.id, 'valorBonus', e.target.value)} style={estiloInput} /></div>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#cbd5e1', fontSize: '11px', paddingBottom: '10px' }}><input type="checkbox" checked={regra.ativo !== false} onChange={e => atualizarBonus(regra.id, 'ativo', e.target.checked)} /> Ativa</label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#cbd5e1', fontSize: '11px', paddingBottom: '10px' }}><input type="checkbox" checked={regra.ativo !== false} onChange={e => atualizarBonus(regra.id, 'ativo', e.target.checked)} /> {tx('Ativa','Activa','Active')}</label>
                     <button onClick={() => removerBonus(regra.id)} style={{ padding: '10px', borderRadius: '8px', border: '1px solid rgba(244,63,94,.35)', background: 'rgba(244,63,94,.08)', color: '#fb7185', cursor: 'pointer', fontWeight: 900 }}>{tx('Remover','Eliminar','Remove')}</button>
                   </div>
                 ))}
@@ -282,7 +282,7 @@ export default function Comissoes({ commitOperacaoNegocio, historicoVendas, fmt,
   );
 }
 ,'Bonus R/label><input min="0" step="0.01" type="number" value={regra.valorBonus} onChange={e => atualizarBonus(regra.id, 'valorBonus', e.target.value)} style={estiloInput} /></div>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#cbd5e1', fontSize: '11px', paddingBottom: '10px' }}><input type="checkbox" checked={regra.ativo !== false} onChange={e => atualizarBonus(regra.id, 'ativo', e.target.checked)} /> Ativa</label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#cbd5e1', fontSize: '11px', paddingBottom: '10px' }}><input type="checkbox" checked={regra.ativo !== false} onChange={e => atualizarBonus(regra.id, 'ativo', e.target.checked)} /> {tx('Ativa','Activa','Active')}</label>
                     <button onClick={() => removerBonus(regra.id)} style={{ padding: '10px', borderRadius: '8px', border: '1px solid rgba(244,63,94,.35)', background: 'rgba(244,63,94,.08)', color: '#fb7185', cursor: 'pointer', fontWeight: 900 }}>{tx('Remover','Eliminar','Remove')}</button>
                   </div>
                 ))}
@@ -338,7 +338,7 @@ export default function Comissoes({ commitOperacaoNegocio, historicoVendas, fmt,
   );
 }
 )}</label><input min="0" step="0.01" type="number" value={regra.valorBonus} onChange={e => atualizarBonus(regra.id, 'valorBonus', e.target.value)} style={estiloInput} /></div>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#cbd5e1', fontSize: '11px', paddingBottom: '10px' }}><input type="checkbox" checked={regra.ativo !== false} onChange={e => atualizarBonus(regra.id, 'ativo', e.target.checked)} /> Ativa</label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#cbd5e1', fontSize: '11px', paddingBottom: '10px' }}><input type="checkbox" checked={regra.ativo !== false} onChange={e => atualizarBonus(regra.id, 'ativo', e.target.checked)} /> {tx('Ativa','Activa','Active')}</label>
                     <button onClick={() => removerBonus(regra.id)} style={{ padding: '10px', borderRadius: '8px', border: '1px solid rgba(244,63,94,.35)', background: 'rgba(244,63,94,.08)', color: '#fb7185', cursor: 'pointer', fontWeight: 900 }}>{tx('Remover','Eliminar','Remove')}</button>
                   </div>
                 ))}
