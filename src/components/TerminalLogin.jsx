@@ -14,7 +14,7 @@ function LogoSubLogin() {
   );
 }
 
-export default function TerminalLogin({ vendedores, onLoginSuccess, onSairLoja }) {
+export default function TerminalLogin({ vendedores, onLoginSuccess, onSairLoja, tx = (pt) => pt }) {
   const [idSelecionado, setIdSelecionado] = useState('');
   const [senhaDigitada, setSenhaDigitada] = useState('');
   const [erro, setErro] = useState('');
@@ -55,25 +55,25 @@ export default function TerminalLogin({ vendedores, onLoginSuccess, onSairLoja }
           
           <LogoSubLogin />
           
-          <h2 style={{ color: '#fff', fontSize: '20px', fontWeight: 900, marginBottom: '8px', textAlign: 'center' }}>Acesso ao Terminal</h2>
-          <p style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', marginBottom: '24px' }}>Selecione o seu utilizador e insira o PIN para operar o caixa.</p>
+          <h2 style={{ color: '#fff', fontSize: '20px', fontWeight: 900, marginBottom: '8px', textAlign: 'center' }}>{tx('Acesso ao Terminal','Acceso al Terminal','Terminal Access')}</h2>
+          <p style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', marginBottom: '24px' }}>{tx('Selecione o seu utilizador e insira o PIN para operar o caixa.','Seleccione su usuario e ingrese el PIN para operar la caja.','Select your user and enter the PIN to operate the register.')}</p>
           
           <form onSubmit={tentarAcesso} autoComplete="off" style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ color: '#cbd5e1', fontSize: '11px', fontWeight: 800 }}>Quem está a operar?</label>
+              <label style={{ color: '#cbd5e1', fontSize: '11px', fontWeight: 800 }}>{tx('Quem está a operar?','¿Quién está operando?','Who is operating?')}</label>
               <select value={idSelecionado} onChange={(e) => { setIdSelecionado(e.target.value); setErro(''); setSenhaDigitada(''); }} style={{ width: '100%', padding: '14px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '12px', color: '#fff', fontSize: '14px', fontWeight: 800, outline: 'none', cursor: 'pointer' }}>
                 {vendedores?.map(v => <option key={v.id} value={v.id}>{v.nome} ({v.cargo})</option>)}
               </select>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label style={{ color: '#cbd5e1', fontSize: '11px', fontWeight: 800 }}>Senha / PIN:</label>
+              <label style={{ color: '#cbd5e1', fontSize: '11px', fontWeight: 800 }}>{tx('Senha / PIN:','Contraseña / PIN:','Password / PIN:')}</label>
               <input type="text" inputMode="text" autoComplete="one-time-code" name="zenos-terminal-pin" data-lpignore="true" data-1p-ignore="true" placeholder="••••" value={senhaDigitada} onChange={e => { setSenhaDigitada(e.target.value); setErro(''); }} style={{ width: '100%', padding: '14px', WebkitTextSecurity: 'disc', backgroundColor: '#020617', border: `1px solid ${erro ? '#f43f5e' : '#14b8a6'}`, borderRadius: '12px', color: '#34d399', fontSize: '20px', fontWeight: 900, textAlign: 'center', outline: 'none', boxSizing: 'border-box', letterSpacing: '4px' }} autoFocus />
-              {erro ? <span style={{ fontSize: '12px', color: '#f43f5e', textAlign: 'center', marginTop: '4px', fontWeight: 800 }}>{erro}</span> : <span style={{ fontSize: '10px', color: '#64748b', textAlign: 'center', marginTop: '4px' }}>Use o PIN do operador selecionado. O administrador principal deve trocar o PIN temporário no primeiro acesso.</span>}
+              {erro ? <span style={{ fontSize: '12px', color: '#f43f5e', textAlign: 'center', marginTop: '4px', fontWeight: 800 }}>{erro}</span> : <span style={{ fontSize: '10px', color: '#64748b', textAlign: 'center', marginTop: '4px' }}>{tx('Use o PIN do operador selecionado. O administrador principal deve trocar o PIN temporário no primeiro acesso.','Use el PIN del operador seleccionado. El administrador principal debe cambiar el PIN temporal en el primer acceso.','Use the selected operator PIN. The main administrator must change the temporary PIN on first access.')}</span>}
             </div>
 
-            <button type="submit" style={{ width: '100%', padding: '14px', background: 'linear-gradient(135deg, #0d9488, #14b8a6)', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '15px', marginTop: '8px', boxShadow: '0 4px 15px rgba(20, 184, 166, 0.3)' }}>Desbloquear Terminal ➔</button>
-            {onSairLoja && <button type="button" onClick={onSairLoja} style={{ background: 'transparent', border: 'none', color: '#fb7185', fontSize: '12px', fontWeight: 800, cursor: 'pointer', marginTop: '8px', textDecoration: 'underline' }}>Encerrar sessão principal da loja</button>}
+            <button type="submit" style={{ width: '100%', padding: '14px', background: 'linear-gradient(135deg, #0d9488, #14b8a6)', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '15px', marginTop: '8px', boxShadow: '0 4px 15px rgba(20, 184, 166, 0.3)' }}>{tx('Desbloquear Terminal ➔','Desbloquear Terminal ➔','Unlock Terminal ➔')}</button>
+            {onSairLoja && <button type="button" onClick={onSairLoja} style={{ background: 'transparent', border: 'none', color: '#fb7185', fontSize: '12px', fontWeight: 800, cursor: 'pointer', marginTop: '8px', textDecoration: 'underline' }}>{tx('Encerrar sessão principal da loja','Cerrar sesión principal de la tienda','End main store session')}</button>}
           </form>
         </div>
       </div>
