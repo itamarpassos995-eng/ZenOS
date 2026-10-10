@@ -50,6 +50,7 @@ export default function Fiscal({
   clientes = [],
   ambiente = 'homologacao',
   onVerVenda,
+  tx = (pt) => pt,
 }) {
   const [status, setStatus] = useState('todos');
   const [busca, setBusca] = useState('');
@@ -126,7 +127,7 @@ export default function Fiscal({
 
   return <section className="fiscal-page" data-fiscal-mobile-safe="true">
     <header className="fiscal-header">
-      <div><span className="fiscal-eyebrow">ZENOS FISCAL</span><h1>Operação fiscal</h1><p>Consulta e preparação visual de documentos, sem alterar a venda comercial.</p></div>
+      <div><span className="fiscal-eyebrow">ZENOS FISCAL</span><h1>{tx('Operação fiscal','Operación fiscal','Fiscal operation')}</h1><p>{tx('Consulta e preparação visual de documentos, sem alterar a venda comercial.','Consulta y preparación visual de documentos, sin alterar la venta comercial.','View and visually prepare documents without changing the commercial sale.')}</p></div>
       <div className="fiscal-contexto">
         <Campo rotulo="País fiscal" valor={pais === 'BR' ? 'Brasil (BR)' : pais === 'PY' ? 'Paraguai (PY)' : 'Não configurado'} />
         <Campo rotulo="Moeda comercial" valor={perfilLoja?.moedaComercial || perfilLoja?.moeda || filaFiscal.find(item => item.moedaComercial)?.moedaComercial || 'Não informada'} />
@@ -134,8 +135,8 @@ export default function Fiscal({
       </div>
     </header>
 
-    <div className="fiscal-aviso" role="status"><span>ⓘ</span><div><strong>Integração governamental ainda não configurada.</strong><p>A fila e as prévias são somente leitura. Nenhum documento será transmitido ou persistido nesta fase.</p></div></div>
-    {erroFila && <div className="fiscal-erro" role="alert"><strong>Não foi possível montar a fila fiscal.</strong><span>{erroFila}</span></div>}
+    <div className="fiscal-aviso" role="status"><span>ⓘ</span><div><strong>{tx('Integração governamental ainda não configurada.','Integración gubernamental aún no configurada.','Government integration is not configured yet.')}</strong><p>{tx('A fila e as prévias são somente leitura. Nenhum documento será transmitido ou persistido nesta fase.','La cola y las vistas previas son de solo lectura. Ningún documento será transmitido ni persistido en esta fase.','The queue and previews are read-only. No document will be transmitted or persisted in this phase.')}</p></div></div>
+    {erroFila && <div className="fiscal-erro" role="alert"><strong>{tx('Não foi possível montar a fila fiscal.','No fue posible montar la cola fiscal.','Could not build the fiscal queue.')}</strong><span>{erroFila}</span></div>}
 
     <div className="fiscal-kpis">
       {STATUS.slice(1).map(([chave, rotulo]) => <button type="button" key={chave} className={`fiscal-kpi ${status === chave ? 'ativo' : ''}`} onClick={() => setStatus(chave)}>
@@ -146,27 +147,27 @@ export default function Fiscal({
     <div className="fiscal-toolbar">
       <div className="fiscal-status-tabs">{STATUS.map(([chave, rotulo]) => <button type="button" key={chave} className={status === chave ? 'ativo' : ''} onClick={() => setStatus(chave)}>{rotulo}</button>)}</div>
       <div className="fiscal-filtros">
-        <label><span>Buscar venda ou cliente</span><input value={busca} onChange={event => setBusca(event.target.value)} placeholder="ID ou nome" /></label>
-        <label><span>De</span><input type="date" value={dataInicial} onChange={event => setDataInicial(event.target.value)} /></label>
-        <label><span>Até</span><input type="date" value={dataFinal} onChange={event => setDataFinal(event.target.value)} /></label>
+        <label><span>{tx('Buscar venda ou cliente','Buscar venta o cliente','Search sale or customer')}</span><input value={busca} onChange={event => setBusca(event.target.value)} placeholder={tx('ID ou nome','ID o nombre','ID or name')} /></label>
+        <label><span>{tx('De','Desde','From')}</span><input type="date" value={dataInicial} onChange={event => setDataInicial(event.target.value)} /></label>
+        <label><span>{tx('Até','Hasta','To')}</span><input type="date" value={dataFinal} onChange={event => setDataFinal(event.target.value)} /></label>
       </div>
     </div>
 
     <div className="fiscal-fila">
-      <div className="fiscal-fila-head"><div><span>FILA DE PENDÊNCIAS</span><strong>{filtrada.length} registro(s)</strong></div><small>Derivada das vendas existentes por listarPendenciasFiscais(...)</small></div>
-      {filtrada.length === 0 ? <div className="fiscal-vazio"><strong>Nenhuma venda encontrada.</strong><span>Os filtros atuais não possuem registros fiscais disponíveis.</span></div> :
+      <div className="fiscal-fila-head"><div><span>{tx('FILA DE PENDÊNCIAS','COLA DE PENDIENTES','PENDING QUEUE')}</span><strong>{filtrada.length} registro(s)</strong></div><small>Derivada das vendas existentes por listarPendenciasFiscais(...)</small></div>
+      {filtrada.length === 0 ? <div className="fiscal-vazio"><strong>{tx('Nenhuma venda encontrada.','Ninguna venta encontrada.','No sale found.')}</strong><span>{tx('Os filtros atuais não possuem registros fiscais disponíveis.','Los filtros actuales no tienen registros fiscales disponibles.','The current filters have no fiscal records available.')}</span></div> :
         <div className="fiscal-lista">
           {filtrada.map(item => <article className="fiscal-linha" key={item.vendaId}>
-            <div className="fiscal-venda-id"><span>Venda</span><strong>{item.vendaId}</strong><small>{formatarData(item.createdAt)}</small></div>
-            <div><span>Cliente</span><strong>{texto(item.clienteNome)}</strong></div>
-            <div><span>País</span><strong>{pais || 'Revisar'}</strong></div>
-            <div><span>Total comercial original</span><strong>{item.totalComercialOriginal == null || !item.moedaComercial ? 'Revisão necessária' : formatarValor(item.totalComercialOriginal, item.moedaComercial)}</strong><small>{item.moedaComercial || 'Moeda não informada'}</small></div>
-            <div><span>Referência gerencial BRL</span><strong>{formatarValor(item.totalBRL, 'BRL')}</strong><small>Não é total fiscal convertido</small></div>
-            <div className="fiscal-situacao"><span>Status fiscal</span><b className={`status-${item.statusFiscal}`}>{STATUS_LABEL[item.statusFiscal] || item.statusFiscal}</b>{item.exigeRevisao && <small>Revisão necessária</small>}</div>
+            <div className="fiscal-venda-id"><span>{tx('Venda','Venta','Sale')}</span><strong>{item.vendaId}</strong><small>{formatarData(item.createdAt)}</small></div>
+            <div><span>{tx('Cliente','Cliente','Customer')}</span><strong>{texto(item.clienteNome)}</strong></div>
+            <div><span>{tx('País','País','Country')}</span><strong>{pais || 'Revisar'}</strong></div>
+            <div><span>{tx('Total comercial original','Total comercial original','Original commercial total')}</span><strong>{item.totalComercialOriginal == null || !item.moedaComercial ? 'Revisão necessária' : formatarValor(item.totalComercialOriginal, item.moedaComercial)}</strong><small>{item.moedaComercial || 'Moeda não informada'}</small></div>
+            <div><span>{tx('Referência gerencial BRL','Referencia gerencial BRL','BRL management reference')}</span><strong>{formatarValor(item.totalBRL, 'BRL')}</strong><small>{tx('Não é total fiscal convertido','No es total fiscal convertido','Not a converted fiscal total')}</small></div>
+            <div className="fiscal-situacao"><span>{tx('Status fiscal','Estado fiscal','Fiscal status')}</span><b className={`status-${item.statusFiscal}`}>{STATUS_LABEL[item.statusFiscal] || item.statusFiscal}</b>{item.exigeRevisao && <small>{tx('Revisão necessária','Revisión necesaria','Review required')}</small>}</div>
             <div className="fiscal-acoes">
-              <button type="button" onClick={() => onVerVenda?.(item.vendaId)}>Ver venda</button>
-              <button type="button" className="primario" onClick={() => abrirPrevia(item)}>Ver prévia fiscal</button>
-              <button type="button" onClick={() => abrirPrevia(item)}>Revisar dados</button>
+              <button type="button" onClick={() => onVerVenda?.(item.vendaId)}>{tx('Ver venda','Ver venta','View sale')}</button>
+              <button type="button" className="primario" onClick={() => abrirPrevia(item)}>{tx('Ver prévia fiscal','Ver vista fiscal','View fiscal preview')}</button>
+              <button type="button" onClick={() => abrirPrevia(item)}>{tx('Revisar dados','Revisar datos','Review data')}</button>
             </div>
           </article>)}
         </div>}
@@ -174,54 +175,54 @@ export default function Fiscal({
 
     {selecionada && <div className="fiscal-modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setSelecionada(null); }}>
       <div className="fiscal-modal" role="dialog" aria-modal="true" aria-labelledby="fiscal-previa-titulo">
-        <div className="fiscal-modal-head"><div><span>PRÉVIA NÃO PERSISTIDA</span><h2 id="fiscal-previa-titulo">Documento fiscal da venda {selecionada.vendaId}</h2></div><button type="button" onClick={() => setSelecionada(null)} aria-label="Fechar prévia">×</button></div>
+        <div className="fiscal-modal-head"><div><span>{tx('PRÉVIA NÃO PERSISTIDA','VISTA PREVIA NO PERSISTIDA','NON-PERSISTED PREVIEW')}</span><h2 id="fiscal-previa-titulo">Documento fiscal da venda {selecionada.vendaId}</h2></div><button type="button" onClick={() => setSelecionada(null)} aria-label="Fechar prévia">×</button></div>
         <div className="fiscal-modal-body">
           <div className="fiscal-tipo-row">
-            <label><span>Tipo de documento compatível com {pais || 'a loja'}</span><select value={tipoDocumento} onChange={event => alterarTipo(event.target.value)} disabled={tipos.length === 0}>{tipos.length === 0 ? <option value="">País fiscal inválido</option> : tipos.map(tipo => <option value={tipo} key={tipo}>{TIPOS_FISCAIS_LABEL[tipo] || tipo}</option>)}</select></label>
+            <label><span>Tipo de documento compatível com {pais || 'a loja'}</span><select value={tipoDocumento} onChange={event => alterarTipo(event.target.value)} disabled={tipos.length === 0}>{tipos.length === 0 ? <option value="">{tx('País fiscal inválido','País fiscal inválido','Invalid fiscal country')}</option> : tipos.map(tipo => <option value={tipo} key={tipo}>{TIPOS_FISCAIS_LABEL[tipo] || tipo}</option>)}</select></label>
             <div><span>Adapter</span><strong>{previa?.adapter || 'Indisponível'}</strong></div>
           </div>
           {erroPrevia && <div className="fiscal-erro" role="alert">{erroPrevia}</div>}
           {snapshot && <>
             <div className="fiscal-preview-grid">
-              <section><h3>Dados da venda</h3><Campo rotulo="ID" valor={snapshot.vendaId} /><Campo rotulo="Data" valor={formatarData(selecionada.createdAt)} /><Campo rotulo="Cliente" valor={selecionada.clienteNome} /><Campo rotulo="Situação comercial" valor={snapshot.metadata.estadoComercialNaCriacao} /></section>
-              <section><h3>Emitente</h3><Campo rotulo="Nome / razão social" valor={snapshot.dadosEmitenteSnapshot.razaoSocial || snapshot.dadosEmitenteSnapshot.nomeFantasia} /><Campo rotulo="Documento" valor={snapshot.dadosEmitenteSnapshot.documento1} /><Campo rotulo="Endereço" valor={snapshot.dadosEmitenteSnapshot.endereco} /><Campo rotulo="Cidade / país" valor={`${texto(snapshot.dadosEmitenteSnapshot.cidade)} / ${texto(snapshot.dadosEmitenteSnapshot.pais)}`} /></section>
-              <section><h3>Destinatário</h3><Campo rotulo="Cliente" valor={snapshot.dadosDestinatarioSnapshot.nome} /><Campo rotulo="Documento" valor={snapshot.dadosDestinatarioSnapshot.documento} /><Campo rotulo="Endereço" valor={snapshot.dadosDestinatarioSnapshot.endereco} /><Campo rotulo="Cidade / país" valor={`${texto(snapshot.dadosDestinatarioSnapshot.cidade)} / ${texto(snapshot.dadosDestinatarioSnapshot.pais)}`} /></section>
+              <section><h3>{tx('Dados da venda','Datos de la venta','Sale data')}</h3><Campo rotulo="ID" valor={snapshot.vendaId} /><Campo rotulo="Data" valor={formatarData(selecionada.createdAt)} /><Campo rotulo="Cliente" valor={selecionada.clienteNome} /><Campo rotulo="Situação comercial" valor={snapshot.metadata.estadoComercialNaCriacao} /></section>
+              <section><h3>{tx('Emitente','Emisor','Issuer')}</h3><Campo rotulo="Nome / razão social" valor={snapshot.dadosEmitenteSnapshot.razaoSocial || snapshot.dadosEmitenteSnapshot.nomeFantasia} /><Campo rotulo="Documento" valor={snapshot.dadosEmitenteSnapshot.documento1} /><Campo rotulo="Endereço" valor={snapshot.dadosEmitenteSnapshot.endereco} /><Campo rotulo="Cidade / país" valor={`${texto(snapshot.dadosEmitenteSnapshot.cidade)} / ${texto(snapshot.dadosEmitenteSnapshot.pais)}`} /></section>
+              <section><h3>{tx('Destinatário','Destinatario','Recipient')}</h3><Campo rotulo="Cliente" valor={snapshot.dadosDestinatarioSnapshot.nome} /><Campo rotulo="Documento" valor={snapshot.dadosDestinatarioSnapshot.documento} /><Campo rotulo="Endereço" valor={snapshot.dadosDestinatarioSnapshot.endereco} /><Campo rotulo="Cidade / país" valor={`${texto(snapshot.dadosDestinatarioSnapshot.cidade)} / ${texto(snapshot.dadosDestinatarioSnapshot.pais)}`} /></section>
             </div>
 
-            <section className="fiscal-preview-section"><h3>Itens</h3><div className="fiscal-preview-list">
+            <section className="fiscal-preview-section"><h3>{tx('Itens','Ítems','Items')}</h3><div className="fiscal-preview-list">
               {snapshot.itensSnapshot.map((item, index) => <article key={item.id || index}>
-                <div><span>Descrição</span><strong>{item.descricao || item.nome || 'Não informado'}</strong></div>
-                <div><span>Quantidade / unidade</span><strong>{texto(item.qtd)} / {texto(item.unidadeMedida)}</strong></div>
-                <div><span>Preço comercial original</span><strong>{item.valoresOriginaisSnapshot ? formatarValor(item.valoresOriginaisSnapshot.precoUnitario, item.valoresOriginaisSnapshot.moeda) : 'Revisar'}</strong></div>
-                <div><span>Referência BRL</span><strong>{formatarValor(item.precoPraticadoBRL, 'BRL')}</strong></div>
-                <div><span>Classificação fiscal</span><strong>{item.ncm && item.ncm !== 'REVISAR' ? item.ncm : 'Revisar'}</strong></div>
+                <div><span>{tx('Descrição','Descripción','Description')}</span><strong>{item.descricao || item.nome || 'Não informado'}</strong></div>
+                <div><span>{tx('Quantidade / unidade','Cantidad / unidad','Quantity / unit')}</span><strong>{texto(item.qtd)} / {texto(item.unidadeMedida)}</strong></div>
+                <div><span>{tx('Preço comercial original','Precio comercial original','Original commercial price')}</span><strong>{item.valoresOriginaisSnapshot ? formatarValor(item.valoresOriginaisSnapshot.precoUnitario, item.valoresOriginaisSnapshot.moeda) : 'Revisar'}</strong></div>
+                <div><span>{tx('Referência BRL','Referencia BRL','BRL reference')}</span><strong>{formatarValor(item.precoPraticadoBRL, 'BRL')}</strong></div>
+                <div><span>{tx('Classificação fiscal','Clasificación fiscal','Fiscal classification')}</span><strong>{item.ncm && item.ncm !== 'REVISAR' ? item.ncm : 'Revisar'}</strong></div>
               </article>)}
             </div></section>
 
-            <section className="fiscal-preview-section"><h3>Pagamentos</h3><div className="fiscal-preview-list">
-              {snapshot.pagamentosSnapshot.length === 0 ? <div className="fiscal-vazio">Não informado</div> : snapshot.pagamentosSnapshot.map((pagamento, index) => <article key={pagamento.id || index}>
-                <div><span>Forma</span><strong>{pagamento.rotulo || pagamento.formaId || 'Não informada'}</strong></div>
-                <div><span>Moeda de origem</span><strong>{texto(pagamento.moedaOrigem)}</strong></div>
-                <div><span>Valor original</span><strong>{formatarValor(pagamento.valorOriginal, pagamento.moedaOrigem)}</strong></div>
-                <div><span>Valor convertido BRL</span><strong>{formatarValor(pagamento.valorConvertidoBRL, 'BRL')}</strong></div>
+            <section className="fiscal-preview-section"><h3>{tx('Pagamentos','Pagos','Payments')}</h3><div className="fiscal-preview-list">
+              {snapshot.pagamentosSnapshot.length === 0 ? <div className="fiscal-vazio">{tx('Não informado','No informado','Not provided')}</div> : snapshot.pagamentosSnapshot.map((pagamento, index) => <article key={pagamento.id || index}>
+                <div><span>{tx('Forma','Forma','Method')}</span><strong>{pagamento.rotulo || pagamento.formaId || 'Não informada'}</strong></div>
+                <div><span>{tx('Moeda de origem','Moneda de origen','Source currency')}</span><strong>{texto(pagamento.moedaOrigem)}</strong></div>
+                <div><span>{tx('Valor original','Valor original','Original amount')}</span><strong>{formatarValor(pagamento.valorOriginal, pagamento.moedaOrigem)}</strong></div>
+                <div><span>{tx('Valor convertido BRL','Valor convertido BRL','Converted BRL amount')}</span><strong>{formatarValor(pagamento.valorConvertidoBRL, 'BRL')}</strong></div>
               </article>)}
             </div></section>
 
             <div className="fiscal-totais">
-              <div><span>TOTAL COMERCIAL ORIGINAL</span><strong>{snapshot.totaisOriginaisSnapshot && snapshot.moedaComercial ? formatarValor(snapshot.totaisOriginaisSnapshot.total, snapshot.moedaComercial) : 'Revisão necessária'}</strong><small>{snapshot.moedaComercial || 'Moeda original não informada'}</small></div>
-              <div><span>REFERÊNCIA GERENCIAL BRL</span><strong>{formatarValor(snapshot.valoresGerenciaisSnapshot.totalBRL, 'BRL')}</strong><small>Separada do total fiscal original</small></div>
+              <div><span>{tx('TOTAL COMERCIAL ORIGINAL','TOTAL COMERCIAL ORIGINAL','ORIGINAL COMMERCIAL TOTAL')}</span><strong>{snapshot.totaisOriginaisSnapshot && snapshot.moedaComercial ? formatarValor(snapshot.totaisOriginaisSnapshot.total, snapshot.moedaComercial) : 'Revisão necessária'}</strong><small>{snapshot.moedaComercial || 'Moeda original não informada'}</small></div>
+              <div><span>{tx('REFERÊNCIA GERENCIAL BRL','REFERENCIA GERENCIAL BRL','BRL MANAGEMENT REFERENCE')}</span><strong>{formatarValor(snapshot.valoresGerenciaisSnapshot.totalBRL, 'BRL')}</strong><small>{tx('Separada do total fiscal original','Separada del total fiscal original','Separate from the original fiscal total')}</small></div>
             </div>
 
-            <section className="fiscal-pendencias"><h3>Pendências para emissão</h3>{pendencias.map(item => <div key={item}><span>!</span><strong>{PENDENCIAS_LABEL[item] || item}</strong></div>)}</section>
-            <section className="fiscal-impacto"><h3>Impacto fiscal</h3><div><Campo rotulo="Custo fiscal" valor="Não calculado" /><Campo rotulo="Carga fiscal percentual" valor="Aguardando configuração" /></div></section>
+            <section className="fiscal-pendencias"><h3>{tx('Pendências para emissão','Pendientes para emisión','Issuance pending items')}</h3>{pendencias.map(item => <div key={item}><span>!</span><strong>{PENDENCIAS_LABEL[item] || item}</strong></div>)}</section>
+            <section className="fiscal-impacto"><h3>{tx('Impacto fiscal','Impacto fiscal','Fiscal impact')}</h3><div><Campo rotulo="Custo fiscal" valor="Não calculado" /><Campo rotulo="Carga fiscal percentual" valor="Aguardando configuração" /></div></section>
           </>}
         </div>
         <div className="fiscal-modal-actions">
-          <button type="button" onClick={() => onVerVenda?.(selecionada.vendaId)}>Ver venda</button>
-          <button type="button" onClick={() => setErroPrevia('Revise os campos marcados como não informados antes de uma futura emissão.')}>Revisar dados</button>
-          <button type="button" disabled title="Backend fiscal seguro ainda não configurado.">Criar rascunho</button>
-          <button type="button" disabled>Emitir</button><button type="button" disabled>Consultar</button><button type="button" disabled>Corrigir</button><button type="button" disabled>Cancelar</button>
-          <p>Backend fiscal seguro ainda não configurado.</p>
+          <button type="button" onClick={() => onVerVenda?.(selecionada.vendaId)}>{tx('Ver venda','Ver venta','View sale')}</button>
+          <button type="button" onClick={() => setErroPrevia('Revise os campos marcados como não informados antes de uma futura emissão.')}>{tx('Revisar dados','Revisar datos','Review data')}</button>
+          <button type="button" disabled title="Backend fiscal seguro ainda não configurado.">{tx('Criar rascunho','Crear borrador','Create draft')}</button>
+          <button type="button" disabled>{tx('Emitir','Emitir','Issue')}</button><button type="button" disabled>{tx('Consultar','Consultar','Query')}</button><button type="button" disabled>{tx('Corrigir','Corregir','Correct')}</button><button type="button" disabled>{tx('Cancelar','Cancelar','Cancel')}</button>
+          <p>{tx('Backend fiscal seguro ainda não configurado.','Backend fiscal seguro aún no configurado.','Secure fiscal backend is not configured yet.')}</p>
         </div>
       </div>
     </div>}
