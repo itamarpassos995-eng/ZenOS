@@ -126,9 +126,9 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
   };
 
   const salvarProduto = async () => {
-    if (!formProduto.nome.trim()) return mostrarZen('warning', 'Nome obrigatório', 'Informe o nome do produto antes de salvar.');
+    if (!formProduto.nome.trim()) return mostrarZen('warning', tx('Nome obrigatório','Nombre obligatorio','Name required'), tx('Informe o nome do produto antes de salvar.','Informe el nombre del producto antes de guardar.','Enter the product name before saving.'));
     const margemValidacao = validarMargemPrecoVenda(formProduto.margemDesejada);
-    if (!margemValidacao.ok && Number(formProduto.custoBRL || 0) > 0) return mostrarZen('warning', 'Margem inválida', margemValidacao.erro, [`Use um valor entre 0% e ${MAX_MARGEM_PRECO_PCT}%.`, 'A margem é calculada sobre o preço de venda.']);
+    if (!margemValidacao.ok && Number(formProduto.custoBRL || 0) > 0) return mostrarZen('warning', tx('Margem inválida','Margen inválido','Invalid margin'), margemValidacao.erro, [`${tx('Use um valor entre','Use un valor entre','Use a value between')} 0% ${tx('e','y','and')} ${MAX_MARGEM_PRECO_PCT}%.`, tx('A margem é calculada sobre o preço de venda.','El margen se calcula sobre el precio de venta.','Margin is calculated on the sale price.')]);
     let grupoFinal = formProduto.grupo;
     if (criandoNovoGrupo && novoGrupoTexto.trim()) {
       grupoFinal = novoGrupoTexto.trim();
@@ -143,7 +143,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
     const estoqueTotal = vitrine + galpao;
 
     if (skuJaExiste(produtos, formProduto.sku, produtoEmEdicao)) {
-      return mostrarZen('danger', 'SKU duplicado', `Já existe outro produto com o SKU ${formProduto.sku}.`, ['Use um SKU diferente para impedir movimentação no item errado.']);
+      return mostrarZen('danger', tx('SKU duplicado','SKU duplicado','Duplicate SKU'), `${tx('Já existe outro produto com o SKU','Ya existe otro producto con el SKU','Another product already uses SKU')} ${formProduto.sku}.`, [tx('Use um SKU diferente para impedir movimentação no item errado.','Use un SKU diferente para evitar movimientos en el ítem equivocado.','Use a different SKU to prevent movement on the wrong item.')]);
     }
 
     const dadosFinais = normalizarProduto({
@@ -162,7 +162,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
     let listaProposta;
     if (produtoEmEdicao) {
       try { listaProposta = atualizarProdutoUnico(produtos, produtoEmEdicao, dadosFinais, 'edição do produto'); }
-      catch (erro) { return mostrarZen('danger', 'Edição bloqueada', erro.message || 'Não foi possível editar o produto com segurança.'); }
+      catch (erro) { return mostrarZen('danger', tx('Edição bloqueada','Edición bloqueada','Edit blocked'), erro.message || tx('Não foi possível editar o produto com segurança.','No fue posible editar el producto con seguridad.','Could not safely edit the product.')); }
     } else {
       listaProposta = [dadosFinais, ...(produtos || [])];
     }
@@ -185,7 +185,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
     try {
       await reservarIdentidadeProduto({ db, userId, produto: dadosFinais, produtoAnterior: produtoEmEdicao });
     } catch (erro) {
-      return mostrarZen('danger', erro?.code === 'ZENOS_PRODUTO_DUPLICADO' ? 'Produto duplicado' : 'Cadastro não concluído', erro.message || 'Não foi possível reservar a identidade do produto.');
+      return mostrarZen('danger', erro?.code === 'ZENOS_PRODUTO_DUPLICADO' ? tx('Produto duplicado','Producto duplicado','Duplicate product') : tx('Cadastro não concluído','Registro no concluido','Registration not completed'), erro.message || 'Não foi possível reservar a identidade do produto.');
     }
 
     try {
@@ -210,7 +210,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       } catch (rollbackErro) {
         console.error('[ZenOS][ATT10.2] Falha ao restaurar índice do produto:', rollbackErro);
       }
-      return mostrarZen('danger', 'Produto não salvo', 'A nuvem não confirmou o cadastro. Nenhum produto foi considerado salvo.', [erro?.message || 'Falha de persistência']);
+      return mostrarZen('danger', tx('Produto não salvo','Producto no guardado','Product not saved'), tx('A nuvem não confirmou o cadastro. Nenhum produto foi considerado salvo.','La nube no confirmó el registro. Ningún producto fue considerado guardado.','The cloud did not confirm the registration. No product was considered saved.'), [erro?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
     }
   };
 
@@ -229,8 +229,8 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
   const confirmarMovimentoEstoque = async () => {
     if (!modalMovimento?.produto) return;
     const quantidade = Math.max(0, Number(String(movimentoQtd).replace(',', '.')) || 0);
-    if (quantidade <= 0) return mostrarZen('warning', 'Quantidade inválida', 'Informe uma quantidade maior que zero.');
-    if (!movimentoMotivo.trim()) return mostrarZen('warning', 'Motivo obrigatório', 'Informe o motivo da movimentação.');
+    if (quantidade <= 0) return mostrarZen('warning', tx('Quantidade inválida','Cantidad inválida','Invalid quantity'), tx('Informe uma quantidade maior que zero.','Informe una cantidad mayor que cero.','Enter a quantity greater than zero.'));
+    if (!movimentoMotivo.trim()) return mostrarZen('warning', tx('Motivo obrigatório','Motivo obligatorio','Reason required'), tx('Informe o motivo da movimentação.','Informe el motivo del movimiento.','Enter the reason for the movement.'));
 
     setSalvandoMovimento(true);
     try {
@@ -276,7 +276,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       }
     } catch (erro) {
       console.error('[ZenOS][ATT10.2] Falha na movimentação auditada:', erro);
-      mostrarZen('danger', 'Movimentação bloqueada', erro.message || 'Não foi possível movimentar o estoque com segurança.');
+      mostrarZen('danger', tx('Movimentação bloqueada','Movimiento bloqueado','Movement blocked'), erro.message || tx('Não foi possível movimentar o estoque com segurança.','No fue posible mover el stock con seguridad.','Could not safely move stock.'));
     } finally {
       setSalvandoMovimento(false);
     }
@@ -298,7 +298,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       setHistoricoMovimentos(lista);
     } catch (erro) {
       console.error('[ZenOS][ATT06] Falha ao carregar histórico:', erro);
-      mostrarZen('danger', 'Histórico indisponível', 'Não foi possível carregar o histórico de estoque deste produto.');
+      mostrarZen('danger', tx('Histórico indisponível','Historial no disponible','History unavailable'), tx('Não foi possível carregar o histórico de estoque deste produto.','No fue posible cargar el historial de stock de este producto.','Could not load this product stock history.'));
     } finally {
       setCarregandoHistorico(false);
     }
@@ -317,11 +317,11 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
     const emCompras=(historicoCompras||[]).some(c=>(c.itens||[]).some(i=>String(i.produtoId||i.id||'')===id || String(i.sku||'').toUpperCase()===sku));
     return emVendas||emCompras;
   };
-  const pedirExclusao = produto => { if(patenteUsuario!=='gerencia') return mostrarZen('danger', 'Acesso restrito', 'Somente a gerência pode inativar ou excluir produtos.'); setSenhaExclusao(''); setModalExcluir(produto); };
+  const pedirExclusao = produto => { if(patenteUsuario!=='gerencia') return mostrarZen('danger', tx('Acesso restrito','Acceso restringido','Restricted access'), tx('Somente a gerência pode inativar ou excluir produtos.','Solo la gerencia puede inactivar o eliminar productos.','Only management can deactivate or delete products.')); setSenhaExclusao(''); setModalExcluir(produto); };
   const confirmarExclusao = async () => {
     if(!modalExcluir) return;
     const autorizador = await validarCredencialGerencial({ vendedores, senha: senhaExclusao, senhaLegada: regrasDesconto?.senhaGerente });
-    if(!autorizador) return mostrarZen('danger', 'Senha incorreta', 'Informe o PIN de um Administrador/Gerência cadastrado.');
+    if(!autorizador) return mostrarZen('danger', tx('Senha incorreta','Contraseña incorrecta','Incorrect password'), tx('Informe o PIN de um Administrador/Gerência cadastrado.','Ingrese el PIN de un Administrador/Gerencia registrado.','Enter the PIN of a registered Administrator/Management user.'));
     const temHist=produtoTemHistorico(modalExcluir);
     const listaProposta = temHist
       ? produtos.map(p=>String(p.id)===String(modalExcluir.id)&&String(p.sku)===String(modalExcluir.sku)?{...p,ativo:false,inativadoEm:new Date().toISOString(),inativadoPor:operadorAtivo?.nome||'Gerência'}:p)
@@ -340,7 +340,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       }
       setModalExcluir(null);
     } catch (erro) {
-      mostrarZen('danger','Alteração não concluída','A nuvem não confirmou a exclusão/inativação. O catálogo foi mantido.',[erro?.message || 'Falha de persistência']);
+      mostrarZen('danger',tx('Alteração não concluída','Cambio no concluido','Change not completed'),tx('A nuvem não confirmou a exclusão/inativação. O catálogo foi mantido.','La nube no confirmó la eliminación/inactivación. El catálogo fue preservado.','The cloud did not confirm deletion/deactivation. The catalog was preserved.'),[erro?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
     }
   };
 
@@ -478,13 +478,13 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div>
                 <span style={{ fontSize: '11px', fontWeight: 800, color: '#38bdf8', letterSpacing: '1px', textTransform: 'uppercase' }}>{tx('Ficha Cadastral Universal','Ficha Universal','Universal Record')}</span>
-                <h3 style={{ fontSize: '20px', fontWeight: 900, color: '#ffffff', margin: '2px 0 0 0' }}>{produtoEmEdicao ? `Editar: ${produtoEmEdicao.nome}` : 'Cadastrar Produto ou Serviço'}</h3>
+                <h3 style={{ fontSize: '20px', fontWeight: 900, color: '#ffffff', margin: '2px 0 0 0' }}>{produtoEmEdicao ? `${tx('Editar:','Editar:','Edit:')} ${produtoEmEdicao.nome}` : tx('Cadastrar Produto ou Serviço','Registrar Producto o Servicio','Register Product or Service')}</h3>
               </div>
               <button onClick={() => setModalProdutoAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#64748b', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>✕</button>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '18px' }}>
-              {[{ id: 'mercadoria', rotulo: 'Mercadoria Revenda', icone: '📦' }, { id: 'materia_prima', rotulo: 'Matéria-Prima', icone: '🧪' }, { id: 'kit', rotulo: 'Kit/Combo', icone: '🎁' }, { id: 'servico', rotulo: 'Serviço', icone: '🛠️' }].map(tipo => {
+              {[{ id: 'mercadoria', rotulo: tx('Mercadoria Revenda','Mercadería Reventa','Resale Goods'), icone: '📦' }, { id: 'materia_prima', rotulo: tx('Matéria-Prima','Materia Prima','Raw Material'), icone: '🧪' }, { id: 'kit', rotulo: tx('Kit/Combo','Kit/Combo','Kit/Combo'), icone: '🎁' }, { id: 'servico', rotulo: tx('Serviço','Servicio','Service'), icone: '🛠️' }].map(tipo => {
                 const ativo = formProduto.tipoItem === tipo.id;
                 return (
                   <button key={tipo.id} type="button" onClick={() => setFormProduto({ ...formProduto, tipoItem: tipo.id })} style={{ backgroundColor: ativo ? '#082f49' : '#020617', border: `1px solid ${ativo ? '#0284c7' : '#1e293b'}`, color: ativo ? '#38bdf8' : '#94a3b8', borderRadius: '10px', padding: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
@@ -556,7 +556,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
                         ))}
                         {fornecedoresCadastrados.filter(f => f.toLowerCase().includes((formProduto.fornecedor || '').toLowerCase())).length === 0 && (
                           <div style={{ padding: '8px 10px', color: '#64748b', fontSize: '11px', fontStyle: 'italic' }}>
-                            {formProduto.fornecedor ? 'Novo fornecedor...' : 'Nenhum salvo ainda.'}
+                            {formProduto.fornecedor ? tx('Novo fornecedor...','Nuevo proveedor...','New supplier...') : tx('Nenhum salvo ainda.','Ninguno guardado aún.','None saved yet.')}
                           </div>
                         )}
                       </div>
@@ -642,13 +642,13 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
                         {historicoMovimentos.map((mov) => (
                           <div key={mov.id} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '10px', padding: '10px 12px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
-                              <strong style={{ color: '#e2e8f0', fontSize: '12px' }}>{mov.tipo === 'transferencia_interna' ? '↔ Transferência interna' : mov.tipo === 'venda' ? '🛒 Venda' : mov.tipo === 'devolucao' ? '↩ Devolução' : mov.tipo === 'compra_entrada' ? '📦 Entrada de compra' : mov.tipo}</strong>
+                              <strong style={{ color: '#e2e8f0', fontSize: '12px' }}>{mov.tipo === 'transferencia_interna' ? `↔ ${tx('Transferência interna','Transferencia interna','Internal transfer')}` : mov.tipo === 'venda' ? `🛒 ${tx('Venda','Venta','Sale')}` : mov.tipo === 'devolucao' ? `↩ ${tx('Devolução','Devolución','Return')}` : mov.tipo === 'compra_entrada' ? `📦 ${tx('Entrada de compra','Entrada de compra','Purchase entry')}` : mov.tipo}</strong>
                               <span style={{ color: '#64748b', fontSize: '10px' }}>{mov.createdAt ? new Date(mov.createdAt).toLocaleString('pt-BR') : '—'}</span>
                             </div>
                             <div style={{ marginTop: '6px', color: '#cbd5e1', fontSize: '11px' }}>
                               <span style={{ color: '#38bdf8', fontWeight: 800 }}>{mov.quantidade}</span> un. • {mov.origem || 'externo'} → {mov.destino || '—'} • {mov.motivo || 'Sem motivo'}
                             </div>
-                            <div style={{ marginTop: '4px', color: '#64748b', fontSize: '10px' }}>Operador: {mov.operadorNome || '—'}{mov.referenciaId ? ` • Ref.: ${mov.referenciaId}` : ''}</div>
+                            <div style={{ marginTop: '4px', color: '#64748b', fontSize: '10px' }}>{tx('Operador:','Operador:','Operator:')} {mov.operadorNome || '—'}{mov.referenciaId ? ` • Ref.: ${mov.referenciaId}` : ''}</div>
                             {mov.saldoAntes && mov.saldoDepois && <div style={{ marginTop: '4px', color: '#94a3b8', fontSize: '10px' }}>Antes V/D/T: {mov.saldoAntes.vitrine}/{mov.saldoAntes.deposito}/{mov.saldoAntes.total} → Depois: {mov.saldoDepois.vitrine}/{mov.saldoDepois.deposito}/{mov.saldoDepois.total}</div>}
                             {mov.observacao && <div style={{ marginTop: '4px', color: '#94a3b8', fontSize: '10px' }}>Obs.: {mov.observacao}</div>}
                           </div>
