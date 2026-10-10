@@ -154,7 +154,7 @@ export default function Fiscal({
     </div>
 
     <div className="fiscal-fila">
-      <div className="fiscal-fila-head"><div><span>{tx('FILA DE PENDÊNCIAS','COLA DE PENDIENTES','PENDING QUEUE')}</span><strong>{filtrada.length} registro(s)</strong></div><small>Derivada das vendas existentes por listarPendenciasFiscais(...)</small></div>
+      <div className="fiscal-fila-head"><div><span>{tx('FILA DE PENDÊNCIAS','COLA DE PENDIENTES','PENDING QUEUE')}</span><strong>{filtrada.length} registro(s)</strong></div><small>{tx('Derivada das vendas existentes por listarPendenciasFiscais(...)','Derivada de las ventas existentes por listarPendenciasFiscais(...)','Derived from existing sales by listarPendenciasFiscais(...)')}</small></div>
       {filtrada.length === 0 ? <div className="fiscal-vazio"><strong>{tx('Nenhuma venda encontrada.','Ninguna venta encontrada.','No sale found.')}</strong><span>{tx('Os filtros atuais não possuem registros fiscais disponíveis.','Los filtros actuales no tienen registros fiscales disponibles.','The current filters have no fiscal records available.')}</span></div> :
         <div className="fiscal-lista">
           {filtrada.map(item => <article className="fiscal-linha" key={item.vendaId}>
@@ -175,11 +175,11 @@ export default function Fiscal({
 
     {selecionada && <div className="fiscal-modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setSelecionada(null); }}>
       <div className="fiscal-modal" role="dialog" aria-modal="true" aria-labelledby="fiscal-previa-titulo">
-        <div className="fiscal-modal-head"><div><span>{tx('PRÉVIA NÃO PERSISTIDA','VISTA PREVIA NO PERSISTIDA','NON-PERSISTED PREVIEW')}</span><h2 id="fiscal-previa-titulo">Documento fiscal da venda {selecionada.vendaId}</h2></div><button type="button" onClick={() => setSelecionada(null)} aria-label="Fechar prévia">×</button></div>
+        <div className="fiscal-modal-head"><div><span>{tx('PRÉVIA NÃO PERSISTIDA','VISTA PREVIA NO PERSISTIDA','NON-PERSISTED PREVIEW')}</span><h2 id="fiscal-previa-titulo">{tx('Documento fiscal da venda','Documento fiscal de la venta','Fiscal document for sale')} {selecionada.vendaId}</h2></div><button type="button" onClick={() => setSelecionada(null)} aria-label={tx('Fechar prévia','Cerrar vista previa','Close preview')}>×</button></div>
         <div className="fiscal-modal-body">
           <div className="fiscal-tipo-row">
-            <label><span>Tipo de documento compatível com {pais || 'a loja'}</span><select value={tipoDocumento} onChange={event => alterarTipo(event.target.value)} disabled={tipos.length === 0}>{tipos.length === 0 ? <option value="">{tx('País fiscal inválido','País fiscal inválido','Invalid fiscal country')}</option> : tipos.map(tipo => <option value={tipo} key={tipo}>{TIPOS_FISCAIS_LABEL[tipo] || tipo}</option>)}</select></label>
-            <div><span>Adapter</span><strong>{previa?.adapter || 'Indisponível'}</strong></div>
+            <label><span>{tx('Tipo de documento compatível com','Tipo de documento compatible con','Document type compatible with')} {pais || tx('a loja','la tienda','the store')}</span><select value={tipoDocumento} onChange={event => alterarTipo(event.target.value)} disabled={tipos.length === 0}>{tipos.length === 0 ? <option value="">{tx('País fiscal inválido','País fiscal inválido','Invalid fiscal country')}</option> : tipos.map(tipo => <option value={tipo} key={tipo}>{TIPOS_FISCAIS_LABEL[tipo] || tipo}</option>)}</select></label>
+            <div><span>{tx('Adapter','Adaptador','Adapter')}</span><strong>{previa?.adapter || 'Indisponível'}</strong></div>
           </div>
           {erroPrevia && <div className="fiscal-erro" role="alert">{erroPrevia}</div>}
           {snapshot && <>
@@ -220,7 +220,7 @@ export default function Fiscal({
         <div className="fiscal-modal-actions">
           <button type="button" onClick={() => onVerVenda?.(selecionada.vendaId)}>{tx('Ver venda','Ver venta','View sale')}</button>
           <button type="button" onClick={() => setErroPrevia('Revise os campos marcados como não informados antes de uma futura emissão.')}>{tx('Revisar dados','Revisar datos','Review data')}</button>
-          <button type="button" disabled title="Backend fiscal seguro ainda não configurado.">{tx('Criar rascunho','Crear borrador','Create draft')}</button>
+          <button type="button" disabled title={tx('Backend fiscal seguro ainda não configurado.','Backend fiscal seguro aún no configurado.','Secure fiscal backend is not configured yet.')}>{tx('Criar rascunho','Crear borrador','Create draft')}</button>
           <button type="button" disabled>{tx('Emitir','Emitir','Issue')}</button><button type="button" disabled>{tx('Consultar','Consultar','Query')}</button><button type="button" disabled>{tx('Corrigir','Corregir','Correct')}</button><button type="button" disabled>{tx('Cancelar','Cancelar','Cancel')}</button>
           <p>{tx('Backend fiscal seguro ainda não configurado.','Backend fiscal seguro aún no configurado.','Secure fiscal backend is not configured yet.')}</p>
         </div>
