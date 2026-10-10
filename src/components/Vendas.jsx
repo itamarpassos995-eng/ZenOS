@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
-import { calcularAlocacaoReposicaoDevolucao, reporEstoqueProduto } from '../core/inventory';
-import { calcularCustoDevolucaoAtual, calcularValorDevolucaoAtual, obterFinanceiroVenda, precoLiquidoUnitarioItem } from '../core/salesFinancials';
+import { calcularAlocacaoReposicaoDevolucao, obterEstoqueProduto, reporEstoqueProduto } from '../core/inventory';
+import { calcularCustoDevolucaoAtual, calcularValorDevolucaoAtual, obterCustoSnapshotItem, obterFinanceiroVenda, precoLiquidoUnitarioItem } from '../core/salesFinancials';
+import { calcularCustoMedioMovel } from '../core/purchaseCosts';
 import { ehEncomendaUsoUnico } from '../core/orderItems';
 import { db } from '../firebase';
 import { criarEventoEstoque, registrarEventosEstoque } from '../core/stockAudit';
@@ -56,7 +57,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
         qtdSendoDevolvidaAgora: 0,
         precoBRL: Number(it.precoPraticadoBRL) || 0,
         precoLiquidoBRL: precoLiquidoUnitarioItem(venda, it),
-        custoBRL: Number(it.custoBRL) || 0,
+        custoBRL: obterCustoSnapshotItem(it),
         nome: it.nome,
         sku: it.sku,
         produtoOriginalId: it.produtoOriginalId ?? it.id,
@@ -185,7 +186,13 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
         );
         const produtoAntes = novosProdutos[prodIndex];
         const reposicao = reporEstoqueProduto(produtoAntes, itemDev.qtdSendoDevolvidaAgora, alocacao);
-        novosProdutos[prodIndex] = reposicao.produto;
+        const custoMedioBRL = calcularCustoMedioMovel({
+          estoqueAnterior: obterEstoqueProduto(produtoAntes).estoque,
+          custoAnteriorBRL: produtoAntes.custoBRL,
+          quantidadeEntrada: itemDev.qtdSendoDevolvidaAgora,
+          custoFinalEntradaUnitarioBRL: itemDev.custoBRL,
+        });
+        novosProdutos[prodIndex] = { ...reposicao.produto, custoBRL: custoMedioBRL };
         const destino = reposicao.movimento.vitrine > 0 && reposicao.movimento.galpao > 0 ? 'vitrine+deposito' : reposicao.movimento.vitrine > 0 ? 'vitrine' : 'deposito';
         eventosEstoque.push(criarEventoEstoque({
           id: `${devolucaoId}-${produtoId}-${index}`,

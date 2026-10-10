@@ -11,6 +11,7 @@ import { normalizarPerfilLoja, larguraCssRecibo } from '../core/storeProfile';
 import { atualizarProdutoUnico, localizarIndiceProdutoUnico, skuJaExiste } from '../core/productIdentity';
 import { formatarEquivalenciaBRL, moedasAtivasRecibo } from '../core/receiptCurrency';
 import { validarCredencialGerencial } from '../core/accessControl';
+import { calcularCmvVenda } from '../core/salesFinancials';
 
 export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro, commitOperacaoCritica, commitVendaCritica, vouchers = [], setVouchers, userId, produtos, setProdutos, clientes, setClientes, moeda, fmt, t, tx, converterDeBRL, converterParaBRL, historicoVendas, setHistoricoVendas, patenteUsuario, idioma, regrasDesconto, vendedores = [], operadorAtivo, sessaoAtiva }) {
   const [termoBusca, setTermoBusca] = useState('');
@@ -93,6 +94,18 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
     const indice = localizarIndiceProdutoUnico(produtos || [], { id: item.produtoOriginalId ?? item.id, sku: item.produtoOriginalSku ?? item.sku }, contexto);
     return indice >= 0 ? produtos[indice] : item;
   };
+
+  const itensVendaComCustoAtual = (itens = []) => (itens || []).map(item => {
+    const produtoId = item.produtoOriginalId ?? item.id;
+    const produtoSku = String(item.produtoOriginalSku ?? item.sku ?? '').toUpperCase();
+    const porId = (produtos || []).filter(produto => String(produto?.id) === String(produtoId));
+    const porSku = porId.filter(produto => String(produto?.sku || '').toUpperCase() === produtoSku);
+    const produtoAtual = porId.length === 1 ? porId[0] : porSku.length === 1 ? porSku[0] : null;
+    const custoAtual = Number(produtoAtual?.custoBRL);
+    return produtoAtual && Number.isFinite(custoAtual) && custoAtual >= 0 && custoAtual !== Number(item.custoBRL)
+      ? { ...item, custoBRL: custoAtual }
+      : item;
+  });
 
   const selecionarClienteNoPDV = (cli) => {
     try {
@@ -292,7 +305,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
   const lidarDigitacaoPreco = (id, valorDigitado) => { setItensVenda(itensVenda.map(item => item.id === id ? { ...item, precoTexto: valorDigitado, precoPraticadoBRL: converterParaBRL(parseFloat(valorDigitado.replace(',', '.')) || 0, moeda) } : item)); };
 
   const carregarPrePedido = (pedido) => {
-    setItensVenda(pedido.itens);
+    setItensVenda(itensVendaComCustoAtual(pedido.itens));
     if (pedido.clienteId) {
       const cli = clientes.find(c => c.id === pedido.clienteId);
       if (cli) setClienteSelecionadoPDV(cli);
@@ -303,7 +316,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
   };
 
   const subtotalBrutoBRL = itensVenda.reduce((acc, item) => acc + (Math.max(0, parseInt(item.qtd) || 0) * (item.precoPraticadoBRL || 0)), 0);
-  const custoTotalBRL = itensVenda.reduce((acc, item) => acc + (Math.max(0, parseInt(item.qtd) || 0) * (item.custoBRL || 0)), 0);
+  const custoTotalBRL = itensVendaComCustoAtual(itensVenda).reduce((acc, item) => acc + (Math.max(0, parseInt(item.qtd) || 0) * (item.custoBRL || 0)), 0);
   const descBRL = converterParaBRL(parseFloat(String(descontoTexto).replace(',', '.')) || 0, moeda);
   
   const totalFinalBRL = Math.max(0, subtotalBrutoBRL - descBRL);
@@ -473,7 +486,8 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
       
       let novosProdutos = produtos;
       let novosClientes = null;
-      let itensDocumento = [...itensVenda];
+      const itensVendaAtualizada = itensVendaComCustoAtual(itensVenda);
+      let itensDocumento = [...itensVendaAtualizada];
       const instanteVenda = new Date();
       const docRotulo = tipoFinalizacao === 'venda' ? 'VENDA' : (tipoFinalizacao === 'pre_pedido' ? 'PRÉ-PEDIDO' : 'ORÇAMENTO');
       if (operacaoDocumentoRef.current.assinatura !== assinaturaOperacao || !operacaoDocumentoRef.current.id) {
@@ -485,7 +499,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
       const vendaId = operacaoDocumentoRef.current.id;
 
       if (tipoFinalizacao === 'venda') {
-        const itensComUsoVitrine = (itensVenda || []).filter((it) => !ehEncomendaUsoUnico(it) && it.tipoItem !== 'servico').map((it) => {
+        const itensComUsoVitrine = (itensVendaAtualizada || []).filter((it) => !ehEncomendaUsoUnico(it) && it.tipoItem !== 'servico').map((it) => {
           const produtoAtual = obterProdutoCatalogoSeguro(it, 'prévia de baixa de estoque');
           return { item: it, previsao: preverBaixaEstoqueProduto(produtoAtual, Number(it.qtd) || 0) };
         }).filter(({ previsao }) => previsao.movimento.vitrine > 0);
@@ -503,7 +517,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
 
         // ATT 02: uma única operação mantém estoque total = vitrine + galpão
         // e registra em cada item exatamente de onde a mercadoria saiu.
-        const resultadoEstoque = aplicarVendaAoEstoque(produtos || [], itensVenda || [], idsParaRemover);
+        const resultadoEstoque = aplicarVendaAoEstoque(produtos || [], itensVendaAtualizada || [], idsParaRemover);
         novosProdutos = resultadoEstoque.produtos;
         itensDocumento = resultadoEstoque.itens;
 
@@ -550,6 +564,13 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
       const nomeSeguro = (operadorAtivo && operadorAtivo.nome) ? operadorAtivo.nome : 'Administrador';
 
       const estadoFinal = tipoFinalizacao === 'venda' ? 'concluida' : (tipoFinalizacao === 'pre_pedido' ? 'pendente' : 'orcamento');
+      if (tipoFinalizacao === 'venda') {
+        itensDocumento = itensDocumento.map(item => ({
+          ...item,
+          custoNaVendaBRL: Number.isFinite(Number(item.custoBRL)) && Number(item.custoBRL) >= 0 ? Number(item.custoBRL) : 0,
+        }));
+      }
+      const cmvVendaBRL = tipoFinalizacao === 'venda' ? calcularCmvVenda({ itens: itensDocumento }) : null;
 
       const novaVenda = {
         id: vendaId,
@@ -561,7 +582,8 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
         vendedorNome: nomeSeguro,
         itens: itensDocumento, 
         totalBRL: totalFinalBRL, 
-        lucroBRL: lucroEstimadoBRL,
+        lucroBRL: tipoFinalizacao === 'venda' ? totalFinalBRL - cmvVendaBRL : lucroEstimadoBRL,
+        ...(tipoFinalizacao === 'venda' ? { cmvBRL: cmvVendaBRL } : {}),
         trocoBRL: tipoFinalizacao === 'venda' ? trocoTotalBRL : 0,
         moedaTrocoInfo: tipoFinalizacao === 'venda' && trocoTotalBRL > 0.01 ? `${moedaTrocoEscolhida}` : null,
         pagamentos: tipoFinalizacao === 'venda' ? [...pagamentosLancados] : [],

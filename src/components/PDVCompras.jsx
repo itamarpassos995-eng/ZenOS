@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ZenModal from './ZenModal';
 import { normalizarProduto } from '../data';
-import { reporEstoqueProduto } from '../core/inventory';
+import { obterEstoqueProduto, reporEstoqueProduto } from '../core/inventory';
 import { db } from '../firebase';
 import { criarEventoEstoque, registrarEventosEstoque } from '../core/stockAudit'; 
 import { atualizarProdutoUnico, localizarIndiceProdutoUnico, skuJaExiste } from '../core/productIdentity';
+import { calcularCustoMedioMovel, ratearCustosAquisicao } from '../core/purchaseCosts';
 
 export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro, saldoSessaoFisicoBRL = 0, 
   userId, produtos, setProdutos, 
@@ -171,7 +172,9 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
   const confirmarAdicaoRapida = () => {
     if (!itemParaAdicionar) return;
     const qtdNum = Math.max(1, parseInt(qtdDigitadaRapida) || 1);
-    const custoBase = itemParaAdicionar.custoBRL || 0;
+    const custoBase = Number.isFinite(itemParaAdicionar.ultimoCustoFornecedorBRL) && itemParaAdicionar.ultimoCustoFornecedorBRL >= 0
+      ? itemParaAdicionar.ultimoCustoFornecedorBRL
+      : itemParaAdicionar.custoBRL || 0;
 
     const indiceExistente = itensCompra.findIndex(i => String(i.produtoOriginalId || i.id) === String(itemParaAdicionar.id) && String(i.produtoOriginalSku || i.sku || '').toUpperCase() === String(itemParaAdicionar.sku || '').toUpperCase());
 
@@ -329,16 +332,24 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
       const instanteCompra = new Date();
       const compraId = `COMPRA-${Date.now()}`;
       const eventosEstoque = [];
+      const itensCompraComCustos = ratearCustosAquisicao(itensCompra, acrescBRL, descBRL);
       // preflight de identidade: valida todos os itens antes de qualquer mutação de estoque.
-      for (const item of itensCompra || []) {
+      for (const item of itensCompraComCustos) {
         if (item.tipoItem === 'servico') continue;
         localizarIndiceProdutoUnico(produtos || [], { id: item.produtoOriginalId || item.id, sku: item.produtoOriginalSku || item.sku }, 'entrada de compra');
       }
       const novosProdutos = (produtos || []).map((p, index) => {
-        const itemComprado = itensCompra.find(i => String(i.produtoOriginalId || i.id) === String(p.id) && (!i.produtoOriginalSku || String(i.produtoOriginalSku).toUpperCase() === String(p.sku || '').toUpperCase()));
+        const itemComprado = itensCompraComCustos.find(i => String(i.produtoOriginalId || i.id) === String(p.id) && (!i.produtoOriginalSku || String(i.produtoOriginalSku).toUpperCase() === String(p.sku || '').toUpperCase()));
         if (itemComprado && p.tipoItem !== 'servico') {
           const quantidadeEntrada = Math.max(0, Number(itemComprado.qtd) || 0);
           const entrada = reporEstoqueProduto(p, quantidadeEntrada, { vitrine: 0, galpao: quantidadeEntrada });
+          const estoqueAnterior = obterEstoqueProduto(p).estoque;
+          const custoMedioBRL = calcularCustoMedioMovel({
+            estoqueAnterior,
+            custoAnteriorBRL: p.custoBRL,
+            quantidadeEntrada,
+            custoFinalEntradaUnitarioBRL: itemComprado.custoFinalAquisicaoUnitarioBRL,
+          });
           eventosEstoque.push(criarEventoEstoque({
             id: `${compraId}-${p.id}-${index}`,
             produto: p,
@@ -355,7 +366,8 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
           }));
           return {
             ...entrada.produto,
-            custoBRL: itemComprado.custoPraticadoBRL,
+            custoBRL: custoMedioBRL,
+            ultimoCustoFornecedorBRL: itemComprado.custoPraticadoBRL,
             precoBRL: Number.isFinite(itemComprado.precoVendaBRL) && itemComprado.precoVendaBRL >= 0
               ? itemComprado.precoVendaBRL
               : p.precoBRL,
@@ -374,7 +386,11 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
         fornecedorNome: fornecedorSelecionado ? fornecedorSelecionado.nome : 'Entrada Avulsa',
         operadorId: idSeguro,
         operadorNome: nomeSeguro,
-        itens: [...itensCompra],
+        itens: itensCompraComCustos,
+        subtotalMercadoriasBRL: subtotalBrutoBRL,
+        custosAdicionaisBRL: acrescBRL,
+        descontoCompraBRL: descBRL,
+        custoFinalAquisicaoBRL: totalFinalBRL,
         totalBRL: totalFinalBRL,
         pagamentos: [...pagamentosLancados],
         estado: 'concluida',
