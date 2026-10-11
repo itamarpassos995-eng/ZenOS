@@ -1,0 +1,89 @@
+name: Deploy ZenOS Fiscal (somente Functions)
+run-name: Publicar funções fiscais em zenos-ac6b2
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_confirmation:
+        description: 'Confirme o projeto digitando zenos-ac6b2'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zenos-fiscal-functions-production
+  cancel-in-progress: false
+
+jobs:
+  deploy-fiscal:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: fiscal-production
+    timeout-minutes: 25
+    steps:
+      - name: Conferir confirmação explícita e repositório
+        env:
+          PROJECT_CONFIRMATION: ${{ inputs.project_confirmation }}
+        run: |
+          test "$GITHUB_REPOSITORY" = "itamarpassos995-eng/ZenOS"
+          test "$PROJECT_CONFIRMATION" = "zenos-ac6b2"
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Conferir escopo de implantação sem Firestore rules
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import assert from 'node:assert/strict';
+          const cfg = JSON.parse(fs.readFileSync('firebase.json', 'utf8'));
+          assert.equal(cfg.functions?.source, 'functions');
+          assert.equal(cfg.functions?.codebase, 'fiscal');
+          const index = fs.readFileSync('functions/src/index.js', 'utf8');
+          for (const fn of ['fiscalSolicitacaoCliente','fiscalAdministracao','fiscalBackendStatus']) {
+            assert.match(index, new RegExp('export\\s+\\{\\s*'+fn+'\\s*\\}'));
+          }
+          console.log('Escopo aprovado: somente codebase fiscal; sem deploy de rules.');
+          NODE
+
+      - name: Validar testes das Functions
+        working-directory: functions
+        run: |
+          npm install --no-package-lock --ignore-scripts --no-audit --no-fund
+          npm run check
+
+      - name: Validar disponibilidade de credencial protegida
+        env:
+          HAS_DEPLOY_CREDENTIAL: ${{ secrets.ZENOS_FIREBASE_SA_JSON != '' }}
+        run: |
+          if [ "$HAS_DEPLOY_CREDENTIAL" != "true" ]; then
+            echo "::error::Credencial de deploy nao configurada em secrets.ZENOS_FIREBASE_SA_JSON."
+            exit 1
+          fi
+
+      - name: Autenticar no projeto Firebase alvo
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.ZENOS_FIREBASE_SA_JSON }}
+          project_id: zenos-ac6b2
+          create_credentials_file: true
+
+      - name: Publicar somente 3 Cloud Functions fiscais
+        run: |
+          npx --yes firebase-tools@15.30.2 deploy \
+            --project zenos-ac6b2 \
+            --only "functions:fiscal:fiscalSolicitacaoCliente,functions:fiscal:fiscalAdministracao,functions:fiscal:fiscalBackendStatus" \
+            --non-interactive
+
+      - name: Conferir funções publicadas
+        run: |
+          npx --yes firebase-tools@15.30.2 functions:list --project zenos-ac6b2 | tee /tmp/zenos-fiscal-functions.txt
+          grep -q "fiscalSolicitacaoCliente" /tmp/zenos-fiscal-functions.txt
+          grep -q "fiscalAdministracao" /tmp/zenos-fiscal-functions.txt
+          grep -q "fiscalBackendStatus" /tmp/zenos-fiscal-functions.txt
