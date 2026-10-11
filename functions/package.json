@@ -12,6 +12,6 @@
   },
   "scripts": {
     "test": "node --test test/*.test.mjs",
-    "check": "node --check src/fiscalAuthorizationCore.js && node --check src/fiscalAuthorization.js && node --check src/firebaseAdmin.js && node --check src/fiscalBackendStatus.js && node --check src/index.js && node --test test/*.test.mjs"
+    "check": "node --check src/fiscalAuthorizationCore.js && node --check src/fiscalAuthorization.js && node --check src/firebaseAdmin.js && node --check src/fiscalBackendStatus.js && node --check src/fiscalSolicitacaoCore.js && node --check src/fiscalSolicitacaoCliente.js && node --check src/fiscalAdministracao.js && node --check src/index.js && node --test test/*.test.mjs"
   }
 }

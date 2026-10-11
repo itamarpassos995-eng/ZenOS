@@ -1,0 +1,15 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {criarFocusFiscal,criarSifendeFiscal} from '../src/fiscalProviderClients.js';
+const key='secret-key-for-test';
+const fake=(status,json,spy)=>async(url,opts)=>{spy?.push({url,opts});return {status,json:async()=>json};};
+test('Focus emite homologação com Basic e ref estável',async()=>{let calls=[];const c=criarFocusFiscal({apiKey:key,fetchImpl:fake(200,{status:'processando_autorizacao'},calls)});const r=await c.emitir({tipoDocumento:'nfe',referencia:'venda-1',payload:{teste:true}});assert.equal(r.autorizacaoInformada,false);assert.equal(calls[0].url,'https://homologacao.focusnfe.com.br/v2/nfe?ref=venda-1');assert.match(calls[0].opts.headers.authorization,/^Basic /)});
+test('Focus consulta NFCE',async()=>{let calls=[];const c=criarFocusFiscal({apiKey:key,fetchImpl:fake(200,{status:'autorizado',chave_nfe:'abc'},calls)});const r=await c.consultar({tipoDocumento:'nfce',referencia:'v1'});assert.equal(r.requerConciliacao,true);assert.match(calls[0].url,/\/nfce\/v1$/)});
+test('Focus bloqueia produção',()=>assert.throws(()=>criarFocusFiscal({apiKey:key,ambiente:'producao'}),{code:'FISCAL_PRODUCAO_BLOQUEADA'}));
+test('Focus não aceita URL vinda do cliente',async()=>{const c=criarFocusFiscal({apiKey:key,fetchImpl:fake(200,{status:'autorizado'})});await assert.rejects(c.consultar({tipoDocumento:'nfe',referencia:'http://invalido'}),{code:'FISCAL_REFERENCIA_INVALIDA'})});
+test('Focus falha fechada em indisponibilidade',async()=>{const c=criarFocusFiscal({apiKey:key,fetchImpl:fake(503,{status:'autorizado'})});await assert.rejects(c.consultar({tipoDocumento:'nfe',referencia:'v1'}),{code:'FISCAL_PROVEDOR_INDISPONIVEL'})});
+test('Sifende envia bearer e idempotência estável',async()=>{let calls=[];const c=criarSifendeFiscal({apiKey:key,fetchImpl:fake(202,{estado:'PENDIENTE',cdc:'123'},calls)});const req={chaveOperacao:'v1',payload:{tipoDocumento:'FACTURA_ELECTRONICA'}};const a=await c.emitir(req);await c.emitir(req);assert.equal(a.autorizacaoInformada,false);assert.equal(calls[0].opts.headers['Idempotency-Key'],calls[1].opts.headers['Idempotency-Key']);assert.match(calls[0].opts.headers.authorization,/^Bearer /)});
+test('Sifende consulta por CDC de 44 dígitos',async()=>{let calls=[];const c=criarSifendeFiscal({apiKey:key,fetchImpl:fake(200,{estado:'APROBADO'},calls)});const r=await c.consultar({cdc:'1'.repeat(44)});assert.equal(r.requerConciliacao,true);assert.match(calls[0].url,/\/status\/1{44}$/)});
+test('Sifende bloqueia CDC inválido',async()=>{const c=criarSifendeFiscal({apiKey:key,fetchImpl:fake(200,{estado:'APROBADO'})});await assert.rejects(c.consultar({cdc:'123'}),{code:'FISCAL_CDC_INVALIDO'})});
+test('Sifende bloqueia tipo não implementado',async()=>{const c=criarSifendeFiscal({apiKey:key,fetchImpl:fake(200,{estado:'APROBADO'})});await assert.rejects(c.emitir({chaveOperacao:'v1',payload:{tipoDocumento:'AUTOFACTURA_ELECTRONICA'}}),{code:'FISCAL_TIPO_INVALIDO'})});
+test('Sifende falha fechada sem credencial',()=>assert.throws(()=>criarSifendeFiscal({apiKey:''}),{code:'FISCAL_CREDENCIAL_AUSENTE'}));

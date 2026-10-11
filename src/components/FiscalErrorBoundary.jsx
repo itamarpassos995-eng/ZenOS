@@ -24,6 +24,7 @@ export default class FiscalErrorBoundary extends React.Component {
   }
 
   render() {
+    const tx = this.props.tx || ((pt) => pt);
     if (!this.state.error) return this.props.children;
     return <section role="alert" style={{padding:24,border:'1px solid #e11d48',borderRadius:18,background:'#2e0a16',color:'#fff'}}>
       <strong style={{display:'block',fontSize:18}}>{tx('Fiscal indisponível','Fiscal no disponible','Fiscal unavailable')}</strong>

@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, connectAuthEmulator } from "firebase/auth";
 import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
+import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
 import { getAnalytics } from "firebase/analytics";
 import { ZENOS_RUNTIME } from './core/runtimeEnvironment';
 
@@ -44,6 +45,7 @@ if (ZENOS_RUNTIME.isHomologacao) {
     ZENOS_RUNTIME.firestoreEmulatorHost,
     ZENOS_RUNTIME.firestoreEmulatorPort
   );
+  connectFunctionsEmulator(getFunctions(app, 'southamerica-east1'), ZENOS_RUNTIME.firestoreEmulatorHost, 5001);
   console.info(
     `[ZenOS] HOMOLOGAÇÃO ATIVA — projeto ${ZENOS_RUNTIME.firebaseProjectId} — ` +
     `Auth ${ZENOS_RUNTIME.authEmulatorHost}:${ZENOS_RUNTIME.authEmulatorPort} — ` +

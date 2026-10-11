@@ -35,7 +35,8 @@
     "test:fiscal": "node scripts/fiscal-foundation-check.mjs",
     "test:fiscal2": "node scripts/fiscal-phase2-check.mjs",
     "test:fiscal-boot": "node scripts/fiscal-boot-check.mjs",
-    "test:i18n": "node scripts/i18n-coverage-check.mjs"
+    "test:i18n": "node scripts/i18n-coverage-check.mjs",
+    "emulators:fiscal": "npx --yes firebase-tools@15.30.2 emulators:start --only auth,firestore,functions --project demo-zenos-local"
   },
   "dependencies": {
     "firebase": "^12.19.0",

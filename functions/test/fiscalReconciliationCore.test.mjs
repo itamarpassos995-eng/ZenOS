@@ -1,0 +1,15 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {proximoEstadoFiscal,registrarConciliacaoFiscal} from '../src/fiscalReconciliationCore.js';
+const pendente={status:'processando',requerConciliacao:true,autorizacaoInformada:false};
+const informado={status:'autorizado',requerConciliacao:true,autorizacaoInformada:true};
+const caminho='lojas/uid1/fiscal_operations/'+'a'.repeat(64);
+const fake=()=>{const doc={lojaId:'uid1',estado:'reservada'};const firestore={doc:path=>({path}),runTransaction:async fn=>fn({get:async()=>({exists:true,data:()=>structuredClone(doc)}),update:(_ref,changes)=>Object.assign(doc,structuredClone(changes))})};return {firestore,doc}};
+test('resultado incerto continua em consulta',()=>assert.equal(proximoEstadoFiscal({estadoAtual:'resultado_incerto',resultado:pendente}),'consulta_pendente'));
+test('status autorizado do provedor continua não verificado',()=>assert.equal(proximoEstadoFiscal({estadoAtual:'consulta_pendente',resultado:informado}),'autorizacao_informada'));
+test('não aceita sinalização externa de prova oficial',()=>assert.throws(()=>proximoEstadoFiscal({estadoAtual:'reservada',resultado:informado,provaOficialVerificada:true}),{code:'FISCAL_VERIFICADOR_OFICIAL_AUSENTE'}));
+test('não aceita resposta sem conciliação',()=>assert.throws(()=>proximoEstadoFiscal({estadoAtual:'reservada',resultado:{status:'autorizado'}}),{code:'FISCAL_RETORNO_INVALIDO'}));
+test('grava resultado só no registro fiscal',async()=>{const f=fake();const r=await registrarConciliacaoFiscal({firestore:f.firestore,operationPath:caminho,eventoId:'evento1',resultado:pendente,now:'2026-10-11T01:00:00Z'});assert.equal(r.estado,'consulta_pendente');assert.equal(f.doc.conciliacoes.length,1)});
+test('evento duplicado não cria novo histórico',async()=>{const f=fake(),args={firestore:f.firestore,operationPath:caminho,eventoId:'evento1',resultado:pendente,now:'2026-10-11T01:00:00Z'};await registrarConciliacaoFiscal(args);const r=await registrarConciliacaoFiscal(args);assert.equal(r.alterada,false);assert.equal(f.doc.conciliacoes.length,1)});
+test('impede escrita em caminho de venda',async()=>{const f=fake();await assert.rejects(registrarConciliacaoFiscal({firestore:f.firestore,operationPath:'lojas/uid1/dados/operacao',eventoId:'evento1',resultado:pendente,now:'2026-10-11T01:00:00Z'}),{code:'FISCAL_CAMINHO_INVALIDO'})});
+test('bloqueia operação com loja divergente',async()=>{const f=fake();f.doc.lojaId='outra';await assert.rejects(registrarConciliacaoFiscal({firestore:f.firestore,operationPath:caminho,eventoId:'evento1',resultado:pendente,now:'2026-10-11T01:00:00Z'}),{code:'FISCAL_LOJA_DIVERGENTE'})});
