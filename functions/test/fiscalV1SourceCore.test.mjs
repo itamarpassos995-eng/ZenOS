@@ -1,0 +1,12 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {extrairVendaFiscalV1,caminhosFonteFiscalV1} from '../src/fiscalV1SourceCore.js';
+const base={lojaId:'uid1',vendaId:'v1',documentoOperacao:{historicoVendas:[{id:'v1',total:10,itens:[{id:'p1'}]}]},documentoConfiguracoes:{perfilLoja:{pais:'BR'}}};
+test('usa caminhos reais da V1',()=>assert.deepEqual(caminhosFonteFiscalV1('uid1'),{operacao:'lojas/uid1/dados/operacao',configuracoes:'lojas/uid1/dados/configuracoes'}));
+test('seleciona venda e perfil sem alterar fonte',()=>{const b=structuredClone(base),r=extrairVendaFiscalV1(b);r.venda.total=99;r.perfilLoja.pais='PY';assert.equal(b.documentoOperacao.historicoVendas[0].total,10);assert.equal(b.documentoConfiguracoes.perfilLoja.pais,'BR')});
+test('nega venda inexistente',()=>assert.throws(()=>extrairVendaFiscalV1({...base,vendaId:'desconhecida'}),{code:'FISCAL_VENDA_NAO_ENCONTRADA'}));
+test('nega venda duplicada no histórico',()=>assert.throws(()=>extrairVendaFiscalV1({...base,documentoOperacao:{historicoVendas:[{id:'v1'},{id:'v1'}]}}),{code:'FISCAL_VENDA_AMBIGUA'}));
+test('nega venda de outra loja',()=>assert.throws(()=>extrairVendaFiscalV1({...base,documentoOperacao:{historicoVendas:[{id:'v1',lojaId:'uid2'}]}}),{code:'FISCAL_LOJA_DIVERGENTE'}));
+test('nega falta de histórico sem tratar como zero vendas',()=>assert.throws(()=>extrairVendaFiscalV1({...base,documentoOperacao:{}}),{code:'FISCAL_HISTORICO_INDISPONIVEL'}));
+test('nega ausência de cadastro',()=>assert.throws(()=>extrairVendaFiscalV1({...base,documentoConfiguracoes:{}}),{code:'FISCAL_PERFIL_INDISPONIVEL'}));
+test('nega id contendo separador de caminho',()=>assert.throws(()=>caminhosFonteFiscalV1('../loja'),{code:'FISCAL_ID_INVALIDO'}));
