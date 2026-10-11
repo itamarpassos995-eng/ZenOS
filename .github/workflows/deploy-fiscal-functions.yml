@@ -78,7 +78,7 @@ jobs:
         run: |
           npx --yes firebase-tools@15.30.2 deploy \
             --project zenos-ac6b2 \
-            --only "functions:fiscal:fiscalSolicitacaoCliente,functions:fiscal:fiscalAdministracao,functions:fiscal:fiscalBackendStatus" \
+            --only "functions:fiscal" \
             --non-interactive
 
       - name: Conferir funções publicadas
