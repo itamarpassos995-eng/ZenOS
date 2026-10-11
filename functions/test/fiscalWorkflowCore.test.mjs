@@ -1,0 +1,15 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {criarSolicitacaoFiscal,aplicarResultadoFiscal} from '../src/fiscalWorkflowCore.js';
+const dados={lojaId:'loja1',vendaId:'venda1',actorUid:'uid1',tipoDocumento:'nfe',ambiente:'homologacao',prontidao:{apto:true,pendencias:[]}};
+const base=()=>criarSolicitacaoFiscal(dados);
+const evt=(s,id,estado)=>({id,estado,lojaId:s.lojaId,chave:s.chave});
+test('cria apenas solicitação local em homologação',()=>assert.equal(base().estado,'preparado'));
+test('nega produção',()=>assert.throws(()=>criarSolicitacaoFiscal({...dados,ambiente:'producao'}),{code:'FISCAL_PRODUCAO_BLOQUEADA'}));
+test('nega cadastro incompleto',()=>assert.throws(()=>criarSolicitacaoFiscal({...dados,prontidao:{apto:false,pendencias:['x']}}),{code:'FISCAL_PRONTIDAO_PENDENTE'}));
+test('nega identidade inválida',()=>assert.throws(()=>criarSolicitacaoFiscal({...dados,lojaId:'../a'}),{code:'FISCAL_IDENTIDADE_INVALIDA'}));
+test('permite transição interna inicial',()=>{let s=base();assert.equal(aplicarResultadoFiscal({solicitacao:s,evento:evt(s,'e1','aguardando_provedor')}).estado,'aguardando_provedor')});
+test('evento repetido idempotente',()=>{let s=base(),e=evt(s,'e1','aguardando_provedor');let a=aplicarResultadoFiscal({solicitacao:s,evento:e});assert.deepEqual(aplicarResultadoFiscal({solicitacao:a,evento:e}),a)});
+test('bloqueia acesso de outra loja',()=>{let s=base();assert.throws(()=>aplicarResultadoFiscal({solicitacao:s,evento:{...evt(s,'e1','aguardando_provedor'),lojaId:'outra'}}),{code:'FISCAL_LOJA_DIVERGENTE'})});
+test('bloqueia autorização não verificada',()=>{let s=base();s=aplicarResultadoFiscal({solicitacao:s,evento:evt(s,'e1','aguardando_provedor')});s=aplicarResultadoFiscal({solicitacao:s,evento:evt(s,'e2','transmitindo')});assert.throws(()=>aplicarResultadoFiscal({solicitacao:s,evento:evt(s,'e3','autorizado')}),{code:'FISCAL_RETORNO_OFICIAL_NAO_VERIFICADO'})});
+test('não altera solicitação original',()=>{const s=base();aplicarResultadoFiscal({solicitacao:s,evento:evt(s,'e1','aguardando_provedor')});assert.equal(s.eventos.length,0)});
