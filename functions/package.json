@@ -1,0 +1,17 @@
+{
+  "name": "zenos-fiscal-functions",
+  "private": true,
+  "type": "module",
+  "main": "src/index.js",
+  "engines": {
+    "node": "22"
+  },
+  "dependencies": {
+    "firebase-admin": "14.5.0",
+    "firebase-functions": "7.4.0"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "check": "node --check src/fiscalAuthorizationCore.js && node --check src/fiscalAuthorization.js && node --check src/firebaseAdmin.js && node --check src/fiscalBackendStatus.js && node --check src/index.js && node --test test/*.test.mjs"
+  }
+}
