@@ -30,3 +30,9 @@ jobs:
       - name: Backend tests
         working-directory: functions
         run: npm run check
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Fiscal onboarding e2e (emuladores)
+        run: npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore,functions --project demo-zenos-local "node scripts/fiscal-onboarding-emulator-check.mjs"
