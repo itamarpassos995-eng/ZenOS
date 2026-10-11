@@ -47,7 +47,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
   const compraEmAndamentoRef = useRef(false);
   const [modalZen, setModalZen] = useState(null);
   const avisarZen = (variante, titulo, mensagem, detalhes = []) => setModalZen({ variante, titulo, mensagem, detalhes, apenasConfirmar:true });
-  const confirmarZen = ({ variante='warning', titulo, mensagem, detalhes=[], confirmarTexto='Confirmar' }) => new Promise(resolve => setModalZen({ variante, titulo, mensagem, detalhes, confirmarTexto, cancelarTexto:'Cancelar', resolver:resolve }));
+  const confirmarZen = ({ variante='warning', titulo, mensagem, detalhes=[], confirmarTexto='Confirmar' }) => new Promise(resolve => setModalZen({ variante, titulo, mensagem, detalhes, confirmarTexto, cancelarTexto:tx('Cancelar','Cancelar','Cancel'), resolver:resolve }));
 
   const inputBuscaRef = useRef(null);
   const inputQtdRapidaRef = useRef(null);
@@ -91,7 +91,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
     setModalFornecedorAberto(true);
   };
   const salvarFornecedor = async () => {
-    if (!formFornecedor.nome.trim()) return avisarZen('warning','Fornecedor incompleto','Informe a Razão Social/Nome do fornecedor.');
+    if (!formFornecedor.nome.trim()) return avisarZen('warning',tx('Fornecedor incompleto','Proveedor incompleto','Incomplete supplier'),tx('Informe a Razão Social/Nome do fornecedor.','Informe la Razón Social/Nombre del proveedor.','Enter the supplier company/name.'));
     const novoForn = { ...formFornecedor, id: `FORN-${Date.now()}` };
     const listaProposta = [novoForn, ...(fornecedores || [])];
     try {
@@ -105,7 +105,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
       selecionarFornecedor(confirmados.find(f => String(f.id) === String(novoForn.id)) || novoForn);
       setModalFornecedorAberto(false);
     } catch (erro) {
-      avisarZen('danger','Fornecedor não salvo','A nuvem não confirmou o cadastro do fornecedor.',[erro?.message || 'Falha de persistência']);
+      avisarZen('danger',tx('Fornecedor não salvo','Proveedor no guardado','Supplier not saved'),tx('A nuvem não confirmou o cadastro do fornecedor.','La nube no confirmó el registro del proveedor.','The cloud did not confirm the supplier registration.'),[erro?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
     }
   };
 
@@ -123,19 +123,19 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
     setModalProdutoAberto(true);
   };
   const salvarProduto = async () => {
-    if (!formProduto.nome.trim()) return avisarZen('warning','Produto incompleto','Informe o nome do produto.');
+    if (!formProduto.nome.trim()) return avisarZen('warning',tx('Produto incompleto','Producto incompleto','Incomplete product'),tx('Informe o nome do produto.','Informe el nombre del producto.','Enter the product name.'));
     const custo = parseFloat(String(formProduto.custoBRL).replace(',', '.')) || 0;
     const preco = parseFloat(String(formProduto.precoBRL).replace(',', '.')) || 0;
     const estoque = parseInt(String(formProduto.estoque)) || 0;
 
-    if (skuJaExiste(produtos, formProduto.sku, produtoEmEdicao)) return avisarZen('danger','SKU duplicado',`Já existe outro produto com o SKU ${formProduto.sku}. Use um SKU diferente.`);
+    if (skuJaExiste(produtos, formProduto.sku, produtoEmEdicao)) return avisarZen('danger',tx('SKU duplicado','SKU duplicado','Duplicate SKU'),`${tx('Já existe outro produto com o SKU','Ya existe otro producto con el SKU','Another product already uses SKU')} ${formProduto.sku}. ${tx('Use um SKU diferente.','Use un SKU diferente.','Use a different SKU.')}`);
     const dadosFinais = normalizarProduto({ ...formProduto, custoBRL: custo, precoBRL: preco, estoque: estoque });
     if (!dadosFinais.id) dadosFinais.id = `PROD-${Date.now()}`;
 
     let listaProposta;
     if (produtoEmEdicao) {
       try { listaProposta = atualizarProdutoUnico(produtos, produtoEmEdicao, { ...produtoEmEdicao, ...dadosFinais }, 'edição de produto na compra'); }
-      catch (erro) { return avisarZen('danger','Edição bloqueada',erro.message || 'Não foi possível editar este produto com segurança.'); }
+      catch (erro) { return avisarZen('danger',tx('Edição bloqueada','Edición bloqueada','Edit blocked'),erro.message || tx('Não foi possível editar este produto com segurança.','No fue posible editar este producto con seguridad.','Could not safely edit this product.')); }
     } else {
       listaProposta = [dadosFinais, ...(produtos || [])];
     }
@@ -157,7 +157,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
       }
       setModalProdutoAberto(false);
     } catch (erro) {
-      avisarZen('danger','Produto não salvo','A nuvem não confirmou o produto. O cadastro não foi considerado concluído.',[erro?.message || 'Falha de persistência']);
+      avisarZen('danger',tx('Produto não salvo','Producto no guardado','Product not saved'),tx('A nuvem não confirmou o produto. O cadastro não foi considerado concluído.','La nube no confirmó el producto. El registro no fue considerado concluido.','The cloud did not confirm the product. Registration was not considered complete.'),[erro?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
     }
   };
 
@@ -320,10 +320,10 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
     if (compraEmAndamentoRef.current || !podeFinalizarCompra) return;
     const totalDinheiroImediato = pagamentosLancados.filter(p => !p.aPrazo && p.formaId === 'dinheiro').reduce((a,p)=>a+(Number(p.valorConvertidoBRL)||0),0);
     if (totalDinheiroImediato > 0 && !sessaoAtiva) {
-      return setModalZen({ variante:'danger', titulo:'Caixa fechado', mensagem:'Para pagar uma compra em dinheiro é necessário um turno de caixa aberto.', apenasConfirmar:true });
+      return setModalZen({ variante:'danger', titulo:tx('Caixa fechado','Caja cerrada','Register closed'), mensagem:tx('Para pagar uma compra em dinheiro é necessário um turno de caixa aberto.','Para pagar una compra en efectivo se requiere un turno de caja abierto.','An open cash shift is required to pay a purchase in cash.'), apenasConfirmar:true });
     }
     if (totalDinheiroImediato > Number(saldoSessaoFisicoBRL || 0) + 0.001) {
-      return setModalZen({ variante:'danger', titulo:'Saldo insuficiente na gaveta', mensagem:`Disponível: ${fmt(saldoSessaoFisicoBRL, 'BRL')}`, detalhes:[`Pagamento em dinheiro: ${fmt(totalDinheiroImediato, 'BRL')}`], apenasConfirmar:true });
+      return setModalZen({ variante:'danger', titulo:tx('Saldo insuficiente na gaveta','Saldo insuficiente en caja','Insufficient drawer balance'), mensagem:`${tx('Disponível:','Disponible:','Available:')} ${fmt(saldoSessaoFisicoBRL, 'BRL')}`, detalhes:[`${tx('Pagamento em dinheiro:','Pago en efectivo:','Cash payment:')} ${fmt(totalDinheiroImediato, 'BRL')}`], apenasConfirmar:true });
     }
     compraEmAndamentoRef.current = true;
     setProcessandoCompra(true);
@@ -493,7 +493,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
     } catch (err) {
       // Compatibilidade de contrato ATT07: titulo:'Compra não concluída' / Falha ao registrar compra no Livro Financeiro.
       console.error('Falha ao registrar compra no Livro Financeiro / operação atômica:', err);
-      avisarZen('danger','Compra não concluída','A nuvem não confirmou a compra. Estoque, financeiro e caixa foram preservados.',[err?.message || 'Falha de persistência']);
+      avisarZen('danger',tx('Compra não concluída','Compra no concluida','Purchase not completed'),tx('A nuvem não confirmou a compra. Estoque, financeiro e caixa foram preservados.','La nube no confirmó la compra. Stock, finanzas y caja fueron preservados.','The cloud did not confirm the purchase. Stock, financials and cash were preserved.'),[err?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
     } finally {
       compraEmAndamentoRef.current = false;
       setProcessandoCompra(false);
@@ -515,17 +515,17 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
            <div style={{ backgroundColor: '#ffffff', border: '2px solid #f97316', borderRadius: '16px', width: '100%', maxWidth: '380px', maxHeight: '95vh', overflowY: 'auto', padding: '0', color: '#000', boxShadow: '0 25px 50px rgba(0,0,0,0.5)' }}>
               <div id="area-cupom-compras" style={{ padding: '20px', fontFamily: 'monospace', fontSize: '12px' }}>
                 <div style={{ textAlign: 'center', marginBottom: '10px' }}>
-                  <h2 style={{ margin: '0 0 4px 0', fontSize: '16px' }}>ZenOS - ESPELHO DE COMPRA</h2>
-                  <div style={{ fontSize: '10px' }}>COMPROVANTE DE ENTRADA DE ESTOQUE<br/>{compraConcluidaObj.dataHora}</div>
+                  <h2 style={{ margin: '0 0 4px 0', fontSize: '16px' }}>ZenOS - {tx('ESPELHO DE COMPRA','RESUMEN DE COMPRA','PURCHASE SUMMARY')}</h2>
+                  <div style={{ fontSize: '10px' }}>{tx('COMPROVANTE DE ENTRADA DE ESTOQUE','COMPROBANTE DE ENTRADA DE STOCK','STOCK ENTRY RECEIPT')}<br/>{compraConcluidaObj.dataHora}</div>
                 </div>
                 <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
                 <div style={{ marginBottom: '8px', fontSize: '11px' }}>
-                  <strong>Fornecedor:</strong> {compraConcluidaObj.fornecedorNome}<br/>
-                  <strong>Recebido por:</strong> {compraConcluidaObj.operadorNome}
+                  <strong>{tx('Fornecedor:','Proveedor:','Supplier:')}</strong> {compraConcluidaObj.fornecedorNome}<br/>
+                  <strong>{tx('Recebido por:','Recibido por:','Received by:')}</strong> {compraConcluidaObj.operadorNome}
                 </div>
                 <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
                 <table style={{ width: '100%', textAlign: 'left', fontSize: '11px' }}>
-                  <thead><tr><th>Qtd</th><th>Item (SKU)</th><th style={{ textAlign: 'right' }}>Custo Un</th><th style={{ textAlign: 'right' }}>Total</th></tr></thead>
+                  <thead><tr><th>{tx('Qtd','Cant.','Qty')}</th><th>{tx('Item (SKU)','Ítem (SKU)','Item (SKU)')}</th><th style={{ textAlign: 'right' }}>{tx('Custo Un','Costo Un.','Unit Cost')}</th><th style={{ textAlign: 'right' }}>{tx('Total','Total','Total')}</th></tr></thead>
                   <tbody>
                     {compraConcluidaObj.itens.map((it, idx) => (
                       <tr key={idx}><td>{it.qtd}</td><td>{it.nome.substring(0, 15)}</td><td style={{ textAlign: 'right' }}>{converterDeBRL(it.custoPraticadoBRL, moeda).toFixed(2)}</td><td style={{ textAlign: 'right' }}>{converterDeBRL((it.custoPraticadoBRL * it.qtd), moeda).toFixed(2)}</td></tr>
@@ -533,17 +533,17 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
                   </tbody>
                 </table>
                 <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '14px' }}><span>TOTAL DA NOTA</span><span>{fmt(compraConcluidaObj.totalBRL)}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '14px' }}><span>{tx('TOTAL DA NOTA','TOTAL DEL DOCUMENTO','DOCUMENT TOTAL')}</span><span>{fmt(compraConcluidaObj.totalBRL)}</span></div>
                 
                 <div style={{ marginTop: '10px', fontSize: '11px' }}>
-                  <strong>Forma de Pagamento (Contas a Pagar):</strong><br/>
+                  <strong>{tx('Forma de Pagamento (Contas a Pagar):','Forma de Pago (Cuentas a Pagar):','Payment Method (Accounts Payable):')}</strong><br/>
                   {compraConcluidaObj.pagamentos.map((p, idx) => <div key={idx} style={{ display: 'flex', justifyContent: 'space-between' }}><span>{p.rotulo}</span><span>{p.valorOriginal.toFixed(2)}</span></div>)}
                 </div>
                 <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
-                <div style={{ textAlign: 'center', fontSize: '10px', color: '#555' }}>Estoque atualizado com sucesso.</div>
+                <div style={{ textAlign: 'center', fontSize: '10px', color: '#555' }}>{tx('Estoque atualizado com sucesso.','Stock actualizado correctamente.','Stock updated successfully.')}</div>
               </div>
               <div className="no-print" style={{ padding: '20px', backgroundColor: '#f1f5f9', display: 'flex', gap: '10px', borderTop: '1px dashed #ccc', borderBottomLeftRadius: '16px', borderBottomRightRadius: '16px', flexWrap: 'wrap' }}>
-                <button onClick={limparParaNovaCompra} style={{ flex: 1, padding: '12px', background: '#f97316', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '14px' }}>Nova Entrada</button>
+                <button onClick={limparParaNovaCompra} style={{ flex: 1, padding: '12px', background: '#f97316', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '14px' }}>{tx('Nova Entrada','Nueva Entrada','New Entry')}</button>
               </div>
            </div>
         </div>
@@ -556,7 +556,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
             <div style={{ position: 'absolute', top: '14px', left: '16px', fontSize: '18px' }}>🏭</div>
             <input 
               type="text" 
-              placeholder="Buscar Fornecedor / Fabricante..." 
+              placeholder={tx('Buscar Fornecedor / Fabricante...','Buscar Proveedor / Fabricante...','Search Supplier / Manufacturer...')} 
               value={nomeFornecedorVulso} 
               onChange={(e) => { if (fornecedorSelecionado) setFornecedorSelecionado(null); setNomeFornecedorVulso(e.target.value); }} 
               onFocus={() => setFocoInputFornecedor(true)} 
@@ -572,22 +572,22 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
               <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: '8px', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '14px', overflow: 'hidden', zIndex: 50, maxHeight: '200px', overflowY: 'auto', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
                 {fornecedoresSugeridos.map((f, index) => (
                   <div key={f.id || `f-${index}`} onMouseDown={(e) => { e.preventDefault(); selecionarFornecedor(f); }} style={{ padding: '12px 20px', borderBottom: '1px solid #1e293b', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div><strong style={{ color: '#f8fafc', fontSize: '14px' }}>{f.nome}</strong><br/><span style={{ color: '#64748b', fontSize: '11px' }}>Doc: {f.documento}</span></div><span style={{ color: '#a855f7', fontSize: '11px', fontWeight: 800 }}>Vincular ➜</span>
+                    <div><strong style={{ color: '#f8fafc', fontSize: '14px' }}>{f.nome}</strong><br/><span style={{ color: '#64748b', fontSize: '11px' }}>Doc: {f.documento}</span></div><span style={{ color: '#a855f7', fontSize: '11px', fontWeight: 800 }}>{tx('Vincular ➜','Vincular ➜','Link ➜')}</span>
                   </div>
                 ))}
               </div>
             )}
           </div>
-          <button onClick={abrirCadastroFornecedor} style={{ padding: '16px 20px', backgroundColor: '#3b0764', border: '1px solid #7e22ce', color: '#e9d5ff', borderRadius: '14px', fontSize: '13px', fontWeight: 900, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 4px 15px rgba(126, 34, 206, 0.2)' }}>+ Fornecedor</button>
+          <button onClick={abrirCadastroFornecedor} style={{ padding: '16px 20px', backgroundColor: '#3b0764', border: '1px solid #7e22ce', color: '#e9d5ff', borderRadius: '14px', fontSize: '13px', fontWeight: 900, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 4px 15px rgba(126, 34, 206, 0.2)' }}>+ {tx('Fornecedor','Proveedor','Supplier')}</button>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
-            <label style={{ fontSize: '12px', fontWeight: 900, color: '#f97316', letterSpacing: '1px', textTransform: 'uppercase' }}>🔎 Localizar Mercadoria para Entrada</label>
-            <button onClick={abrirCadastroProduto} style={{ backgroundColor: '#ea580c', border: 'none', color: '#fff', fontSize: '11px', fontWeight: 800, padding: '4px 10px', borderRadius: '6px', cursor: 'pointer' }}>+ Novo Produto na Base</button>
+            <label style={{ fontSize: '12px', fontWeight: 900, color: '#f97316', letterSpacing: '1px', textTransform: 'uppercase' }}>🔎 {tx('Localizar Mercadoria para Entrada','Localizar Mercadería para Entrada','Find Item for Stock Entry')}</label>
+            <button onClick={abrirCadastroProduto} style={{ backgroundColor: '#ea580c', border: 'none', color: '#fff', fontSize: '11px', fontWeight: 800, padding: '4px 10px', borderRadius: '6px', cursor: 'pointer' }}>+ {tx('Novo Produto na Base','Nuevo Producto en la Base','New Product in Database')}</button>
           </div>
           <div style={{ position: 'relative' }}>
-            <input ref={inputBuscaRef} type="text" value={termoBusca} onChange={(e) => setTermoBusca(e.target.value)} onKeyDown={lidarTecladoBusca} placeholder="Busque por nome, SKU, código de barras..." style={{ width: '100%', backgroundColor: '#0b1120', border: '2px solid #f97316', color: '#f8fafc', fontSize: '16px', borderRadius: '14px', padding: '16px 20px', outline: 'none', boxSizing: 'border-box' }} autoFocus />
+            <input ref={inputBuscaRef} type="text" value={termoBusca} onChange={(e) => setTermoBusca(e.target.value)} onKeyDown={lidarTecladoBusca} placeholder={tx('Busque por nome, SKU, código de barras...','Busque por nombre, SKU, código de barras...','Search by name, SKU, barcode...')} style={{ width: '100%', backgroundColor: '#0b1120', border: '2px solid #f97316', color: '#f8fafc', fontSize: '16px', borderRadius: '14px', padding: '16px 20px', outline: 'none', boxSizing: 'border-box' }} autoFocus />
             {termoBusca.trim() !== '' && (
               <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: '8px', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '14px', overflow: 'hidden', zIndex: 50, maxHeight: '280px', overflowY: 'auto' }}>
                 {produtosFiltrados.length > 0 ? produtosFiltrados.map((prod, index) => {
@@ -595,10 +595,10 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
                   return (
                     <div key={prod.id} onClick={() => { setItemParaAdicionar(prod); setQtdDigitadaRapida('1'); }} onMouseEnter={() => setIndiceFocoBusca(index)} style={{ padding: '14px 20px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', backgroundColor: estaFocado ? '#431407' : 'transparent' }}>
                       <div><div style={{ fontWeight: 700, color: '#f8fafc', fontSize: '15px' }}>{prod.nome}</div><div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>SKU: {prod.sku} • Estoque Atual: <strong style={{ color: '#f97316' }}>{prod.estoque} {prod.unidadeMedida}</strong></div></div>
-                      <div style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'right' }}>Último Custo<br/><span style={{ color: '#fff', fontWeight: 900, fontSize: '14px' }}>{fmt(prod.custoBRL || 0)}</span></div>
+                      <div style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'right' }}>{tx('Último Custo','Último Costo','Last Cost')}<br/><span style={{ color: '#fff', fontWeight: 900, fontSize: '14px' }}>{fmt(prod.custoBRL || 0)}</span></div>
                     </div>
                   );
-                }) : <div style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>Nenhum produto localizado na base. Deseja cadastrar?</div>}
+                }) : <div style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>{tx('Nenhum produto localizado na base. Deseja cadastrar?','Ningún producto encontrado en la base. ¿Desea registrarlo?','No product found in the database. Would you like to register one?')}</div>}
               </div>
             )}
           </div>
@@ -609,26 +609,26 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
             <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', letterSpacing: '1px', textTransform: 'uppercase' }}>Lista de Entrada ({itensCompra.length})</span>
           </div>
           <div style={{ padding: '8px', flex: 1, overflowY: 'auto', maxHeight: '400px' }}>
-            {itensCompra.length === 0 ? <div style={{ padding: '60px 20px', textAlign: 'center', color: '#475569', fontSize: '14px' }}>Aguardando bipes ou buscas...</div> : itensCompra.map(item => (
+            {itensCompra.length === 0 ? <div style={{ padding: '60px 20px', textAlign: 'center', color: '#475569', fontSize: '14px' }}>{tx('Aguardando bipes ou buscas...','Esperando escaneos o búsquedas...','Waiting for scans or searches...')}</div> : itensCompra.map(item => (
               <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderBottom: '1px solid #1e293b', gap: '8px', flexWrap: 'wrap' }}>
                 <div style={{ flex: '1 1 180px' }}>
                   <div style={{ fontWeight: 700, color: '#f8fafc', fontSize: '14px' }}>{item.nome}</div>
                   <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '4px' }}>
                     <span style={{ fontSize: '10px', color: '#64748b', fontFamily: 'monospace' }}>SKU: {item.sku}</span>
-                    <span onClick={() => removerItem(item.id)} style={{ fontSize: '11px', color: '#f43f5e', cursor: 'pointer', fontWeight: 600 }}>Remover da Lista</span>
+                    <span onClick={() => removerItem(item.id)} style={{ fontSize: '11px', color: '#f43f5e', cursor: 'pointer', fontWeight: 600 }}>{tx('Remover da Lista','Quitar de la Lista','Remove from List')}</span>
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: 'auto', flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <label style={{ fontSize: '9px', color: '#64748b' }}>Qtd</label>
+                    <label style={{ fontSize: '9px', color: '#64748b' }}>{tx('Qtd','Cant.','Qty')}</label>
                     <input type="number" value={item.qtd} onChange={(e) => atualizarQtd(item.id, e.target.value)} onFocus={(e) => e.target.select()} style={{ width: '50px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontWeight: 800, fontSize: '13px', textAlign: 'center', padding: '6px', outline: 'none' }} />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <label style={{ fontSize: '9px', color: '#64748b' }}>Custo Un.</label>
+                    <label style={{ fontSize: '9px', color: '#64748b' }}>{tx('Custo Un.','Costo Un.','Unit Cost')}</label>
                     <input type="text" value={item.custoTexto !== undefined ? item.custoTexto : converterDeBRL(item.custoPraticadoBRL, moeda).toFixed(2)} onChange={(e) => lidarDigitacaoCusto(item.id, e.target.value)} onFocus={(e) => e.target.select()} style={{ width: '80px', backgroundColor: '#020617', border: '1px solid #f97316', borderRadius: '8px', color: '#fdba74', fontWeight: 800, fontSize: '13px', textAlign: 'right', padding: '6px', outline: 'none' }} />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <label style={{ fontSize: '9px', color: '#64748b' }}>Preço Venda</label>
+                    <label style={{ fontSize: '9px', color: '#64748b' }}>{tx('Preço Venda','Precio Venta','Sale Price')}</label>
                     <input type="text" inputMode="decimal" aria-label={`Preço Venda de ${item.nome}`} value={item.precoVendaTexto !== undefined ? item.precoVendaTexto : converterDeBRL(item.precoVendaBRL ?? item.precoBRL, moeda).toFixed(2)} onChange={(e) => lidarDigitacaoPrecoVenda(item.id, e.target.value)} onFocus={(e) => e.target.select()} style={{ width: '80px', backgroundColor: '#020617', border: '1px solid #34d399', borderRadius: '8px', color: '#34d399', fontWeight: 800, fontSize: '13px', textAlign: 'right', padding: '6px', outline: 'none' }} />
                   </div>
                   <div style={{ width: '85px', textAlign: 'right', fontWeight: 900, color: '#f97316', fontSize: '15px', paddingTop: '14px' }}>{fmt(Math.max(0, parseInt(item.qtd) || 0) * (item.custoPraticadoBRL || 0))}</div>
@@ -642,22 +642,22 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
         
         <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
-          <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', letterSpacing: '1px', textTransform: 'uppercase' }}>Resumo da Nota de Compra</span>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#cbd5e1' }}><span>Subtotal dos Produtos</span><span style={{ fontWeight: 700, color: '#fff' }}>{fmt(subtotalBrutoBRL)}</span></div>
+          <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', letterSpacing: '1px', textTransform: 'uppercase' }}>{tx('Resumo da Nota de Compra','Resumen de la Compra','Purchase Summary')}</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#cbd5e1' }}><span>{tx('Subtotal dos Produtos','Subtotal de Productos','Product Subtotal')}</span><span style={{ fontWeight: 700, color: '#fff' }}>{fmt(subtotalBrutoBRL)}</span></div>
           
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px', color: '#cbd5e1' }}>
-            <span>Frete / Impostos (R$)</span>
+            <span>{tx('Frete / Impostos (R$)','Flete / Impuestos (R$)','Freight / Taxes (R$)')}</span>
             <input type="text" value={acrescimoTexto} onChange={(e) => setAcrescimoTexto(e.target.value)} onFocus={(e) => e.target.select()} style={{ width: '75px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', padding: '6px 8px', color: '#ef4444', fontWeight: 800, fontSize: '14px', textAlign: 'right', outline: 'none' }} />
           </div>
           
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px', color: '#cbd5e1' }}>
-            <span>Desconto Recebido (R$)</span>
+            <span>{tx('Desconto Recebido (R$)','Descuento Recibido (R$)','Discount Received (R$)')}</span>
             <input type="text" value={descontoTexto} onChange={(e) => setDescontoTexto(e.target.value)} onFocus={(e) => e.target.select()} style={{ width: '75px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', padding: '6px 8px', color: '#34d399', fontWeight: 800, fontSize: '14px', textAlign: 'right', outline: 'none' }} />
           </div>
           
           <div style={{ height: '1px', backgroundColor: '#1e293b', margin: '4px 0' }}></div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '14px', fontWeight: 700, color: '#94a3b8' }}>Total da Nota</span>
+            <span style={{ fontSize: '14px', fontWeight: 700, color: '#94a3b8' }}>{tx('Total da Nota','Total del Documento','Document Total')}</span>
             <span style={{ fontSize: '28px', fontWeight: 900, color: '#f97316', letterSpacing: '-1px' }}>{fmt(totalFinalBRL)}</span>
           </div>
         </div>
@@ -673,11 +673,11 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '16px' }}>
           <div style={{ backgroundColor: '#0b1120', border: '1px solid #f97316', borderRadius: '20px', width: '100%', maxWidth: '400px', padding: '28px', color: '#fff', textAlign: 'center' }}>
             <h3 style={{ fontSize: '18px', fontWeight: 900, marginBottom: '4px' }}>{itemParaAdicionar.nome}</h3>
-            <p style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '16px' }}>Quantidade Comprada:</p>
+            <p style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '16px' }}>{tx('Quantidade Comprada:','Cantidad Comprada:','Purchased Quantity:')}</p>
             <input ref={inputQtdRapidaRef} type="number" value={qtdDigitadaRapida} onChange={e => setQtdDigitadaRapida(e.target.value)} onFocus={e=>e.target.select()} onKeyDown={e=>{if(e.key==='Enter') confirmarAdicaoRapida(); if(e.key==='Escape') setItemParaAdicionar(null);}} style={{ width: '80px', padding: '10px', fontSize: '20px', textAlign: 'center', backgroundColor: '#020617', border: '1px solid #f97316', color: '#fff', borderRadius: '8px', marginBottom: '20px', outline: 'none' }} />
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setItemParaAdicionar(null)} style={{ flex: 1, padding: '12px', background: '#1e293b', border: 'none', color: '#fff', borderRadius: '8px', cursor: 'pointer', fontWeight: 800 }}>Cancelar</button>
-              <button onClick={confirmarAdicaoRapida} style={{ flex: 2, padding: '12px', background: '#ea580c', border: 'none', color: '#fff', borderRadius: '8px', cursor: 'pointer', fontWeight: 900 }}>Adicionar à Nota</button>
+              <button onClick={() => setItemParaAdicionar(null)} style={{ flex: 1, padding: '12px', background: '#1e293b', border: 'none', color: '#fff', borderRadius: '8px', cursor: 'pointer', fontWeight: 800 }}>{tx('Cancelar','Cancelar','Cancel')}</button>
+              <button onClick={confirmarAdicaoRapida} style={{ flex: 2, padding: '12px', background: '#ea580c', border: 'none', color: '#fff', borderRadius: '8px', cursor: 'pointer', fontWeight: 900 }}>{tx('Adicionar à Nota','Agregar al Documento','Add to Purchase')}</button>
             </div>
           </div>
         </div>
@@ -687,38 +687,38 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1500, padding: '16px' }}>
           <div style={{ backgroundColor: '#0b1120', border: '1px solid #ea580c', borderRadius: '24px', width: '100%', maxWidth: '820px', maxHeight: '92vh', overflowY: 'auto', padding: '28px', color: '#fff', boxSizing: 'border-box' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <div><span style={{ fontSize: '11px', fontWeight: 800, color: '#f97316', letterSpacing: '1px', textTransform: 'uppercase' }}>Ficha Cadastral Universal</span><h3 style={{ fontSize: '18px', fontWeight: 900, margin: '2px 0 0 0' }}>{produtoEmEdicao ? `Editar: ${produtoEmEdicao.nome}` : 'Cadastrar Novo Produto na Base'}</h3></div>
+              <div><span style={{ fontSize: '11px', fontWeight: 800, color: '#f97316', letterSpacing: '1px', textTransform: 'uppercase' }}>{tx('Ficha Cadastral Universal','Ficha Universal','Universal Record')}</span><h3 style={{ fontSize: '18px', fontWeight: 900, margin: '2px 0 0 0' }}>{produtoEmEdicao ? `Editar: ${produtoEmEdicao.nome}` : 'Cadastrar Novo Produto na Base'}</h3></div>
               <button onClick={() => setModalProdutoAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#64748b', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>✕</button>
             </div>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '18px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
-                <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>SKU / Cód. Barras</label><input type="text" value={formProduto.sku} onChange={(e) => setFormProduto({ ...formProduto, sku: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 800, fontSize: '13px', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
-                <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Nome do Item</label><input type="text" value={formProduto.nome} onChange={(e) => setFormProduto({ ...formProduto, nome: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 700, fontSize: '13px', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
+                <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('SKU / Cód. Barras','SKU / Cód. Barras','SKU / Barcode')}</label><input type="text" value={formProduto.sku} onChange={(e) => setFormProduto({ ...formProduto, sku: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 800, fontSize: '13px', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
+                <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Nome do Item','Nombre del Ítem','Item Name')}</label><input type="text" value={formProduto.nome} onChange={(e) => setFormProduto({ ...formProduto, nome: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 700, fontSize: '13px', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
                 <div>
-                  <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Grupo / Categoria (Livre)</label>
-                  <input type="text" placeholder="Ex: Tintas, Pincéis..." value={formProduto.grupo || ''} onChange={(e) => setFormProduto({ ...formProduto, grupo: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 700, fontSize: '13px', padding: '10px', outline: 'none', boxSizing: 'border-box' }} />
+                  <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Grupo / Categoria (Livre)','Grupo / Categoría (Libre)','Group / Category (Free)')}</label>
+                  <input type="text" placeholder={tx('Ex: Tintas, Pincéis...','Ej: Pinturas, Pinceles...','Ex: Paints, Brushes...')} value={formProduto.grupo || ''} onChange={(e) => setFormProduto({ ...formProduto, grupo: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 700, fontSize: '13px', padding: '10px', outline: 'none', boxSizing: 'border-box' }} />
                 </div>
                 <div>
-                  <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Fornecedor / Marca</label>
-                  <input type="text" placeholder="Ex: Suvinil, Tigre..." value={formProduto.fornecedor || ''} onChange={(e) => setFormProduto({ ...formProduto, fornecedor: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 700, fontSize: '13px', padding: '10px', outline: 'none', boxSizing: 'border-box' }} />
+                  <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Fornecedor / Marca','Proveedor / Marca','Supplier / Brand')}</label>
+                  <input type="text" placeholder={tx('Ex: Suvinil, Tigre...','Ej: Suvinil, Tigre...','Ex: Suvinil, Tigre...')} value={formProduto.fornecedor || ''} onChange={(e) => setFormProduto({ ...formProduto, fornecedor: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 700, fontSize: '13px', padding: '10px', outline: 'none', boxSizing: 'border-box' }} />
                 </div>
               </div>
             </div>
 
             <div style={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', padding: '16px 20px', marginBottom: '18px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', alignItems: 'center' }}>
-                <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>Custo de Compra (R$)</label><input type="text" value={formProduto.custoBRL} onChange={(e) => setFormProduto({ ...formProduto, custoBRL: e.target.value })} style={{ width: '100%', backgroundColor: '#0b1120', border: '1px solid #ea580c', borderRadius: '8px', color: '#fdba74', fontWeight: 800, fontSize: '14px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
-                <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>Preço Venda PDV (R$)</label><input type="text" value={formProduto.precoBRL} onChange={(e) => setFormProduto({ ...formProduto, precoBRL: e.target.value })} style={{ width: '100%', backgroundColor: '#0b1120', border: '1px solid #34d399', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
-                <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>Estoque Atual</label><input type="number" value={formProduto.estoque} onChange={(e) => setFormProduto({ ...formProduto, estoque: e.target.value })} style={{ width: '100%', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#f8fafc', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
+                <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Custo de Compra (R$)','Costo de Compra (R$)','Purchase Cost (R$)')}</label><input type="text" value={formProduto.custoBRL} onChange={(e) => setFormProduto({ ...formProduto, custoBRL: e.target.value })} style={{ width: '100%', backgroundColor: '#0b1120', border: '1px solid #ea580c', borderRadius: '8px', color: '#fdba74', fontWeight: 800, fontSize: '14px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
+                <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Preço Venda PDV (R$)','Precio Venta TPV (R$)','POS Sale Price (R$)')}</label><input type="text" value={formProduto.precoBRL} onChange={(e) => setFormProduto({ ...formProduto, precoBRL: e.target.value })} style={{ width: '100%', backgroundColor: '#0b1120', border: '1px solid #34d399', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
+                <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Estoque Atual','Stock Actual','Current Stock')}</label><input type="number" value={formProduto.estoque} onChange={(e) => setFormProduto({ ...formProduto, estoque: e.target.value })} style={{ width: '100%', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#f8fafc', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
               </div>
             </div>
 
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-              <button onClick={() => setModalProdutoAberto(false)} style={{ flex: 1, backgroundColor: '#020617', border: '1px solid #1e293b', color: '#94a3b8', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={salvarProduto} style={{ flex: 2, background: 'linear-gradient(135deg, #ea580c, #c2410c)', border: 'none', color: '#ffffff', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 900, cursor: 'pointer' }}>Salvar na Base e Adicionar</button>
+              <button onClick={() => setModalProdutoAberto(false)} style={{ flex: 1, backgroundColor: '#020617', border: '1px solid #1e293b', color: '#94a3b8', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}>{tx('Cancelar','Cancelar','Cancel')}</button>
+              <button onClick={salvarProduto} style={{ flex: 2, background: 'linear-gradient(135deg, #ea580c, #c2410c)', border: 'none', color: '#ffffff', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 900, cursor: 'pointer' }}>{tx('Salvar na Base e Adicionar','Guardar en la Base y Agregar','Save to Database and Add')}</button>
             </div>
           </div>
         </div>
@@ -730,15 +730,15 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
             
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
               <div>
-                <span style={{ fontSize: '11px', fontWeight: 800, color: '#a855f7', textTransform: 'uppercase', letterSpacing: '1px' }}>Ficha Cadastral</span>
-                <h3 style={{ margin: '4px 0 0 0', fontSize: '20px', fontWeight: 900 }}>Novo Fornecedor</h3>
+                <span style={{ fontSize: '11px', fontWeight: 800, color: '#a855f7', textTransform: 'uppercase', letterSpacing: '1px' }}>{tx('Ficha Cadastral','Ficha de Registro','Record Form')}</span>
+                <h3 style={{ margin: '4px 0 0 0', fontSize: '20px', fontWeight: 900 }}>{tx('Novo Fornecedor','Nuevo Proveedor','New Supplier')}</h3>
               </div>
               <button onClick={() => setModalFornecedorAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#64748b', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px', marginBottom: '24px' }}>
               <div>
-                <label style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 800 }}>Nome / Razão Social *</label>
+                <label style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 800 }}>{tx('Nome / Razão Social *','Nombre / Razón Social *','Name / Company Name *')}</label>
                 <input type="text" value={formFornecedor.nome || ''} onChange={e => setFormFornecedor({...formFornecedor, nome: e.target.value})} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '10px', color: '#fff', padding: '14px', outline: 'none', marginTop: '6px', boxSizing: 'border-box' }} />
               </div>
               
@@ -748,30 +748,30 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
                   <input type="text" value={formFornecedor.documento || ''} onChange={e => setFormFornecedor({...formFornecedor, documento: e.target.value})} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '10px', color: '#fff', padding: '14px', outline: 'none', marginTop: '6px', boxSizing: 'border-box' }} />
                 </div>
                 <div>
-                  <label style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 800 }}>País / Regra Fiscal</label>
+                  <label style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 800 }}>{tx('País / Regra Fiscal','País / Regla Fiscal','Country / Fiscal Rule')}</label>
                   <select value={formFornecedor.pais || (moeda === 'PYG' ? 'PY' : 'BR')} onChange={e => setFormFornecedor({...formFornecedor, pais: e.target.value})} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '10px', color: '#a855f7', padding: '14px', outline: 'none', marginTop: '6px', boxSizing: 'border-box', fontWeight: 900 }}>
-                    <option value="BR">Brasil (CNPJ/CPF)</option>
-                    <option value="PY">Paraguay (RUC)</option>
-                    <option value="OUTROS">Exterior / Outros</option>
+                    <option value="BR">{tx('Brasil (CNPJ/CPF)','Brasil (CNPJ/CPF)','Brazil (CNPJ/CPF)')}</option>
+                    <option value="PY">{tx('Paraguai (RUC)','Paraguay (RUC)','Paraguay (RUC)')}</option>
+                    <option value="OUTROS">{tx('Exterior / Outros','Exterior / Otros','Foreign / Other')}</option>
                   </select>
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
-                  <label style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 800 }}>Telefone / WhatsApp</label>
+                  <label style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 800 }}>{tx('Telefone / WhatsApp','Teléfono / WhatsApp','Phone / WhatsApp')}</label>
                   <input type="text" value={formFornecedor.telefone || ''} onChange={e => setFormFornecedor({...formFornecedor, telefone: e.target.value})} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '10px', color: '#fff', padding: '14px', outline: 'none', marginTop: '6px', boxSizing: 'border-box' }} />
                 </div>
                 <div>
-                  <label style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 800 }}>Cidade / Estado</label>
+                  <label style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 800 }}>{tx('Cidade / Estado','Ciudad / Estado','City / State')}</label>
                   <input type="text" value={formFornecedor.cidade || ''} onChange={e => setFormFornecedor({...formFornecedor, cidade: e.target.value})} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '10px', color: '#fff', padding: '14px', outline: 'none', marginTop: '6px', boxSizing: 'border-box' }} />
                 </div>
               </div>
             </div>
 
             <div style={{ display: 'flex', gap: '12px' }}>
-              <button onClick={() => setModalFornecedorAberto(false)} style={{ flex: 1, padding: '16px', backgroundColor: '#1e293b', border: 'none', color: '#f8fafc', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', fontSize: '14px' }}>Cancelar</button>
-              <button onClick={salvarFornecedor} style={{ flex: 2, background: 'linear-gradient(135deg, #9333ea, #7e22ce)', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '14px' }}>Salvar Fornecedor</button>
+              <button onClick={() => setModalFornecedorAberto(false)} style={{ flex: 1, padding: '16px', backgroundColor: '#1e293b', border: 'none', color: '#f8fafc', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', fontSize: '14px' }}>{tx('Cancelar','Cancelar','Cancel')}</button>
+              <button onClick={salvarFornecedor} style={{ flex: 2, background: 'linear-gradient(135deg, #9333ea, #7e22ce)', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '14px' }}>{tx('Salvar Fornecedor','Guardar Proveedor','Save Supplier')}</button>
             </div>
           </div>
         </div>
@@ -782,7 +782,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
             
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div>
-                <span style={{ fontSize: '11px', fontWeight: 900, color: '#f97316', letterSpacing: '1px', textTransform: 'uppercase' }}>Lançamento Financeiro</span>
+                <span style={{ fontSize: '11px', fontWeight: 900, color: '#f97316', letterSpacing: '1px', textTransform: 'uppercase' }}>{tx('Lançamento Financeiro','Movimiento Financiero','Financial Entry')}</span>
                 <h3 style={{ fontSize: '18px', fontWeight: 900, margin: '4px 0 0 0' }}>Fornecedor: {fornecedorSelecionado ? fornecedorSelecionado.nome : (nomeFornecedorVulso || 'Avulso / Não Informado')}</h3>
               </div>
               <button onClick={() => setModalFechamentoAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #334155', color: '#94a3b8', borderRadius: '10px', width: '36px', height: '36px', cursor: 'pointer', fontWeight: 900 }}>✕</button>
@@ -790,16 +790,16 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
             
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', padding: '16px', gap: '12px', marginBottom: '20px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800 }}>Total da Nota</span>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800 }}>{tx('Total da Nota','Total del Documento','Document Total')}</span>
                 <div style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff' }}>{fmt(totalFinalBRL, 'BRL')}</div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800 }}>Pagamentos Agendados</span>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800 }}>{tx('Pagamentos Agendados','Pagos Programados','Scheduled Payments')}</span>
                 <div style={{ fontSize: '18px', fontWeight: 900, color: '#34d399' }}>{fmt(totalPagoConvertidoBRL, 'BRL')}</div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800 }}>Restante a Lançar</span>
-                <div style={{ fontSize: '18px', fontWeight: 900, color: saldoRestanteBRL > 0.01 ? '#f97316' : '#38bdf8' }}>{saldoRestanteBRL > 0.01 ? fmt(saldoRestanteBRL, 'BRL') : 'TUDO LANÇADO ✓'}</div>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800 }}>{tx('Restante a Lançar','Restante por Registrar','Remaining to Post')}</span>
+                <div style={{ fontSize: '18px', fontWeight: 900, color: saldoRestanteBRL > 0.01 ? '#f97316' : '#38bdf8' }}>{saldoRestanteBRL > 0.01 ? fmt(saldoRestanteBRL, 'BRL') : tx('TUDO LANÇADO ✓','TODO REGISTRADO ✓','FULLY POSTED ✓')}</div>
               </div>
             </div>
             
@@ -830,15 +830,15 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
             {configAtualForma.aPrazo && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '10px', backgroundColor: '#1e1104', border: '1px solid #78350f', padding: '16px', borderRadius: '12px', marginBottom: '16px' }}>
                 <div>
-                  <label style={{ fontSize: '11px', color: '#fdba74', fontWeight: 800 }}>Nº de Parcelas</label>
+                  <label style={{ fontSize: '11px', color: '#fdba74', fontWeight: 800 }}>{tx('Nº de Parcelas','Nº de Cuotas','No. of Installments')}</label>
                   <input type="number" value={qtdParcelas} min="1" max="60" onChange={e => setQtdParcelas(e.target.value)} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #ea580c', borderRadius: '8px', color: '#fff', fontSize: '15px', fontWeight: 900, padding: '10px', outline: 'none', marginTop: '4px', boxSizing: 'border-box' }} />
                 </div>
                 <div>
-                  <label style={{ fontSize: '11px', color: '#fdba74', fontWeight: 800 }}>Intervalo (Dias)</label>
+                  <label style={{ fontSize: '11px', color: '#fdba74', fontWeight: 800 }}>{tx('Intervalo (Dias)','Intervalo (Días)','Interval (Days)')}</label>
                   <input type="number" value={intervaloDias} onChange={e => setIntervaloDias(e.target.value)} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #ea580c', borderRadius: '8px', color: '#fff', fontSize: '15px', fontWeight: 900, padding: '10px', outline: 'none', marginTop: '4px', boxSizing: 'border-box' }} />
                 </div>
                 <div>
-                  <label style={{ fontSize: '11px', color: '#fdba74', fontWeight: 800 }}>1º Vencimento</label>
+                  <label style={{ fontSize: '11px', color: '#fdba74', fontWeight: 800 }}>{tx('1º Vencimento','1er Vencimiento','First Due Date')}</label>
                   <input type="date" value={dataPrimeiroVenc} onChange={e => setDataPrimeiroVenc(e.target.value)} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #ea580c', borderRadius: '8px', color: '#fff', fontSize: '13px', fontWeight: 900, padding: '10px', outline: 'none', marginTop: '4px', boxSizing: 'border-box' }} />
                 </div>
               </div>
@@ -850,7 +850,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
             
             <div style={{ maxHeight: '120px', overflowY: 'auto', marginBottom: '20px', background: '#020617', padding: '10px', borderRadius: '12px', border: '1px solid #1e293b' }}>
               {pagamentosLancados.length === 0 ? (
-                <div style={{ textAlign: 'center', color: '#475569', fontSize: '12px', padding: '15px 0' }}>Nenhuma forma de pagamento registrada ainda.</div>
+                <div style={{ textAlign: 'center', color: '#475569', fontSize: '12px', padding: '15px 0' }}>{tx('Nenhuma forma de pagamento registrada ainda.','Ninguna forma de pago registrada aún.','No payment method registered yet.')}</div>
               ) : pagamentosLancados.map(p => (
                 <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', fontSize: '13px', borderBottom: '1px solid #1e293b' }}>
                   <span style={{ color: '#cbd5e1', fontWeight: 600 }}>{p.icone} {p.rotulo}</span>
@@ -863,7 +863,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
             </div>
             
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-              <button onClick={() => setModalFechamentoAberto(false)} style={{ flex: 1, padding: '14px', backgroundColor: '#020617', border: '1px solid #1e293b', color: '#cbd5e1', borderRadius: '12px', cursor: 'pointer', fontWeight: 800, fontSize: '13px' }}>Cancelar</button>
+              <button onClick={() => setModalFechamentoAberto(false)} style={{ flex: 1, padding: '14px', backgroundColor: '#020617', border: '1px solid #1e293b', color: '#cbd5e1', borderRadius: '12px', cursor: 'pointer', fontWeight: 800, fontSize: '13px' }}>{tx('Cancelar','Cancelar','Cancel')}</button>
               <button onClick={() => concluirEntradaMercadoria()} disabled={!podeFinalizarCompra || processandoCompra} style={{ flex: 2, padding: '14px', background: (podeFinalizarCompra && !processandoCompra) ? 'linear-gradient(135deg, #10b981, #059669)' : '#1e293b', border: 'none', color: (podeFinalizarCompra && !processandoCompra) ? '#fff' : '#64748b', borderRadius: '12px', cursor: (podeFinalizarCompra && !processandoCompra) ? 'pointer' : 'not-allowed', fontWeight: 900, fontSize: '14px', boxShadow: podeFinalizarCompra ? '0 4px 15px rgba(16, 185, 129, 0.4)' : 'none' }}>
                 Confirmar Entrada e Somar Estoque ✓
               </button>

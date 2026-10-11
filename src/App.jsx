@@ -78,7 +78,7 @@ const taxasInputAPartirDasTaxas = (taxas = TAXAS_CAMBIO_PADRAO) => {
 // ATT 01: somente inspeciona a versão. Nenhuma migração é executada automaticamente.
 inspectLocalSchemaVersion(CURRENT_SCHEMA_VERSION);
 
-function ZenosLogo({ aoClicar }) {
+function ZenosLogo({ aoClicar, tx = (pt) => pt }) {
   return (
     <div onClick={aoClicar} style={{ display: 'flex', alignItems: 'center', gap: '14px', cursor: 'pointer', userSelect: 'none' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '42px', minWidth: '42px' }}>
@@ -86,7 +86,7 @@ function ZenosLogo({ aoClicar }) {
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', whiteSpace: 'nowrap' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}><span style={{ color: '#f8fafc', fontWeight: 900, fontSize: '18px', letterSpacing: '2.5px', textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>Zen</span><span style={{ color: '#818cf8', fontWeight: 800, fontSize: '16px', letterSpacing: '1px' }}>OS</span></div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '3px' }}><div style={{ height: '1.5px', width: '10px', backgroundColor: '#6366f1' }}></div><span style={{ color: '#cbd5e1', fontSize: '8.5px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase' }}>SISTEMA DE GESTÃO</span><div style={{ height: '1.5px', width: '10px', backgroundColor: '#6366f1' }}></div></div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '3px' }}><div style={{ height: '1.5px', width: '10px', backgroundColor: '#6366f1' }}></div><span style={{ color: '#cbd5e1', fontSize: '8.5px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase' }}>{tx('SISTEMA DE GESTÃO','SISTEMA DE GESTIÓN','MANAGEMENT SYSTEM')}</span><div style={{ height: '1.5px', width: '10px', backgroundColor: '#6366f1' }}></div></div>
       </div>
     </div>
   );
@@ -352,8 +352,8 @@ export default function App() {
   const concluirTrocaPinObrigatoria = async () => {
     setErroPinObrigatorio('');
     if (!operadorAtivo) return;
-    if (novoPinObrigatorio !== confirmarPinObrigatorio) return setErroPinObrigatorio('Os PINs informados não coincidem.');
-    if (pinEhFraco(novoPinObrigatorio)) return setErroPinObrigatorio('Escolha um PIN menos previsível. Não use admin, 1234, 0000, 1111 ou sequências simples.');
+    if (novoPinObrigatorio !== confirmarPinObrigatorio) return setErroPinObrigatorio(tx('Os PINs informados não coincidem.','Los PIN informados no coinciden.','The PINs do not match.'));
+    if (pinEhFraco(novoPinObrigatorio)) return setErroPinObrigatorio(tx('Escolha um PIN menos previsível. Não use admin, 1234, 0000, 1111 ou sequências simples.','Elija un PIN menos previsible. No use admin, 1234, 0000, 1111 ni secuencias simples.','Choose a less predictable PIN. Do not use admin, 1234, 0000, 1111 or simple sequences.'));
     try {
       const credencial = await criarCredencialPin(novoPinObrigatorio);
       const atualizados = vendedores.map(v => String(v.id) === String(operadorAtivo.id) ? { ...v, ...credencial } : v);
@@ -361,7 +361,7 @@ export default function App() {
         const persistencia = await persistV1OperationFieldSafe({
           db, userId, field: 'vendedores', value: atualizados, baseValue: syncBaseRef.current.get('vendedores'), localStorageKey: `zenos_${userId}_vendedores`
         });
-        if (!persistencia?.cloudOk) throw new Error('O novo PIN não foi confirmado na nuvem. Nenhuma alteração de acesso foi finalizada.');
+        if (!persistencia?.cloudOk) throw new Error(tx('O novo PIN não foi confirmado na nuvem. Nenhuma alteração de acesso foi finalizada.','El nuevo PIN no fue confirmado en la nube. No se finalizó ningún cambio de acceso.','The new PIN was not confirmed in the cloud. No access change was finalized.'));
         const confirmados = persistencia.value || atualizados;
         registrarBaseSyncCampo('vendedores', confirmados, persistencia.revision);
         setVendedores(confirmados);
@@ -370,7 +370,7 @@ export default function App() {
       }
       setOperadorAtivo(prev => prev ? { ...prev, ...credencial } : prev);
       setNovoPinObrigatorio(''); setConfirmarPinObrigatorio('');
-    } catch (error) { setErroPinObrigatorio(error?.message || 'Não foi possível atualizar o PIN.'); }
+    } catch (error) { setErroPinObrigatorio(error?.message || tx('Não foi possível atualizar o PIN.','No fue posible actualizar el PIN.','Could not update the PIN.')); }
   };
 
   const solicitarDemoFirebase = async () => {
@@ -380,7 +380,7 @@ export default function App() {
         email: usuarioAutenticado, uid: userId, dataSolicitacao: new Date().toISOString(), dataSolicitacaoServer: serverTimestamp(), status: 'pendente_analise'
       }, { merge: true });
       setDemoSolicitada(true);
-      avisarAppZen({ variante:'success', titulo:'Solicitação enviada', mensagem:'A solicitação foi registrada com sucesso.' });
+      avisarAppZen({ variante:'success', titulo:tx('Solicitação enviada','Solicitud enviada','Request sent'), mensagem:tx('A solicitação foi registrada com sucesso.','La solicitud fue registrada correctamente.','The request was registered successfully.') });
     } catch (err) {
       avisarAppZen({ variante:'danger', titulo:'Não foi possível enviar', mensagem:tx('Erro ao enviar solicitação.', 'Error al enviar solicitud.', 'Error sending request.') });
     }
@@ -509,8 +509,8 @@ export default function App() {
           setPlanoLoja('basico');
           setNuvemSincronizada(false);
           setStatusSincronizacao(typeof navigator !== 'undefined' && !navigator.onLine ? 'OFFLINE' : 'ERRO');
-          setErroSincronizacao(err?.message || 'Não foi possível confirmar os dados da nuvem.');
-          setFalhaBootstrapNuvem(err?.message || 'Não foi possível confirmar os dados da nuvem.'); 
+          setErroSincronizacao(err?.message || tx('Não foi possível confirmar os dados da nuvem.','No fue posible confirmar los datos de la nube.','Could not confirm cloud data.'));
+          setFalhaBootstrapNuvem(err?.message || tx('Não foi possível confirmar os dados da nuvem.','No fue posible confirmar los datos de la nube.','Could not confirm cloud data.')); 
           // FALLBACK OFFLINE SEGURO: Puxa o cache isolado ou o legado genérico se for a primeira vez offline
           try {
             const puxar = (chave) => {
@@ -725,7 +725,7 @@ export default function App() {
   const tx = (pt, es, en) => { if (idioma === 'es') return es || pt; if (idioma === 'en') return en || pt; return pt; };
 
   const registrarFinanceiro = async (lancamento) => {
-    if (!userId) throw new Error('Loja não identificada para o Livro Financeiro.');
+    if (!userId) throw new Error(tx('Loja não identificada para o Livro Financeiro.','Tienda no identificada para el Libro Financiero.','Store not identified for the Financial Ledger.'));
     const confirmado = await registrarLancamentoFinanceiro({
       db,
       userId,
@@ -854,7 +854,7 @@ export default function App() {
       }
     );
     if (!confirmado?.cloudOk) {
-      return avisarAppZen({ variante:'danger', titulo:'Caixa não aberto', mensagem:'A nuvem não confirmou a abertura do turno.', detalhes:[confirmado?.error?.message || 'Tente novamente quando a sincronização estiver disponível.'] });
+      return avisarAppZen({ variante:'danger', titulo:tx('Caixa não aberto','Caja no abierta','Register not opened'), mensagem:tx('A nuvem não confirmou a abertura do turno.','La nube no confirmó la apertura del turno.','The cloud did not confirm opening the shift.'), detalhes:[confirmado?.error?.message || tx('Tente novamente quando a sincronização estiver disponível.','Intente nuevamente cuando la sincronización esté disponible.','Try again when synchronization is available.')] });
     }
     setSessoesCaixa(confirmado.values?.sessoesCaixa || sessoesPropostas);
     setModalCaixaAberto(false);
@@ -897,12 +897,12 @@ export default function App() {
       }],
       guards: [
         { type:'cash_session_open', sessionId:sessaoAtiva.id },
-        ...(tipoMovCaixa === 'sangria' ? [{ type:'cash_balance_at_least', sessionId:sessaoAtiva.id, amount:valBRL, message:'O saldo físico do caixa mudou em outro terminal. A sangria não foi realizada.' }] : []),
+        ...(tipoMovCaixa === 'sangria' ? [{ type:'cash_balance_at_least', sessionId:sessaoAtiva.id, amount:valBRL, message:tx('O saldo físico do caixa mudou em outro terminal. A sangria não foi realizada.','El saldo físico de caja cambió en otro terminal. El retiro no fue realizado.','The physical cash balance changed on another terminal. The cash drop was not performed.') }] : []),
       ],
       operationKey: `mov-caixa:${novoMov.id}`,
     });
     if (!confirmado?.cloudOk) {
-      return avisarAppZen({ variante:'danger', titulo:'Movimento não registrado', mensagem:'A nuvem não confirmou o movimento de caixa.', detalhes:[confirmado?.error?.message || 'Nenhum movimento foi finalizado.'] });
+      return avisarAppZen({ variante:'danger', titulo:tx('Movimento não registrado','Movimiento no registrado','Movement not recorded'), mensagem:tx('A nuvem não confirmou o movimento de caixa.','La nube no confirmó el movimiento de caja.','The cloud did not confirm the cash movement.'), detalhes:[confirmado?.error?.message || tx('Nenhum movimento foi finalizado.','Ningún movimiento fue finalizado.','No movement was finalized.')] });
     }
     setCaixaMovimentos(confirmado.values?.caixaMovimentos || movimentosPropostos);
     setModalCaixaAberto(false);
@@ -913,7 +913,7 @@ export default function App() {
     if (!sessaoAtiva || !resumoSessaoAtiva) {
       return avisarAppZen({
         variante: 'warning',
-        titulo: 'Nenhum turno aberto',
+        titulo: tx('Nenhum turno aberto','Ningún turno abierto','No open shift'),
         mensagem: tx('Não existe turno aberto para encerrar.', 'No hay un turno abierto para cerrar.', 'There is no open shift to close.'),
         apenasConfirmar: true,
       });
@@ -923,7 +923,7 @@ export default function App() {
     if (!houveContagem) {
       return avisarAppZen({
         variante: 'warning',
-        titulo: 'Informe a contagem física',
+        titulo: tx('Informe a contagem física','Informe el conteo físico','Enter the physical count'),
         mensagem: tx(
           'Conte a gaveta e informe os valores encontrados. Se uma moeda não existir na gaveta, digite 0.',
           'Cuente la gaveta e informe los valores encontrados. Si no hay una moneda, ingrese 0.',
@@ -1017,59 +1017,59 @@ export default function App() {
 
     const temQuebra = Math.abs(diferenca) > 0.05;
     const descQuebra = temQuebra
-      ? (diferenca < 0 ? 'FALTA DE CAIXA' : 'SOBRA DE CAIXA')
-      : 'CAIXA CONCILIADO';
+      ? (diferenca < 0 ? tx('FALTA DE CAIXA','FALTA DE CAJA','CASH SHORTAGE') : tx('SOBRA DE CAIXA','SOBRANTE DE CAJA','CASH OVERAGE'))
+      : tx('CAIXA CONCILIADO','CAJA CONCILIADA','CASH RECONCILED');
 
     const reciboFechoHTML = `
       <div style="font-family:monospace;font-size:12px;width:100%;text-align:left;">
         <div style="text-align:center;margin-bottom:10px;">
-          <h2 style="margin:0;font-size:14px;">FECHAMENTO CEGO DE TURNO</h2>
-          <div>ZenOS - SISTEMA DE GESTÃO</div>
+          <h2 style="margin:0;font-size:14px;">${tx('FECHAMENTO CEGO DE TURNO','CIERRE CIEGO DE TURNO','BLIND SHIFT CLOSE')}</h2>
+          <div>ZenOS - ${tx('SISTEMA DE GESTÃO','SISTEMA DE GESTIÓN','MANAGEMENT SYSTEM')}</div>
         </div>
         <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
-        <div><strong>Operador:</strong> ${sessaoAtiva.operadorNome}</div>
-        <div><strong>Abertura:</strong> ${sessaoAtiva.abertura}</div>
-        <div><strong>Fechamento:</strong> ${dataFechoLocal}</div>
+        <div><strong>${tx('Operador:','Operador:','Operator:')}</strong> ${sessaoAtiva.operadorNome}</div>
+        <div><strong>${tx('Abertura:','Apertura:','Opening:')}</strong> ${sessaoAtiva.abertura}</div>
+        <div><strong>${tx('Fechamento:','Cierre:','Closing:')}</strong> ${dataFechoLocal}</div>
         <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
 
-        <div style="margin-bottom:5px;"><strong>>> COMPOSIÇÃO DO DINHEIRO FÍSICO</strong></div>
-        <div style="display:flex;justify-content:space-between;"><span>Fundo inicial:</span><span>${fmt(componentes.fundoInicial, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span>Vendas em dinheiro:</span><span>+ ${fmt(componentes.vendasDinheiro, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span>Recebimentos em dinheiro:</span><span>+ ${fmt(componentes.recebimentosDinheiro, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span>Suprimentos:</span><span>+ ${fmt(componentes.suprimentos, 'BRL')}</span></div>
-        ${componentes.outrasEntradas ? `<div style="display:flex;justify-content:space-between;"><span>Outras entradas:</span><span>+ ${fmt(componentes.outrasEntradas, 'BRL')}</span></div>` : ''}
-        <div style="display:flex;justify-content:space-between;"><span>Sangrias:</span><span>- ${fmt(componentes.sangrias, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span>Devoluções em dinheiro:</span><span>- ${fmt(componentes.devolucoesDinheiro, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span>Despesas em dinheiro:</span><span>- ${fmt(componentes.despesasDinheiro, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span>Compras em dinheiro:</span><span>- ${fmt(componentes.comprasDinheiro, 'BRL')}</span></div>
-        ${componentes.outrasSaidas ? `<div style="display:flex;justify-content:space-between;"><span>Outras saídas:</span><span>- ${fmt(componentes.outrasSaidas, 'BRL')}</span></div>` : ''}
+        <div style="margin-bottom:5px;"><strong>>> ${tx('COMPOSIÇÃO DO DINHEIRO FÍSICO','COMPOSICIÓN DEL DINERO FÍSICO','PHYSICAL CASH COMPOSITION')}</strong></div>
+        <div style="display:flex;justify-content:space-between;"><span>${tx('Fundo inicial:','Fondo inicial:','Opening float:')}</span><span>${fmt(componentes.fundoInicial, 'BRL')}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>${tx('Vendas em dinheiro:','Ventas en efectivo:','Cash sales:')}</span><span>+ ${fmt(componentes.vendasDinheiro, 'BRL')}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>${tx('Recebimentos em dinheiro:','Cobros en efectivo:','Cash receipts:')}</span><span>+ ${fmt(componentes.recebimentosDinheiro, 'BRL')}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>${tx('Suprimentos:','Refuerzos:','Cash in:')}</span><span>+ ${fmt(componentes.suprimentos, 'BRL')}</span></div>
+        ${componentes.outrasEntradas ? `<div style="display:flex;justify-content:space-between;"><span>${tx('Outras entradas:','Otras entradas:','Other inflows:')}</span><span>+ ${fmt(componentes.outrasEntradas, 'BRL')}</span></div>` : ''}
+        <div style="display:flex;justify-content:space-between;"><span>${tx('Sangrias:','Retiros:','Cash drops:')}</span><span>- ${fmt(componentes.sangrias, 'BRL')}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>${tx('Devoluções em dinheiro:','Devoluciones en efectivo:','Cash returns:')}</span><span>- ${fmt(componentes.devolucoesDinheiro, 'BRL')}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>${tx('Despesas em dinheiro:','Gastos en efectivo:','Cash expenses:')}</span><span>- ${fmt(componentes.despesasDinheiro, 'BRL')}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>${tx('Compras em dinheiro:','Compras en efectivo:','Cash purchases:')}</span><span>- ${fmt(componentes.comprasDinheiro, 'BRL')}</span></div>
+        ${componentes.outrasSaidas ? `<div style="display:flex;justify-content:space-between;"><span>${tx('Outras saídas:','Otras salidas:','Other outflows:')}</span><span>- ${fmt(componentes.outrasSaidas, 'BRL')}</span></div>` : ''}
 
         <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
-        <div style="margin-bottom:5px;"><strong>>> VENDAS POR FORMA DE PAGAMENTO</strong></div>
-        ${Object.keys(resumoEntradas).length > 0 ? Object.entries(resumoEntradas).map(([forma, valor]) => `<div style="display:flex;justify-content:space-between;"><span>${forma}:</span><span>${Number(valor).toFixed(2)}</span></div>`).join('') : '<div style="text-align:center;">Nenhuma venda</div>'}
+        <div style="margin-bottom:5px;"><strong>>> ${tx('VENDAS POR FORMA DE PAGAMENTO','VENTAS POR FORMA DE PAGO','SALES BY PAYMENT METHOD')}</strong></div>
+        ${Object.keys(resumoEntradas).length > 0 ? Object.entries(resumoEntradas).map(([forma, valor]) => `<div style="display:flex;justify-content:space-between;"><span>${forma}:</span><span>${Number(valor).toFixed(2)}</span></div>`).join('') : `<div style="text-align:center;">${tx('Nenhuma venda','Ninguna venta','No sales')}</div>`}
 
         <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
-        <div style="margin-bottom:5px;"><strong>>> CONCILIAÇÃO ELETRÔNICA (NÃO AFETA GAVETA)</strong></div>
-        <div style="display:flex;justify-content:space-between;"><span>PIX recebido:</span><span>+ ${fmt(conciliacaoEletronica.pixEntradas, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span>PIX saídas/estornos:</span><span>- ${fmt(conciliacaoEletronica.pixSaidas, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>PIX líquido:</span><span>${fmt(conciliacaoEletronica.pixLiquido, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span>Cartão crédito líquido:</span><span>${fmt(conciliacaoEletronica.cartaoCreditoLiquido, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;"><span>Cartão débito líquido:</span><span>${fmt(conciliacaoEletronica.cartaoDebitoLiquido, 'BRL')}</span></div>
-        <div style="font-size:10px;margin-top:4px;">Valores eletrônicos são conciliados separadamente e não compõem o saldo físico esperado da gaveta.</div>
-        ${extratoPixHTML ? `<div style="border-top:1px dotted #000;margin-top:7px;padding-top:5px;"><strong>>> EXTRATO PIX DO TURNO</strong>${extratoPixHTML}</div>` : '<div style="margin-top:5px;text-align:center;">Nenhum PIX registrado no turno</div>'}
+        <div style="margin-bottom:5px;"><strong>>> ${tx('CONCILIAÇÃO ELETRÔNICA (NÃO AFETA GAVETA)','CONCILIACIÓN ELECTRÓNICA (NO AFECTA CAJA)','ELECTRONIC RECONCILIATION (DOES NOT AFFECT DRAWER)')}</strong></div>
+        <div style="display:flex;justify-content:space-between;"><span>${tx('PIX recebido:','PIX recibido:','PIX received:')}</span><span>+ ${fmt(conciliacaoEletronica.pixEntradas, 'BRL')}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>${tx('PIX saídas/estornos:','PIX salidas/reversiones:','PIX outflows/refunds:')}</span><span>- ${fmt(conciliacaoEletronica.pixSaidas, 'BRL')}</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('PIX líquido:','PIX neto:','Net PIX:')}</span><span>${fmt(conciliacaoEletronica.pixLiquido, 'BRL')}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>${tx('Cartão crédito líquido:','Tarjeta crédito neta:','Net credit card:')}</span><span>${fmt(conciliacaoEletronica.cartaoCreditoLiquido, 'BRL')}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>${tx('Cartão débito líquido:','Tarjeta débito neta:','Net debit card:')}</span><span>${fmt(conciliacaoEletronica.cartaoDebitoLiquido, 'BRL')}</span></div>
+        <div style="font-size:10px;margin-top:4px;">${tx('Valores eletrônicos são conciliados separadamente e não compõem o saldo físico esperado da gaveta.','Los valores electrónicos se concilian por separado y no componen el saldo físico esperado de la caja.','Electronic amounts are reconciled separately and do not make up the expected physical cash balance.')}</div>
+        ${extratoPixHTML ? `<div style="border-top:1px dotted #000;margin-top:7px;padding-top:5px;"><strong>>> ${tx('EXTRATO PIX DO TURNO','EXTRACTO PIX DEL TURNO','SHIFT PIX STATEMENT')}</strong>${extratoPixHTML}</div>` : `<div style="margin-top:5px;text-align:center;">${tx('Nenhum PIX registrado no turno','Ningún PIX registrado en el turno','No PIX recorded in the shift')}</div>`}
 
         <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
-        <div style="margin-bottom:5px;"><strong>>> CONTAGEM INFORMADA PELO OPERADOR</strong></div>
+        <div style="margin-bottom:5px;"><strong>>> ${tx('CONTAGEM INFORMADA PELO OPERADOR','CONTEO INFORMADO POR EL OPERADOR','COUNT ENTERED BY OPERATOR')}</strong></div>
         ${moedasContadasHTML}
 
         <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
-        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>SALDO ESPERADO:</span><span>${fmt(saldoEsperadoBRL, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>TOTAL CONTADO:</span><span>${fmt(valInformadoBRL, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>DIFERENÇA:</span><span>${fmt(diferenca, 'BRL')}</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('SALDO ESPERADO:','SALDO ESPERADO:','EXPECTED BALANCE:')}</span><span>${fmt(saldoEsperadoBRL, 'BRL')}</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('TOTAL CONTADO:','TOTAL CONTADO:','TOTAL COUNTED:')}</span><span>${fmt(valInformadoBRL, 'BRL')}</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('DIFERENÇA:','DIFERENCIA:','DIFFERENCE:')}</span><span>${fmt(diferenca, 'BRL')}</span></div>
         <div style="text-align:center;font-weight:bold;margin-top:8px;">${descQuebra}</div>
 
-        <div style="margin-top:36px;text-align:center;">_________________________________<br/>Assinatura do Operador<br/>${sessaoAtiva.operadorNome}</div>
-        <div style="margin-top:36px;text-align:center;">_________________________________<br/>Conferência da Gerência</div>
+        <div style="margin-top:36px;text-align:center;">_________________________________<br/>${tx('Assinatura do Operador','Firma del Operador','Operator Signature')}<br/>${sessaoAtiva.operadorNome}</div>
+        <div style="margin-top:36px;text-align:center;">_________________________________<br/>${tx('Conferência da Gerência','Revisión de Gerencia','Management Review')}</div>
       </div>
     `;
 
@@ -1083,16 +1083,16 @@ export default function App() {
     if (!fechamentoConfirmado?.cloudOk) {
       return avisarAppZen({
         variante:'danger',
-        titulo:'Caixa não fechado',
-        mensagem:'A nuvem não confirmou o fechamento. O turno continua aberto.',
-        detalhes:[fechamentoConfirmado?.error?.message || 'Tente novamente sem encerrar a tela.'],
+        titulo:tx('Caixa não fechado','Caja no cerrada','Register not closed'),
+        mensagem:tx('A nuvem não confirmou o fechamento. O turno continua aberto.','La nube no confirmó el cierre. El turno sigue abierto.','The cloud did not confirm closing. The shift remains open.'),
+        detalhes:[fechamentoConfirmado?.error?.message || tx('Tente novamente sem encerrar a tela.','Intente nuevamente sin cerrar la pantalla.','Try again without closing the screen.')],
       });
     }
     setSessoesCaixa(fechamentoConfirmado.values?.sessoesCaixa || sessoesAtualizadas);
 
     const janelaImpressao = window.open('', '_blank', 'width=400,height=650');
     if (janelaImpressao) {
-      janelaImpressao.document.write(`<!DOCTYPE html><html><head><title>Fechamento de Turno</title><style>@page{margin:0;size:80mm auto;}body{margin:0;padding:10px;width:80mm;box-sizing:border-box;}</style></head><body>${reciboFechoHTML}<script>window.onload=function(){window.focus();window.print();};</script></body></html>`);
+      janelaImpressao.document.write(`<!DOCTYPE html><html><head><title>${tx('Fechamento de Turno','Cierre de Turno','Shift Closing')}</title><style>@page{margin:0;size:80mm auto;}body{margin:0;padding:10px;width:80mm;box-sizing:border-box;}</style></head><body>${reciboFechoHTML}<script>window.onload=function(){window.focus();window.print();};</script></body></html>`);
       janelaImpressao.document.close();
     }
 
@@ -1102,15 +1102,15 @@ export default function App() {
 
     avisarAppZen({
       variante: temQuebra ? 'warning' : 'success',
-      titulo: temQuebra ? 'Fechamento concluído com diferença' : 'Caixa fechado e conciliado',
+      titulo: temQuebra ? tx('Fechamento concluído com diferença','Cierre concluido con diferencia','Close completed with difference') : tx('Caixa fechado e conciliado','Caja cerrada y conciliada','Register closed and reconciled'),
       mensagem: temQuebra
-        ? `O turno foi encerrado com ${diferenca < 0 ? 'falta' : 'sobra'} de ${fmt(Math.abs(diferenca), 'BRL')}.`
-        : 'A contagem física confere com o saldo esperado pelo sistema.',
+        ? `${tx('O turno foi encerrado com','El turno fue cerrado con','The shift was closed with')} ${diferenca < 0 ? tx('falta','faltante','a shortage') : tx('sobra','sobrante','an overage')} ${tx('de','de','of')} ${fmt(Math.abs(diferenca), 'BRL')}.`
+        : tx('A contagem física confere com o saldo esperado pelo sistema.','El conteo físico coincide con el saldo esperado por el sistema.','The physical count matches the balance expected by the system.'),
       detalhes: [
-        `Saldo esperado: ${fmt(saldoEsperadoBRL, 'BRL')}`,
-        `Total contado: ${fmt(valInformadoBRL, 'BRL')}`,
-        `Diferença: ${fmt(diferenca, 'BRL')}`,
-        janelaImpressao ? 'Comprovante de fechamento aberto para impressão.' : 'Impressão bloqueada pelo navegador; o fechamento foi registrado mesmo assim.',
+        `${tx('Saldo esperado:','Saldo esperado:','Expected balance:')} ${fmt(saldoEsperadoBRL, 'BRL')}`,
+        `${tx('Total contado:','Total contado:','Total counted:')} ${fmt(valInformadoBRL, 'BRL')}`,
+        `${tx('Diferença:','Diferencia:','Difference:')} ${fmt(diferenca, 'BRL')}`,
+        janelaImpressao ? tx('Comprovante de fechamento aberto para impressão.','Comprobante de cierre abierto para impresión.','Closing receipt opened for printing.') : tx('Impressão bloqueada pelo navegador; o fechamento foi registrado mesmo assim.','Impresión bloqueada por el navegador; el cierre fue registrado de todos modos.','Printing was blocked by the browser; the closing was still recorded.'),
       ],
       apenasConfirmar: true,
     });
@@ -1153,7 +1153,7 @@ export default function App() {
         ...(temPermissao('pdv') ? [{ id:'pdv', tela:'pdv', icone:'🛒', rotulo:t('pdvBalcao'), onClick:()=>navegarPara('pdv') }] : []),
         ...(temPermissao('mesas') ? [{ id:'mesas', tela:'mesas', icone:'🍽️', rotulo:tx('Mesas / Comandas','Mesas / Comandas','Tables / Tabs'), onClick:()=>navegarPara('mesas') }] : []),
         ...(temPermissao('vendas') ? [{ id:'vendas', tela:'vendas', icone:'📑', rotulo:t('vendasDevolucoes'), onClick:()=>navegarPara('vendas') }] : []),
-        ...(temPermissao('vendas') ? [{ id:'fiscal', tela:'fiscal', icone:'🧾', rotulo:'Fiscal', badge:resultadoFilaFiscal.erro ? '!' : (resultadoFilaFiscal.fila.length || null), onClick:()=>navegarPara('fiscal') }] : []),
+        ...(temPermissao('vendas') ? [{ id:'fiscal', tela:'fiscal', icone:'🧾', rotulo:tx('Fiscal','Fiscal','Fiscal'), badge:resultadoFilaFiscal.erro ? '!' : (resultadoFilaFiscal.fila.length || null), onClick:()=>navegarPara('fiscal') }] : []),
       ],
     },
     {
@@ -1233,8 +1233,8 @@ export default function App() {
     return (
       <div style={{ minHeight: '100vh', backgroundColor: '#020617', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
-          <ZenosLogo aoClicar={() => {}} />
-          <span style={{ color: '#64748b', fontSize: '14px', fontWeight: 700, letterSpacing: '2px' }}>A INICIAR SISTEMA...</span>
+          <ZenosLogo aoClicar={() => {}} tx={tx} />
+          <span style={{ color: '#64748b', fontSize: '14px', fontWeight: 700, letterSpacing: '2px' }}>{tx('A INICIAR SISTEMA...','INICIANDO SISTEMA...','STARTING SYSTEM...')}</span>
         </div>
       </div>
     );
@@ -1245,29 +1245,29 @@ export default function App() {
   if (falhaBootstrapNuvem) {
     return <div style={{minHeight:'100vh',background:'#020617',display:'flex',alignItems:'center',justifyContent:'center',padding:20,fontFamily:'system-ui,sans-serif'}}>
       <div style={{width:'100%',maxWidth:560,background:'#0b1120',border:'1px solid #f59e0b',borderRadius:24,padding:28,color:'#fff',boxShadow:'0 30px 80px rgba(0,0,0,.6)'}}>
-        <div style={{display:'flex',gap:14,alignItems:'center',marginBottom:18}}><img src="/logo-zenos.png?v=4" alt="ZenOS" style={{width:58,height:58,objectFit:'contain'}}/><div><div style={{fontSize:10,fontWeight:900,letterSpacing:2,color:'#f59e0b'}}>PROTEÇÃO DE DADOS ATIVA</div><h2 style={{margin:'4px 0 0',fontSize:22}}>Nuvem não confirmada</h2></div></div>
-        <p style={{color:'#cbd5e1',lineHeight:1.6,fontSize:14}}>O ZenOS não conseguiu confirmar a base da loja. Para proteger produtos, clientes, vendas e financeiro, <b>todas as gravações na nuvem permanecem bloqueadas</b>. Nenhum array vazio será enviado ao Firestore nesta condição.</p>
-        <div style={{background:'#020617',border:'1px solid #1e293b',borderRadius:14,padding:14,color:'#94a3b8',fontSize:12,margin:'16px 0'}}>Detalhe técnico: {falhaBootstrapNuvem}</div>
-        <button onClick={()=>window.location.reload()} style={{width:'100%',padding:14,borderRadius:11,border:'none',background:'#d97706',color:'#fff',fontWeight:900,cursor:'pointer'}}>Tentar conectar novamente</button>
+        <div style={{display:'flex',gap:14,alignItems:'center',marginBottom:18}}><img src="/logo-zenos.png?v=4" alt="ZenOS" style={{width:58,height:58,objectFit:'contain'}}/><div><div style={{fontSize:10,fontWeight:900,letterSpacing:2,color:'#f59e0b'}}>{tx('PROTEÇÃO DE DADOS ATIVA','PROTECCIÓN DE DATOS ACTIVA','DATA PROTECTION ACTIVE')}</div><h2 style={{margin:'4px 0 0',fontSize:22}}>{tx('Nuvem não confirmada','Nube no confirmada','Cloud not confirmed')}</h2></div></div>
+        <p style={{color:'#cbd5e1',lineHeight:1.6,fontSize:14}}>{tx('O ZenOS não conseguiu confirmar a base da loja. Para proteger produtos, clientes, vendas e financeiro,','ZenOS no pudo confirmar la base de la tienda. Para proteger productos, clientes, ventas y finanzas,','ZenOS could not confirm the store database. To protect products, customers, sales and finances,')} <b>{tx('todas as gravações na nuvem permanecem bloqueadas','todas las escrituras en la nube permanecen bloqueadas','all cloud writes remain blocked')}</b>. {tx('Nenhum array vazio será enviado ao Firestore nesta condição.','Ningún array vacío será enviado a Firestore en esta condición.','No empty array will be sent to Firestore in this condition.')}</p>
+        <div style={{background:'#020617',border:'1px solid #1e293b',borderRadius:14,padding:14,color:'#94a3b8',fontSize:12,margin:'16px 0'}}>{tx('Detalhe técnico:','Detalle técnico:','Technical detail:')} {falhaBootstrapNuvem}</div>
+        <button onClick={()=>window.location.reload()} style={{width:'100%',padding:14,borderRadius:11,border:'none',background:'#d97706',color:'#fff',fontWeight:900,cursor:'pointer'}}>{tx('Tentar conectar novamente','Intentar conectar nuevamente','Try to connect again')}</button>
       </div>
     </div>;
   }
 
   if (statusLoja === 'ativo' && !operadorAtivo) {
-    return <TerminalLogin vendedores={vendedores} onLoginSuccess={processarLoginOperador} onSairLoja={fazerLogout} />;
+    return <TerminalLogin vendedores={vendedores} onLoginSuccess={processarLoginOperador} onSairLoja={fazerLogout} tx={tx} />;
   }
 
   if (statusLoja === 'ativo' && operadorAtivo && operadorRequerTrocaPin(operadorAtivo)) {
     return <div style={{minHeight:'100vh',background:'#020617',display:'flex',alignItems:'center',justifyContent:'center',padding:20,fontFamily:'system-ui,sans-serif'}}>
       <div style={{width:'100%',maxWidth:460,background:'#0b1120',border:'1px solid #f59e0b',borderRadius:24,padding:28,color:'#fff',boxShadow:'0 30px 80px rgba(0,0,0,.6)'}}>
-        <div style={{display:'flex',gap:14,alignItems:'center',marginBottom:18}}><img src="/logo-zenos.png?v=4" alt="ZenOS" style={{width:54,height:54,objectFit:'contain'}}/><div><div style={{fontSize:10,fontWeight:900,letterSpacing:2,color:'#f59e0b'}}>SEGURANÇA OBRIGATÓRIA</div><h2 style={{margin:'4px 0 0',fontSize:22}}>Defina um novo PIN</h2></div></div>
-        <p style={{color:'#cbd5e1',fontSize:13,lineHeight:1.55}}>O PIN temporário ou previsível não pode continuar sendo usado. Essa troca é obrigatória antes de operar a loja.</p>
+        <div style={{display:'flex',gap:14,alignItems:'center',marginBottom:18}}><img src="/logo-zenos.png?v=4" alt="ZenOS" style={{width:54,height:54,objectFit:'contain'}}/><div><div style={{fontSize:10,fontWeight:900,letterSpacing:2,color:'#f59e0b'}}>{tx('SEGURANÇA OBRIGATÓRIA','SEGURIDAD OBLIGATORIA','SECURITY REQUIRED')}</div><h2 style={{margin:'4px 0 0',fontSize:22}}>{tx('Defina um novo PIN','Defina un nuevo PIN','Set a new PIN')}</h2></div></div>
+        <p style={{color:'#cbd5e1',fontSize:13,lineHeight:1.55}}>{tx('O PIN temporário ou previsível não pode continuar sendo usado. Essa troca é obrigatória antes de operar a loja.','El PIN temporal o previsible no puede seguir siendo usado. Este cambio es obligatorio antes de operar la tienda.','The temporary or predictable PIN cannot continue to be used. This change is required before operating the store.')}</p>
         <div style={{display:'grid',gap:10,margin:'16px 0'}}>
-          <input type="text" autoComplete="one-time-code" name="zenos-new-pin" data-lpignore="true" data-1p-ignore="true" value={novoPinObrigatorio} onChange={e=>setNovoPinObrigatorio(e.target.value)} placeholder="Novo PIN" style={{padding:13,borderRadius:10,border:'1px solid #334155',background:'#020617',color:'#fff',WebkitTextSecurity:'disc'}}/>
-          <input type="text" autoComplete="one-time-code" name="zenos-confirm-pin" data-lpignore="true" data-1p-ignore="true" value={confirmarPinObrigatorio} onChange={e=>setConfirmarPinObrigatorio(e.target.value)} placeholder="Confirmar novo PIN" style={{padding:13,borderRadius:10,border:'1px solid #334155',background:'#020617',color:'#fff',WebkitTextSecurity:'disc'}}/>
+          <input type="text" autoComplete="one-time-code" name="zenos-new-pin" data-lpignore="true" data-1p-ignore="true" value={novoPinObrigatorio} onChange={e=>setNovoPinObrigatorio(e.target.value)} placeholder={tx('Novo PIN','Nuevo PIN','New PIN')} style={{padding:13,borderRadius:10,border:'1px solid #334155',background:'#020617',color:'#fff',WebkitTextSecurity:'disc'}}/>
+          <input type="text" autoComplete="one-time-code" name="zenos-confirm-pin" data-lpignore="true" data-1p-ignore="true" value={confirmarPinObrigatorio} onChange={e=>setConfirmarPinObrigatorio(e.target.value)} placeholder={tx('Confirmar novo PIN','Confirmar nuevo PIN','Confirm new PIN')} style={{padding:13,borderRadius:10,border:'1px solid #334155',background:'#020617',color:'#fff',WebkitTextSecurity:'disc'}}/>
           {erroPinObrigatorio && <div style={{color:'#fb7185',fontSize:12,fontWeight:800}}>{erroPinObrigatorio}</div>}
         </div>
-        <button onClick={concluirTrocaPinObrigatoria} style={{width:'100%',padding:14,borderRadius:11,border:'none',background:'#d97706',color:'#fff',fontWeight:900,cursor:'pointer'}}>Salvar novo PIN e continuar</button>
+        <button onClick={concluirTrocaPinObrigatoria} style={{width:'100%',padding:14,borderRadius:11,border:'none',background:'#d97706',color:'#fff',fontWeight:900,cursor:'pointer'}}>{tx('Salvar novo PIN e continuar','Guardar nuevo PIN y continuar','Save new PIN and continue')}</button>
       </div>
     </div>;
   }
@@ -1298,24 +1298,24 @@ export default function App() {
           </div>
 
           <h2 style={{ color: '#fbbf24', fontSize: '24px', fontWeight: 900, margin: '0 0 16px 0', lineHeight: 1.2 }}>
-            Licença Pendente /<br/>Teste Expirado
+            {tx('Licença Pendente /','Licencia Pendiente /','License Pending /')}<br/>{tx('Teste Expirado','Prueba Expirada','Trial Expired')}
           </h2>
 
           <p style={{ color: '#94a3b8', fontSize: '13px', lineHeight: 1.6, marginBottom: '24px' }}>
-            O seu período de teste gratuito de 7 dias terminou ou a licença da loja aguarda ativação. Escolha um plano para desbloquear o terminal ZenOS de imediato.
+            {tx('O seu período de teste gratuito de 7 dias terminou ou a licença da loja aguarda ativação. Escolha um plano para desbloquear o terminal ZenOS de imediato.','Su período de prueba gratuito de 7 días terminó o la licencia de la tienda espera activación. Elija un plan para desbloquear el terminal ZenOS de inmediato.','Your 7-day free trial has ended or the store license is awaiting activation. Choose a plan to unlock the ZenOS terminal immediately.')}
           </p>
 
           {/* INNER CARD - CLOUD SAAS ENTERPRISE */}
           <div style={{ backgroundColor: '#020617', borderRadius: '16px', padding: '20px', marginBottom: '24px', border: '1px solid #1e293b' }}>
-            <span style={{ display: 'block', color: '#cbd5e1', fontSize: '12px', fontWeight: 700, marginBottom: '8px' }}>Ativação Instantânea:</span>
+            <span style={{ display: 'block', color: '#cbd5e1', fontSize: '12px', fontWeight: 700, marginBottom: '8px' }}>{tx('Ativação Instantânea:','Activación Instantánea:','Instant Activation:')}</span>
             <span style={{ display: 'block', color: '#2dd4bf', fontSize: '16px', fontWeight: 900, marginBottom: '8px' }}>ZenOS Cloud SaaS Enterprise</span>
-            <span style={{ display: 'block', color: '#64748b', fontSize: '11px', lineHeight: 1.5 }}>Aceda a relatórios avançados, gestão de filiais em tempo real e suporte prioritário.</span>
+            <span style={{ display: 'block', color: '#64748b', fontSize: '11px', lineHeight: 1.5 }}>{tx('Aceda a relatórios avançados, gestão de filiais em tempo real e suporte prioritário.','Acceda a reportes avanzados, gestión de sucursales en tiempo real y soporte prioritario.','Access advanced reports, real-time branch management and priority support.')}</span>
           </div>
 
           {/* BOTÕES */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <button onClick={() => setModalPlanosAberto(true)} style={{ padding: '16px', background: 'linear-gradient(135deg, #2dd4bf, #0f766e)', border: 'none', color: '#ffffff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '14px', boxShadow: '0 4px 15px rgba(45, 212, 191, 0.3)', transition: 'all 0.2s' }}>
-              Ver Opções de Planos
+              {tx('Ver Opções de Planos','Ver Opciones de Planes','View Plan Options')}
             </button>
 
             <button 
@@ -1323,11 +1323,11 @@ export default function App() {
               disabled={demoSolicitada}
               style={{ padding: '16px', backgroundColor: '#1e293b', border: '1px solid #334155', color: demoSolicitada ? '#34d399' : '#e2e8f0', borderRadius: '12px', fontWeight: 800, cursor: demoSolicitada ? 'not-allowed' : 'pointer', fontSize: '14px', transition: 'all 0.2s' }}
             >
-              {demoSolicitada ? 'Solicitação em Análise ✓' : 'Solicitar Extensão de Teste'}
+              {demoSolicitada ? tx('Solicitação em Análise ✓','Solicitud en Análisis ✓','Request Under Review ✓') : tx('Solicitar Extensão de Teste','Solicitar Extensión de Prueba','Request Trial Extension')}
             </button>
 
             <button onClick={() => signOut(auth)} style={{ background: 'transparent', color: '#f43f5e', border: 'none', cursor: 'pointer', fontWeight: 800, fontSize: '13px', padding: '10px' }}>
-              Sair e Voltar mais tarde
+              {tx('Sair e Voltar mais tarde','Salir y Volver más tarde','Sign Out and Return Later')}
             </button>
           </div>
         </div>
@@ -1337,16 +1337,16 @@ export default function App() {
           <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.95)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', backdropFilter: 'blur(5px)' }}>
             <div style={{ backgroundColor: '#0b1120', border: '1px solid #334155', padding: '32px', borderRadius: '24px', textAlign: 'center', color: '#fff', maxWidth: '900px', width: '100%', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)', maxHeight: '90vh', overflowY: 'auto' }}>
               <span style={{ fontSize: '40px' }}>💎</span>
-              <h3 style={{ margin: '12px 0 8px 0', fontSize: '24px', fontWeight: 900, color: '#f8fafc' }}>Escolha o seu Plano ZenOS</h3>
+              <h3 style={{ margin: '12px 0 8px 0', fontSize: '24px', fontWeight: 900, color: '#f8fafc' }}>{tx('Escolha o seu Plano ZenOS','Elija su Plan ZenOS','Choose Your ZenOS Plan')}</h3>
               <p style={{ color: '#94a3b8', marginBottom: '24px', fontSize: '14px', lineHeight: 1.5 }}>
-                Selecione o plano ideal para a sua operação e o ciclo de faturação.
+                {tx('Selecione o plano ideal para a sua operação e o ciclo de faturação.','Seleccione el plan ideal para su operación y el ciclo de facturación.','Select the ideal plan for your operation and billing cycle.')}
               </p>
 
               {/* SELETORES DE CICLO */}
               <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '32px', backgroundColor: '#020617', padding: '6px', borderRadius: '12px', width: 'fit-content', margin: '0 auto 32px auto', flexWrap: 'wrap' }}>
-                <button onClick={() => setCicloPlano('mensal')} style={{ backgroundColor: cicloPlano === 'mensal' ? '#4f46e5' : 'transparent', color: cicloPlano === 'mensal' ? '#fff' : '#94a3b8', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' }}>Mensal</button>
-                <button onClick={() => setCicloPlano('semestral')} style={{ backgroundColor: cicloPlano === 'semestral' ? '#4f46e5' : 'transparent', color: cicloPlano === 'semestral' ? '#fff' : '#94a3b8', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' }}>Semestral (-10%)</button>
-                <button onClick={() => setCicloPlano('anual')} style={{ backgroundColor: cicloPlano === 'anual' ? '#4f46e5' : 'transparent', color: cicloPlano === 'anual' ? '#fff' : '#94a3b8', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' }}>Anual (Desconto Máx)</button>
+                <button onClick={() => setCicloPlano('mensal')} style={{ backgroundColor: cicloPlano === 'mensal' ? '#4f46e5' : 'transparent', color: cicloPlano === 'mensal' ? '#fff' : '#94a3b8', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' }}>{tx('Mensal','Mensual','Monthly')}</button>
+                <button onClick={() => setCicloPlano('semestral')} style={{ backgroundColor: cicloPlano === 'semestral' ? '#4f46e5' : 'transparent', color: cicloPlano === 'semestral' ? '#fff' : '#94a3b8', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' }}>{tx('Semestral (-10%)','Semestral (-10%)','Semiannual (-10%)')}</button>
+                <button onClick={() => setCicloPlano('anual')} style={{ backgroundColor: cicloPlano === 'anual' ? '#4f46e5' : 'transparent', color: cicloPlano === 'anual' ? '#fff' : '#94a3b8', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' }}>{tx('Anual (Desconto Máx)','Anual (Descuento Máx)','Annual (Max Discount)')}</button>
               </div>
 
               {/* TABELA DE PREÇOS */}
@@ -1354,73 +1354,73 @@ export default function App() {
                 
                 {/* Básico */}
                 <div style={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column' }}>
-                  <h4 style={{ margin: '0 0 4px 0', color: '#e2e8f0', fontSize: '18px', fontWeight: 800 }}>Básico</h4>
-                  <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: '#64748b' }}>Para pequenos lojistas.</p>
+                  <h4 style={{ margin: '0 0 4px 0', color: '#e2e8f0', fontSize: '18px', fontWeight: 800 }}>{tx('Básico','Básico','Basic')}</h4>
+                  <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: '#64748b' }}>{tx('Para pequenos lojistas.','Para pequeños comercios.','For small retailers.')}</p>
                   <div style={{ marginBottom: '20px' }}>
                     <span style={{ fontSize: '14px', color: '#94a3b8', fontWeight: 700 }}>R$</span>
                     <span style={{ fontSize: '32px', color: '#fff', fontWeight: 900 }}>
                       {cicloPlano === 'mensal' ? '35,00' : cicloPlano === 'semestral' ? '31,50' : '28,48'}
                     </span>
-                    <span style={{ fontSize: '12px', color: '#64748b' }}>/mês</span>
+                    <span style={{ fontSize: '12px', color: '#64748b' }}>/{tx('mês','mes','month')}</span>
                   </div>
                   <ul style={{ padding: 0, margin: '0 0 24px 0', listStyle: 'none', fontSize: '13px', color: '#cbd5e1', display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
-                    <li>✓ 1 Operador</li>
-                    <li>✓ PDV Frente de Caixa</li>
-                    <li>✓ Gestão de Produtos</li>
-                    <li>✓ Controlo de Fiado</li>
+                    <li>✓ {tx('1 Operador','1 Operador','1 Operator')}</li>
+                    <li>✓ {tx('PDV Frente de Caixa','TPV Frente de Caja','POS Checkout')}</li>
+                    <li>✓ {tx('Gestão de Produtos','Gestión de Productos','Product Management')}</li>
+                    <li>✓ {tx('Controlo de Fiado','Control de Crédito','Customer Credit Control')}</li>
                   </ul>
-                  <button onClick={() => { window.open(`https://wa.me/5519995855839?text=Olá,%20quero%20assinar%20o%20plano%20Básico%20${cicloPlano}.`, '_blank'); }} style={{ width: '100%', padding: '12px', borderRadius: '10px', backgroundColor: '#1e293b', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 800 }}>Assinar Básico</button>
+                  <button onClick={() => { window.open(`https://wa.me/5519995855839?text=Olá,%20quero%20assinar%20o%20plano%20Básico%20${cicloPlano}.`, '_blank'); }} style={{ width: '100%', padding: '12px', borderRadius: '10px', backgroundColor: '#1e293b', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 800 }}>{tx('Assinar Básico','Contratar Básico','Subscribe Basic')}</button>
                 </div>
 
                 {/* Essencial (Mais Popular) */}
                 <div style={{ backgroundColor: '#0f172a', border: '2px solid #2dd4bf', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', position: 'relative', transform: 'scale(1.02)' }}>
-                  <span style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#2dd4bf', color: '#020617', fontSize: '10px', fontWeight: 900, padding: '4px 12px', borderRadius: '12px', textTransform: 'uppercase' }}>Mais Popular</span>
-                  <h4 style={{ margin: '0 0 4px 0', color: '#2dd4bf', fontSize: '18px', fontWeight: 800 }}>Essencial</h4>
-                  <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: '#94a3b8' }}>A operação completa.</p>
+                  <span style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#2dd4bf', color: '#020617', fontSize: '10px', fontWeight: 900, padding: '4px 12px', borderRadius: '12px', textTransform: 'uppercase' }}>{tx('Mais Popular','Más Popular','Most Popular')}</span>
+                  <h4 style={{ margin: '0 0 4px 0', color: '#2dd4bf', fontSize: '18px', fontWeight: 800 }}>{tx('Essencial','Esencial','Essential')}</h4>
+                  <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: '#94a3b8' }}>{tx('A operação completa.','La operación completa.','The complete operation.')}</p>
                   <div style={{ marginBottom: '20px' }}>
                     <span style={{ fontSize: '14px', color: '#2dd4bf', fontWeight: 700 }}>R$</span>
                     <span style={{ fontSize: '32px', color: '#fff', fontWeight: 900 }}>
                       {cicloPlano === 'mensal' ? '44,90' : cicloPlano === 'semestral' ? '40,41' : '33,57'}
                     </span>
-                    <span style={{ fontSize: '12px', color: '#94a3b8' }}>/mês</span>
+                    <span style={{ fontSize: '12px', color: '#94a3b8' }}>/{tx('mês','mes','month')}</span>
                   </div>
                   <ul style={{ padding: 0, margin: '0 0 24px 0', listStyle: 'none', fontSize: '13px', color: '#cbd5e1', display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
-                    <li>✓ Múltiplos Operadores</li>
-                    <li>✓ Controlo de Permissões</li>
-                    <li>✓ Painel Executivo / Dashboard</li>
-                    <li>✓ Gestão de Despesas</li>
+                    <li>✓ {tx('Múltiplos Operadores','Múltiples Operadores','Multiple Operators')}</li>
+                    <li>✓ {tx('Controlo de Permissões','Control de Permisos','Permission Control')}</li>
+                    <li>✓ {tx('Painel Executivo / Dashboard','Panel Ejecutivo / Dashboard','Executive Dashboard')}</li>
+                    <li>✓ {tx('Gestão de Despesas','Gestión de Gastos','Expense Management')}</li>
                   </ul>
-                  <button onClick={() => { window.open(`https://wa.me/5519995855839?text=Olá,%20quero%20assinar%20o%20plano%20Essencial%20${cicloPlano}.`, '_blank'); }} style={{ width: '100%', padding: '12px', borderRadius: '10px', background: 'linear-gradient(135deg, #2dd4bf, #0d9488)', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 900, boxShadow: '0 4px 15px rgba(45, 212, 191, 0.4)' }}>Assinar Essencial</button>
+                  <button onClick={() => { window.open(`https://wa.me/5519995855839?text=Olá,%20quero%20assinar%20o%20plano%20Essencial%20${cicloPlano}.`, '_blank'); }} style={{ width: '100%', padding: '12px', borderRadius: '10px', background: 'linear-gradient(135deg, #2dd4bf, #0d9488)', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 900, boxShadow: '0 4px 15px rgba(45, 212, 191, 0.4)' }}>{tx('Assinar Essencial','Contratar Esencial','Subscribe Essential')}</button>
                 </div>
 
                 {/* Pro Avançado */}
                 <div style={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column' }}>
-                  <h4 style={{ margin: '0 0 4px 0', color: '#e2e8f0', fontSize: '18px', fontWeight: 800 }}>Pro Avançado</h4>
-                  <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: '#64748b' }}>Comissão e alta gestão.</p>
+                  <h4 style={{ margin: '0 0 4px 0', color: '#e2e8f0', fontSize: '18px', fontWeight: 800 }}>{tx('Pro Avançado','Pro Avanzado','Advanced Pro')}</h4>
+                  <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: '#64748b' }}>{tx('Comissão e alta gestão.','Comisiones y alta gestión.','Commissions and advanced management.')}</p>
                   <div style={{ marginBottom: '20px' }}>
                     <span style={{ fontSize: '14px', color: '#94a3b8', fontWeight: 700 }}>R$</span>
                     <span style={{ fontSize: '32px', color: '#fff', fontWeight: 900 }}>
                       {cicloPlano === 'mensal' ? '59,90' : cicloPlano === 'semestral' ? '53,91' : '43,75'}
                     </span>
-                    <span style={{ fontSize: '12px', color: '#64748b' }}>/mês</span>
+                    <span style={{ fontSize: '12px', color: '#64748b' }}>/{tx('mês','mes','month')}</span>
                   </div>
                   <ul style={{ padding: 0, margin: '0 0 24px 0', listStyle: 'none', fontSize: '13px', color: '#cbd5e1', display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
-                    <li>✓ Módulo de Comissões</li>
-                    <li>✓ Gestão de Mesas/Comandas</li>
-                    <li>✓ Relatórios Avançados</li>
-                    <li>✓ Suporte Prioritário</li>
+                    <li>✓ {tx('Módulo de Comissões','Módulo de Comisiones','Commission Module')}</li>
+                    <li>✓ {tx('Gestão de Mesas/Comandas','Gestión de Mesas/Comandas','Tables/Tabs Management')}</li>
+                    <li>✓ {tx('Relatórios Avançados','Reportes Avanzados','Advanced Reports')}</li>
+                    <li>✓ {tx('Suporte Prioritário','Soporte Prioritario','Priority Support')}</li>
                   </ul>
-                  <button onClick={() => { window.open(`https://wa.me/5519995855839?text=Olá,%20quero%20assinar%20o%20plano%20Pro%20Avançado%20${cicloPlano}.`, '_blank'); }} style={{ width: '100%', padding: '12px', borderRadius: '10px', backgroundColor: '#1e293b', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 800 }}>Assinar Pro</button>
+                  <button onClick={() => { window.open(`https://wa.me/5519995855839?text=Olá,%20quero%20assinar%20o%20plano%20Pro%20Avançado%20${cicloPlano}.`, '_blank'); }} style={{ width: '100%', padding: '12px', borderRadius: '10px', backgroundColor: '#1e293b', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 800 }}>{tx('Assinar Pro','Contratar Pro','Subscribe Pro')}</button>
                 </div>
               </div>
 
               {/* Botões Inferiores */}
               <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
                 <button onClick={() => setModalPlanosAberto(false)} style={{ flex: 1, minWidth: '200px', padding: '16px', borderRadius: '12px', backgroundColor: '#1e293b', color: '#f8fafc', border: 'none', cursor: 'pointer', fontWeight: 800, fontSize: '14px' }}>
-                  Voltar para Bloqueio
+                  {tx('Voltar para Bloqueio','Volver al Bloqueo','Back to License Screen')}
                 </button>
                 <button onClick={() => { window.open('https://wa.me/5519995855839?text=Olá,%20gostaria%20de%20saber%20sobre%20o%20plano%20Multi-Filiais.', '_blank'); }} style={{ flex: 1, minWidth: '200px', padding: '16px', borderRadius: '12px', backgroundColor: '#020617', border: '1px solid #334155', color: '#38bdf8', cursor: 'pointer', fontWeight: 900, fontSize: '14px' }}>
-                  🏢 Consultar Plano Multi-Filiais
+                  🏢 {tx('Consultar Plano Multi-Filiais','Consultar Plan Multi-Sucursales','Ask About Multi-Branch Plan')}
                 </button>
               </div>
 
@@ -1461,16 +1461,17 @@ export default function App() {
           patenteUsuario={patenteUsuario}
           userId={userId}
           onEditarPerfil={temPermissao('admin') ? () => { setPerfilRapidoErro(''); setPerfilRapidoRascunho(perfilLoja); setModalPerfilRapido(true); } : null}
-          editarPerfilLabel="Editar nome e logo"
+          editarPerfilLabel={tx('Editar nome e logo','Editar nombre y logo','Edit name and logo')}
           onHome={() => navegarPara('hub')}
           onSair={fazerLogout}
+          tx={tx}
         />
         <div className="zen-content">
           <ZenTopbar
             onAbrirMobile={() => setMenuNavAberto(true)}
             status={statusSincronizacao}
             statusTitle={erroSincronizacao || statusSincronizacao}
-            labelErroSincronizacao="Erro ao sincronizar"
+            labelErroSincronizacao={tx('Erro ao sincronizar','Error al sincronizar','Sync error')}
             idioma={idioma}
             setIdioma={setIdioma}
             moeda={moeda}
@@ -1481,69 +1482,70 @@ export default function App() {
             onTrocarOperador={trocarOperador}
             tema={temaUi}
             onAlternarTema={alternarTemaUi}
+            tx={tx}
           />
 
           <main className="zen-main no-print">
         
  {ecraAtual === 'hub' && (
           <div className="zen-dashboard-home">
-            <ZenHero operador={operadorAtivo?.nome || 'Administrador (Gerência)'} patente={patenteUsuario} />
+            <ZenHero operador={operadorAtivo?.nome || tx('Administrador (Gerência)','Administrador (Gerencia)','Administrator (Management)')} patente={patenteUsuario} idioma={idioma} tx={tx} />
 
             <div className="zen-kpi-grid">
-              <ZenKpiCard icon="🛒" titulo={tx('Vendido Hoje','Vendido Hoy','Sold Today')} valor={valoresTopoVisiveis ? fmt(faturamentoHojeBRL) : '*****'} detalhe={`${historicoVendas.filter(v => registroEhDoDiaLocal(v) && v.status !== 'cancelada').length} vendas realizadas`} tone="teal" trailing={<button onClick={() => setValoresTopoVisiveis(!valoresTopoVisiveis)} style={{border:0,background:'transparent',color:'inherit',cursor:'pointer',fontSize:18}}>{valoresTopoVisiveis ? '◉' : '○'}</button>} />
+              <ZenKpiCard icon="🛒" titulo={tx('Vendido Hoje','Vendido Hoy','Sold Today')} valor={valoresTopoVisiveis ? fmt(faturamentoHojeBRL) : '*****'} detalhe={`${historicoVendas.filter(v => registroEhDoDiaLocal(v) && v.status !== 'cancelada').length} ${tx('vendas realizadas','ventas realizadas','sales completed')}`} tone="teal" trailing={<button onClick={() => setValoresTopoVisiveis(!valoresTopoVisiveis)} style={{border:0,background:'transparent',color:'inherit',cursor:'pointer',fontSize:18}}>{valoresTopoVisiveis ? '◉' : '○'}</button>} />
               <ZenKpiCard icon="👥" titulo={tx('FIADO NA PRAÇA','FIADO A COBRAR','PENDING CREDIT')} valor={valoresTopoVisiveis ? fmt(totalFiadoAbertoBRL) : '*****'} detalhe={totalFiadoAbertoBRL > 0 ? tx('Valores pendentes de clientes','Valores pendientes','Customer balances due') : tx('Nenhum valor pendente','Sin valores pendientes','No pending balance')} tone="purple" trailing="▥" />
-              <ZenKpiCard icon="↻" titulo={tx('SINCRONIZAÇÃO','SINCRONIZACIÓN','SYNC')} valor={statusSincronizacao === 'SINCRONIZADO' ? 'Online' : statusSincronizacao === 'SALVANDO' ? 'Salvando...' : statusSincronizacao === 'ERRO' ? 'Erro' : statusSincronizacao === 'OFFLINE' ? 'Offline' : 'Pendente'} detalhe={tx('Dados atualizados em tempo real','Datos actualizados en tiempo real','Realtime data status')} tone="cyan" trailing="◯" />
+              <ZenKpiCard icon="↻" titulo={tx('SINCRONIZAÇÃO','SINCRONIZACIÓN','SYNC')} valor={statusSincronizacao === 'SINCRONIZADO' ? 'Online' : statusSincronizacao === 'SALVANDO' ? tx('Salvando...','Guardando...','Saving...') : statusSincronizacao === 'ERRO' ? tx('Erro','Error','Error') : statusSincronizacao === 'OFFLINE' ? 'Offline' : tx('Pendente','Pendiente','Pending')} detalhe={tx('Dados atualizados em tempo real','Datos actualizados en tiempo real','Realtime data status')} tone="cyan" trailing="◯" />
             </div>
 
             <div className="zen-dashboard-middle">
               {temPermissao('pdv') && (
                 <section className="zen-dashboard-card" id="zen-meu-turno">
-                  <div className="zen-dashboard-card-head"><strong>💵 Meu Turno de Caixa</strong><span className={`zen-status-badge ${sessaoAtiva ? 'open' : 'closed'}`}>{sessaoAtiva ? `ABERTO • ${fmt(saldoSessaoFisicoBRL)}` : 'FECHADO'}</span></div>
+                  <div className="zen-dashboard-card-head"><strong>💵 {tx('Meu Turno de Caixa','Mi Turno de Caja','My Cash Shift')}</strong><span className={`zen-status-badge ${sessaoAtiva ? 'open' : 'closed'}`}>{sessaoAtiva ? `${tx('ABERTO','ABIERTO','OPEN')} • ${fmt(saldoSessaoFisicoBRL)}` : tx('FECHADO','CERRADO','CLOSED')}</span></div>
                   <div className="zen-cash-card-body">
                     <div className="zen-cash-illustration" />
                     {!sessaoAtiva ? <>
-                      <p>Você pode usar o PDV e gerar Pré-Pedidos mesmo sem turno aberto. Abra o turno somente quando for receber ou movimentar a gaveta.</p>
-                      <button className="zen-primary-cash" onClick={() => { setTipoMovCaixa('abertura'); setModalCaixaAberto(true); }}>🔓 Abrir Turno de Caixa</button>
+                      <p>{tx('Você pode usar o PDV e gerar Pré-Pedidos mesmo sem turno aberto. Abra o turno somente quando for receber ou movimentar a gaveta.','Puede usar el TPV y generar Pre-Pedidos incluso sin turno abierto. Abra el turno solamente cuando vaya a cobrar o mover la caja.','You can use the POS and create Pre-Orders even without an open shift. Open the shift only when receiving payment or moving cash.')}</p>
+                      <button className="zen-primary-cash" onClick={() => { setTipoMovCaixa('abertura'); setModalCaixaAberto(true); }}>🔓 {tx('Abrir Turno de Caixa','Abrir Turno de Caja','Open Cash Shift')}</button>
                     </> : <>
                       <div className="zen-cash-actions">
-                        <button onClick={() => { setTipoMovCaixa('suprimento'); setModalCaixaAberto(true); }}>+ Entrada (Reforço)</button>
-                        <button onClick={() => { setTipoMovCaixa('sangria'); setModalCaixaAberto(true); }}>− Saída (Sangria)</button>
-                        <button onClick={() => { setTipoMovCaixa('fechamento'); setModalCaixaAberto(true); }}>🔒 Encerrar Turno</button>
+                        <button onClick={() => { setTipoMovCaixa('suprimento'); setModalCaixaAberto(true); }}>+ {tx('Entrada (Reforço)','Entrada (Refuerzo)','Cash In (Float)')}</button>
+                        <button onClick={() => { setTipoMovCaixa('sangria'); setModalCaixaAberto(true); }}>− {tx('Saída (Sangria)','Salida (Retiro)','Cash Out (Withdrawal)')}</button>
+                        <button onClick={() => { setTipoMovCaixa('fechamento'); setModalCaixaAberto(true); }}>🔒 {tx('Encerrar Turno','Cerrar Turno','Close Shift')}</button>
                       </div>
-                      <div className="zen-movements">{movsSessao.length === 0 ? <div className="zen-movement"><span>Nenhuma movimentação neste turno.</span></div> : movsSessao.slice(0,6).map(m => <div className="zen-movement" key={m.id}><span>{m.tipo === 'suprimento' ? 'Entrada' : 'Saída'} • {m.descricao}</span><strong>{m.tipo === 'suprimento' ? '+' : '-'}{fmt(m.valorBRL,'BRL')}</strong></div>)}</div>
+                      <div className="zen-movements">{movsSessao.length === 0 ? <div className="zen-movement"><span>{tx('Nenhuma movimentação neste turno.','Ningún movimiento en este turno.','No movements in this shift.')}</span></div> : movsSessao.slice(0,6).map(m => <div className="zen-movement" key={m.id}><span>{m.tipo === 'suprimento' ? tx('Entrada','Entrada','Cash In') : tx('Saída','Salida','Cash Out')} • {m.descricao}</span><strong>{m.tipo === 'suprimento' ? '+' : '-'}{fmt(m.valorBRL,'BRL')}</strong></div>)}</div>
                     </>}
                   </div>
                 </section>
               )}
 
               {temPermissao('inteligencia') ? <section className="zen-dashboard-card">
-                <button className="zen-exec-toggle" onClick={() => setMostrarPainelExecutivo(!mostrarPainelExecutivo)}><span>👁️ Painel Executivo e Financeiro</span><span>{mostrarPainelExecutivo ? '⌃' : '›'}</span></button>
+                <button className="zen-exec-toggle" onClick={() => setMostrarPainelExecutivo(!mostrarPainelExecutivo)}><span>👁️ {tx('Painel Executivo e Financeiro','Panel Ejecutivo y Financiero','Executive & Financial Dashboard')}</span><span>{mostrarPainelExecutivo ? '⌃' : '›'}</span></button>
                 {mostrarPainelExecutivo && <div className="zen-exec-body">
                   <div className="zen-exec-grid">
-                    <div className="zen-exec-stat"><span>Faturamento Real</span><strong>{fmt(faturamentoTotalBRL)}</strong></div>
+                    <div className="zen-exec-stat"><span>{tx('Faturamento Real','Facturación Real','Actual Revenue')}</span><strong>{fmt(faturamentoTotalBRL)}</strong></div>
                     <div className="zen-exec-stat"><span>CMV</span><strong>{fmt(cmvTotalBRL)}</strong></div>
-                    <div className="zen-exec-stat"><span>Lucro Bruto</span><strong style={{color:'#38bdf8'}}>{fmt(lucroBrutoBRL)}</strong></div>
-                    <div className="zen-exec-stat"><span>Despesas Pagas</span><strong style={{color:'#fbbf24'}}>{fmt(despesasPagasBRL)}</strong></div>
-                    <div className="zen-exec-stat"><span>Lucro Líquido</span><strong style={{color:'#34d399'}}>{fmt(lucroLiquidoRealBRL)}</strong></div>
-                    <div className="zen-exec-stat"><span>Fiado na Praça</span><strong style={{color:'#fb7185'}}>{fmt(totalFiadoAbertoBRL)}</strong></div>
+                    <div className="zen-exec-stat"><span>{tx('Lucro Bruto','Ganancia Bruta','Gross Profit')}</span><strong style={{color:'#38bdf8'}}>{fmt(lucroBrutoBRL)}</strong></div>
+                    <div className="zen-exec-stat"><span>{tx('Despesas Pagas','Gastos Pagados','Paid Expenses')}</span><strong style={{color:'#fbbf24'}}>{fmt(despesasPagasBRL)}</strong></div>
+                    <div className="zen-exec-stat"><span>{tx('Lucro Líquido','Ganancia Neta','Net Profit')}</span><strong style={{color:'#34d399'}}>{fmt(lucroLiquidoRealBRL)}</strong></div>
+                    <div className="zen-exec-stat"><span>{tx('Fiado na Praça','Crédito Pendiente','Outstanding Credit')}</span><strong style={{color:'#fb7185'}}>{fmt(totalFiadoAbertoBRL)}</strong></div>
                   </div>
                   <div className="zen-abc-list">{curvaABC.slice(0,5).map((item,index)=><div className="zen-abc-row" key={`${item.sku}-${index}`}><b>{index+1}</b><span>{item.nome}</span><strong>{fmt(item.faturamentoBRL,'BRL')}</strong></div>)}</div>
                 </div>}
-              </section> : <div className="zen-dashboard-card"><div className="zen-dashboard-card-head"><strong>ZenOS • Operação do Dia</strong></div><div className="zen-cash-card-body"><p>Acessos operacionais organizados conforme as permissões deste operador.</p></div></div>}
+              </section> : <div className="zen-dashboard-card"><div className="zen-dashboard-card-head"><strong>ZenOS • {tx('Operação do Dia','Operación del Día','Daily Operations')}</strong></div><div className="zen-cash-card-body"><p>{tx('Acessos operacionais organizados conforme as permissões deste operador.','Accesos operativos organizados según los permisos de este operador.','Operational access organized according to this operator’s permissions.')}</p></div></div>}
             </div>
 
             <section className="zen-quick-section">
-              <div className="zen-quick-title"><span>⚡</span><strong>Acessos Rápidos</strong><small>Principais operações do dia a dia — todos os demais módulos permanecem nas gavetas laterais.</small></div>
+              <div className="zen-quick-title"><span>⚡</span><strong>{tx('Acessos Rápidos','Accesos Rápidos','Quick Access')}</strong><small>{tx('Principais operações do dia a dia — todos os demais módulos permanecem nas gavetas laterais.','Principales operaciones del día a día — los demás módulos permanecen en el menú lateral.','Main daily operations — all other modules remain in the side menu.')}</small></div>
               <div className="zen-quick-grid">
-                {temPermissao('pdv') && <ZenQuickCard icon="🛒" titulo="PDV Balcão" detalhe="Vendas e Pré-Pedidos" tone="teal" onClick={()=>navegarPara('pdv')} />}
-                {temPermissao('produtos') && <ZenQuickCard icon="📥" titulo="PDV Compras" detalhe="Entrada rápida de estoque" tone="orange" onClick={()=>navegarPara('compras')} />}
-                {temPermissao('produtos') && <ZenQuickCard icon="📦" titulo="Produtos & Estoque" detalhe="Cadastrar e gerenciar" tone="purple" onClick={()=>navegarPara('produtos')} />}
-                {temPermissao('clientes') && <ZenQuickCard icon="👥" titulo="Clientes & Fiado" detalhe="Consultar e gerenciar" tone="blue" onClick={()=>navegarPara('clientes')} />}
-                {temPermissao('vendas') && <ZenQuickCard icon="📑" titulo="Histórico" detalhe="Vendas e Devoluções" tone="pink" onClick={()=>navegarPara('vendas')} />}
-                {temPermissao('vendas') && <ZenQuickCard icon="🧾" titulo="Fiscal" detalhe={`${resultadoFilaFiscal.fila.length} pendência(s)`} tone="blue" onClick={()=>navegarPara('fiscal')} />}
-                {temPermissao('admin') && <ZenQuickCard icon="🤝" titulo="Comissões" detalhe="Metas e bonificações" tone="orange" onClick={()=>navegarPara('comissoes')} />}
-                {temPermissao('despesas') && <ZenQuickCard icon="💸" titulo="Despesas" detalhe="Contas a pagar" tone="gold" onClick={()=>navegarPara('despesas')} />}
-                {temPermissao('admin') && <ZenQuickCard icon="⚙️" titulo="Configurações" detalhe="Sistema, equipe e backup" tone="purple" onClick={()=>navegarPara('configuracoes')} />}
+                {temPermissao('pdv') && <ZenQuickCard icon="🛒" titulo={tx('PDV Balcão','TPV Mostrador','POS Counter')} detalhe={tx('Vendas e Pré-Pedidos','Ventas y Pre-Pedidos','Sales & Pre-Orders')} tone="teal" onClick={()=>navegarPara('pdv')} />}
+                {temPermissao('produtos') && <ZenQuickCard icon="📥" titulo={tx('PDV Compras','TPV Compras','Purchase Entry')} detalhe={tx('Entrada rápida de estoque','Entrada rápida de stock','Quick stock entry')} tone="orange" onClick={()=>navegarPara('compras')} />}
+                {temPermissao('produtos') && <ZenQuickCard icon="📦" titulo={tx('Produtos & Estoque','Productos y Stock','Products & Stock')} detalhe={tx('Cadastrar e gerenciar','Registrar y gestionar','Register and manage')} tone="purple" onClick={()=>navegarPara('produtos')} />}
+                {temPermissao('clientes') && <ZenQuickCard icon="👥" titulo={tx('Clientes & Fiado','Clientes y Crédito','Customers & Credit')} detalhe={tx('Consultar e gerenciar','Consultar y gestionar','View and manage')} tone="blue" onClick={()=>navegarPara('clientes')} />}
+                {temPermissao('vendas') && <ZenQuickCard icon="📑" titulo={tx('Histórico','Historial','History')} detalhe={tx('Vendas e Devoluções','Ventas y Devoluciones','Sales & Returns')} tone="pink" onClick={()=>navegarPara('vendas')} />}
+                {temPermissao('vendas') && <ZenQuickCard icon="🧾" titulo={tx('Fiscal','Fiscal','Fiscal')} detalhe={`${resultadoFilaFiscal.fila.length} ${tx('pendência(s)','pendiente(s)','pending')}`} tone="blue" onClick={()=>navegarPara('fiscal')} />}
+                {temPermissao('admin') && <ZenQuickCard icon="🤝" titulo={tx('Comissões','Comisiones','Commissions')} detalhe={tx('Metas e bonificações','Metas y bonificaciones','Targets and bonuses')} tone="orange" onClick={()=>navegarPara('comissoes')} />}
+                {temPermissao('despesas') && <ZenQuickCard icon="💸" titulo={tx('Despesas','Gastos','Expenses')} detalhe={tx('Contas a pagar','Cuentas a pagar','Accounts payable')} tone="gold" onClick={()=>navegarPara('despesas')} />}
+                {temPermissao('admin') && <ZenQuickCard icon="⚙️" titulo={tx('Configurações','Configuraciones','Settings')} detalhe={tx('Sistema, equipe e backup','Sistema, equipo y respaldo','System, team and backup')} tone="purple" onClick={()=>navegarPara('configuracoes')} />}
               </div>
             </section>
           </div>
@@ -1554,12 +1556,12 @@ export default function App() {
         {ecraAtual === 'fornecedores' && <Fornecedores commitOperacaoNegocio={commitVendaCritica} fornecedores={fornecedores} setFornecedores={setFornecedores} moeda={moeda} tx={tx} />}
         {ecraAtual === 'mesas' && <Mesas commitOperacaoNegocio={commitVendaCritica} userId={userId} produtos={produtos} fmt={fmt} tx={tx} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} moeda={moeda} idioma={idioma} operadorAtivo={operadorAtivo} />}
         {ecraAtual === 'produtos' && <Produtos commitOperacaoNegocio={commitVendaCritica} historicoVendas={historicoVendas} historicoCompras={historicoCompras} patenteUsuario={patenteUsuario} regrasDesconto={regrasDesconto} vendedores={vendedores} userId={userId} operadorAtivo={operadorAtivo} planoLoja={planoLoja} produtos={produtos} setProdutos={setProdutos} fornecedoresGlobais={fornecedores} moeda={moeda} fmt={fmt} t={t} tx={tx} />}
-        {ecraAtual === 'inteligencia' && <EstoqueInteligente produtos={produtos} fmt={fmt} />}
+        {ecraAtual === 'inteligencia' && <EstoqueInteligente produtos={produtos} fmt={fmt} tx={tx} />}
         {ecraAtual === 'comissoes' && <Comissoes commitOperacaoNegocio={commitVendaCritica} historicoVendas={historicoVisivelParaOperador} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} operadorAtivo={operadorAtivo} regrasDesconto={regrasDesconto} regrasComissao={regrasComissao} setRegrasComissao={setRegrasComissao} />}
         {ecraAtual === 'dashboardMobile' && <DashboardMobile historicoVendas={historicoVendas} despesas={despesas} clientes={clientes} produtos={produtos} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} regrasDesconto={regrasDesconto} />}
-        {ecraAtual === 'clientes' && <Clientes commitOperacaoNegocio={commitVendaCritica} livroFinanceiro={livroFinanceiro} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} operadorAtivo={operadorAtivo} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} />}
+        {ecraAtual === 'clientes' && <Clientes commitOperacaoNegocio={commitVendaCritica} livroFinanceiro={livroFinanceiro} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} operadorAtivo={operadorAtivo} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} />}
         {ecraAtual === 'vendas' && <Vendas commitOperacaoNegocio={commitVendaCritica} taxasCambio={taxasCambio} sessoesCaixa={sessoesCaixa} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} saldoSessaoFisicoBRL={saldoSessaoFisicoBRL} perfilLoja={perfilLoja} vouchers={vouchers} setVouchers={setVouchers} userId={userId} operadorAtivo={operadorAtivo} historicoVendas={historicoVisivelParaOperador} setHistoricoVendas={setHistoricoVendas} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} fmt={fmt} t={t} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterDeBRL={converterDeBRL} />}
-        {ecraAtual === 'fiscal' && <FiscalErrorBoundary resetKey={`${userId || ''}:${perfilLoja?.pais || ''}:${resultadoFilaFiscal.erro || ''}`} onVoltar={() => navegarPara('hub')}><Fiscal lojaId={userId} perfilLoja={perfilLoja} filaFiscal={resultadoFilaFiscal.fila} erroFila={resultadoFilaFiscal.erro} clientes={clientes} ambiente="homologacao" onVerVenda={() => navegarPara('vendas')} /></FiscalErrorBoundary>}
+        {ecraAtual === 'fiscal' && <FiscalErrorBoundary resetKey={`${userId || ''}:${perfilLoja?.pais || ''}:${resultadoFilaFiscal.erro || ''}`} onVoltar={() => navegarPara('hub')} tx={tx}><Fiscal lojaId={userId} perfilLoja={perfilLoja} filaFiscal={resultadoFilaFiscal.fila} erroFila={resultadoFilaFiscal.erro} clientes={clientes} ambiente="homologacao" onVerVenda={() => navegarPara('vendas')} tx={tx} idioma={idioma} /></FiscalErrorBoundary>}
         {ecraAtual === 'migracao' && <Migracao commitOperacaoNegocio={commitVendaCritica} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} t={t} tx={tx} />}
         {ecraAtual === 'configuracoes' && <Configuracoes commitOperacaoNegocio={commitVendaCritica} userId={userId} operadorAtivo={operadorAtivo} perfilLojaGlobal={perfilLoja} setPerfilLojaGlobal={setPerfilLoja} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} despesas={despesas} setDespesas={setDespesas} moeda={moeda} fmt={fmt} tx={tx} regrasDesconto={regrasDesconto} setRegrasDesconto={setRegrasDesconto} vendedores={vendedores} setVendedores={(novosVendedores) => { setVendedores(novosVendedores); persistirCampoSeguro({ field: 'vendedores', value:novosVendedores, setter:setVendedores, localStorageKey:`zenos_${userId}_vendedores` }); }} />}
         {ecraAtual === 'auditoria_caixas' && <GestaoCaixas sessoesCaixa={sessoesCaixa} historicoVendas={historicoVendas} caixaMovimentos={caixaMovimentos} livroFinanceiro={livroFinanceiro} fmt={fmt} tx={tx} />}
@@ -1574,9 +1576,9 @@ export default function App() {
               <button onClick={() => setModalCambioAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#64748b', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>✕</button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '24px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#020617', padding: '12px 16px', borderRadius: '12px', border: '1px solid #1e293b' }}><span style={{ fontSize: '13px', fontWeight: 700, color: '#cbd5e1' }}>1 Dólar (USD) =</span><div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ color: '#64748b', fontSize: '12px' }}>R$</span><input type="text" value={taxasInput.USD} onChange={(e) => setTaxasInput({ ...taxasInput, USD: e.target.value })} onFocus={e=>e.target.select()} style={{ backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', width: '90px', padding: '6px', outline: 'none' }} /></div></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#020617', padding: '12px 16px', borderRadius: '12px', border: '1px solid #1e293b' }}><span style={{ fontSize: '13px', fontWeight: 700, color: '#cbd5e1' }}>1 Euro (EUR) =</span><div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ color: '#64748b', fontSize: '12px' }}>R$</span><input type="text" value={taxasInput.EUR} onChange={(e) => setTaxasInput({ ...taxasInput, EUR: e.target.value })} onFocus={e=>e.target.select()} style={{ backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', width: '90px', padding: '6px', outline: 'none' }} /></div></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#020617', padding: '12px 16px', borderRadius: '12px', border: '1px solid #1e293b' }}><span style={{ fontSize: '13px', fontWeight: 700, color: '#cbd5e1' }}>1 Real (BRL) =</span><div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><input type="text" value={taxasInput.PYG} onChange={(e) => setTaxasInput({ ...taxasInput, PYG: e.target.value })} onFocus={e=>e.target.select()} style={{ backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#38bdf8', fontWeight: 900, fontSize: '15px', textAlign: 'right', width: '90px', padding: '6px', outline: 'none' }} /><span style={{ color: '#64748b', fontSize: '12px' }}>₲</span></div></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#020617', padding: '12px 16px', borderRadius: '12px', border: '1px solid #1e293b' }}><span style={{ fontSize: '13px', fontWeight: 700, color: '#cbd5e1' }}>{tx('1 Dólar (USD) =','1 Dólar (USD) =','1 Dollar (USD) =')}</span><div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ color: '#64748b', fontSize: '12px' }}>R$</span><input type="text" value={taxasInput.USD} onChange={(e) => setTaxasInput({ ...taxasInput, USD: e.target.value })} onFocus={e=>e.target.select()} style={{ backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', width: '90px', padding: '6px', outline: 'none' }} /></div></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#020617', padding: '12px 16px', borderRadius: '12px', border: '1px solid #1e293b' }}><span style={{ fontSize: '13px', fontWeight: 700, color: '#cbd5e1' }}>{tx('1 Euro (EUR) =','1 Euro (EUR) =','1 Euro (EUR) =')}</span><div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ color: '#64748b', fontSize: '12px' }}>R$</span><input type="text" value={taxasInput.EUR} onChange={(e) => setTaxasInput({ ...taxasInput, EUR: e.target.value })} onFocus={e=>e.target.select()} style={{ backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', width: '90px', padding: '6px', outline: 'none' }} /></div></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#020617', padding: '12px 16px', borderRadius: '12px', border: '1px solid #1e293b' }}><span style={{ fontSize: '13px', fontWeight: 700, color: '#cbd5e1' }}>{tx('1 Real (BRL) =','1 Real (BRL) =','1 Real (BRL) =')}</span><div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><input type="text" value={taxasInput.PYG} onChange={(e) => setTaxasInput({ ...taxasInput, PYG: e.target.value })} onFocus={e=>e.target.select()} style={{ backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#38bdf8', fontWeight: 900, fontSize: '15px', textAlign: 'right', width: '90px', padding: '6px', outline: 'none' }} /><span style={{ color: '#64748b', fontSize: '12px' }}>₲</span></div></div>
             </div>
             <button onClick={salvarTaxasCambio} style={{ width: '100%', background: 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#ffffff', padding: '14px', borderRadius: '12px', fontSize: '14px', fontWeight: 900, cursor: 'pointer' }}>{tx('Salvar Câmbio', 'Guardar Cambio', 'Save Exchange')}</button>
           </div>
@@ -1612,9 +1614,9 @@ export default function App() {
                 </div>
                 {tipoMovCaixa === 'fechamento' && (
                   <div style={{ marginTop:'14px', padding:'12px 14px', borderRadius:'12px', background:'#020617', border:'1px solid #1e293b' }}>
-                    <div style={{fontSize:'10px',fontWeight:900,letterSpacing:'1px',color:'#64748b',marginBottom:'5px'}}>TOTAL FÍSICO INFORMADO • CONVERTIDO PARA BRL</div>
+                    <div style={{fontSize:'10px',fontWeight:900,letterSpacing:'1px',color:'#64748b',marginBottom:'5px'}}>{tx('TOTAL FÍSICO INFORMADO • CONVERTIDO PARA BRL','TOTAL FÍSICO INFORMADO • CONVERTIDO A BRL','PHYSICAL TOTAL ENTERED • CONVERTED TO BRL')}</div>
                     <div style={{fontSize:'20px',fontWeight:950,color:'#f8fafc'}}>{fmt(calcularTotalMovBRL(), 'BRL')}</div>
-                    <div style={{fontSize:'10px',color:'#64748b',marginTop:'5px'}}>O saldo esperado pelo ZenOS permanece oculto até a auditoria ser concluída.</div>
+                    <div style={{fontSize:'10px',color:'#64748b',marginTop:'5px'}}>{tx('O saldo esperado pelo ZenOS permanece oculto até a auditoria ser concluída.','El saldo esperado por ZenOS permanece oculto hasta finalizar la auditoría.','The balance expected by ZenOS remains hidden until the audit is completed.')}</div>
                   </div>
                 )}
               </div>
@@ -1645,11 +1647,11 @@ export default function App() {
       <ZenModal aberto={!!modalAppZen} variante={modalAppZen?.variante} titulo={modalAppZen?.titulo} mensagem={modalAppZen?.mensagem} detalhes={modalAppZen?.detalhes} confirmarTexto={modalAppZen?.confirmarTexto || 'OK'} cancelarTexto={modalAppZen?.cancelarTexto || 'Cancelar'} apenasConfirmar={!!modalAppZen?.apenasConfirmar} onConfirmar={()=>{ const resolver=modalAppZen?.resolver; setModalAppZen(null); if(resolver) resolver(true); }} onCancelar={()=>{ const resolver=modalAppZen?.resolver; setModalAppZen(null); if(resolver) resolver(false); }} />
 
       {modalPerfilRapido && <div style={{position:'fixed',inset:0,zIndex:21000,background:'rgba(2,6,23,.88)',backdropFilter:'blur(8px)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}><div style={{width:'100%',maxWidth:460,background:'#0b1120',border:'1px solid #38bdf8',borderRadius:22,padding:22,color:'#fff'}}>
-        <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:18}}>{perfilRapidoRascunho.logoLoja?<img src={perfilRapidoRascunho.logoLoja} style={{width:56,height:56,borderRadius:12,objectFit:'cover'}}/>:<img src="/logo-zenos.png?v=4" style={{width:56,height:56,objectFit:'contain'}}/>}<div><div style={{fontSize:11,color:'#38bdf8',fontWeight:900}}>IDENTIDADE RÁPIDA</div><div style={{fontSize:18,fontWeight:900}}>Nome e logo da loja</div></div></div>
-        <label style={{fontSize:11,color:'#94a3b8',fontWeight:900}}>NOME FANTASIA</label><input value={perfilRapidoRascunho.nomeFantasia||''} onChange={e=>setPerfilRapidoRascunho({...perfilRapidoRascunho,nomeFantasia:e.target.value})} style={{width:'100%',boxSizing:'border-box',margin:'6px 0 14px',padding:12,borderRadius:10,border:'1px solid #334155',background:'#020617',color:'#fff'}}/>
-        <label style={{fontSize:11,color:'#94a3b8',fontWeight:900}}>LOGO DA LOJA (máx. 300 KB)</label><input type="file" accept="image/*" onChange={e=>{const f=e.target.files?.[0]; if(!f)return; if(f.size>300*1024){setPerfilRapidoErro('A logo deve ter no máximo 300 KB.');return;} setPerfilRapidoErro(''); const r=new FileReader();r.onload=()=>setPerfilRapidoRascunho(x=>({...x,logoLoja:r.result}));r.readAsDataURL(f);}} style={{width:'100%',margin:'8px 0 18px'}}/>
+        <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:18}}>{perfilRapidoRascunho.logoLoja?<img src={perfilRapidoRascunho.logoLoja} style={{width:56,height:56,borderRadius:12,objectFit:'cover'}}/>:<img src="/logo-zenos.png?v=4" style={{width:56,height:56,objectFit:'contain'}}/>}<div><div style={{fontSize:11,color:'#38bdf8',fontWeight:900}}>{tx('IDENTIDADE RÁPIDA','IDENTIDAD RÁPIDA','QUICK IDENTITY')}</div><div style={{fontSize:18,fontWeight:900}}>{tx('Nome e logo da loja','Nombre y logo de la tienda','Store name and logo')}</div></div></div>
+        <label style={{fontSize:11,color:'#94a3b8',fontWeight:900}}>{tx('NOME FANTASIA','NOMBRE COMERCIAL','DISPLAY NAME')}</label><input value={perfilRapidoRascunho.nomeFantasia||''} onChange={e=>setPerfilRapidoRascunho({...perfilRapidoRascunho,nomeFantasia:e.target.value})} style={{width:'100%',boxSizing:'border-box',margin:'6px 0 14px',padding:12,borderRadius:10,border:'1px solid #334155',background:'#020617',color:'#fff'}}/>
+        <label style={{fontSize:11,color:'#94a3b8',fontWeight:900}}>{tx('LOGO DA LOJA (máx. 300 KB)','LOGO DE LA TIENDA (máx. 300 KB)','STORE LOGO (max. 300 KB)')}</label><input type="file" accept="image/*" onChange={e=>{const f=e.target.files?.[0]; if(!f)return; if(f.size>300*1024){setPerfilRapidoErro('A logo deve ter no máximo 300 KB.');return;} setPerfilRapidoErro(''); const r=new FileReader();r.onload=()=>setPerfilRapidoRascunho(x=>({...x,logoLoja:r.result}));r.readAsDataURL(f);}} style={{width:'100%',margin:'8px 0 18px'}}/>
         {perfilRapidoErro && <div style={{margin:'-8px 0 14px',padding:'9px 10px',borderRadius:8,border:'1px solid #f43f5e',background:'#2e0a16',color:'#fda4af',fontSize:11,fontWeight:800}}>{perfilRapidoErro}</div>}
-        <div style={{display:'flex',gap:10}}><button onClick={()=>setModalPerfilRapido(false)} style={{flex:1,padding:11,borderRadius:10,border:'1px solid #334155',background:'#020617',color:'#cbd5e1',fontWeight:900}}>Cancelar</button><button onClick={salvarPerfilRapido} style={{flex:1,padding:11,borderRadius:10,border:'none',background:'#0284c7',color:'#fff',fontWeight:900}}>Salvar</button></div>
+        <div style={{display:'flex',gap:10}}><button onClick={()=>setModalPerfilRapido(false)} style={{flex:1,padding:11,borderRadius:10,border:'1px solid #334155',background:'#020617',color:'#cbd5e1',fontWeight:900}}>{tx('Cancelar','Cancelar','Cancel')}</button><button onClick={salvarPerfilRapido} style={{flex:1,padding:11,borderRadius:10,border:'none',background:'#0284c7',color:'#fff',fontWeight:900}}>{tx('Salvar','Guardar','Save')}</button></div>
       </div></div>}
         </div>
       </div>

@@ -23,7 +23,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
   const [processandoBackup, setProcessandoBackup] = useState(false);
   const [arquivoBackupSelecionado, setArquivoBackupSelecionado] = useState(null);
   const avisarZen = (variante, titulo, mensagem, detalhes = []) => setModalZen({ variante, titulo, mensagem, detalhes, apenasConfirmar:true });
-  const confirmarZen = ({ titulo, mensagem, detalhes = [], confirmarTexto = 'Confirmar', variante = 'warning' }) => new Promise(resolve => setModalZen({ variante, titulo, mensagem, detalhes, confirmarTexto, cancelarTexto:'Cancelar', resolver:resolve }));
+  const confirmarZen = ({ titulo, mensagem, detalhes = [], confirmarTexto = null, variante = 'warning' }) => new Promise(resolve => setModalZen({ variante, titulo, mensagem, detalhes, confirmarTexto:confirmarTexto || tx('Confirmar','Confirmar','Confirm'), cancelarTexto:tx('Cancelar','Cancelar','Cancel'), resolver:resolve }));
 
   const [selProdutos, setSelProdutos] = useState(false);
   const [selClientes, setSelClientes] = useState(false);
@@ -66,14 +66,14 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
       window.location.reload(); 
     } catch (err) {
       console.error("Erro ao guardar perfil:", err);
-      avisarZen('danger','Falha ao salvar','Erro ao guardar. Verifique a conexão.');
+      avisarZen('danger',tx('Falha ao salvar','Error al guardar','Save failed'),tx('Erro ao guardar. Verifique a conexão.','Error al guardar. Verifique la conexión.','Could not save. Check the connection.'));
     }
     setSalvandoPerfil(false);
   };
 
 
   const exportarBackupCompleto = async () => {
-    if (!userId) return avisarZen('danger','Loja não identificada','Não foi possível identificar a loja para gerar o backup.');
+    if (!userId) return avisarZen('danger',tx('Loja não identificada','Tienda no identificada','Store not identified'),tx('Não foi possível identificar a loja para gerar o backup.','No fue posible identificar la tienda para generar el backup.','Could not identify the store to generate the backup.'));
     setProcessandoBackup(true);
     try {
       const backup = await coletarBackupLoja({ db, userId, operadorNome: operadorAtivo?.nome || auth.currentUser?.email || 'Administrador' });
@@ -81,11 +81,11 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
       if (!validacao.ok) throw new Error(validacao.erros.join(' '));
       baixarBackupJson(backup);
       setBackupValidadoNestaSessao(true);
-      avisarZen('success','Backup validado e exportado',`Backup íntegro. Produtos: ${validacao.counts.produtos} • Clientes: ${validacao.counts.clientes} • Vendas: ${validacao.counts.vendas}.`);
+      avisarZen('success',tx('Backup validado e exportado','Backup validado y exportado','Backup validated and exported'),`${tx('Backup íntegro. Produtos:','Backup íntegro. Productos:','Valid backup. Products:')} ${validacao.counts.produtos} • ${tx('Clientes:','Clientes:','Customers:')} ${validacao.counts.clientes} • ${tx('Vendas:','Ventas:','Sales:')} ${validacao.counts.vendas}.`);
     } catch (error) {
       console.error('[ZenOS Backup]', error);
       setBackupValidadoNestaSessao(false);
-      avisarZen('danger','Falha no backup',error?.message || 'Não foi possível gerar um backup validado.');
+      avisarZen('danger',tx('Falha no backup','Falla de backup','Backup failure'),error?.message || tx('Não foi possível gerar um backup validado.','No fue posible generar un backup validado.','Could not generate a validated backup.'));
     } finally { setProcessandoBackup(false); }
   };
 
@@ -96,24 +96,24 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
       const resultado = await validarBackup(parsed);
       if (!resultado.ok) throw new Error(resultado.erros.join(' '));
       setArquivoBackupSelecionado(parsed);
-      avisarZen('success','Backup íntegro',`Checksum confirmado. Produtos: ${resultado.counts.produtos} • Vendas: ${resultado.counts.vendas}.`);
+      avisarZen('success',tx('Backup íntegro','Backup íntegro','Valid backup'),`${tx('Checksum confirmado. Produtos:','Checksum confirmado. Productos:','Checksum confirmed. Products:')} ${resultado.counts.produtos} • ${tx('Vendas:','Ventas:','Sales:')} ${resultado.counts.vendas}.`);
     } catch (error) {
       setArquivoBackupSelecionado(null);
-      avisarZen('danger','Backup inválido',error?.message || 'O arquivo não passou na validação.');
+      avisarZen('danger',tx('Backup inválido','Backup inválido','Invalid backup'),error?.message || tx('O arquivo não passou na validação.','El archivo no pasó la validación.','The file did not pass validation.'));
     }
   };
 
   const restaurarBackupHomologacao = async () => {
-    if (!ZENOS_RUNTIME.isHomologacao) return avisarZen('danger','Restauração bloqueada','A restauração só é permitida no ambiente de homologação.');
+    if (!ZENOS_RUNTIME.isHomologacao) return avisarZen('danger',tx('Restauração bloqueada','Restauración bloqueada','Restore blocked'),tx('A restauração só é permitida no ambiente de homologação.','La restauración solo está permitida en el ambiente de homologación.','Restore is only allowed in the test environment.'));
     if (!arquivoBackupSelecionado) return avisarZen('warning','Selecione um backup','Valide primeiro um arquivo de backup.');
     const confirmou = await confirmarZen({ titulo:'Restaurar em homologação vazia', mensagem:'Esta operação é permitida somente em uma loja de homologação vazia e não apaga registros existentes.', confirmarTexto:'Restaurar', variante:'warning' });
     if (!confirmou) return;
     setProcessandoBackup(true);
     try {
       const r = await restaurarBackupSomenteHomologacao({ db, userId, backup: arquivoBackupSelecionado });
-      avisarZen('success','Restauração concluída',`Backup restaurado na homologação. Produtos: ${r.counts.produtos} • Vendas: ${r.counts.vendas}.`);
+      avisarZen('success',tx('Restauração concluída','Restauración concluida','Restore completed'),`${tx('Backup restaurado na homologação. Produtos:','Backup restaurado en homologación. Productos:','Backup restored in test environment. Products:')} ${r.counts.produtos} • ${tx('Vendas:','Ventas:','Sales:')} ${r.counts.vendas}.`);
     } catch (error) {
-      avisarZen('danger','Restauração bloqueada',error?.message || 'Não foi possível restaurar o backup.');
+      avisarZen('danger',tx('Restauração bloqueada','Restauración bloqueada','Restore blocked'),error?.message || tx('Não foi possível restaurar o backup.','No fue posible restaurar el backup.','Could not restore the backup.'));
     } finally { setProcessandoBackup(false); }
   };
 
@@ -137,8 +137,8 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
   };
 
   const adicionarVendedor = async () => {
-    if (!novoVendedorNome.trim() || !novoVendedorSenha.trim()) return avisarZen('warning','Dados incompletos','Informe o nome e o PIN do operador.');
-    if (pinEhFraco(novoVendedorSenha)) return avisarZen('warning','PIN muito previsível','Escolha um PIN diferente de admin, 1234, 0000, 1111 e sequências triviais.');
+    if (!novoVendedorNome.trim() || !novoVendedorSenha.trim()) return avisarZen('warning',tx('Dados incompletos','Datos incompletos','Incomplete data'),tx('Informe o nome e o PIN do operador.','Informe el nombre y PIN del operador.','Enter the operator name and PIN.'));
+    if (pinEhFraco(novoVendedorSenha)) return avisarZen('warning',tx('PIN muito previsível','PIN demasiado previsible','PIN too predictable'),tx('Escolha um PIN diferente de admin, 1234, 0000, 1111 e sequências triviais.','Elija un PIN diferente de admin, 1234, 0000, 1111 y secuencias triviales.','Choose a PIN other than admin, 1234, 0000, 1111 and trivial sequences.'));
     const credencialPin = await criarCredencialPin(novoVendedorSenha);
     
     const nv = { 
@@ -160,23 +160,23 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
       setNovoVendedorSenha('');
       setNovoVendedorPercentual('');
       setNovoVendedorPermissoes({ admin: false, pdv: true, produtos: false, clientes: false, vendas: false, caixa: false, despesas: false, mesas: false, inteligencia: false });
-      avisarZen('success','Operador cadastrado','Utilizador confirmado na nuvem com sucesso!');
+      avisarZen('success',tx('Operador cadastrado','Operador registrado','Operator registered'),tx('Utilizador confirmado na nuvem com sucesso!','Usuario confirmado en la nube correctamente.','User successfully confirmed in the cloud.'));
     } catch (error) {
-      avisarZen('danger','Operador não cadastrado','A nuvem não confirmou o cadastro. Nenhuma alteração foi aplicada.',[error?.message || 'Falha de persistência']);
+      avisarZen('danger',tx('Operador não cadastrado','Operador no registrado','Operator not registered'),tx('A nuvem não confirmou o cadastro. Nenhuma alteração foi aplicada.','La nube no confirmó el registro. No se aplicó ningún cambio.','The cloud did not confirm registration. No change was applied.'),[error?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
     }
   };
 
   const removerVendedor = async (idParaRemover) => {
-    if (String(idParaRemover) === 'admin') return avisarZen('warning','Administrador principal protegido','O administrador principal não pode ser removido. Altere o PIN se necessário.');
-    if (!vendedores || vendedores.length <= 1) return avisarZen('warning','Operação bloqueada','Você não pode excluir o último utilizador do sistema.');
+    if (String(idParaRemover) === 'admin') return avisarZen('warning',tx('Administrador principal protegido','Administrador principal protegido','Main administrator protected'),tx('O administrador principal não pode ser removido. Altere o PIN se necessário.','El administrador principal no puede ser eliminado. Cambie el PIN si es necesario.','The main administrator cannot be removed. Change the PIN if necessary.'));
+    if (!vendedores || vendedores.length <= 1) return avisarZen('warning',tx('Operação bloqueada','Operación bloqueada','Operation blocked'),tx('Você não pode excluir o último utilizador do sistema.','No puede eliminar el último usuario del sistema.','You cannot delete the last user in the system.'));
     const alvo=(vendedores||[]).find(v=>String(v.id)===String(idParaRemover));
-    const confirmou=await confirmarZen({ titulo:'Remover operador', mensagem:`Remover ${alvo?.nome || 'este operador'} do sistema?`, confirmarTexto:'Remover', variante:'danger' });
+    const confirmou=await confirmarZen({ titulo:tx('Remover operador','Eliminar operador','Remove operator'), mensagem:`Remover ${alvo?.nome || 'este operador'} do sistema?`, confirmarTexto:tx('Remover','Eliminar','Remove'), variante:'danger' });
     if (!confirmou) return;
     try {
       const confirmados = await confirmarVendedoresNaNuvem(vendedores.filter(v => String(v.id) !== String(idParaRemover)));
       if (setVendedores) setVendedores(confirmados);
     } catch (error) {
-      avisarZen('danger','Operador não removido','A nuvem não confirmou a remoção. O operador foi preservado.',[error?.message || 'Falha de persistência']);
+      avisarZen('danger',tx('Operador não removido','Operador no eliminado','Operator not removed'),tx('A nuvem não confirmou a remoção. O operador foi preservado.','La nube no confirmó la eliminación. El operador fue preservado.','The cloud did not confirm removal. The operator was preserved.'),[error?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
     }
   };
 
@@ -198,29 +198,29 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
       const confirmados = await confirmarVendedoresNaNuvem(novaLista);
       if (setVendedores) setVendedores(confirmados);
     } catch (error) {
-      avisarZen('danger','Permissão não alterada','A nuvem não confirmou a alteração. A permissão anterior foi preservada.',[error?.message || 'Falha de persistência']);
+      avisarZen('danger',tx('Permissão não alterada','Permiso no modificado','Permission not changed'),tx('A nuvem não confirmou a alteração. A permissão anterior foi preservada.','La nube no confirmó el cambio. El permiso anterior fue preservado.','The cloud did not confirm the change. The previous permission was preserved.'),[error?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
     }
   };
 
   const atualizarPinOperador = async (operador) => {
     const novoPin = String(pinEdicaoPorId[operador.id] ?? '').trim();
-    if (!novoPin || pinEhFraco(novoPin)) return avisarZen('warning','PIN inválido','Escolha um PIN com pelo menos 4 caracteres, diferente dos padrões previsíveis bloqueados.');
+    if (!novoPin || pinEhFraco(novoPin)) return avisarZen('warning',tx('PIN inválido','PIN inválido','Invalid PIN'),tx('Escolha um PIN com pelo menos 4 caracteres, diferente dos padrões previsíveis bloqueados.','Elija un PIN de al menos 4 caracteres, diferente de los patrones previsibles bloqueados.','Choose a PIN with at least 4 characters, different from blocked predictable patterns.'));
     const credencialPin = await criarCredencialPin(novoPin);
     try {
       const proposta = (vendedores || []).map(v => String(v.id) === String(operador.id) ? { ...v, ...credencialPin } : v);
       const confirmados = await confirmarVendedoresNaNuvem(proposta);
       if (setVendedores) setVendedores(confirmados);
       setPinEdicaoPorId(prev => ({ ...prev, [operador.id]: '' }));
-      avisarZen('success','PIN atualizado',`PIN de ${operador.nome} confirmado na nuvem com sucesso.`);
+      avisarZen('success',tx('PIN atualizado','PIN actualizado','PIN updated'),`${tx('PIN de','PIN de','PIN for')} ${operador.nome} ${tx('confirmado na nuvem com sucesso.','confirmado correctamente en la nube.','successfully confirmed in the cloud.')}`);
     } catch (error) {
-      avisarZen('danger','PIN não atualizado','A nuvem não confirmou o novo PIN. O PIN anterior continua válido.',[error?.message || 'Falha de persistência']);
+      avisarZen('danger',tx('PIN não atualizado','PIN no actualizado','PIN not updated'),tx('A nuvem não confirmou o novo PIN. O PIN anterior continua válido.','La nube no confirmó el nuevo PIN. El PIN anterior sigue válido.','The cloud did not confirm the new PIN. The previous PIN remains valid.'),[error?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
     }
   };
 
   const executarResetGranular = async () => {
-    if (!backupValidadoNestaSessao) return avisarZen('danger','Backup obrigatório','Antes de restaurar/limpar dados, gere e valide um backup completo nesta sessão.');
-    if (!senhaAdmin) return avisarZen('warning','Senha necessária','Por favor, digite a senha da conta administradora.');
-    if (!selProdutos && !selClientes && !selVendas && !selCaixa && !selDespesas) { return avisarZen('warning','Nada selecionado','Selecione pelo menos uma opção para restaurar ou limpar.'); }
+    if (!backupValidadoNestaSessao) return avisarZen('danger',tx('Backup obrigatório','Backup obligatorio','Backup required'),tx('Antes de restaurar/limpar dados, gere e valide um backup completo nesta sessão.','Antes de restaurar/limpiar datos, genere y valide un backup completo en esta sesión.','Before restoring/cleaning data, generate and validate a complete backup in this session.'));
+    if (!senhaAdmin) return avisarZen('warning',tx('Senha necessária','Contraseña necesaria','Password required'),tx('Por favor, digite a senha da conta administradora.','Ingrese la contraseña de la cuenta administradora.','Enter the administrator account password.'));
+    if (!selProdutos && !selClientes && !selVendas && !selCaixa && !selDespesas) { return avisarZen('warning',tx('Nada selecionado','Nada seleccionado','Nothing selected'),tx('Selecione pelo menos uma opção para restaurar ou limpar.','Seleccione al menos una opción para restaurar o limpiar.','Select at least one option to restore or clean.')); }
     setCarregandoReset(true);
     try {
       const user = auth.currentUser;
@@ -249,11 +249,11 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
       } else {
         throw new Error('Persistência segura indisponível. Reset/restauração bloqueado para evitar sobrescrita concorrente.');
       }
-      avisarZen('success','Operação concluída','Itens selecionados limpos/restaurados com sucesso!');
+      avisarZen('success',tx('Operação concluída','Operación concluida','Operation completed'),tx('Itens selecionados limpos/restaurados com sucesso!','Ítems seleccionados limpiados/restaurados correctamente.','Selected items were cleaned/restored successfully.'));
       setModalResetAberto(false); setSenhaAdmin(''); setEtapaAviso(1); handleSelTudo(false);
     } catch (err) {
       console.error("Erro ao validar senha:", err);
-      avisarZen('danger','Autenticação falhou','Senha incorreta ou erro de autenticação.');
+      avisarZen('danger',tx('Autenticação falhou','Autenticación fallida','Authentication failed'),tx('Senha incorreta ou erro de autenticação.','Contraseña incorrecta o error de autenticación.','Incorrect password or authentication error.'));
     } finally {
       setCarregandoReset(false);
     }
@@ -279,11 +279,11 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
 
   return (
     <>
-      <ZenModal aberto={!!modalZen} variante={modalZen?.variante} titulo={modalZen?.titulo} mensagem={modalZen?.mensagem} detalhes={modalZen?.detalhes} confirmarTexto={modalZen?.confirmarTexto || 'OK'} cancelarTexto={modalZen?.cancelarTexto || 'Cancelar'} apenasConfirmar={!!modalZen?.apenasConfirmar} onConfirmar={()=>{ const r=modalZen?.resolver; setModalZen(null); if(r) r(true); }} onCancelar={()=>{ const r=modalZen?.resolver; setModalZen(null); if(r) r(false); }} />
+      <ZenModal aberto={!!modalZen} variante={modalZen?.variante} titulo={modalZen?.titulo} mensagem={modalZen?.mensagem} detalhes={modalZen?.detalhes} confirmarTexto={modalZen?.confirmarTexto || 'OK'} cancelarTexto={modalZen?.cancelarTexto || tx('Cancelar','Cancelar','Cancel')} apenasConfirmar={!!modalZen?.apenasConfirmar} onConfirmar={()=>{ const r=modalZen?.resolver; setModalZen(null); if(r) r(true); }} onCancelar={()=>{ const r=modalZen?.resolver; setModalZen(null); if(r) r(false); }} />
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px', maxWidth: '1000px', margin: '0 auto' }}>
       <div>
-        <h2 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>Configurações do Sistema</h2>
-        <span style={{ fontSize: '13px', color: '#64748b' }}>Gestão de equipa, rentabilidade e segurança</span>
+        <h2 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>{tx('Configurações do Sistema','Configuración del Sistema','System Settings')}</h2>
+        <span style={{ fontSize: '13px', color: '#64748b' }}>{tx('Gestão de equipa, rentabilidade e segurança','Gestión de equipo, rentabilidad y seguridad','Team, profitability and security management')}</span>
       </div>
 
       <div style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.2)' }}>
@@ -297,21 +297,21 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#020617', padding: '4px 8px', borderRadius: '10px', border: '1px solid #334155' }}>
             <span style={{ fontSize: '16px' }}>{perfilLoja.pais === 'BR' ? '🇧🇷' : perfilLoja.pais === 'PY' ? '🇵🇾' : '🌐'}</span>
             <select value={perfilLoja.pais} onChange={(e) => lidarMudancaPerfil('pais', e.target.value)} style={{ backgroundColor: 'transparent', color: '#f8fafc', fontSize: '12px', fontWeight: 900, border: 'none', outline: 'none', cursor: 'pointer' }}>
-              <option value="BR" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>Brasil (BR)</option>
-              <option value="PY" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>Paraguay (PY)</option>
-              <option value="OUTRO" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>Outro (Global)</option>
+              <option value="BR" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>{tx('Brasil (BR)','Brasil (BR)','Brazil (BR)')}</option>
+              <option value="PY" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>{tx('Paraguai (PY)','Paraguay (PY)','Paraguay (PY)')}</option>
+              <option value="OUTRO" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>{tx('Outro (Global)','Otro (Global)','Other (Global)')}</option>
             </select>
           </div>
         </div>
         
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
           <div>
-            <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>Nome Fantasia (Loja)</label>
-            <input type="text" value={perfilLoja.nomeFantasia} onChange={(e) => lidarMudancaPerfil('nomeFantasia', e.target.value)} placeholder="Ex: Zênite Atacadão" style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#f8fafc', padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
+            <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>{tx('Nome Fantasia (Loja)','Nombre Comercial (Tienda)','Store Display Name')}</label>
+            <input type="text" value={perfilLoja.nomeFantasia} onChange={(e) => lidarMudancaPerfil('nomeFantasia', e.target.value)} placeholder={tx('Ex: Zênite Atacadão','Ej: Zênite Mayorista','Ex: Zênite Wholesale')} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#f8fafc', padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
           </div>
           <div>
             <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>{perfilLoja.pais === 'PY' ? 'Razón Social' : 'Razão Social (Legal)'}</label>
-            <input type="text" value={perfilLoja.razaoSocial} onChange={(e) => lidarMudancaPerfil('razaoSocial', e.target.value)} placeholder="Ex: Zênite Tintas LTDA" style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#f8fafc', padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
+            <input type="text" value={perfilLoja.razaoSocial} onChange={(e) => lidarMudancaPerfil('razaoSocial', e.target.value)} placeholder={tx('Ex: Zênite Tintas LTDA','Ej: Zênite Pinturas S.A.','Ex: Zênite Paints Ltd.')} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#f8fafc', padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
           </div>
 
           <div>
@@ -324,24 +324,24 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
           </div>
 
           <div>
-            <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>Telemóvel / WhatsApp</label>
+            <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>{tx('Telemóvel / WhatsApp','Teléfono / WhatsApp','Mobile / WhatsApp')}</label>
             <input type="text" value={perfilLoja.telefone} onChange={(e) => lidarMudancaPerfil('telefone', e.target.value)} placeholder="+55 11 99999-9999" style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#34d399', fontWeight: 900, padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
           </div>
           <div>
-            <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>Cidade / Região</label>
-            <input type="text" value={perfilLoja.cidade} onChange={(e) => lidarMudancaPerfil('cidade', e.target.value)} placeholder="Ex: São Paulo - SP" style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#f8fafc', padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
+            <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>{tx('Cidade / Região','Ciudad / Región','City / Region')}</label>
+            <input type="text" value={perfilLoja.cidade} onChange={(e) => lidarMudancaPerfil('cidade', e.target.value)} placeholder={tx('Ex: São Paulo - SP','Ej: Asunción - Central','Ex: Miami - FL')} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#f8fafc', padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
           </div>
           
           <div style={{ gridColumn: '1 / -1' }}>
-            <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>Endereço Completo (Para Recibos)</label>
-            <input type="text" value={perfilLoja.endereco} onChange={(e) => lidarMudancaPerfil('endereco', e.target.value)} placeholder="Rua das Tintas, 123 - Centro" style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#f8fafc', padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
+            <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>{tx('Endereço Completo (Para Recibos)','Dirección Completa (Para Recibos)','Full Address (For Receipts)')}</label>
+            <input type="text" value={perfilLoja.endereco} onChange={(e) => lidarMudancaPerfil('endereco', e.target.value)} placeholder={tx('Rua das Tintas, 123 - Centro','Calle Pinturas 123 - Centro','123 Paint St - Downtown')} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#f8fafc', padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
           </div>
 
-          <div style={{ gridColumn: '1 / -1', borderTop: '1px dashed #334155', paddingTop: '16px' }}><h4 style={{margin:'0 0 12px',color:'#38bdf8'}}>🖨️ Personalização de Impressão</h4><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:12}}><div><label style={{fontSize:11,color:'#94a3b8',fontWeight:800}}>Largura / Papel</label><select value={perfilLoja.larguraRecibo||'80'} onChange={e=>lidarMudancaPerfil('larguraRecibo',e.target.value)} style={{width:'100%',padding:10,borderRadius:8,background:'#020617',border:'1px solid #334155',color:'#fff'}}><option value="58">Térmica 58 mm</option><option value="80">Térmica 80 mm</option><option value="A4">A4</option></select></div><div><label style={{fontSize:11,color:'#94a3b8',fontWeight:800}}>Cabeçalho livre</label><input value={perfilLoja.cabecalhoRecibo||''} onChange={e=>lidarMudancaPerfil('cabecalhoRecibo',e.target.value)} placeholder="Ex: Obrigado por comprar conosco" style={{width:'100%',boxSizing:'border-box',padding:10,borderRadius:8,background:'#020617',border:'1px solid #334155',color:'#fff'}}/></div></div><div style={{display:'flex',gap:18,flexWrap:'wrap',marginTop:12}}><label><input type="checkbox" checked={perfilLoja.mostrarLogoRecibo!==false} onChange={e=>lidarMudancaPerfil('mostrarLogoRecibo',e.target.checked)}/> Mostrar logo</label><label><input type="checkbox" checked={perfilLoja.mostrarEnderecoRecibo!==false} onChange={e=>lidarMudancaPerfil('mostrarEnderecoRecibo',e.target.checked)}/> Mostrar endereço</label><label><input type="checkbox" checked={perfilLoja.mostrarTelefoneRecibo!==false} onChange={e=>lidarMudancaPerfil('mostrarTelefoneRecibo',e.target.checked)}/> Mostrar telefone</label></div></div>
+          <div style={{ gridColumn: '1 / -1', borderTop: '1px dashed #334155', paddingTop: '16px' }}><h4 style={{margin:'0 0 12px',color:'#38bdf8'}}>🖨️ {tx('Personalização de Impressão','Personalización de Impresión','Print Customization')}</h4><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:12}}><div><label style={{fontSize:11,color:'#94a3b8',fontWeight:800}}>{tx('Largura / Papel','Ancho / Papel','Width / Paper')}</label><select value={perfilLoja.larguraRecibo||'80'} onChange={e=>lidarMudancaPerfil('larguraRecibo',e.target.value)} style={{width:'100%',padding:10,borderRadius:8,background:'#020617',border:'1px solid #334155',color:'#fff'}}><option value="58">{tx('Térmica 58 mm','Térmica 58 mm','Thermal 58 mm')}</option><option value="80">{tx('Térmica 80 mm','Térmica 80 mm','Thermal 80 mm')}</option><option value="A4">A4</option></select></div><div><label style={{fontSize:11,color:'#94a3b8',fontWeight:800}}>{tx('Cabeçalho livre','Encabezado libre','Custom header')}</label><input value={perfilLoja.cabecalhoRecibo||''} onChange={e=>lidarMudancaPerfil('cabecalhoRecibo',e.target.value)} placeholder={tx('Ex: Obrigado por comprar conosco','Ej: Gracias por comprar con nosotros','Ex: Thank you for shopping with us')} style={{width:'100%',boxSizing:'border-box',padding:10,borderRadius:8,background:'#020617',border:'1px solid #334155',color:'#fff'}}/></div></div><div style={{display:'flex',gap:18,flexWrap:'wrap',marginTop:12}}><label><input type="checkbox" checked={perfilLoja.mostrarLogoRecibo!==false} onChange={e=>lidarMudancaPerfil('mostrarLogoRecibo',e.target.checked)}/> {tx('Mostrar logo','Mostrar logo','Show logo')}</label><label><input type="checkbox" checked={perfilLoja.mostrarEnderecoRecibo!==false} onChange={e=>lidarMudancaPerfil('mostrarEnderecoRecibo',e.target.checked)}/> {tx('Mostrar endereço','Mostrar dirección','Show address')}</label><label><input type="checkbox" checked={perfilLoja.mostrarTelefoneRecibo!==false} onChange={e=>lidarMudancaPerfil('mostrarTelefoneRecibo',e.target.checked)}/> {tx('Mostrar telefone','Mostrar teléfono','Show phone')}</label></div></div>
 
           <div style={{ gridColumn: '1 / -1', borderTop: '1px dashed #334155', paddingTop: '16px' }}>
-            <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>Mensagem de Rodapé (Impressões)</label>
-            <input type="text" value={perfilLoja.rodapeRecibo} onChange={(e) => lidarMudancaPerfil('rodapeRecibo', e.target.value)} placeholder="Ex: Volte sempre! Siga o nosso Instagram @loja" style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#cbd5e1', padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
+            <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>{tx('Mensagem de Rodapé (Impressões)','Mensaje de Pie (Impresiones)','Footer Message (Prints)')}</label>
+            <input type="text" value={perfilLoja.rodapeRecibo} onChange={(e) => lidarMudancaPerfil('rodapeRecibo', e.target.value)} placeholder={tx('Ex: Volte sempre! Siga o nosso Instagram @loja','Ej: ¡Vuelva pronto! Síganos en Instagram @tienda','Ex: Come back soon! Follow us on Instagram @store')} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#cbd5e1', padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
           </div>
         </div>
 
@@ -351,7 +351,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
             disabled={salvandoPerfil}
             style={{ background: 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#ffffff', padding: '14px 32px', borderRadius: '12px', fontSize: '14px', fontWeight: 900, cursor: salvandoPerfil ? 'not-allowed' : 'pointer', opacity: salvandoPerfil ? 0.7 : 1, transition: 'all 0.2s', boxShadow: '0 4px 15px rgba(79, 70, 229, 0.4)' }}
           >
-            {salvandoPerfil ? 'A Guardar...' : (tx ? tx('Guardar Informações Fiscais', 'Guardar Datos Fiscales', 'Save Fiscal Data') : 'Guardar Informações Fiscais')}
+            {salvandoPerfil ? tx('A Guardar...','Guardando...','Saving...') : tx('Guardar Informações Fiscais','Guardar Datos Fiscales','Save Fiscal Data')}
           </button>
         </div>
       </div>
@@ -359,17 +359,17 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
       <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{ fontSize: '20px' }}>🚥</span>
-          <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#fff', margin: 0 }}>Semáforo de Lucratividade</h3>
+          <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#fff', margin: 0 }}>{tx('Semáforo de Lucratividade','Semáforo de Rentabilidad','Profitability Signal')}</h3>
         </div>
         <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
-          Proteja o seu lucro. O sistema avalia a margem real de cada venda em tempo real <b>(Total da Venda vs Custo dos Produtos)</b>.
+          {tx('Proteja o seu lucro. O sistema avalia a margem real de cada venda em tempo real','Proteja su ganancia. El sistema evalúa el margen real de cada venta en tiempo real','Protect your profit. The system evaluates the real margin of every sale in real time')} <b>({tx('Total da Venda vs Custo dos Produtos','Total de Venta vs Costo de Productos','Sale Total vs Product Cost')})</b>.
         </p>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px' }}>
           <div style={{ backgroundColor: '#021e15', border: '1px solid rgba(16,185,129,0.3)', padding: '16px', borderRadius: '12px' }}>
-            <span style={{ display: 'block', color: '#10b981', fontSize: '12px', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>🟢 Margem Saudável (Ideal)</span>
+            <span style={{ display: 'block', color: '#10b981', fontSize: '12px', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>🟢 {tx('Margem Saudável (Ideal)','Margen Saludable (Ideal)','Healthy Margin (Ideal)')}</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ color: '#cbd5e1', fontSize: '13px' }}>A partir de</span>
+              <span style={{ color: '#cbd5e1', fontSize: '13px' }}>{tx('A partir de','A partir de','Starting at')}</span>
               <input 
                 type="number" min="0.1" max="100" step="0.1" value={regrasDesconto?.margemIdeal ?? 30} 
                 onChange={(e) => lidarComMudancaRegra('margemIdeal', parseFloat(e.target.value) || 0)}
@@ -377,13 +377,13 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
               />
               <span style={{ color: '#cbd5e1', fontSize: '13px' }}>%</span>
             </div>
-            <span style={{ display: 'block', color: '#64748b', fontSize: '10px', marginTop: '8px' }}>Lucro excelente. O PDV liberta a venda sem alertas.</span>
+            <span style={{ display: 'block', color: '#64748b', fontSize: '10px', marginTop: '8px' }}>{tx('Lucro excelente. O PDV liberta a venda sem alertas.','Ganancia excelente. El TPV libera la venta sin alertas.','Excellent profit. The POS allows the sale without alerts.')}</span>
           </div>
 
           <div style={{ backgroundColor: '#2b1704', border: '1px solid rgba(245,158,11,0.3)', padding: '16px', borderRadius: '12px' }}>
-            <span style={{ display: 'block', color: '#f59e0b', fontSize: '12px', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>🟡 Margem em Alerta</span>
+            <span style={{ display: 'block', color: '#f59e0b', fontSize: '12px', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>🟡 {tx('Margem em Alerta','Margen en Alerta','Margin Warning')}</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ color: '#cbd5e1', fontSize: '13px' }}>Limite mínimo amarelo:</span>
+              <span style={{ color: '#cbd5e1', fontSize: '13px' }}>{tx('Limite mínimo amarelo:','Límite mínimo amarillo:','Yellow minimum threshold:')}</span>
               <input 
                 type="number" min="0" max="100" step="0.1" value={regrasDesconto?.margemMinima ?? 15} 
                 onChange={(e) => lidarComMudancaRegra('margemMinima', parseFloat(e.target.value) || 0)}
@@ -391,12 +391,12 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
               />
               <span style={{ color: '#cbd5e1', fontSize: '13px' }}>%</span>
             </div>
-            <span style={{ display: 'block', color: '#64748b', fontSize: '10px', marginTop: '8px' }}>Avisa o vendedor que o lucro final está a ficar baixo.</span>
+            <span style={{ display: 'block', color: '#64748b', fontSize: '10px', marginTop: '8px' }}>{tx('Avisa o vendedor que o lucro final está a ficar baixo.','Avisa al vendedor que la ganancia final está quedando baja.','Warns the seller that final profit is getting low.')}</span>
           </div>
 
           <div style={{ backgroundColor: '#2e0a16', border: '1px solid rgba(225,29,72,0.3)', padding: '16px', borderRadius: '12px' }}>
-            <span style={{ display: 'block', color: '#e11d48', fontSize: '12px', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>🔴 Margem Crítica / Prejuízo</span>
-            <span style={{ color: '#fca5a5', fontSize: '12px', fontWeight: 800 }}>Abaixo de {regrasDesconto?.margemMinima ?? 15}%</span>
+            <span style={{ display: 'block', color: '#e11d48', fontSize: '12px', fontWeight: 900, textTransform: 'uppercase', marginBottom: '8px' }}>🔴 {tx('Margem Crítica / Prejuízo','Margen Crítica / Pérdida','Critical Margin / Loss')}</span>
+            <span style={{ color: '#fca5a5', fontSize: '12px', fontWeight: 800 }}>{tx('Abaixo de','Por debajo de','Below')} {regrasDesconto?.margemMinima ?? 15}%</span>
             
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginTop: '10px' }}>
               <input 
@@ -404,12 +404,12 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
                 onChange={(e) => lidarComMudancaRegra('exigirSenhaVermelho', e.target.checked)}
                 style={{ accentColor: '#e11d48', width: '16px', height: '16px' }}
               />
-              <span style={{ color: '#cbd5e1', fontSize: '13px', fontWeight: 700 }}>Bloquear e Exigir Senha</span>
+              <span style={{ color: '#cbd5e1', fontSize: '13px', fontWeight: 700 }}>{tx('Bloquear e Exigir Senha','Bloquear y Exigir Contraseña','Block and Require Password')}</span>
             </label>
 
             {(regrasDesconto?.exigirSenhaVermelho ?? true) && (
               <div style={{ marginTop: '12px', padding:'10px 12px', borderRadius:8, border:'1px solid rgba(225,29,72,.25)', background:'rgba(225,29,72,.06)', color:'#cbd5e1', fontSize:11, lineHeight:1.45 }}>
-                A autorização usa o <b>PIN de qualquer Administrador/Gerência cadastrado</b>. Altere esses PINs em “Gestão de Equipa e Controlo de Acessos”.
+                {tx('A autorização usa o','La autorización utiliza el','Authorization uses the')} <b>{tx('PIN de qualquer Administrador/Gerência cadastrado','PIN de cualquier Administrador/Gerencia registrado','PIN of any registered Administrator/Management user')}</b>. {tx('Altere esses PINs em “Gestão de Equipa e Controlo de Acessos”.','Cambie estos PIN en “Gestión de Equipo y Control de Accesos”.','Change these PINs under “Team & Access Control”.')}
               </div>
             )}
           </div>
@@ -418,80 +418,80 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
 
       <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '20px' }}>🔐</span><h3 style={{ fontSize: '18px', fontWeight: 900, color: '#fff', margin: 0 }}>Gestão de Equipa e Controlo de Acessos</h3>
+          <span style={{ fontSize: '20px' }}>🔐</span><h3 style={{ fontSize: '18px', fontWeight: 900, color: '#fff', margin: 0 }}>{tx('Gestão de Equipa e Controlo de Acessos','Gestión de Equipo y Control de Accesos','Team & Access Control')}</h3>
         </div>
         <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
-          Crie utilizadores, defina cargos customizados e marque exatamente quais os módulos do sistema cada um pode aceder.
+          {tx('Crie utilizadores, defina cargos customizados e marque exatamente quais os módulos do sistema cada um pode aceder.','Cree usuarios, defina cargos personalizados y marque exactamente a qué módulos del sistema puede acceder cada uno.','Create users, define custom roles and choose exactly which system modules each one can access.')}
         </p>
 
         <div style={{ backgroundColor: '#020617', padding: '20px', borderRadius: '16px', border: '1px solid #334155', display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
             <div>
-              <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, marginBottom: '6px', display: 'block' }}>Nome do Operador</label>
-              <input type="text" value={novoVendedorNome} onChange={e => setNovoVendedorNome(e.target.value)} placeholder="Ex: João Silva" style={{ width: '100%', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '10px 14px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
+              <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, marginBottom: '6px', display: 'block' }}>{tx('Nome do Operador','Nombre del Operador','Operator Name')}</label>
+              <input type="text" value={novoVendedorNome} onChange={e => setNovoVendedorNome(e.target.value)} placeholder={tx('Ex: João Silva','Ej: Juan Silva','Ex: John Smith')} style={{ width: '100%', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '10px 14px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
             </div>
             <div>
-              <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, marginBottom: '6px', display: 'block' }}>Cargo / Título (Livre)</label>
-              <input type="text" value={novoVendedorCargo} onChange={e => setNovoVendedorCargo(e.target.value)} placeholder="Ex: Caixa Sênior, Estoquista..." style={{ width: '100%', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#38bdf8', padding: '10px 14px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
+              <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, marginBottom: '6px', display: 'block' }}>{tx('Cargo / Título (Livre)','Cargo / Título (Libre)','Role / Title (Free)')}</label>
+              <input type="text" value={novoVendedorCargo} onChange={e => setNovoVendedorCargo(e.target.value)} placeholder={tx('Ex: Caixa Sênior, Estoquista...','Ej: Cajero Senior, Almacenista...','Ex: Senior Cashier, Stock Clerk...')} style={{ width: '100%', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#38bdf8', padding: '10px 14px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
             </div>
             <div>
-              <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, marginBottom: '6px', display: 'block' }}>Senha / PIN de Acesso</label>
-              <input type="text" autoComplete="one-time-code" name="zenos-new-operator-pin" data-lpignore="true" data-1p-ignore="true" value={novoVendedorSenha} onChange={e => setNovoVendedorSenha(e.target.value)} placeholder="Novo PIN seguro" style={{ width: '100%', WebkitTextSecurity:'disc', backgroundColor: '#0b1120', border: '1px solid #14b8a6', borderRadius: '8px', color: '#34d399', fontWeight: 900, padding: '10px 14px', outline: 'none', fontSize: '13px', textAlign: 'center', boxSizing: 'border-box' }} />
+              <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, marginBottom: '6px', display: 'block' }}>{tx('Senha / PIN de Acesso','Contraseña / PIN de Acceso','Access Password / PIN')}</label>
+              <input type="text" autoComplete="one-time-code" name="zenos-new-operator-pin" data-lpignore="true" data-1p-ignore="true" value={novoVendedorSenha} onChange={e => setNovoVendedorSenha(e.target.value)} placeholder={tx('Novo PIN seguro','Nuevo PIN seguro','New secure PIN')} style={{ width: '100%', WebkitTextSecurity:'disc', backgroundColor: '#0b1120', border: '1px solid #14b8a6', borderRadius: '8px', color: '#34d399', fontWeight: 900, padding: '10px 14px', outline: 'none', fontSize: '13px', textAlign: 'center', boxSizing: 'border-box' }} />
             </div>
             <div>
-              <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, marginBottom: '6px', display: 'block' }}>% Comissão (Opcional)</label>
+              <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, marginBottom: '6px', display: 'block' }}>% {tx('Comissão (Opcional)','Comisión (Opcional)','Commission (Optional)')}</label>
               <input type="number" value={novoVendedorPercentual} onChange={e => setNovoVendedorPercentual(e.target.value)} placeholder="0%" style={{ width: '100%', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#fbbf24', fontWeight: 900, padding: '10px 14px', outline: 'none', fontSize: '13px', textAlign: 'center', boxSizing: 'border-box' }} />
             </div>
           </div>
 
           <div style={{ borderTop: '1px dashed #334155', paddingTop: '16px' }}>
-            <span style={{ fontSize: '12px', fontWeight: 900, color: '#e2e8f0', marginBottom: '12px', display: 'block', textTransform: 'uppercase' }}>Permissões de Acesso do Utilizador</span>
+            <span style={{ fontSize: '12px', fontWeight: 900, color: '#e2e8f0', marginBottom: '12px', display: 'block', textTransform: 'uppercase' }}>{tx('Permissões de Acesso do Utilizador','Permisos de Acceso del Usuario','User Access Permissions')}</span>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
               
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                 <input type="checkbox" checked={novoVendedorPermissoes.admin} onChange={e => setNovoVendedorPermissoes({...novoVendedorPermissoes, admin: e.target.checked})} style={{ width: '16px', height: '16px', accentColor: '#e11d48' }} />
-                <span style={{ color: '#fb7185', fontWeight: 900 }}>Administrador (Acesso Total)</span>
+                <span style={{ color: '#fb7185', fontWeight: 900 }}>{tx('Administrador (Acesso Total)','Administrador (Acceso Total)','Administrator (Full Access)')}</span>
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                 <input type="checkbox" disabled={novoVendedorPermissoes.admin} checked={novoVendedorPermissoes.admin || novoVendedorPermissoes.pdv} onChange={e => setNovoVendedorPermissoes({...novoVendedorPermissoes, pdv: e.target.checked})} style={{ width: '16px', height: '16px', accentColor: '#10b981' }} />
-                🛒 Operar PDV (Vendas)
+                🛒 {tx('Operar PDV (Vendas)','Operar TPV (Ventas)','Operate POS (Sales)')}
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                 <input type="checkbox" disabled={novoVendedorPermissoes.admin} checked={novoVendedorPermissoes.admin || novoVendedorPermissoes.mesas} onChange={e => setNovoVendedorPermissoes({...novoVendedorPermissoes, mesas: e.target.checked})} style={{ width: '16px', height: '16px', accentColor: '#10b981' }} />
-                🍽 Gestão de Mesas
+                🍽 {tx('Gestão de Mesas','Gestión de Mesas','Table Management')}
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                 <input type="checkbox" disabled={novoVendedorPermissoes.admin} checked={novoVendedorPermissoes.admin || novoVendedorPermissoes.produtos} onChange={e => setNovoVendedorPermissoes({...novoVendedorPermissoes, produtos: e.target.checked})} style={{ width: '16px', height: '16px', accentColor: '#0284c7' }} />
-                📦 Cadastrar/Editar Produtos
+                📦 {tx('Cadastrar/Editar Produtos','Registrar/Editar Productos','Register/Edit Products')}
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                 <input type="checkbox" disabled={novoVendedorPermissoes.admin} checked={novoVendedorPermissoes.admin || novoVendedorPermissoes.clientes} onChange={e => setNovoVendedorPermissoes({...novoVendedorPermissoes, clientes: e.target.checked})} style={{ width: '16px', height: '16px', accentColor: '#d97706' }} />
-                👥 Clientes e Fiados
+                👥 {tx('Clientes e Fiados','Clientes y Créditos','Customers & Credit')}
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                 <input type="checkbox" disabled={novoVendedorPermissoes.admin} checked={novoVendedorPermissoes.admin || novoVendedorPermissoes.caixa} onChange={e => setNovoVendedorPermissoes({...novoVendedorPermissoes, caixa: e.target.checked})} style={{ width: '16px', height: '16px', accentColor: '#8b5cf6' }} />
-                💵 Movimentar Caixa
+                💵 {tx('Movimentar Caixa','Mover Caja','Manage Cash')}
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                 <input type="checkbox" disabled={novoVendedorPermissoes.admin} checked={novoVendedorPermissoes.admin || novoVendedorPermissoes.vendas} onChange={e => setNovoVendedorPermissoes({...novoVendedorPermissoes, vendas: e.target.checked})} style={{ width: '16px', height: '16px', accentColor: '#8b5cf6' }} />
-                📑 Ver Histórico
+                📑 {tx('Ver Histórico','Ver Historial','View History')}
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                 <input type="checkbox" disabled={novoVendedorPermissoes.admin} checked={novoVendedorPermissoes.admin || novoVendedorPermissoes.despesas} onChange={e => setNovoVendedorPermissoes({...novoVendedorPermissoes, despesas: e.target.checked})} style={{ width: '16px', height: '16px', accentColor: '#8b5cf6' }} />
-                💸 Lançar Despesas
+                💸 {tx('Lançar Despesas','Registrar Gastos','Add Expenses')}
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                 <input type="checkbox" disabled={novoVendedorPermissoes.admin} checked={novoVendedorPermissoes.admin || novoVendedorPermissoes.inteligencia} onChange={e => setNovoVendedorPermissoes({...novoVendedorPermissoes, inteligencia: e.target.checked})} style={{ width: '16px', height: '16px', accentColor: '#a855f7' }} />
-                📊 Painel Executivo
+                📊 {tx('Painel Executivo','Panel Ejecutivo','Executive Dashboard')}
               </label>
             </div>
           </div>
-          <button onClick={adicionarVendedor} type="button" style={{ backgroundColor: '#4f46e5', border: 'none', color: '#fff', padding: '14px', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', fontSize: '14px', boxShadow: '0 4px 15px rgba(79, 70, 229, 0.3)' }}>+ Adicionar Utilizador ao Sistema</button>
+          <button onClick={adicionarVendedor} type="button" style={{ backgroundColor: '#4f46e5', border: 'none', color: '#fff', padding: '14px', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', fontSize: '14px', boxShadow: '0 4px 15px rgba(79, 70, 229, 0.3)' }}>+ {tx('Adicionar Utilizador ao Sistema','Agregar Usuario al Sistema','Add User to System')}</button>
         </div>
 
         {/* LISTA DE UTILIZADORES COM EDIÇÃO DE PERMISSÃO */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>Utilizadores Cadastrados ({vendedores?.length || 0})</span>
+          <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>{tx('Utilizadores Cadastrados','Usuarios Registrados','Registered Users')} ({vendedores?.length || 0})</span>
           {vendedores?.map(v => (
             <div key={v.id} style={{ display: 'flex', flexDirection: 'column', backgroundColor: '#020617', padding: '16px', borderRadius: '12px', border: '1px solid #1e293b', gap: '16px' }}>
               
@@ -499,39 +499,39 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ color: '#f8fafc', fontWeight: 900, fontSize: '15px' }}>{v.nome}</span>
-                    <span style={{ fontSize: '10px', backgroundColor: ehOperadorGerencial(v) ? 'rgba(244, 63, 94, 0.2)' : 'rgba(56, 189, 248, 0.2)', color: ehOperadorGerencial(v) ? '#fb7185' : '#38bdf8', padding: '2px 8px', borderRadius: '6px', fontWeight: 800 }}>{v.cargo || 'Operador'}</span>
+                    <span style={{ fontSize: '10px', backgroundColor: ehOperadorGerencial(v) ? 'rgba(244, 63, 94, 0.2)' : 'rgba(56, 189, 248, 0.2)', color: ehOperadorGerencial(v) ? '#fb7185' : '#38bdf8', padding: '2px 8px', borderRadius: '6px', fontWeight: 800 }}>{v.cargo || tx('Operador','Operador','Operator')}</span>
                   </div>
-                  <span style={{ fontSize: '11px', color: '#94a3b8' }}>PIN: <strong style={{ color: '#fff' }}>••••</strong> • Comissão: <strong style={{ color: '#34d399' }}>{v.percentual}%</strong></span>
+                  <span style={{ fontSize: '11px', color: '#94a3b8' }}>{tx('PIN:','PIN:','PIN:')} <strong style={{ color: '#fff' }}>••••</strong> • {tx('Comissão:','Comisión:','Commission:')} <strong style={{ color: '#34d399' }}>{v.percentual}%</strong></span>
                 </div>
                 
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button onClick={() => setVendedorEmEdicaoId(vendedorEmEdicaoId === v.id ? null : v.id)} style={{ backgroundColor: '#1e293b', border: 'none', color: '#cbd5e1', borderRadius: '8px', padding: '8px 12px', cursor: 'pointer', fontWeight: 800, fontSize: '12px' }}>
-                    {vendedorEmEdicaoId === v.id ? 'Ocultar Permissões' : '✏️ Editar Permissões'}
+                    {vendedorEmEdicaoId === v.id ? tx('Ocultar Permissões','Ocultar Permisos','Hide Permissions') : `✏️ ${tx('Editar Permissões','Editar Permisos','Edit Permissions')}`}
                   </button>
-                  <button onClick={() => removerVendedor(v.id)} style={{ backgroundColor: 'rgba(244, 63, 94, 0.1)', border: '1px solid rgba(244, 63, 94, 0.3)', color: '#fb7185', borderRadius: '8px', padding: '8px 12px', cursor: 'pointer', fontWeight: 800, fontSize: '12px' }}>Remover</button>
+                  <button onClick={() => removerVendedor(v.id)} style={{ backgroundColor: 'rgba(244, 63, 94, 0.1)', border: '1px solid rgba(244, 63, 94, 0.3)', color: '#fb7185', borderRadius: '8px', padding: '8px 12px', cursor: 'pointer', fontWeight: 800, fontSize: '12px' }}>{tx('Remover','Eliminar','Remove')}</button>
                 </div>
               </div>
 
               {/* BLOCO QUE EXPANDE PARA EDITAR PERMISSÕES */}
               {vendedorEmEdicaoId === v.id && (
                 <div style={{ borderTop: '1px dashed #334155', paddingTop: '16px', animation: 'fadeIn 0.3s' }}>
-                  <span style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800, textTransform: 'uppercase', marginBottom: '12px', display: 'block' }}>Ajustar Acessos Deste Usuário:</span>
+                  <span style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800, textTransform: 'uppercase', marginBottom: '12px', display: 'block' }}>{tx('Ajustar Acessos Deste Usuário:','Ajustar Accesos de Este Usuario:','Adjust This User’s Access:')}</span>
                   <div style={{display:'flex',gap:8,alignItems:'end',flexWrap:'wrap',marginBottom:14,padding:12,border:'1px solid #1e293b',borderRadius:10,background:'#0b1120'}}>
-                    <div style={{flex:'1 1 220px'}}><label style={{display:'block',fontSize:10,color:'#94a3b8',fontWeight:900,marginBottom:5}}>ALTERAR PIN DE ACESSO</label><input type="text" autoComplete="one-time-code" name={`zenos-pin-${v.id}`} data-lpignore="true" data-1p-ignore="true" value={pinEdicaoPorId[v.id] || ''} onChange={e=>setPinEdicaoPorId(prev=>({...prev,[v.id]:e.target.value}))} placeholder="Novo PIN (mín. 4)" style={{width:'100%',boxSizing:'border-box',padding:'9px 11px',borderRadius:8,border:'1px solid #334155',background:'#020617',color:'#fff',WebkitTextSecurity:'disc'}} /></div>
-                    <button type="button" onClick={()=>atualizarPinOperador(v)} style={{padding:'9px 14px',borderRadius:8,border:'none',background:'#0d9488',color:'#fff',fontWeight:900,cursor:'pointer'}}>Salvar novo PIN</button>
+                    <div style={{flex:'1 1 220px'}}><label style={{display:'block',fontSize:10,color:'#94a3b8',fontWeight:900,marginBottom:5}}>{tx('ALTERAR PIN DE ACESSO','CAMBIAR PIN DE ACCESO','CHANGE ACCESS PIN')}</label><input type="text" autoComplete="one-time-code" name={`zenos-pin-${v.id}`} data-lpignore="true" data-1p-ignore="true" value={pinEdicaoPorId[v.id] || ''} onChange={e=>setPinEdicaoPorId(prev=>({...prev,[v.id]:e.target.value}))} placeholder={tx('Novo PIN (mín. 4)','Nuevo PIN (mín. 4)','New PIN (min. 4)')} style={{width:'100%',boxSizing:'border-box',padding:'9px 11px',borderRadius:8,border:'1px solid #334155',background:'#020617',color:'#fff',WebkitTextSecurity:'disc'}} /></div>
+                    <button type="button" onClick={()=>atualizarPinOperador(v)} style={{padding:'9px 14px',borderRadius:8,border:'none',background:'#0d9488',color:'#fff',fontWeight:900,cursor:'pointer'}}>{tx('Salvar novo PIN','Guardar nuevo PIN','Save new PIN')}</button>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                       <input type="checkbox" checked={ehOperadorGerencial(v)} disabled={String(v.id)==='admin'} onChange={e => atualizarPermissaoVendedor(v.id, 'admin', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#e11d48' }} />
-                      <span style={{ color: '#fb7185', fontWeight: 900 }}>Administrador (Acesso Total)</span>
+                      <span style={{ color: '#fb7185', fontWeight: 900 }}>{tx('Administrador (Acesso Total)','Administrador (Acceso Total)','Administrator (Full Access)')}</span>
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                       <input type="checkbox" disabled={v.permissoes?.admin || false} checked={v.permissoes?.admin || v.permissoes?.pdv || false} onChange={e => atualizarPermissaoVendedor(v.id, 'pdv', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#10b981' }} />
-                      🛒 Operar PDV (Vendas)
+                      🛒 {tx('Operar PDV (Vendas)','Operar TPV (Ventas)','Operate POS (Sales)')}
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                       <input type="checkbox" disabled={v.permissoes?.admin || false} checked={v.permissoes?.admin || v.permissoes?.mesas || false} onChange={e => atualizarPermissaoVendedor(v.id, 'mesas', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#10b981' }} />
-                      🍽 Gestão de Mesas
+                      🍽 {tx('Gestão de Mesas','Gestión de Mesas','Table Management')}
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                       <input type="checkbox" disabled={v.permissoes?.admin || false} checked={v.permissoes?.admin || v.permissoes?.produtos || false} onChange={e => atualizarPermissaoVendedor(v.id, 'produtos', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#0284c7' }} />
@@ -539,23 +539,23 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                       <input type="checkbox" disabled={v.permissoes?.admin || false} checked={v.permissoes?.admin || v.permissoes?.clientes || false} onChange={e => atualizarPermissaoVendedor(v.id, 'clientes', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#d97706' }} />
-                      👥 Clientes e Fiados
+                      👥 {tx('Clientes e Fiados','Clientes y Créditos','Customers & Credit')}
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                       <input type="checkbox" disabled={v.permissoes?.admin || false} checked={v.permissoes?.admin || v.permissoes?.caixa || false} onChange={e => atualizarPermissaoVendedor(v.id, 'caixa', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#8b5cf6' }} />
-                      💵 Movimentar Caixa
+                      💵 {tx('Movimentar Caixa','Mover Caja','Manage Cash')}
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                       <input type="checkbox" disabled={v.permissoes?.admin || false} checked={v.permissoes?.admin || v.permissoes?.vendas || false} onChange={e => atualizarPermissaoVendedor(v.id, 'vendas', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#8b5cf6' }} />
-                      📑 Ver Histórico
+                      📑 {tx('Ver Histórico','Ver Historial','View History')}
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                       <input type="checkbox" disabled={v.permissoes?.admin || false} checked={v.permissoes?.admin || v.permissoes?.despesas || false} onChange={e => atualizarPermissaoVendedor(v.id, 'despesas', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#8b5cf6' }} />
-                      💸 Lançar Despesas
+                      💸 {tx('Lançar Despesas','Registrar Gastos','Add Expenses')}
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                       <input type="checkbox" disabled={v.permissoes?.admin || false} checked={v.permissoes?.admin || v.permissoes?.inteligencia || false} onChange={e => atualizarPermissaoVendedor(v.id, 'inteligencia', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#a855f7' }} />
-                      📊 Painel Executivo
+                      📊 {tx('Painel Executivo','Panel Ejecutivo','Executive Dashboard')}
                     </label>
                   </div>
                 </div>
@@ -567,21 +567,21 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
       </div>
 
       <div style={{ backgroundColor:'#082f49', border:'1px solid #0ea5e9', borderRadius:'20px', padding:'24px', display:'flex', flexDirection:'column', gap:'14px' }}>
-        <div><h3 style={{margin:0,color:'#7dd3fc',fontSize:'18px',fontWeight:900}}>🛡️ Backup e Recuperação V1</h3><div style={{fontSize:'12px',color:'#bae6fd',marginTop:'5px'}}>Exporte um backup com checksum antes de operações críticas. Restauração é bloqueada em produção.</div></div>
+        <div><h3 style={{margin:0,color:'#7dd3fc',fontSize:'18px',fontWeight:900}}>🛡️ {tx('Backup e Recuperação V1','Backup y Recuperación V1','Backup & Recovery V1')}</h3><div style={{fontSize:'12px',color:'#bae6fd',marginTop:'5px'}}>{tx('Exporte um backup com checksum antes de operações críticas. Restauração é bloqueada em produção.','Exporte un backup con checksum antes de operaciones críticas. La restauración está bloqueada en producción.','Export a checksum-validated backup before critical operations. Restore is blocked in production.')}</div></div>
         <div style={{display:'flex',gap:'10px',flexWrap:'wrap'}}>
-          <button disabled={processandoBackup} onClick={exportarBackupCompleto} style={{padding:'11px 16px',borderRadius:'10px',border:'none',background:'#0284c7',color:'#fff',fontWeight:900,cursor:'pointer'}}>⬇ Exportar Backup Validado</button>
-          <label style={{padding:'11px 16px',borderRadius:'10px',border:'1px solid #38bdf8',background:'#020617',color:'#7dd3fc',fontWeight:900,cursor:'pointer'}}>✓ Validar arquivo<input type="file" accept="application/json,.json" onChange={e=>validarArquivoBackup(e.target.files?.[0])} style={{display:'none'}}/></label>
-          {ZENOS_RUNTIME.isHomologacao && <button disabled={!arquivoBackupSelecionado || processandoBackup} onClick={restaurarBackupHomologacao} style={{padding:'11px 16px',borderRadius:'10px',border:'1px solid #f59e0b',background:'#451a03',color:'#fbbf24',fontWeight:900,cursor:'pointer'}}>↩ Restaurar em Homologação Vazia</button>}
+          <button disabled={processandoBackup} onClick={exportarBackupCompleto} style={{padding:'11px 16px',borderRadius:'10px',border:'none',background:'#0284c7',color:'#fff',fontWeight:900,cursor:'pointer'}}>⬇ {tx('Exportar Backup Validado','Exportar Backup Validado','Export Validated Backup')}</button>
+          <label style={{padding:'11px 16px',borderRadius:'10px',border:'1px solid #38bdf8',background:'#020617',color:'#7dd3fc',fontWeight:900,cursor:'pointer'}}>✓ {tx('Validar arquivo','Validar archivo','Validate file')}<input type="file" accept="application/json,.json" onChange={e=>validarArquivoBackup(e.target.files?.[0])} style={{display:'none'}}/></label>
+          {ZENOS_RUNTIME.isHomologacao && <button disabled={!arquivoBackupSelecionado || processandoBackup} onClick={restaurarBackupHomologacao} style={{padding:'11px 16px',borderRadius:'10px',border:'1px solid #f59e0b',background:'#451a03',color:'#fbbf24',fontWeight:900,cursor:'pointer'}}>↩ {tx('Restaurar em Homologação Vazia','Restaurar en Homologación Vacía','Restore to Empty Test Environment')}</button>}
         </div>
         <div style={{fontSize:'11px',color:backupValidadoNestaSessao?'#86efac':'#fbbf24',fontWeight:800}}>{backupValidadoNestaSessao?'✓ Backup desta sessão exportado e validado. Operações de limpeza podem prosseguir após reautenticação.':'⚠ A zona de limpeza fica protegida até existir backup validado nesta sessão.'}</div>
       </div>
 
       <div style={{ backgroundColor: '#2e0a16', border: '1px solid rgba(244, 63, 94, 0.4)', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '20px' }}>⚠️</span><h3 style={{ fontSize: '18px', fontWeight: 900, color: '#fb7185', margin: 0 }}>Zona de Perigo • Limpeza</h3>
+          <span style={{ fontSize: '20px' }}>⚠️</span><h3 style={{ fontSize: '18px', fontWeight: 900, color: '#fb7185', margin: 0 }}>{tx('Zona de Perigo • Limpeza','Zona de Peligro • Limpieza','Danger Zone • Cleanup')}</h3>
         </div>
         <div>
-          <button onClick={() => { setEtapaAviso(1); setSenhaAdmin(''); handleSelTudo(false); setModalResetAberto(true); }} type="button" style={{ backgroundColor: '#e11d48', border: 'none', color: '#fff', padding: '12px 24px', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', fontSize: '13px' }}>🗑️ Gerir Restauração</button>
+          <button onClick={() => { setEtapaAviso(1); setSenhaAdmin(''); handleSelTudo(false); setModalResetAberto(true); }} type="button" style={{ backgroundColor: '#e11d48', border: 'none', color: '#fff', padding: '12px 24px', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', fontSize: '13px' }}>🗑️ {tx('Gerir Restauração','Gestionar Restauración','Manage Restore')}</button>
         </div>
       </div>
 
@@ -590,27 +590,27 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
           <div style={{ backgroundColor: '#0b1120', border: '2px solid #f43f5e', borderRadius: '24px', padding: '32px', width: '100%', maxWidth: '480px', color: '#fff', boxSizing: 'border-box' }}>
             {etapaAviso === 1 ? (
               <>
-                <div style={{ textAlign: 'center', marginBottom: '16px' }}><span style={{ fontSize: '36px' }}>🛡️</span><h3 style={{ fontSize: '18px', fontWeight: 900, color: '#f43f5e', margin: '6px 0 0 0' }}>Escolha o que Restaurar</h3></div>
+                <div style={{ textAlign: 'center', marginBottom: '16px' }}><span style={{ fontSize: '36px' }}>🛡️</span><h3 style={{ fontSize: '18px', fontWeight: 900, color: '#f43f5e', margin: '6px 0 0 0' }}>{tx('Escolha o que Restaurar','Elija qué Restaurar','Choose What to Restore')}</h3></div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', backgroundColor: '#020617', padding: '16px', borderRadius: '14px', border: '1px solid #1e293b', marginBottom: '20px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '13px', fontWeight: 900, color: '#fbbf24', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '8px' }}><input type="checkbox" checked={selTudo} onChange={e => handleSelTudo(e.target.checked)} style={{ width: '16px', height: '16px' }} />🔥 Selecionar Todos</label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '13px', color: '#e2e8f0' }}><input type="checkbox" checked={selProdutos} onChange={e => setSelProdutos(e.target.checked)} style={{ width: '16px', height: '16px' }} />📦 Produtos</label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '13px', color: '#e2e8f0' }}><input type="checkbox" checked={selClientes} onChange={e => setSelClientes(e.target.checked)} style={{ width: '16px', height: '16px' }} />👥 Clientes</label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '13px', color: '#e2e8f0' }}><input type="checkbox" checked={selVendas} onChange={e => setSelVendas(e.target.checked)} style={{ width: '16px', height: '16px' }} />📑 Vendas</label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '13px', color: '#e2e8f0' }}><input type="checkbox" checked={selCaixa} onChange={e => setSelCaixa(e.target.checked)} style={{ width: '16px', height: '16px' }} />💵 Caixa</label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '13px', color: '#e2e8f0' }}><input type="checkbox" checked={selDespesas} onChange={e => setSelDespesas(e.target.checked)} style={{ width: '16px', height: '16px' }} />💸 Despesas</label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '13px', fontWeight: 900, color: '#fbbf24', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '8px' }}><input type="checkbox" checked={selTudo} onChange={e => handleSelTudo(e.target.checked)} style={{ width: '16px', height: '16px' }} />🔥 {tx('Selecionar Todos','Seleccionar Todos','Select All')}</label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '13px', color: '#e2e8f0' }}><input type="checkbox" checked={selProdutos} onChange={e => setSelProdutos(e.target.checked)} style={{ width: '16px', height: '16px' }} />📦 {tx('Produtos','Productos','Products')}</label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '13px', color: '#e2e8f0' }}><input type="checkbox" checked={selClientes} onChange={e => setSelClientes(e.target.checked)} style={{ width: '16px', height: '16px' }} />👥 {tx('Clientes','Clientes','Customers')}</label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '13px', color: '#e2e8f0' }}><input type="checkbox" checked={selVendas} onChange={e => setSelVendas(e.target.checked)} style={{ width: '16px', height: '16px' }} />📑 {tx('Vendas','Ventas','Sales')}</label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '13px', color: '#e2e8f0' }}><input type="checkbox" checked={selCaixa} onChange={e => setSelCaixa(e.target.checked)} style={{ width: '16px', height: '16px' }} />💵 {tx('Caixa','Caja','Cash')}</label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '13px', color: '#e2e8f0' }}><input type="checkbox" checked={selDespesas} onChange={e => setSelDespesas(e.target.checked)} style={{ width: '16px', height: '16px' }} />💸 {tx('Despesas','Gastos','Expenses')}</label>
                 </div>
                 <div style={{ display: 'flex', gap: '12px' }}>
-                  <button onClick={() => setModalResetAberto(false)} type="button" style={{ flex: 1, padding: '12px', backgroundColor: '#020617', border: '1px solid #334155', color: '#94a3b8', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}>Cancelar</button>
-                  <button onClick={() => { if (!selProdutos && !selClientes && !selVendas && !selCaixa && !selDespesas) { return avisarZen('warning','Nada selecionado','Selecione ao menos uma categoria.'); } setEtapaAviso(2); }} type="button" style={{ flex: 1, padding: '12px', backgroundColor: '#e11d48', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}>Avançar ➔</button>
+                  <button onClick={() => setModalResetAberto(false)} type="button" style={{ flex: 1, padding: '12px', backgroundColor: '#020617', border: '1px solid #334155', color: '#94a3b8', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}>{tx('Cancelar','Cancelar','Cancel')}</button>
+                  <button onClick={() => { if (!selProdutos && !selClientes && !selVendas && !selCaixa && !selDespesas) { return avisarZen('warning','Nada selecionado','Selecione ao menos uma categoria.'); } setEtapaAviso(2); }} type="button" style={{ flex: 1, padding: '12px', backgroundColor: '#e11d48', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}>{tx('Avançar ➔','Avanzar ➔','Next ➔')}</button>
                 </div>
               </>
             ) : (
               <>
-                <div style={{ textAlign: 'center', marginBottom: '20px' }}><span style={{ fontSize: '32px' }}>🔐</span><h3 style={{ fontSize: '18px', fontWeight: 900, color: '#fff', margin: '8px 0 0 0' }}>Senha Administrador</h3></div>
+                <div style={{ textAlign: 'center', marginBottom: '20px' }}><span style={{ fontSize: '32px' }}>🔐</span><h3 style={{ fontSize: '18px', fontWeight: 900, color: '#fff', margin: '8px 0 0 0' }}>{tx('Senha Administrador','Contraseña Administrador','Administrator Password')}</h3></div>
                 <input type="password" autoComplete="current-password" name="zenos-account-password-confirmation" value={senhaAdmin} onChange={e => setSenhaAdmin(e.target.value)} placeholder="••••••••••••" style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #f43f5e', borderRadius: '12px', color: '#fff', padding: '14px', outline: 'none', fontSize: '16px', boxSizing: 'border-box', marginBottom: '24px', textAlign: 'center' }} autoFocus />
                 <div style={{ display: 'flex', gap: '12px' }}>
-                  <button onClick={() => setEtapaAviso(1)} type="button" style={{ flex: 1, padding: '14px', backgroundColor: '#020617', border: '1px solid #334155', color: '#94a3b8', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}>Voltar</button>
-                  <button disabled={carregandoReset} onClick={executarResetGranular} type="button" style={{ flex: 2, padding: '14px', backgroundColor: carregandoReset ? '#475569' : '#e11d48', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: carregandoReset ? 'not-allowed' : 'pointer' }}>Confirmar</button>
+                  <button onClick={() => setEtapaAviso(1)} type="button" style={{ flex: 1, padding: '14px', backgroundColor: '#020617', border: '1px solid #334155', color: '#94a3b8', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}>{tx('Voltar','Volver','Back')}</button>
+                  <button disabled={carregandoReset} onClick={executarResetGranular} type="button" style={{ flex: 2, padding: '14px', backgroundColor: carregandoReset ? '#475569' : '#e11d48', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: carregandoReset ? 'not-allowed' : 'pointer' }}>{tx('Confirmar','Confirmar','Confirm')}</button>
                 </div>
               </>
             )}

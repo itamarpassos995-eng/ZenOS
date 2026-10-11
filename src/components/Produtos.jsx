@@ -126,9 +126,9 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
   };
 
   const salvarProduto = async () => {
-    if (!formProduto.nome.trim()) return mostrarZen('warning', 'Nome obrigatório', 'Informe o nome do produto antes de salvar.');
+    if (!formProduto.nome.trim()) return mostrarZen('warning', tx('Nome obrigatório','Nombre obligatorio','Name required'), tx('Informe o nome do produto antes de salvar.','Informe el nombre del producto antes de guardar.','Enter the product name before saving.'));
     const margemValidacao = validarMargemPrecoVenda(formProduto.margemDesejada);
-    if (!margemValidacao.ok && Number(formProduto.custoBRL || 0) > 0) return mostrarZen('warning', 'Margem inválida', margemValidacao.erro, [`Use um valor entre 0% e ${MAX_MARGEM_PRECO_PCT}%.`, 'A margem é calculada sobre o preço de venda.']);
+    if (!margemValidacao.ok && Number(formProduto.custoBRL || 0) > 0) return mostrarZen('warning', tx('Margem inválida','Margen inválido','Invalid margin'), margemValidacao.erro, [`${tx('Use um valor entre','Use un valor entre','Use a value between')} 0% ${tx('e','y','and')} ${MAX_MARGEM_PRECO_PCT}%.`, tx('A margem é calculada sobre o preço de venda.','El margen se calcula sobre el precio de venta.','Margin is calculated on the sale price.')]);
     let grupoFinal = formProduto.grupo;
     if (criandoNovoGrupo && novoGrupoTexto.trim()) {
       grupoFinal = novoGrupoTexto.trim();
@@ -143,7 +143,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
     const estoqueTotal = vitrine + galpao;
 
     if (skuJaExiste(produtos, formProduto.sku, produtoEmEdicao)) {
-      return mostrarZen('danger', 'SKU duplicado', `Já existe outro produto com o SKU ${formProduto.sku}.`, ['Use um SKU diferente para impedir movimentação no item errado.']);
+      return mostrarZen('danger', tx('SKU duplicado','SKU duplicado','Duplicate SKU'), `${tx('Já existe outro produto com o SKU','Ya existe otro producto con el SKU','Another product already uses SKU')} ${formProduto.sku}.`, [tx('Use um SKU diferente para impedir movimentação no item errado.','Use un SKU diferente para evitar movimientos en el ítem equivocado.','Use a different SKU to prevent movement on the wrong item.')]);
     }
 
     const dadosFinais = normalizarProduto({
@@ -162,7 +162,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
     let listaProposta;
     if (produtoEmEdicao) {
       try { listaProposta = atualizarProdutoUnico(produtos, produtoEmEdicao, dadosFinais, 'edição do produto'); }
-      catch (erro) { return mostrarZen('danger', 'Edição bloqueada', erro.message || 'Não foi possível editar o produto com segurança.'); }
+      catch (erro) { return mostrarZen('danger', tx('Edição bloqueada','Edición bloqueada','Edit blocked'), erro.message || tx('Não foi possível editar o produto com segurança.','No fue posible editar el producto con seguridad.','Could not safely edit the product.')); }
     } else {
       listaProposta = [dadosFinais, ...(produtos || [])];
     }
@@ -185,7 +185,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
     try {
       await reservarIdentidadeProduto({ db, userId, produto: dadosFinais, produtoAnterior: produtoEmEdicao });
     } catch (erro) {
-      return mostrarZen('danger', erro?.code === 'ZENOS_PRODUTO_DUPLICADO' ? 'Produto duplicado' : 'Cadastro não concluído', erro.message || 'Não foi possível reservar a identidade do produto.');
+      return mostrarZen('danger', erro?.code === 'ZENOS_PRODUTO_DUPLICADO' ? tx('Produto duplicado','Producto duplicado','Duplicate product') : tx('Cadastro não concluído','Registro no concluido','Registration not completed'), erro.message || 'Não foi possível reservar a identidade do produto.');
     }
 
     try {
@@ -210,7 +210,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       } catch (rollbackErro) {
         console.error('[ZenOS][ATT10.2] Falha ao restaurar índice do produto:', rollbackErro);
       }
-      return mostrarZen('danger', 'Produto não salvo', 'A nuvem não confirmou o cadastro. Nenhum produto foi considerado salvo.', [erro?.message || 'Falha de persistência']);
+      return mostrarZen('danger', tx('Produto não salvo','Producto no guardado','Product not saved'), tx('A nuvem não confirmou o cadastro. Nenhum produto foi considerado salvo.','La nube no confirmó el registro. Ningún producto fue considerado guardado.','The cloud did not confirm the registration. No product was considered saved.'), [erro?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
     }
   };
 
@@ -229,8 +229,8 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
   const confirmarMovimentoEstoque = async () => {
     if (!modalMovimento?.produto) return;
     const quantidade = Math.max(0, Number(String(movimentoQtd).replace(',', '.')) || 0);
-    if (quantidade <= 0) return mostrarZen('warning', 'Quantidade inválida', 'Informe uma quantidade maior que zero.');
-    if (!movimentoMotivo.trim()) return mostrarZen('warning', 'Motivo obrigatório', 'Informe o motivo da movimentação.');
+    if (quantidade <= 0) return mostrarZen('warning', tx('Quantidade inválida','Cantidad inválida','Invalid quantity'), tx('Informe uma quantidade maior que zero.','Informe una cantidad mayor que cero.','Enter a quantity greater than zero.'));
+    if (!movimentoMotivo.trim()) return mostrarZen('warning', tx('Motivo obrigatório','Motivo obligatorio','Reason required'), tx('Informe o motivo da movimentação.','Informe el motivo del movimiento.','Enter the reason for the movement.'));
 
     setSalvandoMovimento(true);
     try {
@@ -276,7 +276,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       }
     } catch (erro) {
       console.error('[ZenOS][ATT10.2] Falha na movimentação auditada:', erro);
-      mostrarZen('danger', 'Movimentação bloqueada', erro.message || 'Não foi possível movimentar o estoque com segurança.');
+      mostrarZen('danger', tx('Movimentação bloqueada','Movimiento bloqueado','Movement blocked'), erro.message || tx('Não foi possível movimentar o estoque com segurança.','No fue posible mover el stock con seguridad.','Could not safely move stock.'));
     } finally {
       setSalvandoMovimento(false);
     }
@@ -298,7 +298,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       setHistoricoMovimentos(lista);
     } catch (erro) {
       console.error('[ZenOS][ATT06] Falha ao carregar histórico:', erro);
-      mostrarZen('danger', 'Histórico indisponível', 'Não foi possível carregar o histórico de estoque deste produto.');
+      mostrarZen('danger', tx('Histórico indisponível','Historial no disponible','History unavailable'), tx('Não foi possível carregar o histórico de estoque deste produto.','No fue posible cargar el historial de stock de este producto.','Could not load this product stock history.'));
     } finally {
       setCarregandoHistorico(false);
     }
@@ -317,11 +317,11 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
     const emCompras=(historicoCompras||[]).some(c=>(c.itens||[]).some(i=>String(i.produtoId||i.id||'')===id || String(i.sku||'').toUpperCase()===sku));
     return emVendas||emCompras;
   };
-  const pedirExclusao = produto => { if(patenteUsuario!=='gerencia') return mostrarZen('danger', 'Acesso restrito', 'Somente a gerência pode inativar ou excluir produtos.'); setSenhaExclusao(''); setModalExcluir(produto); };
+  const pedirExclusao = produto => { if(patenteUsuario!=='gerencia') return mostrarZen('danger', tx('Acesso restrito','Acceso restringido','Restricted access'), tx('Somente a gerência pode inativar ou excluir produtos.','Solo la gerencia puede inactivar o eliminar productos.','Only management can deactivate or delete products.')); setSenhaExclusao(''); setModalExcluir(produto); };
   const confirmarExclusao = async () => {
     if(!modalExcluir) return;
     const autorizador = await validarCredencialGerencial({ vendedores, senha: senhaExclusao, senhaLegada: regrasDesconto?.senhaGerente });
-    if(!autorizador) return mostrarZen('danger', 'Senha incorreta', 'Informe o PIN de um Administrador/Gerência cadastrado.');
+    if(!autorizador) return mostrarZen('danger', tx('Senha incorreta','Contraseña incorrecta','Incorrect password'), tx('Informe o PIN de um Administrador/Gerência cadastrado.','Ingrese el PIN de un Administrador/Gerencia registrado.','Enter the PIN of a registered Administrator/Management user.'));
     const temHist=produtoTemHistorico(modalExcluir);
     const listaProposta = temHist
       ? produtos.map(p=>String(p.id)===String(modalExcluir.id)&&String(p.sku)===String(modalExcluir.sku)?{...p,ativo:false,inativadoEm:new Date().toISOString(),inativadoPor:operadorAtivo?.nome||'Gerência'}:p)
@@ -340,7 +340,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       }
       setModalExcluir(null);
     } catch (erro) {
-      mostrarZen('danger','Alteração não concluída','A nuvem não confirmou a exclusão/inativação. O catálogo foi mantido.',[erro?.message || 'Falha de persistência']);
+      mostrarZen('danger',tx('Alteração não concluída','Cambio no concluido','Change not completed'),tx('A nuvem não confirmou a exclusão/inativação. O catálogo foi mantido.','La nube no confirmó la eliminación/inactivación. El catálogo fue preservado.','The cloud did not confirm deletion/deactivation. The catalog was preserved.'),[erro?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
     }
   };
 
@@ -350,7 +350,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div><h2 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>{t ? t('catalogoTitulo') : 'Catálogo'}</h2><span style={{ fontSize: '13px', color: '#64748b' }}>{t ? t('catalogoSub') : 'Gerenciamento'}</span></div>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <label style={{display:'flex',alignItems:'center',gap:6,color:'#94a3b8',fontSize:11,fontWeight:800}}><input type="checkbox" checked={mostrarInativos} onChange={e=>setMostrarInativos(e.target.checked)}/> Mostrar inativos</label><button onClick={abrirCadastroNovoProduto} style={{ background: 'linear-gradient(135deg, #0284c7, #0369a1)', border: '1px solid #38bdf8', color: '#ffffff', padding: '12px 24px', borderRadius: '12px', fontSize: '13px', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 15px rgba(2, 132, 199, 0.3)' }}>{t ? t('novoProdutoBtn') : '+ Novo Produto'}</button>
+          <label style={{display:'flex',alignItems:'center',gap:6,color:'#94a3b8',fontSize:11,fontWeight:800}}><input type="checkbox" checked={mostrarInativos} onChange={e=>setMostrarInativos(e.target.checked)}/> {tx('Mostrar inativos','Mostrar inactivos','Show inactive')}</label><button onClick={abrirCadastroNovoProduto} style={{ background: 'linear-gradient(135deg, #0284c7, #0369a1)', border: '1px solid #38bdf8', color: '#ffffff', padding: '12px 24px', borderRadius: '12px', fontSize: '13px', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 15px rgba(2, 132, 199, 0.3)' }}>{t ? t('novoProdutoBtn') : '+ Novo Produto'}</button>
         </div>
       </div>
 
@@ -379,21 +379,21 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid #1e293b', color: '#64748b', fontSize: '11px', textTransform: 'uppercase' }}>
-                <th style={{ padding: '16px 20px' }}>Foto & SKU</th>
-                <th style={{ padding: '16px 12px' }}>Descrição</th>
-                <th style={{ padding: '16px 12px' }}>Grupo & Unidade</th>
-                <th style={{ padding: '16px 12px' }}>Localização</th>
-                <th style={{ padding: '16px 12px', textAlign: 'center' }}>Vitrine | Galpão</th>
-                <th style={{ padding: '16px 12px', textAlign: 'right' }}>Custo</th>
-                <th style={{ padding: '16px 12px', textAlign: 'right' }}>Preço Venda</th>
-                <th style={{ padding: '16px 12px', textAlign: 'right' }}>Atacado</th>
-                <th style={{ padding: '16px 12px', textAlign: 'center' }}>Margem</th>
-                <th style={{ padding: '16px 20px', textAlign: 'right' }}>Ações</th>
+                <th style={{ padding: '16px 20px' }}>{tx('Foto & SKU','Foto y SKU','Photo & SKU')}</th>
+                <th style={{ padding: '16px 12px' }}>{tx('Descrição','Descripción','Description')}</th>
+                <th style={{ padding: '16px 12px' }}>{tx('Grupo & Unidade','Grupo y Unidad','Group & Unit')}</th>
+                <th style={{ padding: '16px 12px' }}>{tx('Localização','Ubicación','Location')}</th>
+                <th style={{ padding: '16px 12px', textAlign: 'center' }}>{tx('Vitrine | Galpão','Exhibición | Depósito','Display | Warehouse')}</th>
+                <th style={{ padding: '16px 12px', textAlign: 'right' }}>{tx('Custo','Costo','Cost')}</th>
+                <th style={{ padding: '16px 12px', textAlign: 'right' }}>{tx('Preço Venda','Precio Venta','Sale Price')}</th>
+                <th style={{ padding: '16px 12px', textAlign: 'right' }}>{tx('Atacado','Mayorista','Wholesale')}</th>
+                <th style={{ padding: '16px 12px', textAlign: 'center' }}>{tx('Margem','Margen','Margin')}</th>
+                <th style={{ padding: '16px 20px', textAlign: 'right' }}>{tx('Ações','Acciones','Actions')}</th>
               </tr>
             </thead>
             <tbody>
               {produtosListaFiltrada.length === 0 ? (
-                <tr><td colSpan="10" style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>Nenhum produto encontrado.</td></tr>
+                <tr><td colSpan="10" style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>{tx('Nenhum produto encontrado.','Ningún producto encontrado.','No products found.')}</td></tr>
               ) : (
                 produtosListaFiltrada.map((prod) => {
                   const custo = prod.custoBRL || 0; const preco = prod.precoBRL || 0; const margem = preco > 0 ? (((preco - custo) / preco) * 100).toFixed(1) : 0;
@@ -406,26 +406,26 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
                           <span>{prod.sku}</span>
                         </div>
                       </td>
-                      <td style={{ padding: '16px 12px' }}><div style={{ fontWeight: 700, color: '#ffffff', fontSize: '14px' }}>{prod.nome} {ehEncomendaUsoUnico(prod) && <span style={{ color: '#fbbf24', fontSize: '10px' }}>(⭐ Encomenda)</span>} {idsComConflito.has(String(prod.id)) && <span style={{ color: '#f87171', fontSize: '10px' }}>(⛔ ID duplicado)</span>}</div><span style={{ fontSize: '11px', color: '#64748b' }}>{prod.marca ? `Marca: ${prod.marca}` : 'S/ Marca'}</span></td>
+                      <td style={{ padding: '16px 12px' }}><div style={{ fontWeight: 700, color: '#ffffff', fontSize: '14px' }}>{prod.nome} {ehEncomendaUsoUnico(prod) && <span style={{ color: '#fbbf24', fontSize: '10px' }}>({tx('⭐ Encomenda','⭐ Pedido','⭐ Special Order')})</span>} {idsComConflito.has(String(prod.id)) && <span style={{ color: '#f87171', fontSize: '10px' }}>({tx('⛔ ID duplicado','⛔ ID duplicado','⛔ Duplicate ID')})</span>}</div><span style={{ fontSize: '11px', color: '#64748b' }}>{prod.marca ? `Marca: ${prod.marca}` : 'S/ Marca'}</span></td>
                       <td style={{ padding: '16px 12px' }}><span style={{ backgroundColor: '#020617', border: '1px solid #1e293b', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', color: '#cbd5e1', fontWeight: 700 }}>{prod.grupo || 'Geral'}</span><span style={{ marginLeft: '6px', fontSize: '11px', color: '#38bdf8', fontWeight: 800 }}>[{prod.unidadeMedida || 'UN'}]</span></td>
                       <td style={{ padding: '16px 12px', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{prod.localizacao || '—'}</td>
                       <td style={{ padding: '16px 12px', textAlign: 'center' }}>
-                        {ehServico ? <span style={{ color: '#818cf8', fontWeight: 700, fontSize: '11px' }}>Infinito</span> : (
+                        {ehServico ? <span style={{ color: '#818cf8', fontWeight: 700, fontSize: '11px' }}>{tx('Infinito','Infinito','Infinite')}</span> : (
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '6px', minWidth: '150px' }}>
                             <div style={{ display: 'grid', gridTemplateColumns: '52px 1fr', alignItems: 'center', gap: '6px' }}>
-                              <span style={{ fontSize: '9px', color: '#38bdf8', fontWeight: 900, textTransform: 'uppercase' }}>Vitrine</span>
+                              <span style={{ fontSize: '9px', color: '#38bdf8', fontWeight: 900, textTransform: 'uppercase' }}>{tx('Vitrine','Exhibición','Display')}</span>
                               <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', backgroundColor: '#0f172a', padding: '4px 6px', borderRadius: '8px', border: '1px solid #164e63' }}>
-                                <button title="Transferir da vitrine para o depósito" onClick={() => idsComConflito.has(String(prod.id)) ? mostrarZen('danger', 'Conflito de identidade', 'Movimentação bloqueada porque este produto possui ID duplicado no catálogo.') : abrirMovimentoRapido(prod, 'vitrine', -1)} style={{ width: '20px', height: '20px', borderRadius: '4px', backgroundColor: '#020617', border: '1px solid #334155', color: '#fb7185', fontWeight: 900, cursor: 'pointer' }}>-</button>
+                                <button title={tx('Transferir da vitrine para o depósito','Transferir de exhibición a depósito','Transfer from display to warehouse')} onClick={() => idsComConflito.has(String(prod.id)) ? mostrarZen('danger', 'Conflito de identidade', 'Movimentação bloqueada porque este produto possui ID duplicado no catálogo.') : abrirMovimentoRapido(prod, 'vitrine', -1)} style={{ width: '20px', height: '20px', borderRadius: '4px', backgroundColor: '#020617', border: '1px solid #334155', color: '#fb7185', fontWeight: 900, cursor: 'pointer' }}>-</button>
                                 <span style={{ fontWeight: 900, fontSize: '14px', minWidth: '30px', textAlign: 'center', color: '#38bdf8' }}>{prod.estoqueVitrine ?? prod.estoque ?? 0}</span>
-                                <button title="Transferir do depósito para a vitrine" onClick={() => idsComConflito.has(String(prod.id)) ? mostrarZen('danger', 'Conflito de identidade', 'Movimentação bloqueada porque este produto possui ID duplicado no catálogo.') : abrirMovimentoRapido(prod, 'vitrine', 1)} style={{ width: '20px', height: '20px', borderRadius: '4px', backgroundColor: '#020617', border: '1px solid #334155', color: '#34d399', fontWeight: 900, cursor: 'pointer' }}>+</button>
+                                <button title={tx('Transferir do depósito para a vitrine','Transferir de depósito a exhibición','Transfer from warehouse to display')} onClick={() => idsComConflito.has(String(prod.id)) ? mostrarZen('danger', 'Conflito de identidade', 'Movimentação bloqueada porque este produto possui ID duplicado no catálogo.') : abrirMovimentoRapido(prod, 'vitrine', 1)} style={{ width: '20px', height: '20px', borderRadius: '4px', backgroundColor: '#020617', border: '1px solid #334155', color: '#34d399', fontWeight: 900, cursor: 'pointer' }}>+</button>
                               </div>
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '52px 1fr', alignItems: 'center', gap: '6px' }}>
-                              <span style={{ fontSize: '9px', color: '#a855f7', fontWeight: 900, textTransform: 'uppercase' }}>Depósito</span>
+                              <span style={{ fontSize: '9px', color: '#a855f7', fontWeight: 900, textTransform: 'uppercase' }}>{tx('Depósito','Depósito','Warehouse')}</span>
                               <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', backgroundColor: '#0f172a', padding: '4px 6px', borderRadius: '8px', border: '1px solid #4c1d95' }}>
-                                <button title="Transferir do depósito para a vitrine" onClick={() => idsComConflito.has(String(prod.id)) ? mostrarZen('danger', 'Conflito de identidade', 'Movimentação bloqueada porque este produto possui ID duplicado no catálogo.') : abrirMovimentoRapido(prod, 'deposito', -1)} style={{ width: '20px', height: '20px', borderRadius: '4px', backgroundColor: '#020617', border: '1px solid #334155', color: '#fb7185', fontWeight: 900, cursor: 'pointer' }}>-</button>
+                                <button title={tx('Transferir do depósito para a vitrine','Transferir de depósito a exhibición','Transfer from warehouse to display')} onClick={() => idsComConflito.has(String(prod.id)) ? mostrarZen('danger', 'Conflito de identidade', 'Movimentação bloqueada porque este produto possui ID duplicado no catálogo.') : abrirMovimentoRapido(prod, 'deposito', -1)} style={{ width: '20px', height: '20px', borderRadius: '4px', backgroundColor: '#020617', border: '1px solid #334155', color: '#fb7185', fontWeight: 900, cursor: 'pointer' }}>-</button>
                                 <span style={{ fontWeight: 900, fontSize: '14px', minWidth: '30px', textAlign: 'center', color: '#a855f7' }}>{prod.estoqueGalpao ?? 0}</span>
-                                <button title="Transferir da vitrine para o depósito" onClick={() => idsComConflito.has(String(prod.id)) ? mostrarZen('danger', 'Conflito de identidade', 'Movimentação bloqueada porque este produto possui ID duplicado no catálogo.') : abrirMovimentoRapido(prod, 'deposito', 1)} style={{ width: '20px', height: '20px', borderRadius: '4px', backgroundColor: '#020617', border: '1px solid #334155', color: '#34d399', fontWeight: 900, cursor: 'pointer' }}>+</button>
+                                <button title={tx('Transferir da vitrine para o depósito','Transferir de exhibición a depósito','Transfer from display to warehouse')} onClick={() => idsComConflito.has(String(prod.id)) ? mostrarZen('danger', 'Conflito de identidade', 'Movimentação bloqueada porque este produto possui ID duplicado no catálogo.') : abrirMovimentoRapido(prod, 'deposito', 1)} style={{ width: '20px', height: '20px', borderRadius: '4px', backgroundColor: '#020617', border: '1px solid #334155', color: '#34d399', fontWeight: 900, cursor: 'pointer' }}>+</button>
                               </div>
                             </div>
                           </div>
@@ -433,16 +433,16 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
                       </td>
                       <td style={{ padding: '16px 12px', textAlign: 'right', fontWeight: 700 }}>
                         <div style={{ display: 'grid', gridTemplateColumns: 'auto auto', justifyContent: 'end', alignItems: 'center', gap: '4px 6px', fontSize: '12px', lineHeight: '16px', whiteSpace: 'nowrap' }}>
-                          <span title="Último custo do fornecedor" style={{ backgroundColor: 'rgba(168, 85, 247, 0.08)', border: '1px solid rgba(168, 85, 247, 0.2)', borderRadius: '4px', padding: '0 4px', fontSize: '9px', fontWeight: 800, color: '#c4b5fd', textAlign: 'center' }}>CF</span>
+                          <span title={tx('Último custo do fornecedor','Último costo del proveedor','Last supplier cost')} style={{ backgroundColor: 'rgba(168, 85, 247, 0.08)', border: '1px solid rgba(168, 85, 247, 0.2)', borderRadius: '4px', padding: '0 4px', fontSize: '9px', fontWeight: 800, color: '#c4b5fd', textAlign: 'center' }}>CF</span>
                           <span style={{ color: '#c4b5fd' }}>{Number.isFinite(prod.ultimoCustoFornecedorBRL) && prod.ultimoCustoFornecedorBRL >= 0 ? fmt(prod.ultimoCustoFornecedorBRL) : '—'}</span>
-                          <span title="Custo médio/efetivo atual" style={{ backgroundColor: 'rgba(34, 211, 238, 0.08)', border: '1px solid rgba(34, 211, 238, 0.2)', borderRadius: '4px', padding: '0 4px', fontSize: '9px', fontWeight: 800, color: '#67e8f9', textAlign: 'center' }}>CMV</span>
+                          <span title={tx('Custo médio/efetivo atual','Costo medio/efectivo actual','Current average/effective cost')} style={{ backgroundColor: 'rgba(34, 211, 238, 0.08)', border: '1px solid rgba(34, 211, 238, 0.2)', borderRadius: '4px', padding: '0 4px', fontSize: '9px', fontWeight: 800, color: '#67e8f9', textAlign: 'center' }}>CMV</span>
                           <span style={{ color: '#67e8f9' }}>{fmt(custo)}</span>
                         </div>
                       </td>
                       <td style={{ padding: '16px 12px', textAlign: 'right', fontWeight: 900, color: '#34d399', fontSize: '15px' }}>{fmt(preco)}</td>
                       <td style={{ padding: '16px 12px', textAlign: 'right', fontWeight: 700, color: prod.habilitarPreco2 ? '#38bdf8' : '#475569' }}>{prod.habilitarPreco2 && prod.preco2BRL > 0 ? fmt(prod.preco2BRL) : '—'}</td>
                       <td style={{ padding: '16px 12px', textAlign: 'center' }}><span style={{ backgroundColor: margem >= 40 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)', color: margem >= 40 ? '#34d399' : '#fbbf24', border: `1px solid ${margem >= 40 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`, padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>{margem}%</span></td>
-                      <td style={{ padding: '16px 20px', textAlign: 'right' }}><div style={{display:'flex',gap:6,justifyContent:'flex-end'}}><button onClick={() => pedirExclusao(prod)} style={{background:'#2e0a16',border:'1px solid #7f1d1d',color:'#fb7185',padding:'7px 10px',borderRadius:8,fontSize:11,fontWeight:900,cursor:'pointer'}}>{prod.ativo===false?'Inativo':'Inativar'}</button><button onClick={() => abrirEdicaoProduto(prod)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#38bdf8', padding: '6px 14px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>Editar</button></div></td>
+                      <td style={{ padding: '16px 20px', textAlign: 'right' }}><div style={{display:'flex',gap:6,justifyContent:'flex-end'}}><button onClick={() => pedirExclusao(prod)} style={{background:'#2e0a16',border:'1px solid #7f1d1d',color:'#fb7185',padding:'7px 10px',borderRadius:8,fontSize:11,fontWeight:900,cursor:'pointer'}}>{prod.ativo===false?'Inativo':'Inativar'}</button><button onClick={() => abrirEdicaoProduto(prod)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#38bdf8', padding: '6px 14px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>{tx('Editar','Editar','Edit')}</button></div></td>
                     </tr>
                   );
                 })
@@ -455,18 +455,18 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       {modalMovimento && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2,6,23,0.88)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1700, padding: '16px' }}>
           <div style={{ width: '100%', maxWidth: '480px', backgroundColor: '#0b1120', border: '1px solid #0ea5e9', borderRadius: '20px', padding: '24px', color: '#fff' }}>
-            <div style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 900, textTransform: 'uppercase' }}>Movimentação Auditada</div>
+            <div style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 900, textTransform: 'uppercase' }}>{tx('Movimentação Auditada','Movimiento Auditado','Audited Movement')}</div>
             <h3 style={{ margin: '6px 0 6px', fontSize: '18px' }}>{modalMovimento.produto.nome}</h3>
             <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '16px' }}>
               {modalMovimento.origem === 'vitrine' ? 'Vitrine' : 'Depósito'} → {modalMovimento.destino === 'vitrine' ? 'Vitrine' : 'Depósito'}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '10px', marginBottom: '12px' }}>
-              <div><label style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800 }}>Quantidade</label><input type="number" min="0.01" step="0.01" value={movimentoQtd} onChange={(e) => setMovimentoQtd(e.target.value)} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '9px', boxSizing: 'border-box' }} /></div>
-              <div><label style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800 }}>Motivo *</label><select value={movimentoMotivo} onChange={(e) => setMovimentoMotivo(e.target.value)} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '9px' }}><option>Reposição da vitrine</option><option>Retorno ao depósito</option><option>Organização interna</option><option>Inventário / conferência</option><option>Outro</option></select></div>
+              <div><label style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800 }}>{tx('Quantidade','Cantidad','Quantity')}</label><input type="number" min="0.01" step="0.01" value={movimentoQtd} onChange={(e) => setMovimentoQtd(e.target.value)} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '9px', boxSizing: 'border-box' }} /></div>
+              <div><label style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800 }}>{tx('Motivo *','Motivo *','Reason *')}</label><select value={movimentoMotivo} onChange={(e) => setMovimentoMotivo(e.target.value)} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '9px' }}><option>{tx('Reposição da vitrine','Reposición de exhibición','Display replenishment')}</option><option>{tx('Retorno ao depósito','Retorno al depósito','Return to warehouse')}</option><option>{tx('Organização interna','Organización interna','Internal organization')}</option><option>{tx('Inventário / conferência','Inventario / verificación','Inventory / check')}</option><option>{tx('Outro','Otro','Other')}</option></select></div>
             </div>
-            <div style={{ marginBottom: '16px' }}><label style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800 }}>Observação</label><textarea value={movimentoObs} onChange={(e) => setMovimentoObs(e.target.value)} placeholder="Opcional: informe detalhes da movimentação" rows="3" style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '9px', boxSizing: 'border-box', resize: 'vertical' }} /></div>
-            <div style={{ padding: '10px 12px', backgroundColor: '#082f49', border: '1px solid #0e7490', borderRadius: '10px', color: '#bae6fd', fontSize: '11px', marginBottom: '16px' }}>Esta ação não altera o estoque total: apenas transfere unidades entre Vitrine e Depósito e registra operador, data, motivo e saldos antes/depois.</div>
-            <div style={{ display: 'flex', gap: '10px' }}><button disabled={salvandoMovimento} onClick={() => setModalMovimento(null)} style={{ flex: 1, padding: '11px', borderRadius: '9px', backgroundColor: '#1e293b', border: 'none', color: '#cbd5e1', cursor: 'pointer', fontWeight: 800 }}>Cancelar</button><button disabled={salvandoMovimento} onClick={confirmarMovimentoEstoque} style={{ flex: 2, padding: '11px', borderRadius: '9px', background: 'linear-gradient(135deg,#0284c7,#0369a1)', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 900 }}>{salvandoMovimento ? 'Registrando...' : 'Confirmar movimentação'}</button></div>
+            <div style={{ marginBottom: '16px' }}><label style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800 }}>{tx('Observação','Observación','Note')}</label><textarea value={movimentoObs} onChange={(e) => setMovimentoObs(e.target.value)} placeholder={tx('Opcional: informe detalhes da movimentação','Opcional: informe detalles del movimiento','Optional: enter movement details')} rows="3" style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '9px', boxSizing: 'border-box', resize: 'vertical' }} /></div>
+            <div style={{ padding: '10px 12px', backgroundColor: '#082f49', border: '1px solid #0e7490', borderRadius: '10px', color: '#bae6fd', fontSize: '11px', marginBottom: '16px' }}>{tx('Esta ação não altera o estoque total: apenas transfere unidades entre Vitrine e Depósito e registra operador, data, motivo e saldos antes/depois.','Esta acción no altera el stock total: solo transfiere unidades entre Exhibición y Depósito y registra operador, fecha, motivo y saldos antes/después.','This action does not change total stock: it only transfers units between Display and Warehouse and records operator, date, reason and balances before/after.')}</div>
+            <div style={{ display: 'flex', gap: '10px' }}><button disabled={salvandoMovimento} onClick={() => setModalMovimento(null)} style={{ flex: 1, padding: '11px', borderRadius: '9px', backgroundColor: '#1e293b', border: 'none', color: '#cbd5e1', cursor: 'pointer', fontWeight: 800 }}>{tx('Cancelar','Cancelar','Cancel')}</button><button disabled={salvandoMovimento} onClick={confirmarMovimentoEstoque} style={{ flex: 2, padding: '11px', borderRadius: '9px', background: 'linear-gradient(135deg,#0284c7,#0369a1)', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 900 }}>{salvandoMovimento ? 'Registrando...' : 'Confirmar movimentação'}</button></div>
           </div>
         </div>
       )}
@@ -477,14 +477,14 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
             
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div>
-                <span style={{ fontSize: '11px', fontWeight: 800, color: '#38bdf8', letterSpacing: '1px', textTransform: 'uppercase' }}>Ficha Cadastral Universal</span>
-                <h3 style={{ fontSize: '20px', fontWeight: 900, color: '#ffffff', margin: '2px 0 0 0' }}>{produtoEmEdicao ? `Editar: ${produtoEmEdicao.nome}` : 'Cadastrar Produto ou Serviço'}</h3>
+                <span style={{ fontSize: '11px', fontWeight: 800, color: '#38bdf8', letterSpacing: '1px', textTransform: 'uppercase' }}>{tx('Ficha Cadastral Universal','Ficha Universal','Universal Record')}</span>
+                <h3 style={{ fontSize: '20px', fontWeight: 900, color: '#ffffff', margin: '2px 0 0 0' }}>{produtoEmEdicao ? `${tx('Editar:','Editar:','Edit:')} ${produtoEmEdicao.nome}` : tx('Cadastrar Produto ou Serviço','Registrar Producto o Servicio','Register Product or Service')}</h3>
               </div>
               <button onClick={() => setModalProdutoAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#64748b', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>✕</button>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '18px' }}>
-              {[{ id: 'mercadoria', rotulo: 'Mercadoria Revenda', icone: '📦' }, { id: 'materia_prima', rotulo: 'Matéria-Prima', icone: '🧪' }, { id: 'kit', rotulo: 'Kit/Combo', icone: '🎁' }, { id: 'servico', rotulo: 'Serviço', icone: '🛠️' }].map(tipo => {
+              {[{ id: 'mercadoria', rotulo: tx('Mercadoria Revenda','Mercadería Reventa','Resale Goods'), icone: '📦' }, { id: 'materia_prima', rotulo: tx('Matéria-Prima','Materia Prima','Raw Material'), icone: '🧪' }, { id: 'kit', rotulo: tx('Kit/Combo','Kit/Combo','Kit/Combo'), icone: '🎁' }, { id: 'servico', rotulo: tx('Serviço','Servicio','Service'), icone: '🛠️' }].map(tipo => {
                 const ativo = formProduto.tipoItem === tipo.id;
                 return (
                   <button key={tipo.id} type="button" onClick={() => setFormProduto({ ...formProduto, tipoItem: tipo.id })} style={{ backgroundColor: ativo ? '#082f49' : '#020617', border: `1px solid ${ativo ? '#0284c7' : '#1e293b'}`, color: ativo ? '#38bdf8' : '#94a3b8', borderRadius: '10px', padding: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
@@ -496,9 +496,9 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
 
             <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr', gap: '18px', marginBottom: '18px' }}>
               <div>
-                <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Foto do Item</label>
+                <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>{tx('Foto do Item','Foto del Ítem','Item Photo')}</label>
                 <div onClick={() => fileInputRef.current?.click()} style={{ width: '130px', height: '115px', borderRadius: '12px', backgroundColor: '#020617', border: '2px dashed #334155', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden' }}>
-                  {formProduto.imagem ? <img src={formProduto.imagem} alt="Produto" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ textAlign: 'center', color: '#64748b' }}><span style={{ fontSize: '24px', display: 'block' }}>📷</span><span style={{ fontSize: '10px', fontWeight: 700 }}>Foto</span></div>}
+                  {formProduto.imagem ? <img src={formProduto.imagem} alt="Produto" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ textAlign: 'center', color: '#64748b' }}><span style={{ fontSize: '24px', display: 'block' }}>📷</span><span style={{ fontSize: '10px', fontWeight: 700 }}>{tx('Foto','Foto','Photo')}</span></div>}
                 </div>
                 <input ref={fileInputRef} type="file" accept="image/*" onChange={lidarUploadImagem} style={{ display: 'none' }} />
               </div>
@@ -506,20 +506,20 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 100px', gap: '10px' }}>
                   <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>SKU</label><input type="text" value={formProduto.sku} onChange={(e) => setFormProduto({ ...formProduto, sku: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 800, fontSize: '13px', padding: '8px 10px', outline: 'none' }} /></div>
-                  <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Nome do Item</label><input type="text" value={formProduto.nome} onChange={(e) => setFormProduto({ ...formProduto, nome: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 700, fontSize: '13px', padding: '8px 10px', outline: 'none' }} /></div>
-                  <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Unid</label><select value={formProduto.unidadeMedida} onChange={(e) => setFormProduto({ ...formProduto, unidadeMedida: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#38bdf8', fontSize: '12px', fontWeight: 900, padding: '8px', outline: 'none' }}><option value="UN">UN</option><option value="KG">KG</option><option value="L">L</option><option value="M">M</option><option value="M²">M²</option><option value="CX">CX</option><option value="KIT">KIT</option></select></div>
+                  <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Nome do Item','Nombre del Ítem','Item Name')}</label><input type="text" value={formProduto.nome} onChange={(e) => setFormProduto({ ...formProduto, nome: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 700, fontSize: '13px', padding: '8px 10px', outline: 'none' }} /></div>
+                  <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Unid','Unid','Unit')}</label><select value={formProduto.unidadeMedida} onChange={(e) => setFormProduto({ ...formProduto, unidadeMedida: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#38bdf8', fontSize: '12px', fontWeight: 900, padding: '8px', outline: 'none' }}><option value="UN">UN</option><option value="KG">KG</option><option value="L">L</option><option value="M">M</option><option value="M²">M²</option><option value="CX">CX</option><option value="KIT">KIT</option></select></div>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
                   <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Grupo</label><button type="button" onClick={() => setCriandoNovoGrupo(!criandoNovoGrupo)} style={{ background: 'none', border: 'none', color: '#38bdf8', fontSize: '10px', fontWeight: 800, cursor: 'pointer' }}>{criandoNovoGrupo ? 'Voltar' : '+ Criar'}</button></div>
-                    {criandoNovoGrupo ? <input type="text" value={novoGrupoTexto} onChange={(e) => setNovoGrupoTexto(e.target.value)} placeholder="Novo grupo..." style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #0284c7', borderRadius: '8px', color: '#38bdf8', fontSize: '12px', padding: '8px', outline: 'none' }} /> : <select value={formProduto.grupo} onChange={(e) => setFormProduto({ ...formProduto, grupo: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontSize: '12px', padding: '8px', outline: 'none' }}>{gruposCadastrados.map(g => <option key={g} value={g}>{g}</option>)}</select>}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Grupo','Grupo','Group')}</label><button type="button" onClick={() => setCriandoNovoGrupo(!criandoNovoGrupo)} style={{ background: 'none', border: 'none', color: '#38bdf8', fontSize: '10px', fontWeight: 800, cursor: 'pointer' }}>{criandoNovoGrupo ? 'Voltar' : '+ Criar'}</button></div>
+                    {criandoNovoGrupo ? <input type="text" value={novoGrupoTexto} onChange={(e) => setNovoGrupoTexto(e.target.value)} placeholder={tx('Novo grupo...','Nuevo grupo...','New group...')} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #0284c7', borderRadius: '8px', color: '#38bdf8', fontSize: '12px', padding: '8px', outline: 'none' }} /> : <select value={formProduto.grupo} onChange={(e) => setFormProduto({ ...formProduto, grupo: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontSize: '12px', padding: '8px', outline: 'none' }}>{gruposCadastrados.map(g => <option key={g} value={g}>{g}</option>)}</select>}
                   </div>
-                  <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Marca</label><input type="text" value={formProduto.marca} onChange={(e) => setFormProduto({ ...formProduto, marca: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontSize: '12px', padding: '8px 10px', outline: 'none' }} /></div>
+                  <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Marca','Marca','Brand')}</label><input type="text" value={formProduto.marca} onChange={(e) => setFormProduto({ ...formProduto, marca: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontSize: '12px', padding: '8px 10px', outline: 'none' }} /></div>
                   
                   {/* --- O Campo de Fornecedor dinâmico e inteligente --- */}
                   <div style={{ position: 'relative' }}>
-                    <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Fornecedor</label>
+                    <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Fornecedor','Proveedor','Supplier')}</label>
                     <input 
                       type="text" 
                       value={formProduto.fornecedor || ''} 
@@ -530,7 +530,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
                       onFocus={() => setMostrarFornecedores(true)}
                       onBlur={() => setTimeout(() => setMostrarFornecedores(false), 250)}
                       autoComplete="off"
-                      placeholder="Buscar..."
+                      placeholder={tx('Buscar...','Buscar...','Search...')}
                       style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontSize: '12px', padding: '8px 10px', outline: 'none' }} 
                     />
                     {mostrarFornecedores && (
@@ -556,7 +556,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
                         ))}
                         {fornecedoresCadastrados.filter(f => f.toLowerCase().includes((formProduto.fornecedor || '').toLowerCase())).length === 0 && (
                           <div style={{ padding: '8px 10px', color: '#64748b', fontSize: '11px', fontStyle: 'italic' }}>
-                            {formProduto.fornecedor ? 'Novo fornecedor...' : 'Nenhum salvo ainda.'}
+                            {formProduto.fornecedor ? tx('Novo fornecedor...','Nuevo proveedor...','New supplier...') : tx('Nenhum salvo ainda.','Ninguno guardado aún.','None saved yet.')}
                           </div>
                         )}
                       </div>
@@ -564,49 +564,49 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
                   </div>
                   {/* --------------------------------------------------- */}
 
-                  <div><label style={{ fontSize: '11px', color: '#34d399', fontWeight: 800 }}>Localização Física</label><input type="text" value={formProduto.localizacao} onChange={(e) => setFormProduto({ ...formProduto, localizacao: e.target.value })} placeholder="Ex: Gôndola 1, Prat. A" style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #10b981', borderRadius: '8px', color: '#ffffff', fontSize: '12px', padding: '8px 10px', outline: 'none' }} /></div>
+                  <div><label style={{ fontSize: '11px', color: '#34d399', fontWeight: 800 }}>{tx('Localização Física','Ubicación Física','Physical Location')}</label><input type="text" value={formProduto.localizacao} onChange={(e) => setFormProduto({ ...formProduto, localizacao: e.target.value })} placeholder={tx('Ex: Gôndola 1, Prat. A','Ej: Góndola 1, Est. A','Ex: Aisle 1, Shelf A')} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #10b981', borderRadius: '8px', color: '#ffffff', fontSize: '12px', padding: '8px 10px', outline: 'none' }} /></div>
                 </div>
               </div>
             </div>
 
             <div style={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', padding: '16px 20px', marginBottom: '18px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: '12px', alignItems: 'start', marginBottom: '8px' }}>
-                <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>Custo (R$)</label><input type="text" value={formProduto.custoBRL} onChange={(e) => setFormProduto({ ...formProduto, custoBRL: e.target.value, precoBRL: atualizarPrecoPorCustoEMargem(e.target.value, formProduto.margemDesejada) })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontWeight: 800, fontSize: '14px', textAlign: 'right', padding: '6px 10px', outline: 'none' }} /></div>
-                <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>Margem sobre venda (%)</label><input type="number" min="0" max={MAX_MARGEM_PRECO_PCT} step="0.1" value={formProduto.margemDesejada} onChange={(e) => setFormProduto({ ...formProduto, margemDesejada: e.target.value, precoBRL: atualizarPrecoPorCustoEMargem(formProduto.custoBRL, e.target.value) })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: `1px solid ${validarMargemPrecoVenda(formProduto.margemDesejada).ok ? '#334155' : '#f43f5e'}`, borderRadius: '8px', color: validarMargemPrecoVenda(formProduto.margemDesejada).ok ? '#fbbf24' : '#fb7185', fontWeight: 800, fontSize: '14px', textAlign: 'right', padding: '6px 10px', outline: 'none' }} /></div>
-                <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>Preço Venda</label><input type="text" value={formProduto.precoBRL} onChange={(e) => setFormProduto({ ...formProduto, precoBRL: e.target.value, margemDesejada: atualizarMargemPorPreco(formProduto.custoBRL, e.target.value) })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: '1px solid #34d399', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', padding: '6px 10px', outline: 'none' }} /></div>
-                <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#38bdf8', fontWeight: 700 }}>Vitrine / Loja</label><input type="number" disabled={formProduto.tipoItem === 'servico' || Boolean(produtoEmEdicao)} value={formProduto.estoqueVitrine} onChange={(e) => setFormProduto({ ...formProduto, estoqueVitrine: e.target.value })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: '1px solid #0369a1', borderRadius: '8px', color: '#38bdf8', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '6px', outline: 'none' }} /></div>
-                <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#a855f7', fontWeight: 700 }}>Galpão / Depósito</label><input type="number" disabled={formProduto.tipoItem === 'servico' || Boolean(produtoEmEdicao)} value={formProduto.estoqueGalpao} onChange={(e) => setFormProduto({ ...formProduto, estoqueGalpao: e.target.value })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: '1px solid #7e22ce', borderRadius: '8px', color: '#a855f7', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '6px', outline: 'none' }} /></div>
+                <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Custo (R$)','Costo (R$)','Cost (R$)')}</label><input type="text" value={formProduto.custoBRL} onChange={(e) => setFormProduto({ ...formProduto, custoBRL: e.target.value, precoBRL: atualizarPrecoPorCustoEMargem(e.target.value, formProduto.margemDesejada) })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontWeight: 800, fontSize: '14px', textAlign: 'right', padding: '6px 10px', outline: 'none' }} /></div>
+                <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Margem sobre venda (%)','Margen sobre venta (%)','Margin on sale (%)')}</label><input type="number" min="0" max={MAX_MARGEM_PRECO_PCT} step="0.1" value={formProduto.margemDesejada} onChange={(e) => setFormProduto({ ...formProduto, margemDesejada: e.target.value, precoBRL: atualizarPrecoPorCustoEMargem(formProduto.custoBRL, e.target.value) })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: `1px solid ${validarMargemPrecoVenda(formProduto.margemDesejada).ok ? '#334155' : '#f43f5e'}`, borderRadius: '8px', color: validarMargemPrecoVenda(formProduto.margemDesejada).ok ? '#fbbf24' : '#fb7185', fontWeight: 800, fontSize: '14px', textAlign: 'right', padding: '6px 10px', outline: 'none' }} /></div>
+                <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Preço Venda','Precio Venta','Sale Price')}</label><input type="text" value={formProduto.precoBRL} onChange={(e) => setFormProduto({ ...formProduto, precoBRL: e.target.value, margemDesejada: atualizarMargemPorPreco(formProduto.custoBRL, e.target.value) })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: '1px solid #34d399', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', padding: '6px 10px', outline: 'none' }} /></div>
+                <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#38bdf8', fontWeight: 700 }}>{tx('Vitrine / Loja','Exhibición / Tienda','Display / Store')}</label><input type="number" disabled={formProduto.tipoItem === 'servico' || Boolean(produtoEmEdicao)} value={formProduto.estoqueVitrine} onChange={(e) => setFormProduto({ ...formProduto, estoqueVitrine: e.target.value })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: '1px solid #0369a1', borderRadius: '8px', color: '#38bdf8', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '6px', outline: 'none' }} /></div>
+                <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#a855f7', fontWeight: 700 }}>{tx('Galpão / Depósito','Depósito / Almacén','Warehouse / Storage')}</label><input type="number" disabled={formProduto.tipoItem === 'servico' || Boolean(produtoEmEdicao)} value={formProduto.estoqueGalpao} onChange={(e) => setFormProduto({ ...formProduto, estoqueGalpao: e.target.value })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: '1px solid #7e22ce', borderRadius: '8px', color: '#a855f7', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '6px', outline: 'none' }} /></div>
               </div>
-              <div style={{fontSize:'9px',color:'#64748b',margin:'0 0 10px'}}>Margem calculada sobre a venda. Máx. 99,9%. Ex.: custo 10 + margem 40% = venda 16,67.</div>
+              <div style={{fontSize:'9px',color:'#64748b',margin:'0 0 10px'}}>{tx('Margem calculada sobre a venda. Máx. 99,9%. Ex.: custo 10 + margem 40% = venda 16,67.','Margen calculada sobre la venta. Máx. 99,9%. Ej.: costo 10 + margen 40% = venta 16,67.','Margin calculated on sale price. Max. 99.9%. Ex.: cost 10 + 40% margin = sale 16.67.')}</div>
               <div style={{ borderTop: '1px solid #1e293b', paddingTop: '10px', display: 'flex', gap: '20px', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><input type="checkbox" checked={formProduto.habilitarPreco2} onChange={(e) => setFormProduto({ ...formProduto, habilitarPreco2: e.target.checked })} style={{ cursor: 'pointer' }} /><label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 700 }}>Preço 2 (Atacado)</label>{formProduto.habilitarPreco2 && <input type="text" value={formProduto.preco2BRL} onChange={(e) => setFormProduto({ ...formProduto, preco2BRL: e.target.value })} onFocus={(e) => e.target.select()} style={{ width: '90px', backgroundColor: '#0b1120', border: '1px solid #38bdf8', borderRadius: '6px', color: '#38bdf8', fontWeight: 800, fontSize: '12px', textAlign: 'right', padding: '4px 8px', outline: 'none' }} />}</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><input type="checkbox" checked={formProduto.habilitarPreco3} onChange={(e) => setFormProduto({ ...formProduto, habilitarPreco3: e.target.checked })} style={{ cursor: 'pointer' }} /><label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 700 }}>Preço 3 (Distrib.)</label>{formProduto.habilitarPreco3 && <input type="text" value={formProduto.preco3BRL} onChange={(e) => setFormProduto({ ...formProduto, preco3BRL: e.target.value })} onFocus={(e) => e.target.select()} style={{ width: '90px', backgroundColor: '#0b1120', border: '1px solid #818cf8', borderRadius: '6px', color: '#818cf8', fontWeight: 800, fontSize: '12px', textAlign: 'right', padding: '4px 8px', outline: 'none' }} />}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><input type="checkbox" checked={formProduto.habilitarPreco2} onChange={(e) => setFormProduto({ ...formProduto, habilitarPreco2: e.target.checked })} style={{ cursor: 'pointer' }} /><label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 700 }}>{tx('Preço 2 (Atacado)','Precio 2 (Mayorista)','Price 2 (Wholesale)')}</label>{formProduto.habilitarPreco2 && <input type="text" value={formProduto.preco2BRL} onChange={(e) => setFormProduto({ ...formProduto, preco2BRL: e.target.value })} onFocus={(e) => e.target.select()} style={{ width: '90px', backgroundColor: '#0b1120', border: '1px solid #38bdf8', borderRadius: '6px', color: '#38bdf8', fontWeight: 800, fontSize: '12px', textAlign: 'right', padding: '4px 8px', outline: 'none' }} />}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><input type="checkbox" checked={formProduto.habilitarPreco3} onChange={(e) => setFormProduto({ ...formProduto, habilitarPreco3: e.target.checked })} style={{ cursor: 'pointer' }} /><label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 700 }}>{tx('Preço 3 (Distrib.)','Precio 3 (Distrib.)','Price 3 (Distributor)')}</label>{formProduto.habilitarPreco3 && <input type="text" value={formProduto.preco3BRL} onChange={(e) => setFormProduto({ ...formProduto, preco3BRL: e.target.value })} onFocus={(e) => e.target.select()} style={{ width: '90px', backgroundColor: '#0b1120', border: '1px solid #818cf8', borderRadius: '6px', color: '#818cf8', fontWeight: 800, fontSize: '12px', textAlign: 'right', padding: '4px 8px', outline: 'none' }} />}</div>
               </div>
             </div>
 
             <div style={{ backgroundColor: '#070d19', border: '1px solid #1e293b', borderRadius: '16px', overflow: 'hidden', marginBottom: '24px' }}>
               <div onClick={() => setSecaoFiscalExpandida(!secaoFiscalExpandida)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', cursor: 'pointer', backgroundColor: secaoFiscalExpandida ? '#0c1527' : '#070d19', borderBottom: secaoFiscalExpandida ? '1px solid #1e293b' : 'none' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span style={{ fontSize: '14px' }}>⚖️</span><span style={{ fontSize: '12px', fontWeight: 800, color: '#94a3b8' }}>Parâmetros Fiscais (NCM / DNIT / IVA)</span></div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span style={{ fontSize: '14px' }}>⚖️</span><span style={{ fontSize: '12px', fontWeight: 800, color: '#94a3b8' }}>{tx('Parâmetros Fiscais (NCM / DNIT / IVA)','Parámetros Fiscales (NCM / DNIT / IVA)','Fiscal Parameters (NCM / DNIT / VAT)')}</span></div>
                 <span style={{ color: '#64748b', fontSize: '12px', fontWeight: 900 }}>{secaoFiscalExpandida ? '▲ Recolher' : '▼ Expandir'}</span>
               </div>
               {secaoFiscalExpandida && (
                 <div style={{ padding: '20px' }}>
                   <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
-                    <button type="button" onClick={() => setPaisRegulamentoFiscal('BR')} style={{ backgroundColor: paisRegulamentoFiscal === 'BR' ? '#064e3b' : '#020617', border: `1px solid ${paisRegulamentoFiscal === 'BR' ? '#10b981' : '#334155'}`, color: paisRegulamentoFiscal === 'BR' ? '#34d399' : '#94a3b8', padding: '4px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>🇧🇷 Brasil (NCM)</button>
-                    <button type="button" onClick={() => setPaisRegulamentoFiscal('PY')} style={{ backgroundColor: paisRegulamentoFiscal === 'PY' ? '#1e1b4b' : '#020617', border: `1px solid ${paisRegulamentoFiscal === 'PY' ? '#6366f1' : '#334155'}`, color: paisRegulamentoFiscal === 'PY' ? '#a5b4fc' : '#94a3b8', padding: '4px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>🇵🇾 Paraguai (DNIT)</button>
+                    <button type="button" onClick={() => setPaisRegulamentoFiscal('BR')} style={{ backgroundColor: paisRegulamentoFiscal === 'BR' ? '#064e3b' : '#020617', border: `1px solid ${paisRegulamentoFiscal === 'BR' ? '#10b981' : '#334155'}`, color: paisRegulamentoFiscal === 'BR' ? '#34d399' : '#94a3b8', padding: '4px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>{tx('🇧🇷 Brasil (NCM)','🇧🇷 Brasil (NCM)','🇧🇷 Brazil (NCM)')}</button>
+                    <button type="button" onClick={() => setPaisRegulamentoFiscal('PY')} style={{ backgroundColor: paisRegulamentoFiscal === 'PY' ? '#1e1b4b' : '#020617', border: `1px solid ${paisRegulamentoFiscal === 'PY' ? '#6366f1' : '#334155'}`, color: paisRegulamentoFiscal === 'PY' ? '#a5b4fc' : '#94a3b8', padding: '4px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>🇵🇾 {tx('Paraguai (DNIT)','Paraguay (DNIT)','Paraguay (DNIT)')}</button>
                   </div>
                   {paisRegulamentoFiscal === 'BR' ? (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
                       <div><label style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800 }}>NCM</label><input type="text" value={formProduto.ncm} onChange={(e) => setFormProduto({ ...formProduto, ncm: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontSize: '12px', padding: '8px', outline: 'none' }} /></div>
                       <div><label style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800 }}>CEST</label><input type="text" value={formProduto.cest} onChange={(e) => setFormProduto({ ...formProduto, cest: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontSize: '12px', padding: '8px', outline: 'none' }} /></div>
-                      <div><label style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800 }}>CFOP Saída</label><input type="text" value={formProduto.cfop} onChange={(e) => setFormProduto({ ...formProduto, cfop: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontSize: '12px', padding: '8px', outline: 'none' }} /></div>
-                      <div><label style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800 }}>Origem</label><select value={formProduto.origem} onChange={(e) => setFormProduto({ ...formProduto, origem: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontSize: '11px', padding: '8px', outline: 'none' }}><option value="0">0 - Nacional</option><option value="1">1 - Importada</option></select></div>
+                      <div><label style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800 }}>{tx('CFOP Saída','CFOP Salida','CFOP Output')}</label><input type="text" value={formProduto.cfop} onChange={(e) => setFormProduto({ ...formProduto, cfop: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontSize: '12px', padding: '8px', outline: 'none' }} /></div>
+                      <div><label style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800 }}>{tx('Origem','Origen','Origin')}</label><select value={formProduto.origem} onChange={(e) => setFormProduto({ ...formProduto, origem: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontSize: '11px', padding: '8px', outline: 'none' }}><option value="0">{tx('0 - Nacional','0 - Nacional','0 - Domestic')}</option><option value="1">{tx('1 - Importada','1 - Importada','1 - Imported')}</option></select></div>
                     </div>
                   ) : (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px' }}>
-                      <div><label style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800 }}>Código DNIT</label><input type="text" value={formProduto.codigoDnit} onChange={(e) => setFormProduto({ ...formProduto, codigoDnit: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontSize: '12px', padding: '8px', outline: 'none' }} /></div>
-                      <div><label style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800 }}>Tasa IVA (PY)</label><select value={formProduto.ivaParaguai} onChange={(e) => setFormProduto({ ...formProduto, ivaParaguai: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontSize: '12px', padding: '8px', outline: 'none' }}><option value="10">10%</option><option value="5">5%</option><option value="0">Exento</option></select></div>
-                      <div><label style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800 }}>Unidad SIFEN</label><select value={formProduto.unidadMedidaPy} onChange={(e) => setFormProduto({ ...formProduto, unidadMedidaPy: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontSize: '12px', padding: '8px', outline: 'none' }}><option value="UNI">Unidad</option><option value="GL">Galón</option><option value="LT">Litro</option></select></div>
+                      <div><label style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800 }}>{tx('Código DNIT','Código DNIT','DNIT Code')}</label><input type="text" value={formProduto.codigoDnit} onChange={(e) => setFormProduto({ ...formProduto, codigoDnit: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontSize: '12px', padding: '8px', outline: 'none' }} /></div>
+                      <div><label style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800 }}>{tx('Taxa IVA (PY)','Tasa IVA (PY)','VAT Rate (PY)')}</label><select value={formProduto.ivaParaguai} onChange={(e) => setFormProduto({ ...formProduto, ivaParaguai: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontSize: '12px', padding: '8px', outline: 'none' }}><option value="10">10%</option><option value="5">5%</option><option value="0">{tx('Isento','Exento','Exempt')}</option></select></div>
+                      <div><label style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800 }}>{tx('Unidade SIFEN','Unidad SIFEN','SIFEN Unit')}</label><select value={formProduto.unidadMedidaPy} onChange={(e) => setFormProduto({ ...formProduto, unidadMedidaPy: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontSize: '12px', padding: '8px', outline: 'none' }}><option value="UNI">{tx('Unidade','Unidad','Unit')}</option><option value="GL">{tx('Galão','Galón','Gallon')}</option><option value="LT">{tx('Litro','Litro','Liter')}</option></select></div>
                     </div>
                   )}
                 </div>
@@ -616,39 +616,39 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
             {produtoEmEdicao && (
               <div style={{ backgroundColor: '#070d19', border: '1px solid #1e293b', borderRadius: '16px', overflow: 'hidden', marginBottom: '24px' }}>
                 <div onClick={alternarHistorico} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', cursor: 'pointer', backgroundColor: historicoExpandido ? '#0c1527' : '#070d19', borderBottom: historicoExpandido ? '1px solid #1e293b' : 'none' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span>🧾</span><span style={{ fontSize: '12px', fontWeight: 900, color: '#cbd5e1' }}>Histórico de Movimentações de Estoque</span></div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span>🧾</span><span style={{ fontSize: '12px', fontWeight: 900, color: '#cbd5e1' }}>{tx('Histórico de Movimentações de Estoque','Historial de Movimientos de Stock','Stock Movement History')}</span></div>
                   <span style={{ color: '#64748b', fontSize: '12px', fontWeight: 900 }}>{historicoExpandido ? '▲ Recolher' : '▼ Expandir'}</span>
                 </div>
                 {historicoExpandido && (
                   <div style={{ padding: '18px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: '14px' }}>
                       <div>
-                        <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Plano: <span style={{ color: '#38bdf8' }}>{obterPoliticaHistoricoEstoque(planoLoja).rotulo}</span></div>
-                        <div style={{ fontSize: '10px', color: '#64748b' }}>Janela consultável: últimos {obterPoliticaHistoricoEstoque(planoLoja).dias} dias. A exclusão física automática não é feita nesta ATT.</div>
+                        <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Plano:','Plan:','Plan:')} <span style={{ color: '#38bdf8' }}>{obterPoliticaHistoricoEstoque(planoLoja).rotulo}</span></div>
+                        <div style={{ fontSize: '10px', color: '#64748b' }}>{tx('Janela consultável: últimos','Ventana consultable: últimos','Available window: last')} {obterPoliticaHistoricoEstoque(planoLoja).dias} {tx('dias. A exclusão física automática não é feita nesta ATT.','días. La eliminación física automática no se realiza en esta ATT.','days. Automatic physical deletion is not performed in this ATT.')}</div>
                       </div>
-                      <button type="button" onClick={() => carregarHistoricoProduto(produtoEmEdicao.id)} style={{ backgroundColor: '#082f49', border: '1px solid #0284c7', color: '#38bdf8', borderRadius: '8px', padding: '7px 12px', fontWeight: 800, cursor: 'pointer' }}>Atualizar</button>
+                      <button type="button" onClick={() => carregarHistoricoProduto(produtoEmEdicao.id)} style={{ backgroundColor: '#082f49', border: '1px solid #0284c7', color: '#38bdf8', borderRadius: '8px', padding: '7px 12px', fontWeight: 800, cursor: 'pointer' }}>{tx('Atualizar','Actualizar','Refresh')}</button>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '10px', marginBottom: '14px' }}>
-                      <div><label style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800 }}>De</label><input type="date" value={filtroHistoricoInicio} onChange={(e) => setFiltroHistoricoInicio(e.target.value)} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '8px', boxSizing: 'border-box' }} /></div>
-                      <div><label style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800 }}>Até</label><input type="date" value={filtroHistoricoFim} onChange={(e) => setFiltroHistoricoFim(e.target.value)} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '8px', boxSizing: 'border-box' }} /></div>
-                      <div style={{ display: 'flex', alignItems: 'end' }}><button type="button" onClick={() => carregarHistoricoProduto(produtoEmEdicao.id)} style={{ width: '100%', backgroundColor: '#1e293b', border: '1px solid #475569', color: '#e2e8f0', borderRadius: '8px', padding: '8px', fontWeight: 800, cursor: 'pointer' }}>Filtrar datas</button></div>
+                      <div><label style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800 }}>{tx('De','Desde','From')}</label><input type="date" value={filtroHistoricoInicio} onChange={(e) => setFiltroHistoricoInicio(e.target.value)} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '8px', boxSizing: 'border-box' }} /></div>
+                      <div><label style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800 }}>{tx('Até','Hasta','To')}</label><input type="date" value={filtroHistoricoFim} onChange={(e) => setFiltroHistoricoFim(e.target.value)} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '8px', boxSizing: 'border-box' }} /></div>
+                      <div style={{ display: 'flex', alignItems: 'end' }}><button type="button" onClick={() => carregarHistoricoProduto(produtoEmEdicao.id)} style={{ width: '100%', backgroundColor: '#1e293b', border: '1px solid #475569', color: '#e2e8f0', borderRadius: '8px', padding: '8px', fontWeight: 800, cursor: 'pointer' }}>{tx('Filtrar datas','Filtrar fechas','Filter dates')}</button></div>
                     </div>
                     {carregandoHistorico ? (
-                      <div style={{ color: '#94a3b8', padding: '20px', textAlign: 'center' }}>Carregando histórico...</div>
+                      <div style={{ color: '#94a3b8', padding: '20px', textAlign: 'center' }}>{tx('Carregando histórico...','Cargando historial...','Loading history...')}</div>
                     ) : historicoMovimentos.length === 0 ? (
-                      <div style={{ color: '#64748b', padding: '20px', textAlign: 'center', backgroundColor: '#020617', borderRadius: '10px' }}>Nenhuma movimentação registrada dentro do período disponível.</div>
+                      <div style={{ color: '#64748b', padding: '20px', textAlign: 'center', backgroundColor: '#020617', borderRadius: '10px' }}>{tx('Nenhuma movimentação registrada dentro do período disponível.','Ningún movimiento registrado en el período disponible.','No movement recorded in the available period.')}</div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '320px', overflowY: 'auto' }}>
                         {historicoMovimentos.map((mov) => (
                           <div key={mov.id} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '10px', padding: '10px 12px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
-                              <strong style={{ color: '#e2e8f0', fontSize: '12px' }}>{mov.tipo === 'transferencia_interna' ? '↔ Transferência interna' : mov.tipo === 'venda' ? '🛒 Venda' : mov.tipo === 'devolucao' ? '↩ Devolução' : mov.tipo === 'compra_entrada' ? '📦 Entrada de compra' : mov.tipo}</strong>
+                              <strong style={{ color: '#e2e8f0', fontSize: '12px' }}>{mov.tipo === 'transferencia_interna' ? `↔ ${tx('Transferência interna','Transferencia interna','Internal transfer')}` : mov.tipo === 'venda' ? `🛒 ${tx('Venda','Venta','Sale')}` : mov.tipo === 'devolucao' ? `↩ ${tx('Devolução','Devolución','Return')}` : mov.tipo === 'compra_entrada' ? `📦 ${tx('Entrada de compra','Entrada de compra','Purchase entry')}` : mov.tipo}</strong>
                               <span style={{ color: '#64748b', fontSize: '10px' }}>{mov.createdAt ? new Date(mov.createdAt).toLocaleString('pt-BR') : '—'}</span>
                             </div>
                             <div style={{ marginTop: '6px', color: '#cbd5e1', fontSize: '11px' }}>
                               <span style={{ color: '#38bdf8', fontWeight: 800 }}>{mov.quantidade}</span> un. • {mov.origem || 'externo'} → {mov.destino || '—'} • {mov.motivo || 'Sem motivo'}
                             </div>
-                            <div style={{ marginTop: '4px', color: '#64748b', fontSize: '10px' }}>Operador: {mov.operadorNome || '—'}{mov.referenciaId ? ` • Ref.: ${mov.referenciaId}` : ''}</div>
+                            <div style={{ marginTop: '4px', color: '#64748b', fontSize: '10px' }}>{tx('Operador:','Operador:','Operator:')} {mov.operadorNome || '—'}{mov.referenciaId ? ` • Ref.: ${mov.referenciaId}` : ''}</div>
                             {mov.saldoAntes && mov.saldoDepois && <div style={{ marginTop: '4px', color: '#94a3b8', fontSize: '10px' }}>Antes V/D/T: {mov.saldoAntes.vitrine}/{mov.saldoAntes.deposito}/{mov.saldoAntes.total} → Depois: {mov.saldoDepois.vitrine}/{mov.saldoDepois.deposito}/{mov.saldoDepois.total}</div>}
                             {mov.observacao && <div style={{ marginTop: '4px', color: '#94a3b8', fontSize: '10px' }}>Obs.: {mov.observacao}</div>}
                           </div>
@@ -661,8 +661,8 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
             )}
 
             <div style={{ display: 'flex', gap: '12px' }}>
-              <button onClick={() => setModalProdutoAberto(false)} style={{ flex: 1, backgroundColor: '#020617', border: '1px solid #1e293b', color: '#94a3b8', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={salvarProduto} style={{ flex: 2, background: 'linear-gradient(135deg, #0284c7, #0369a1)', border: 'none', color: '#ffffff', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 900, cursor: 'pointer' }}>Salvar Produto no Sistema</button>
+              <button onClick={() => setModalProdutoAberto(false)} style={{ flex: 1, backgroundColor: '#020617', border: '1px solid #1e293b', color: '#94a3b8', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}>{tx('Cancelar','Cancelar','Cancel')}</button>
+              <button onClick={salvarProduto} style={{ flex: 2, background: 'linear-gradient(135deg, #0284c7, #0369a1)', border: 'none', color: '#ffffff', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 900, cursor: 'pointer' }}>{tx('Salvar Produto no Sistema','Guardar Producto en el Sistema','Save Product in System')}</button>
             </div>
           </div>
         </div>
@@ -670,7 +670,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
     
       <ZenModal aberto={!!modalZen} variante={modalZen?.variante} titulo={modalZen?.titulo} mensagem={modalZen?.mensagem} detalhes={modalZen?.detalhes} apenasConfirmar={true} onConfirmar={()=>setModalZen(null)} onCancelar={()=>setModalZen(null)} />
 
-      {modalExcluir && <div style={{position:'fixed',inset:0,zIndex:20000,background:'rgba(2,6,23,.88)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}><div style={{maxWidth:480,width:'100%',background:'#0b1120',border:'1px solid #f43f5e',borderRadius:22,padding:22,color:'#fff'}}><div style={{display:'flex',gap:12,alignItems:'center'}}><img src="/logo-zenos.png?v=4" style={{width:46,height:46,objectFit:'contain'}}/><div><div style={{color:'#fb7185',fontSize:11,fontWeight:900}}>AÇÃO GERENCIAL</div><h3 style={{margin:'3px 0'}}>Inativar / excluir produto</h3></div></div><p style={{color:'#cbd5e1',fontSize:13,lineHeight:1.5}}>Se o produto já participou de venda ou compra, ele será apenas <b>inativado</b> para preservar o histórico. Exclusão física só ocorre em cadastro sem uso.</p><input type="text" autoComplete="one-time-code" name="zenos-product-manager-pin" data-lpignore="true" data-1p-ignore="true" value={senhaExclusao} onChange={e=>setSenhaExclusao(e.target.value)} placeholder="PIN do Administrador / Gerência" style={{width:'100%',WebkitTextSecurity:'disc',boxSizing:'border-box',padding:12,borderRadius:10,border:'1px solid #334155',background:'#020617',color:'#fff'}}/><div style={{display:'flex',gap:10,marginTop:14}}><button onClick={()=>setModalExcluir(null)} style={{flex:1,padding:11,borderRadius:10,border:'1px solid #334155',background:'#020617',color:'#cbd5e1'}}>Cancelar</button><button onClick={confirmarExclusao} style={{flex:1,padding:11,borderRadius:10,border:'none',background:'#e11d48',color:'#fff',fontWeight:900}}>Confirmar</button></div></div></div>}
+      {modalExcluir && <div style={{position:'fixed',inset:0,zIndex:20000,background:'rgba(2,6,23,.88)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}><div style={{maxWidth:480,width:'100%',background:'#0b1120',border:'1px solid #f43f5e',borderRadius:22,padding:22,color:'#fff'}}><div style={{display:'flex',gap:12,alignItems:'center'}}><img src="/logo-zenos.png?v=4" style={{width:46,height:46,objectFit:'contain'}}/><div><div style={{color:'#fb7185',fontSize:11,fontWeight:900}}>{tx('AÇÃO GERENCIAL','ACCIÓN GERENCIAL','MANAGEMENT ACTION')}</div><h3 style={{margin:'3px 0'}}>{tx('Inativar / excluir produto','Inactivar / eliminar producto','Deactivate / delete product')}</h3></div></div><p style={{color:'#cbd5e1',fontSize:13,lineHeight:1.5}}>{tx('Se o produto já participou de venda ou compra, ele será apenas','Si el producto ya participó de una venta o compra, será solamente','If the product has already been used in a sale or purchase, it will only be')} <b>{tx('inativado','inactivado','deactivated')}</b> {tx('para preservar o histórico. Exclusão física só ocorre em cadastro sem uso.','para preservar el historial. La eliminación física solo ocurre en registros sin uso.','to preserve history. Physical deletion only occurs for unused records.')}</p><input type="text" autoComplete="one-time-code" name="zenos-product-manager-pin" data-lpignore="true" data-1p-ignore="true" value={senhaExclusao} onChange={e=>setSenhaExclusao(e.target.value)} placeholder={tx('PIN do Administrador / Gerência','PIN del Administrador / Gerencia','Administrator / Management PIN')} style={{width:'100%',WebkitTextSecurity:'disc',boxSizing:'border-box',padding:12,borderRadius:10,border:'1px solid #334155',background:'#020617',color:'#fff'}}/><div style={{display:'flex',gap:10,marginTop:14}}><button onClick={()=>setModalExcluir(null)} style={{flex:1,padding:11,borderRadius:10,border:'1px solid #334155',background:'#020617',color:'#cbd5e1'}}>{tx('Cancelar','Cancelar','Cancel')}</button><button onClick={confirmarExclusao} style={{flex:1,padding:11,borderRadius:10,border:'none',background:'#e11d48',color:'#fff',fontWeight:900}}>{tx('Confirmar','Confirmar','Confirm')}</button></div></div></div>}
 </div>
   );
 }

@@ -3,7 +3,7 @@ import { normalizarCliente } from '../data';
 import ZenModal from './ZenModal';
 import { formaEhDinheiro, lancamentosDoCliente } from '../core/financialLedger';
 
-export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, setClientes, moeda, fmt, t, converterDeBRL, converterParaBRL }) {
+export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, setClientes, moeda, fmt, t, tx = (pt) => pt, converterDeBRL, converterParaBRL }) {
   const [filtroPaisCliente, setFiltroPaisCliente] = useState('todos');
   const [buscaClienteTexto, setBuscaClienteTexto] = useState('');
   
@@ -63,7 +63,7 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
   };
 
   const salvarCliente = async () => {
-    if (!formCliente.nome || !formCliente.nome.trim()) return setModalZen({ variante:'warning', titulo:'Nome obrigatório', mensagem:'Informe o nome do cliente antes de salvar.', apenasConfirmar:true });
+    if (!formCliente.nome || !formCliente.nome.trim()) return setModalZen({ variante:'warning', titulo:tx('Nome obrigatório','Nombre obligatorio','Name required'), mensagem:tx('Informe o nome do cliente antes de salvar.','Informe el nombre del cliente antes de guardar.','Enter the customer name before saving.'), apenasConfirmar:true });
     const limiteNum = Math.max(0, parseFloat(String(formCliente.limiteCreditoBRL).replace(',', '.')) || 0);
     const diasNum = Math.max(0, parseInt(formCliente.diasAtraso) || 0);
     const dadosFinais = normalizarCliente({ ...formCliente, limiteCreditoBRL: limiteNum, diasAtraso: diasNum });
@@ -80,19 +80,19 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
       setClientes(clientesConfirmados);
       setModalClienteAberto(false);
     } catch (erro) {
-      setModalZen({ variante:'danger', titulo:'Cliente não salvo', mensagem:'A nuvem não confirmou o cadastro. Nenhuma alteração foi considerada concluída.', detalhes:[erro?.message || 'Falha de persistência'], apenasConfirmar:true });
+      setModalZen({ variante:'danger', titulo:tx('Cliente não salvo','Cliente no guardado','Customer not saved'), mensagem:tx('A nuvem não confirmou o cadastro. Nenhuma alteração foi considerada concluída.','La nube no confirmó el registro. Ningún cambio fue considerado concluido.','The cloud did not confirm the registration. No change was considered complete.'), detalhes:[erro?.message || 'Falha de persistência'], apenasConfirmar:true });
     }
   };
 
   const excluirCliente = (id, saldoDevedor) => {
     if (saldoDevedor > 0) {
-      return setModalZen({ variante:'danger', titulo:'Exclusão bloqueada', mensagem:'Não é possível excluir um cliente que possui saldo devedor (fiado) em aberto.', apenasConfirmar:true });
+      return setModalZen({ variante:'danger', titulo:tx('Exclusão bloqueada','Eliminación bloqueada','Deletion blocked'), mensagem:tx('Não é possível excluir um cliente que possui saldo devedor (fiado) em aberto.','No es posible eliminar un cliente con saldo deudor pendiente.','A customer with an outstanding balance cannot be deleted.'), apenasConfirmar:true });
     }
     setModalZen({
       variante:'warning',
-      titulo:'Excluir cliente?',
-      mensagem:'Confirme a exclusão deste cadastro de cliente.',
-      confirmarTexto:'Excluir',
+      titulo:tx('Excluir cliente?','¿Eliminar cliente?','Delete customer?'),
+      mensagem:tx('Confirme a exclusão deste cadastro de cliente.','Confirme la eliminación de este registro de cliente.','Confirm deletion of this customer record.'),
+      confirmarTexto:tx('Excluir','Eliminar','Delete'),
       cancelarTexto:'Cancelar',
       apenasConfirmar:false,
       aoConfirmar: async () => {
@@ -106,7 +106,7 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
           }
           setClientes(clientesConfirmados);
         } catch (erro) {
-          setModalZen({ variante:'danger', titulo:'Cliente não excluído', mensagem:'A nuvem não confirmou a exclusão. O cadastro foi preservado.', detalhes:[erro?.message || 'Falha de persistência'], apenasConfirmar:true });
+          setModalZen({ variante:'danger', titulo:tx('Cliente não excluído','Cliente no eliminado','Customer not deleted'), mensagem:tx('A nuvem não confirmou a exclusão. O cadastro foi preservado.','La nube no confirmó la eliminación. El registro fue preservado.','The cloud did not confirm deletion. The record was preserved.'), detalhes:[erro?.message || 'Falha de persistência'], apenasConfirmar:true });
         }
       },
     });
@@ -124,16 +124,16 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
     const formaCfg = catalogoFormas.find(f => f.id === formaAmortizacaoSel) || catalogoFormas[0];
     const valorOriginal = parseFloat(valorAmortizacaoInput.replace(',', '.')) || 0;
     const valBRL = converterParaBRL(valorOriginal, formaCfg.moedaOrigem || moeda);
-    if (valBRL <= 0) return setModalZen({ variante:'warning', titulo:'Valor inválido', mensagem:'Informe um valor válido para recebimento.', apenasConfirmar:true });
+    if (valBRL <= 0) return setModalZen({ variante:'warning', titulo:tx('Valor inválido','Valor inválido','Invalid amount'), mensagem:tx('Informe um valor válido para recebimento.','Informe un valor válido para el cobro.','Enter a valid amount to receive.'), apenasConfirmar:true });
 
     const saldoAntes = Number(clienteReceberFiado?.saldoDevedorBRL || 0);
     if (valBRL > saldoAntes + 0.001) {
-      return setModalZen({ variante:'warning', titulo:'Valor acima da dívida', mensagem:`A dívida atual é ${fmt(saldoAntes, 'BRL')}. O recebimento não pode ultrapassar esse saldo.`, apenasConfirmar:true });
+      return setModalZen({ variante:'warning', titulo:tx('Valor acima da dívida','Valor superior a la deuda','Amount exceeds debt'), mensagem:`A dívida atual é ${fmt(saldoAntes, 'BRL')}. O recebimento não pode ultrapassar esse saldo.`, apenasConfirmar:true });
     }
 
     const dinheiroFisico = formaEhDinheiro(formaAmortizacaoSel);
     if (dinheiroFisico && !sessaoAtiva) {
-      return setModalZen({ variante:'danger', titulo:'Caixa fechado', mensagem:'Para receber fiado em dinheiro, abra primeiro o turno de caixa do operador.', apenasConfirmar:true });
+      return setModalZen({ variante:'danger', titulo:tx('Caixa fechado','Caja cerrada','Register closed'), mensagem:tx('Para receber fiado em dinheiro, abra primeiro o turno de caixa do operador.','Para recibir crédito en efectivo, abra primero el turno de caja del operador.','To receive customer credit in cash, first open the operator cash shift.'), apenasConfirmar:true });
     }
 
     const saldoDepois = Math.max(0, saldoAntes - valBRL);
@@ -193,17 +193,17 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
       if (mov && typeof setCaixaMovimentos === 'function') setCaixaMovimentos(caixaConfirmado);
     } catch (err) {
       console.error('[ZenOS][ATT10.2] Falha no recebimento:', err);
-      return setModalZen({ variante:'danger', titulo:'Recebimento não concluído', mensagem:'A nuvem não confirmou o recebimento. Nenhum saldo foi alterado.', detalhes:[err?.message || 'Falha de persistência'], apenasConfirmar:true });
+      return setModalZen({ variante:'danger', titulo:tx('Recebimento não concluído','Cobro no concluido','Payment not completed'), mensagem:tx('A nuvem não confirmou o recebimento. Nenhum saldo foi alterado.','La nube no confirmó el cobro. Ningún saldo fue alterado.','The cloud did not confirm the payment. No balance was changed.'), detalhes:[err?.message || 'Falha de persistência'], apenasConfirmar:true });
     }
 
-    setModalZen({ variante:'success', titulo:'Recebimento registrado', mensagem:`${fmt(valBRL, 'BRL')} recebidos de ${clienteReceberFiado.nome}.`, detalhes:[`Saldo anterior: ${fmt(saldoAntes, 'BRL')}`, `Saldo atual: ${fmt(saldoDepois, 'BRL')}`, dinheiroFisico ? 'Entrada registrada na gaveta do turno.' : 'Recebimento financeiro sem movimentar a gaveta física.'], apenasConfirmar:true });
+    setModalZen({ variante:'success', titulo:tx('Recebimento registrado','Cobro registrado','Payment recorded'), mensagem:`${fmt(valBRL, 'BRL')} recebidos de ${clienteReceberFiado.nome}.`, detalhes:[`Saldo anterior: ${fmt(saldoAntes, 'BRL')}`, `Saldo atual: ${fmt(saldoDepois, 'BRL')}`, dinheiroFisico ? 'Entrada registrada na gaveta do turno.' : 'Recebimento financeiro sem movimentar a gaveta física.'], apenasConfirmar:true });
     setModalReceberFiadoAberto(false);
     setClienteReceberFiado(null);
   };
 
   const abrirWhatsApp = (cli) => {
-    if (!cli.telefone) return setModalZen({ variante:'warning', titulo:'Telefone não cadastrado', mensagem:'Este cliente não possui telefone/WhatsApp cadastrado.', apenasConfirmar:true });
-    const msg = encodeURIComponent(`Olá, ${cli.nome}! O saldo da sua conta é de R$ ${(cli.saldoDevedorBRL || 0).toFixed(2)}.`);
+    if (!cli.telefone) return setModalZen({ variante:'warning', titulo:tx('Telefone não cadastrado','Teléfono no registrado','Phone not registered'), mensagem:tx('Este cliente não possui telefone/WhatsApp cadastrado.','Este cliente no posee teléfono/WhatsApp registrado.','This customer has no phone/WhatsApp registered.'), apenasConfirmar:true });
+    const msg = encodeURIComponent(`${tx('Olá','Hola','Hello')}, ${cli.nome}! ${tx('O saldo da sua conta é de','El saldo de su cuenta es de','Your account balance is')} R$ ${(cli.saldoDevedorBRL || 0).toFixed(2)}.`);
     window.open(`https://wa.me/${cli.telefone.replace(/\D/g, '')}?text=${msg}`, '_blank');
   };
 
@@ -281,7 +281,7 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
                           <span style={{ color: '#ffffff', fontWeight: 600 }}>{cli.telefone || '—'}</span>
                           {cli.telefone && (
                             <button onClick={() => abrirWhatsApp(cli)} type="button" title="WhatsApp" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', border: '1px solid #10b981', color: '#34d399', borderRadius: '6px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <span>💬</span><span>WhatsApp</span>
+                              <span>💬</span><span>{tx('WhatsApp','WhatsApp','WhatsApp')}</span>
                             </button>
                           )}
                         </div>
@@ -306,9 +306,9 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
                               Receber Conta
                             </button>
                           )}
-                          <button onClick={() => setClienteExtrato(cli)} type="button" style={{ backgroundColor: '#111827', border: '1px solid #334155', color: '#cbd5e1', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>📒 Extrato</button>
+                          <button onClick={() => setClienteExtrato(cli)} type="button" style={{ backgroundColor: '#111827', border: '1px solid #334155', color: '#cbd5e1', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>📒 {tx('Extrato','Extracto','Statement')}</button>
                           <button onClick={() => abrirEdicaoCliente(cli)} type="button" style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#38bdf8', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>{t('editar')}</button>
-                          <button onClick={() => excluirCliente(cli.id, cli.saldoDevedorBRL)} type="button" style={{ backgroundColor: 'transparent', border: '1px solid #1e293b', color: '#f43f5e', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>Excluir</button>
+                          <button onClick={() => excluirCliente(cli.id, cli.saldoDevedorBRL)} type="button" style={{ backgroundColor: 'transparent', border: '1px solid #1e293b', color: '#f43f5e', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>{tx('Excluir','Eliminar','Delete')}</button>
                         </div>
                       </td>
                     </tr>
@@ -326,62 +326,62 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
           <div style={{ backgroundColor: '#0b1120', border: '1px solid #d97706', borderRadius: '24px', width: '100%', maxWidth: '520px', padding: '28px', color: '#fff' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div>
-                <span style={{ fontSize: '11px', fontWeight: 800, color: '#fbbf24', textTransform: 'uppercase' }}>CRM Zênite OS</span>
-                <h3 style={{ fontSize: '20px', fontWeight: 900, margin: '2px 0 0 0' }}>{clienteEmEdicao ? 'Editar Cliente' : 'Cadastrar Novo Cliente'}</h3>
+                <span style={{ fontSize: '11px', fontWeight: 800, color: '#fbbf24', textTransform: 'uppercase' }}>{tx('CRM Zênite OS','CRM Zênite OS','Zênite OS CRM')}</span>
+                <h3 style={{ fontSize: '20px', fontWeight: 900, margin: '2px 0 0 0' }}>{clienteEmEdicao ? tx('Editar Cliente','Editar Cliente','Edit Customer') : tx('Cadastrar Novo Cliente','Registrar Nuevo Cliente','Register New Customer')}</h3>
               </div>
               <button onClick={() => setModalClienteAberto(false)} type="button" style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#64748b', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>✕</button>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '24px', maxHeight: '65vh', overflowY: 'auto', paddingRight: '4px' }}>
               <div>
-                <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Nome Completo / Empresa *</label>
-                <input type="text" value={formCliente.nome} onChange={e => setFormCliente({ ...formCliente, nome: e.target.value })} placeholder="Ex: Pinturas Silva" style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '12px', outline: 'none', marginTop: '4px', boxSizing: 'border-box' }} />
+                <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Nome Completo / Empresa *','Nombre Completo / Empresa *','Full Name / Company *')}</label>
+                <input type="text" value={formCliente.nome} onChange={e => setFormCliente({ ...formCliente, nome: e.target.value })} placeholder={tx('Ex: Pinturas Silva','Ej: Pinturas Silva','Ex: Silva Painting')} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '12px', outline: 'none', marginTop: '4px', boxSizing: 'border-box' }} />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>País / Região</label>
+                  <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('País / Região','País / Región','Country / Region')}</label>
                   <select value={formCliente.pais} onChange={e => setFormCliente({ ...formCliente, pais: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '12px', outline: 'none', marginTop: '4px', boxSizing: 'border-box' }}>
-                    <option value="BR">Brasil (BR)</option>
-                    <option value="PY">Paraguai (PY)</option>
-                    <option value="AR">Argentina (AR)</option>
-                    <option value="US">Estados Unidos (US)</option>
-                    <option value="OUTRO">Outro / Internacional</option>
+                    <option value="BR">{tx('Brasil (BR)','Brasil (BR)','Brazil (BR)')}</option>
+                    <option value="PY">{tx('Paraguai (PY)','Paraguay (PY)','Paraguay (PY)')}</option>
+                    <option value="AR">{tx('Argentina (AR)','Argentina (AR)','Argentina (AR)')}</option>
+                    <option value="US">{tx('Estados Unidos (US)','Estados Unidos (US)','United States (US)')}</option>
+                    <option value="OUTRO">{tx('Outro / Internacional','Otro / Internacional','Other / International')}</option>
                   </select>
                 </div>
                 <div>
-                  <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Tipo de Documento</label>
+                  <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Tipo de Documento','Tipo de Documento','Document Type')}</label>
                   <select value={formCliente.tipoDocumento} onChange={e => setFormCliente({ ...formCliente, tipoDocumento: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '12px', outline: 'none', marginTop: '4px', boxSizing: 'border-box' }}>
                     <option value="CPF">CPF</option>
                     <option value="CNPJ">CNPJ</option>
                     <option value="CI / RUC">CI / RUC</option>
-                    <option value="PASSAPORTE">Passaporte</option>
+                    <option value="PASSAPORTE">{tx('Passaporte','Pasaporte','Passport')}</option>
                   </select>
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Número do Documento</label>
+                  <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Número do Documento','Número de Documento','Document Number')}</label>
                   <input type="text" value={formCliente.documento} onChange={e => setFormCliente({ ...formCliente, documento: e.target.value })} placeholder="000.000.000-00" style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '12px', outline: 'none', marginTop: '4px', boxSizing: 'border-box' }} />
                 </div>
                 <div>
-                  <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Telefone / WhatsApp</label>
+                  <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Telefone / WhatsApp','Teléfono / WhatsApp','Phone / WhatsApp')}</label>
                   <input type="text" value={formCliente.telefone} onChange={e => setFormCliente({ ...formCliente, telefone: e.target.value })} placeholder="(00) 00000-0000" style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '12px', outline: 'none', marginTop: '4px', boxSizing: 'border-box' }} />
                 </div>
               </div>
 
               <div>
-                <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Endereço Completo</label>
-                <input type="text" value={formCliente.endereco} onChange={e => setFormCliente({ ...formCliente, endereco: e.target.value })} placeholder="Rua, Número, Bairro, Cidade" style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '12px', outline: 'none', marginTop: '4px', boxSizing: 'border-box' }} />
+                <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Endereço Completo','Dirección Completa','Full Address')}</label>
+                <input type="text" value={formCliente.endereco} onChange={e => setFormCliente({ ...formCliente, endereco: e.target.value })} placeholder={tx('Rua, Número, Bairro, Cidade','Calle, Número, Barrio, Ciudad','Street, Number, Neighborhood, City')} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '12px', outline: 'none', marginTop: '4px', boxSizing: 'border-box' }} />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Tabela de Preços</label>
+                  <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Tabela de Preços','Lista de Precios','Price List')}</label>
                   <select value={formCliente.perfilPreco} onChange={e => setFormCliente({ ...formCliente, perfilPreco: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '12px', outline: 'none', marginTop: '4px', boxSizing: 'border-box' }}>
-                    <option value="preco1">Tabela 1 (Balcão / Padrão)</option>
-                    <option value="preco2">Tabela 2 (Pintor / Atacado)</option>
+                    <option value="preco1">{tx('Tabela 1 (Balcão / Padrão)','Tabla 1 (Mostrador / Estándar)','Table 1 (Retail / Standard)')}</option>
+                    <option value="preco2">{tx('Tabela 2 (Pintor / Atacado)','Tabla 2 (Pintor / Mayorista)','Table 2 (Pro / Wholesale)')}</option>
                   </select>
                 </div>
                 <div>
@@ -392,7 +392,7 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
             </div>
 
             <button onClick={salvarCliente} type="button" style={{ width: '100%', background: 'linear-gradient(135deg, #d97706, #b45309)', border: 'none', color: '#fff', padding: '16px', borderRadius: '12px', fontSize: '14px', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 15px rgba(217, 119, 6, 0.3)' }}>
-              {clienteEmEdicao ? 'Salvar Alterações' : 'Cadastrar Cliente'}
+              {clienteEmEdicao ? tx('Salvar Alterações','Guardar Cambios','Save Changes') : tx('Cadastrar Cliente','Registrar Cliente','Register Customer')}
             </button>
           </div>
         </div>
@@ -405,13 +405,13 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
         return <div style={{ position:'fixed', inset:0, zIndex:1800, background:'rgba(2,6,23,.88)', backdropFilter:'blur(7px)', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
           <div style={{ width:'100%', maxWidth:900, maxHeight:'82vh', overflow:'hidden', background:'#0b1120', border:'1px solid #38bdf8', borderRadius:22, color:'#fff', boxShadow:'0 30px 80px rgba(0,0,0,.55)' }}>
             <div style={{ padding:22, borderBottom:'1px solid #1e293b', display:'flex', justifyContent:'space-between', gap:16, alignItems:'center' }}>
-              <div><div style={{ color:'#38bdf8', fontSize:11, fontWeight:900, letterSpacing:1 }}>CONTA CORRENTE DO CLIENTE</div><h3 style={{ margin:'4px 0 0', fontSize:20 }}>{clienteExtrato.nome}</h3><div style={{ color:'#94a3b8', fontSize:12, marginTop:4 }}>Saldo atual cadastrado: <strong style={{color:'#fb7185'}}>{fmt(clienteExtrato.saldoDevedorBRL||0,'BRL')}</strong></div></div>
+              <div><div style={{ color:'#38bdf8', fontSize:11, fontWeight:900, letterSpacing:1 }}>{tx('CONTA CORRENTE DO CLIENTE','CUENTA CORRIENTE DEL CLIENTE','CUSTOMER ACCOUNT')}</div><h3 style={{ margin:'4px 0 0', fontSize:20 }}>{clienteExtrato.nome}</h3><div style={{ color:'#94a3b8', fontSize:12, marginTop:4 }}>{tx('Saldo atual cadastrado:','Saldo actual registrado:','Current registered balance:')} <strong style={{color:'#fb7185'}}>{fmt(clienteExtrato.saldoDevedorBRL||0,'BRL')}</strong></div></div>
               <button onClick={()=>setClienteExtrato(null)} style={{width:36,height:36,borderRadius:9,border:'1px solid #334155',background:'#020617',color:'#94a3b8',cursor:'pointer'}}>✕</button>
             </div>
-            <div style={{ padding:14, color:'#94a3b8', fontSize:11, borderBottom:'1px solid #1e293b' }}>O extrato auditável começa com os novos lançamentos da ATT 07. O histórico anterior não é reconstruído por inferência.</div>
+            <div style={{ padding:14, color:'#94a3b8', fontSize:11, borderBottom:'1px solid #1e293b' }}>{tx('O extrato auditável começa com os novos lançamentos da ATT 07. O histórico anterior não é reconstruído por inferência.','El extracto auditable comienza con los nuevos movimientos de ATT 07. El historial anterior no se reconstruye por inferencia.','The auditable statement starts with new ATT 07 entries. Previous history is not reconstructed by inference.')}</div>
             <div style={{ overflow:'auto', maxHeight:'58vh' }}>
-              <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,minWidth:760}}><thead><tr style={{color:'#64748b',textTransform:'uppercase',fontSize:10,borderBottom:'1px solid #1e293b'}}><th style={{padding:12,textAlign:'left'}}>Data</th><th style={{textAlign:'left'}}>Tipo</th><th style={{textAlign:'left'}}>Descrição</th><th style={{textAlign:'right'}}>Débito</th><th style={{textAlign:'right'}}>Crédito</th><th style={{textAlign:'right'}}>Saldo</th><th style={{textAlign:'left',paddingLeft:14}}>Forma / Operador</th></tr></thead><tbody>
-              {linhas.length===0 ? <tr><td colSpan="7" style={{padding:30,textAlign:'center',color:'#475569'}}>Nenhum lançamento ATT 07 para este cliente.</td></tr> : linhas.map(l=>{ const aumenta=l.tipo==='venda_fiada'; const reduz=l.tipo==='recebimento_fiado'||(l.tipo==='devolucao'&&l.formaPagamento==='credito_fiado'); return <tr key={l.id} style={{borderBottom:'1px solid rgba(255,255,255,.05)'}}><td style={{padding:12,color:'#94a3b8'}}>{l.createdAt?new Date(l.createdAt).toLocaleString('pt-BR'):'—'}</td><td style={{fontWeight:800,color:aumenta?'#fb7185':'#34d399'}}>{l.tipo}</td><td>{l.observacao||l.referenciaId}</td><td style={{textAlign:'right',color:'#fb7185'}}>{aumenta?fmt(l.valor,'BRL'):'—'}</td><td style={{textAlign:'right',color:'#34d399'}}>{reduz?fmt(l.valor,'BRL'):'—'}</td><td style={{textAlign:'right',fontWeight:900}}>{l.saldoClienteDepois==null?'—':fmt(l.saldoClienteDepois,'BRL')}</td><td style={{paddingLeft:14,color:'#94a3b8'}}>{l.formaPagamento}<br/><span style={{fontSize:10}}>{l.operadorNome}</span></td></tr>})}
+              <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,minWidth:760}}><thead><tr style={{color:'#64748b',textTransform:'uppercase',fontSize:10,borderBottom:'1px solid #1e293b'}}><th style={{padding:12,textAlign:'left'}}>{tx('Data','Fecha','Date')}</th><th style={{textAlign:'left'}}>{tx('Tipo','Tipo','Type')}</th><th style={{textAlign:'left'}}>{tx('Descrição','Descripción','Description')}</th><th style={{textAlign:'right'}}>{tx('Débito','Débito','Debit')}</th><th style={{textAlign:'right'}}>{tx('Crédito','Crédito','Credit')}</th><th style={{textAlign:'right'}}>{tx('Saldo','Saldo','Balance')}</th><th style={{textAlign:'left',paddingLeft:14}}>{tx('Forma / Operador','Forma / Operador','Method / Operator')}</th></tr></thead><tbody>
+              {linhas.length===0 ? <tr><td colSpan="7" style={{padding:30,textAlign:'center',color:'#475569'}}>{tx('Nenhum lançamento ATT 07 para este cliente.','Ningún movimiento ATT 07 para este cliente.','No ATT 07 entries for this customer.')}</td></tr> : linhas.map(l=>{ const aumenta=l.tipo==='venda_fiada'; const reduz=l.tipo==='recebimento_fiado'||(l.tipo==='devolucao'&&l.formaPagamento==='credito_fiado'); return <tr key={l.id} style={{borderBottom:'1px solid rgba(255,255,255,.05)'}}><td style={{padding:12,color:'#94a3b8'}}>{l.createdAt?new Date(l.createdAt).toLocaleString('pt-BR'):'—'}</td><td style={{fontWeight:800,color:aumenta?'#fb7185':'#34d399'}}>{l.tipo}</td><td>{l.observacao||l.referenciaId}</td><td style={{textAlign:'right',color:'#fb7185'}}>{aumenta?fmt(l.valor,'BRL'):'—'}</td><td style={{textAlign:'right',color:'#34d399'}}>{reduz?fmt(l.valor,'BRL'):'—'}</td><td style={{textAlign:'right',fontWeight:900}}>{l.saldoClienteDepois==null?'—':fmt(l.saldoClienteDepois,'BRL')}</td><td style={{paddingLeft:14,color:'#94a3b8'}}>{l.formaPagamento}<br/><span style={{fontSize:10}}>{l.operadorNome}</span></td></tr>})}
               </tbody></table>
             </div>
           </div>
@@ -422,12 +422,12 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
       {modalReceberFiadoAberto && clienteReceberFiado && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1500 }}>
           <div style={{ backgroundColor: '#0b1120', border: '1px solid #10b981', borderRadius: '24px', width: '420px', padding: '28px', color: '#fff' }}>
-            <h3 style={{ fontSize: '18px', fontWeight: 900, margin: '0 0 6px 0', color: '#34d399' }}>Receber Conta de Cliente</h3>
+            <h3 style={{ fontSize: '18px', fontWeight: 900, margin: '0 0 6px 0', color: '#34d399' }}>{tx('Receber Conta de Cliente','Cobrar Cuenta del Cliente','Receive Customer Payment')}</h3>
             <div style={{ fontSize: '14px', fontWeight: 700, color: '#f8fafc', marginBottom: '16px' }}>{clienteReceberFiado.nome}</div>
             
             <div style={{ backgroundColor: '#020617', padding: '16px', borderRadius: '12px', marginBottom: '20px', border: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase' }}>Dívida Atual:</div>
+                <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase' }}>{tx('Dívida Atual:','Deuda Actual:','Current Debt:')}</div>
                 <div style={{ fontSize: '18px', fontWeight: 900, color: '#fb7185' }}>{fmt(clienteReceberFiado.saldoDevedorBRL, moeda)}</div>
               </div>
             </div>
@@ -435,7 +435,7 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
             <label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800 }}>Valor a Receber / Quitar ({moeda}):</label>
             <input type="text" ref={inputValorAmortizacaoRef} value={valorAmortizacaoInput} onChange={e => setValorAmortizacaoInput(e.target.value)} placeholder="0.00" onFocus={e=>e.target.select()} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #10b981', borderRadius: '12px', color: '#34d399', fontSize: '24px', fontWeight: 900, textAlign: 'center', padding: '14px', outline: 'none', marginTop: '8px', marginBottom: '16px', boxSizing: 'border-box' }} autoFocus />
 
-            <label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800 }}>Forma de Recebimento:</label>
+            <label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800 }}>{tx('Forma de Recebimento:','Forma de Cobro:','Payment Method:')}</label>
             <select value={formaAmortizacaoSel} onChange={e => setFormaAmortizacaoSel(e.target.value)} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '12px', outline: 'none', marginTop: '6px', marginBottom: '24px', boxSizing: 'border-box' }}>
               {catalogoFormas.map(f => (
                 <option key={f.id} value={f.id}>
@@ -445,8 +445,8 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
             </select>
 
             <div style={{ display: 'flex', gap: '12px' }}>
-              <button onClick={() => setModalReceberFiadoAberto(false)} type="button" style={{ flex: 1, backgroundColor: '#020617', border: '1px solid #1e293b', color: '#94a3b8', padding: '12px', borderRadius: '10px', fontWeight: 800, cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={confirmarRecebimentoFiado} type="button" style={{ flex: 2, background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', color: '#ffffff', padding: '12px', borderRadius: '10px', fontWeight: 900, cursor: 'pointer' }}>Baixar e Quitar</button>
+              <button onClick={() => setModalReceberFiadoAberto(false)} type="button" style={{ flex: 1, backgroundColor: '#020617', border: '1px solid #1e293b', color: '#94a3b8', padding: '12px', borderRadius: '10px', fontWeight: 800, cursor: 'pointer' }}>{tx('Cancelar','Cancelar','Cancel')}</button>
+              <button onClick={confirmarRecebimentoFiado} type="button" style={{ flex: 2, background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', color: '#ffffff', padding: '12px', borderRadius: '10px', fontWeight: 900, cursor: 'pointer' }}>{tx('Baixar e Quitar','Registrar y Saldar','Post and Settle')}</button>
             </div>
           </div>
         </div>

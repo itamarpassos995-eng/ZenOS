@@ -22,13 +22,13 @@ export default function Mesas({ commitOperacaoNegocio, userId, produtos, fmt, tx
             try { const bruto=zenosStorage.getItem(`zenos_${userId}_mesas_ativas`); legado=bruto?JSON.parse(bruto):null; } catch {}
             await garantirMesasV1({ db, userId, mesasIniciais:Array.isArray(legado)?legado:null });
           }
-          catch (error) { setErroMesas(error?.message || 'Falha ao inicializar mesas.'); }
+          catch (error) { setErroMesas(error?.message || tx('Falha ao inicializar mesas.','Error al inicializar mesas.','Failed to initialize tables.')); }
           return;
         }
         setMesas(lista.length ? lista : criarMesasPadrao());
         setErroMesas('');
       },
-      onError: error => { console.error('[ZenOS][Mesas V1]', error); setErroMesas(error?.message || 'Falha de sincronização das mesas.'); },
+      onError: error => { console.error('[ZenOS][Mesas V1]', error); setErroMesas(error?.message || tx('Falha de sincronização das mesas.','Error de sincronización de mesas.','Table synchronization failed.')); },
     });
     return () => { ativo = false; unsub(); };
   }, [userId]);
@@ -42,15 +42,15 @@ export default function Mesas({ commitOperacaoNegocio, userId, produtos, fmt, tx
 
   // Catálogo unificado de pagamentos idêntico ao PDV
   const catalogoFormas = [
-    { id: 'Dinheiro (R$)', rotulo: 'Dinheiro (R$)', icone: '💵' }, 
-    { id: 'Dólar ($)', rotulo: 'Dólar ($)', icone: '💵' },
+    { id: 'Dinheiro (R$)', rotulo: tx('Dinheiro (R$)','Efectivo (R$)','Cash (R$)'), icone: '💵' }, 
+    { id: 'Dólar ($)', rotulo: tx('Dólar ($)','Dólar ($)','Dollar ($)'), icone: '💵' },
     { id: 'Guarani (₲)', rotulo: 'Guarani (₲)', icone: '💵' }, 
     { id: 'Euro (€)', rotulo: 'Euro (€)', icone: '💶' },
     { id: 'Pix QR Code', rotulo: 'Pix QR Code', icone: '⚡' }, 
-    { id: 'Cartão Crédito', rotulo: 'Cartão Crédito', icone: '💳' },
-    { id: 'Cartão Débito', rotulo: 'Cartão Débito', icone: '💳' }, 
-    { id: 'Voucher / Vale', rotulo: 'Voucher / Vale', icone: '🎟️' },
-    { id: 'Cheque', rotulo: 'Cheque', icone: '📝' }
+    { id: 'Cartão Crédito', rotulo: tx('Cartão Crédito','Tarjeta Crédito','Credit Card'), icone: '💳' },
+    { id: 'Cartão Débito', rotulo: tx('Cartão Débito','Tarjeta Débito','Debit Card'), icone: '💳' }, 
+    { id: 'Voucher / Vale', rotulo: tx('Voucher / Vale','Voucher / Vale','Voucher / Store Credit'), icone: '🎟️' },
+    { id: 'Cheque', rotulo: tx('Cheque','Cheque','Check'), icone: '📝' }
   ];
 
   // Otimização de Busca para Cardápio (Ignora itens de uso único sem estoque)
@@ -76,7 +76,7 @@ export default function Mesas({ commitOperacaoNegocio, userId, produtos, fmt, tx
         else novosItens.push({ produtoId: produto.id, sku: produto.sku || '', nome: produto.nome, preco: produto.precoBRL || 0, custo: produto.custoBRL || 0, qtd: 1 });
         return { ...m, status:'ocupada', itens:novosItens };
       }});
-    } catch (error) { setErroMesas(error?.message || 'Não foi possível atualizar a mesa.'); }
+    } catch (error) { setErroMesas(error?.message || tx('Não foi possível atualizar a mesa.','No fue posible actualizar la mesa.','Could not update the table.')); }
   };
 
   const alterarQtdItem = async (produtoId, delta) => {
@@ -85,7 +85,7 @@ export default function Mesas({ commitOperacaoNegocio, userId, produtos, fmt, tx
         const novosItens=(m.itens||[]).map(it=>String(it.produtoId)===String(produtoId)?{...it,qtd:Number(it.qtd||0)+delta}:it).filter(it=>it.qtd>0);
         return { ...m, itens:novosItens, status:novosItens.length===0?'livre':'ocupada' };
       }});
-    } catch (error) { setErroMesas(error?.message || 'Não foi possível alterar a quantidade.'); }
+    } catch (error) { setErroMesas(error?.message || tx('Não foi possível alterar a quantidade.','No fue posible cambiar la cantidad.','Could not change the quantity.')); }
   };
 
   const processarPagamento = async () => {
@@ -119,26 +119,26 @@ export default function Mesas({ commitOperacaoNegocio, userId, produtos, fmt, tx
       let historicoConfirmado = historicoProposto;
       if (typeof commitOperacaoNegocio === 'function') {
         const confirmado = await commitOperacaoNegocio({ changes:[{ field:'historicoVendas', value:historicoProposto, storageSuffix:'historico_vendas' }] });
-        if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou a venda da mesa.');
+        if (!confirmado?.cloudOk) throw confirmado?.error || new Error(tx('A nuvem não confirmou a venda da mesa.','La nube no confirmó la venta de la mesa.','The cloud did not confirm the table sale.'));
         historicoConfirmado = confirmado.values?.historicoVendas || historicoProposto;
       }
       setHistoricoVendas(historicoConfirmado);
       await atualizarMesaV1({ db, userId, mesaId: mesaAtivaId, operador: operadorAtivo, mutator: m => ({ ...m, status:'livre', itens:[] }) });
       setModalPagamento(false);
       setMesaAtivaId(null);
-    } catch (error) { setErroMesas(error?.message || 'A operação da mesa não foi confirmada. Verifique antes de reutilizar.'); }
+    } catch (error) { setErroMesas(error?.message || tx('A operação da mesa não foi confirmada. Verifique antes de reutilizar.','La operación de la mesa no fue confirmada. Verifique antes de reutilizar.','The table operation was not confirmed. Check before reusing it.')); }
   };
 
   // TELA 1: MAPA GERAL DE MESAS
   if (!mesaAtivaId) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '28px', width: '100%', boxSizing: 'border-box' }}>
-        <div style={{padding:'10px 14px',borderRadius:12,border:'1px solid #f59e0b',background:'rgba(120,53,15,.22)',color:'#fbbf24',fontSize:11,fontWeight:850}}>🧪 MÓDULO EXPERIMENTAL — sincronização multiterminal foi blindada na ATT 09, porém estoque, pagamento misto, fiado e fechamento financeiro ainda exigem validação completa antes de uso comercial.{erroMesas ? ` • ${erroMesas}` : ''}</div>
+        <div style={{padding:'10px 14px',borderRadius:12,border:'1px solid #f59e0b',background:'rgba(120,53,15,.22)',color:'#fbbf24',fontSize:11,fontWeight:850}}>🧪 {tx('MÓDULO EXPERIMENTAL — sincronização multiterminal foi blindada na ATT 09, porém estoque, pagamento misto, fiado e fechamento financeiro ainda exigem validação completa antes de uso comercial.','MÓDULO EXPERIMENTAL — la sincronización multiterminal fue protegida en ATT 09, pero stock, pago mixto, crédito y cierre financiero aún requieren validación completa antes del uso comercial.','EXPERIMENTAL MODULE — multi-terminal synchronization was hardened in ATT 09, but stock, mixed payment, credit and financial closing still require full validation before commercial use.')}{erroMesas ? ` • ${erroMesas}` : ''}</div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-          <div><h2 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>Mapa de Mesas & Comandas</h2><span style={{ fontSize: '13px', color: '#64748b' }}>Gestão de consumos em aberto</span></div>
+          <div><h2 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>{tx('Mapa de Mesas & Comandas','Mapa de Mesas y Comandas','Tables & Tabs Map')}</h2><span style={{ fontSize: '13px', color: '#64748b' }}>{tx('Gestão de consumos em aberto','Gestión de consumos abiertos','Open tab management')}</span></div>
           <div style={{ display: 'flex', gap: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#10b981' }}></div><span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 800 }}>Livre</span></div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#f43f5e' }}></div><span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 800 }}>Ocupada</span></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#10b981' }}></div><span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 800 }}>{tx('Livre','Libre','Free')}</span></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#f43f5e' }}></div><span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 800 }}>{tx('Ocupada','Ocupada','Occupied')}</span></div>
           </div>
         </div>
 
@@ -162,7 +162,7 @@ export default function Mesas({ commitOperacaoNegocio, userId, produtos, fmt, tx
                 {ocupada ? (
                   <span style={{ color: '#fda4af', fontWeight: 800, fontSize: '12px', marginTop: '6px' }}>{fmt(total)}</span>
                 ) : (
-                  <span style={{ color: '#a7f3d0', fontWeight: 800, fontSize: '11px', marginTop: '6px' }}>Disponível</span>
+                  <span style={{ color: '#a7f3d0', fontWeight: 800, fontSize: '11px', marginTop: '6px' }}>{tx('Disponível','Disponible','Available')}</span>
                 )}
               </div>
             )
@@ -175,7 +175,7 @@ export default function Mesas({ commitOperacaoNegocio, userId, produtos, fmt, tx
   // TELA 2: GESTÃO DA MESA SELECIONADA (ADAPTADA MOBILE RESPONSIVE)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', boxSizing: 'border-box' }}>
-      {erroMesas && <div style={{padding:'10px 14px',borderRadius:12,border:'1px solid #ef4444',background:'rgba(127,29,29,.25)',color:'#fecaca',fontSize:11,fontWeight:850}}>Falha de sincronização da mesa: {erroMesas}</div>}
+      {erroMesas && <div style={{padding:'10px 14px',borderRadius:12,border:'1px solid #ef4444',background:'rgba(127,29,29,.25)',color:'#fecaca',fontSize:11,fontWeight:850}}>{tx('Falha de sincronização da mesa:','Error de sincronización de la mesa:','Table synchronization error:')} {erroMesas}</div>}
       <style>{`
         @media (max-width: 900px) {
           .mesas-gestao-layout { flex-direction: column !important; }
@@ -184,15 +184,15 @@ export default function Mesas({ commitOperacaoNegocio, userId, produtos, fmt, tx
       
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0b1120', padding: '16px 24px', borderRadius: '16px', border: '1px solid #1e293b', flexWrap: 'wrap', gap: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-          <button onClick={() => setMesaAtivaId(null)} style={{ backgroundColor: '#020617', border: '1px solid #334155', color: '#94a3b8', padding: '10px 16px', borderRadius: '10px', fontWeight: 800, cursor: 'pointer' }}>⬅ Voltar ao Mapa</button>
+          <button onClick={() => setMesaAtivaId(null)} style={{ backgroundColor: '#020617', border: '1px solid #334155', color: '#94a3b8', padding: '10px 16px', borderRadius: '10px', fontWeight: 800, cursor: 'pointer' }}>⬅ {tx('Voltar ao Mapa','Volver al Mapa','Back to Map')}</button>
           <div>
             <h2 style={{ margin: 0, fontSize: '20px', color: '#fff', fontWeight: 900 }}>{mesaAtiva.rotulo}</h2>
             <span style={{ color: mesaAtiva.status === 'ocupada' ? '#fb7185' : '#34d399', fontSize: '12px', fontWeight: 800 }}>
-              {mesaAtiva.status === 'ocupada' ? '🔴 Em Consumo' : '🟢 Mesa Livre'}
+              {mesaAtiva.status === 'ocupada' ? `🔴 ${tx('Em Consumo','En Consumo','In Use')}` : `🟢 ${tx('Mesa Livre','Mesa Libre','Free Table')}`}
             </span>
           </div>
         </div>
-        <div style={{ fontSize: '22px', fontWeight: 900, color: '#38bdf8' }}>Total: {fmt(totalMesa)}</div>
+        <div style={{ fontSize: '22px', fontWeight: 900, color: '#38bdf8' }}>{tx('Total:','Total:','Total:')} {fmt(totalMesa)}</div>
       </div>
 
       <div className="mesas-gestao-layout" style={{ display: 'flex', gap: '20px', width: '100%', boxSizing: 'border-box' }}>
@@ -201,7 +201,7 @@ export default function Mesas({ commitOperacaoNegocio, userId, produtos, fmt, tx
         <div style={{ flex: 2, display: 'flex', flexDirection: 'column', gap: '16px', backgroundColor: '#0b1120', borderRadius: '16px', border: '1px solid #1e293b', padding: '20px', minWidth: 0, boxSizing: 'border-box' }}>
           <input 
             type="text" value={buscaProduto} onChange={e => setBuscaProduto(e.target.value)}
-            placeholder="🔍 Buscar produto no cardápio..."
+            placeholder={tx('🔍 Buscar produto no cardápio...','🔍 Buscar producto en el menú...','🔍 Search product in menu...')}
             style={{ width: '100%', padding: '14px 20px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '12px', color: '#fff', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}
           />
           <div style={{ maxHeight: '450px', overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '12px', alignContent: 'start' }}>
@@ -214,7 +214,7 @@ export default function Mesas({ commitOperacaoNegocio, userId, produtos, fmt, tx
               >
                 <div style={{ fontWeight: 800, color: '#f8fafc', fontSize: '13px', lineHeight: 1.3 }}>{p.nome}</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
-                  <span style={{ fontSize: '10px', color: '#64748b' }}>{p.grupo || 'Geral'}</span>
+                  <span style={{ fontSize: '10px', color: '#64748b' }}>{p.grupo || tx('Geral','General','General')}</span>
                   <span style={{ color: '#34d399', fontWeight: 900, fontSize: '14px' }}>{fmt(p.precoBRL)}</span>
                 </div>
               </div>
@@ -225,18 +225,18 @@ export default function Mesas({ commitOperacaoNegocio, userId, produtos, fmt, tx
         {/* LADO DIREITO: CONTA DA MESA */}
         <div style={{ flex: 1, backgroundColor: '#020617', borderRadius: '16px', border: '1px solid #1e293b', display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: '280px', boxSizing: 'border-box' }}>
           <div style={{ backgroundColor: '#1e1b4b', padding: '16px', borderBottom: '1px solid #312e81', textAlign: 'center' }}>
-            <h3 style={{ margin: 0, color: '#a5b4fc', fontSize: '15px', fontWeight: 900 }}>CONTA ABERTA</h3>
+            <h3 style={{ margin: 0, color: '#a5b4fc', fontSize: '15px', fontWeight: 900 }}>{tx('CONTA ABERTA','CUENTA ABIERTA','OPEN TAB')}</h3>
           </div>
           
           <div style={{ maxHeight: '350px', overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {mesaAtiva.itens.length === 0 ? (
-              <div style={{ textAlign: 'center', color: '#475569', fontSize: '13px', marginTop: '40px', fontWeight: 800 }}>Mesa vazia. Adicione itens do cardápio.</div>
+              <div style={{ textAlign: 'center', color: '#475569', fontSize: '13px', marginTop: '40px', fontWeight: 800 }}>{tx('Mesa vazia. Adicione itens do cardápio.','Mesa vacía. Agregue ítems del menú.','Empty table. Add menu items.')}</div>
             ) : (
               mesaAtiva.itens.map(it => (
                 <div key={it.produtoId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0b1120', padding: '12px', borderRadius: '10px', border: '1px solid #1e293b', gap: '8px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
                     <span style={{ color: '#fff', fontSize: '13px', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.nome}</span>
-                    <span style={{ color: '#94a3b8', fontSize: '11px' }}>{fmt(it.preco)} / un</span>
+                    <span style={{ color: '#94a3b8', fontSize: '11px' }}>{fmt(it.preco)} / {tx('un','un','unit')}</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                     <button onClick={() => alterarQtdItem(it.produtoId, -1)} style={{ width: '28px', height: '28px', borderRadius: '6px', border: 'none', backgroundColor: '#f43f5e', color: '#fff', fontWeight: 900, cursor: 'pointer' }}>-</button>
@@ -264,10 +264,10 @@ export default function Mesas({ commitOperacaoNegocio, userId, produtos, fmt, tx
       {modalPagamento && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.9)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '16px', boxSizing: 'border-box' }}>
           <div style={{ backgroundColor: '#0b1120', border: '1px solid #10b981', borderRadius: '24px', padding: '28px', width: '100%', maxWidth: '420px', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h2 style={{ margin: '0 0 4px 0', color: '#fff', fontSize: '20px', fontWeight: 900, textAlign: 'center' }}>Finalizar Mesa</h2>
+            <h2 style={{ margin: '0 0 4px 0', color: '#fff', fontSize: '20px', fontWeight: 900, textAlign: 'center' }}>{tx('Finalizar Mesa','Cerrar Mesa','Close Table')}</h2>
             <div style={{ fontSize: '28px', fontWeight: 900, color: '#34d399', textAlign: 'center', marginBottom: '20px' }}>{fmt(totalMesa)}</div>
             
-            <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Forma de Pagamento</label>
+            <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>{tx('Forma de Pagamento','Forma de Pago','Payment Method')}</label>
             <select 
               value={metodoPgto} 
               onChange={e => setMetodoPgto(e.target.value)} 
@@ -281,8 +281,8 @@ export default function Mesas({ commitOperacaoNegocio, userId, produtos, fmt, tx
             </select>
 
             <div style={{ display: 'flex', gap: '12px' }}>
-              <button onClick={() => setModalPagamento(false)} style={{ flex: 1, padding: '14px', backgroundColor: '#020617', border: '1px solid #f43f5e', color: '#fb7185', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={processarPagamento} style={{ flex: 2, padding: '14px', background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}>Confirmar Recebimento</button>
+              <button onClick={() => setModalPagamento(false)} style={{ flex: 1, padding: '14px', backgroundColor: '#020617', border: '1px solid #f43f5e', color: '#fb7185', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}>{tx('Cancelar','Cancelar','Cancel')}</button>
+              <button onClick={processarPagamento} style={{ flex: 2, padding: '14px', background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}>{tx('Confirmar Recebimento','Confirmar Cobro','Confirm Payment')}</button>
             </div>
           </div>
         </div>

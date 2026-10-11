@@ -3,7 +3,7 @@ export const traducoes = {
   pt: {
     menuPrincipal: 'Menu Principal', pdvBalcao: 'PDV Balcão', produtosEstoque: 'Produtos & Estoque', clientesFiado: 'Clientes & Fiado', vendasDevolucoes: 'Vendas & Devoluções',
     perfil: 'PERFIL', vendedorBalcao: 'Vendedor Balcão', gerenciaDono: 'Gerência / Dono', caixaAberto: 'CAIXA ABERTO', cotacoes: 'Câmbio', configuracoes: 'Configurações',
-    idioma: 'IDIOMA', moedaBase: 'MOEDA BASE', ajustarCambio: 'Ajustar Câmbio', modulosSistema: 'Módulos del Sistema',
+    idioma: 'IDIOMA', moedaBase: 'MOEDA BASE', ajustarCambio: 'Ajustar Câmbio', modulosSistema: 'Módulos do Sistema',
     saudacaoHub: 'Olá, {nome}!', subtituloHub: 'A estrutura principal está estabilizada. O sistema de salvamento local está ativo.',
     vendidoHoje: 'Vendido Hoje', fiadoPraca: 'Fiado na Praça',
     cardPdvTitulo: 'Fazer Venda (Caixa)', cardPdvDesc: 'Abrir o balcão rápido, pesquisar itens, dar desconto e emitir o cupom.',

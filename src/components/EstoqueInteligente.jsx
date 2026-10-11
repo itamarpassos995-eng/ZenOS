@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 
-export default function EstoqueInteligente({ produtos, fmt }) {
+export default function EstoqueInteligente({ produtos, fmt, tx = (pt) => pt }) {
   const [abaAtiva, setAbaAtiva] = useState('ruptura'); // 'ruptura', 'curvaABC', 'parado'
 
   // --- MOTORES DE CÁLCULO (Blindados e à prova de falhas) ---
@@ -58,11 +58,11 @@ export default function EstoqueInteligente({ produtos, fmt }) {
       {/* CABEÇALHO DO DASHBOARD */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
         <div>
-          <h2 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>Inteligência de Estoque</h2>
-          <span style={{ fontSize: '13px', color: '#64748b' }}>Análise preditiva, Curva ABC e Prevenção de Perdas</span>
+          <h2 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>{tx('Inteligência de Estoque','Inteligencia de Stock','Stock Intelligence')}</h2>
+          <span style={{ fontSize: '13px', color: '#64748b' }}>{tx('Análise preditiva, Curva ABC e Prevenção de Perdas','Análisis predictivo, Curva ABC y Prevención de Pérdidas','Predictive analysis, ABC Curve and Loss Prevention')}</span>
         </div>
         <div style={{ backgroundColor: '#020617', border: '1px solid #1e293b', padding: '12px 20px', borderRadius: '12px', textAlign: 'right' }}>
-          <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase' }}>Capital Imobilizado (Custo)</span>
+          <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase' }}>{tx('Capital Imobilizado (Custo)','Capital Inmovilizado (Costo)','Capital Tied Up (Cost)')}</span>
           <div style={{ fontSize: '20px', fontWeight: 900, color: '#38bdf8' }}>{fmt(totalImobilizado)}</div>
         </div>
       </div>
@@ -79,13 +79,13 @@ export default function EstoqueInteligente({ produtos, fmt }) {
           onClick={() => setAbaAtiva('curvaABC')} 
           style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '10px', fontWeight: 800, fontSize: '13px', cursor: 'pointer', transition: 'all 0.2s', backgroundColor: abaAtiva === 'curvaABC' ? 'rgba(56, 189, 248, 0.1)' : 'transparent', color: abaAtiva === 'curvaABC' ? '#38bdf8' : '#64748b', border: abaAtiva === 'curvaABC' ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid transparent' }}
         >
-          📊 <span>Curva ABC (Capital)</span>
+          📊 <span>{tx('Curva ABC (Capital)','Curva ABC (Capital)','ABC Curve (Capital)')}</span>
         </button>
         <button 
           onClick={() => setAbaAtiva('parado')} 
           style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '10px', fontWeight: 800, fontSize: '13px', cursor: 'pointer', transition: 'all 0.2s', backgroundColor: abaAtiva === 'parado' ? 'rgba(245, 158, 11, 0.1)' : 'transparent', color: abaAtiva === 'parado' ? '#f59e0b' : '#64748b', border: abaAtiva === 'parado' ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid transparent' }}
         >
-          🛑 <span>Capital Parado</span>
+          🛑 <span>{tx('Capital Parado','Capital Inmovilizado','Idle Capital')}</span>
         </button>
       </div>
 
@@ -97,15 +97,15 @@ export default function EstoqueInteligente({ produtos, fmt }) {
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid #1e293b', color: '#64748b', fontSize: '11px', textTransform: 'uppercase' }}>
-                <th style={{ padding: '16px 20px' }}>Item (SKU)</th>
-                <th style={{ padding: '16px 12px' }}>Fornecedor / Marca</th>
-                <th style={{ padding: '16px 12px', textAlign: 'center' }}>Estoque Atual</th>
-                <th style={{ padding: '16px 20px' }}>Status</th>
+                <th style={{ padding: '16px 20px' }}>{tx('Item (SKU)','Ítem (SKU)','Item (SKU)')}</th>
+                <th style={{ padding: '16px 12px' }}>{tx('Fornecedor / Marca','Proveedor / Marca','Supplier / Brand')}</th>
+                <th style={{ padding: '16px 12px', textAlign: 'center' }}>{tx('Estoque Atual','Stock Actual','Current Stock')}</th>
+                <th style={{ padding: '16px 20px' }}>{tx('Status','Estado','Status')}</th>
               </tr>
             </thead>
             <tbody>
               {produtosRuptura.length === 0 ? (
-                <tr><td colSpan="4" style={{ padding: '40px', textAlign: 'center', color: '#34d399', fontWeight: 800 }}>✅ Estoque saudável! Nenhum item em risco de ruptura.</td></tr>
+                <tr><td colSpan="4" style={{ padding: '40px', textAlign: 'center', color: '#34d399', fontWeight: 800 }}>✅ {tx('Estoque saudável! Nenhum item em risco de ruptura.','¡Stock saludable! Ningún ítem con riesgo de ruptura.','Healthy stock! No items at risk of running out.')}</td></tr>
               ) : (
                 produtosRuptura.map(p => (
                   <tr key={p.id} style={{ borderBottom: '1px solid #1e293b' }}>
@@ -133,16 +133,16 @@ export default function EstoqueInteligente({ produtos, fmt }) {
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid #1e293b', color: '#64748b', fontSize: '11px', textTransform: 'uppercase' }}>
-                <th style={{ padding: '16px 20px' }}>Curva</th>
-                <th style={{ padding: '16px 12px' }}>Produto</th>
-                <th style={{ padding: '16px 12px', textAlign: 'center' }}>Qtd. Estoque</th>
-                <th style={{ padding: '16px 12px', textAlign: 'right' }}>Custo Un.</th>
-                <th style={{ padding: '16px 20px', textAlign: 'right' }}>Capital Imobilizado</th>
+                <th style={{ padding: '16px 20px' }}>{tx('Curva','Curva','Curve')}</th>
+                <th style={{ padding: '16px 12px' }}>{tx('Produto','Producto','Product')}</th>
+                <th style={{ padding: '16px 12px', textAlign: 'center' }}>{tx('Qtd. Estoque','Cant. Stock','Stock Qty.')}</th>
+                <th style={{ padding: '16px 12px', textAlign: 'right' }}>{tx('Custo Un.','Costo Un.','Unit Cost')}</th>
+                <th style={{ padding: '16px 20px', textAlign: 'right' }}>{tx('Capital Imobilizado','Capital Inmovilizado','Capital Tied Up')}</th>
               </tr>
             </thead>
             <tbody>
               {curvaABC.length === 0 ? (
-                <tr><td colSpan="5" style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>Sem dados suficientes para calcular a Curva ABC.</td></tr>
+                <tr><td colSpan="5" style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>{tx('Sem dados suficientes para calcular a Curva ABC.','Sin datos suficientes para calcular la Curva ABC.','Not enough data to calculate the ABC Curve.')}</td></tr>
               ) : (
                 curvaABC.map(p => {
                   let corCurva = p.classificacao === 'A' ? '#10b981' : p.classificacao === 'B' ? '#38bdf8' : '#64748b';
@@ -174,15 +174,15 @@ export default function EstoqueInteligente({ produtos, fmt }) {
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid #1e293b', color: '#64748b', fontSize: '11px', textTransform: 'uppercase' }}>
-                <th style={{ padding: '16px 20px' }}>Produto Encalhado (Top 20)</th>
-                <th style={{ padding: '16px 12px', textAlign: 'center' }}>Estoque Alto</th>
-                <th style={{ padding: '16px 20px', textAlign: 'right' }}>Dinheiro Travado</th>
-                <th style={{ padding: '16px 20px', textAlign: 'center' }}>Sugestão do Sistema</th>
+                <th style={{ padding: '16px 20px' }}>{tx('Produto Encalhado (Top 20)','Producto Estancado (Top 20)','Slow-Moving Product (Top 20)')}</th>
+                <th style={{ padding: '16px 12px', textAlign: 'center' }}>{tx('Estoque Alto','Stock Alto','High Stock')}</th>
+                <th style={{ padding: '16px 20px', textAlign: 'right' }}>{tx('Dinheiro Travado','Dinero Inmovilizado','Capital Locked')}</th>
+                <th style={{ padding: '16px 20px', textAlign: 'center' }}>{tx('Sugestão do Sistema','Sugerencia del Sistema','System Suggestion')}</th>
               </tr>
             </thead>
             <tbody>
               {produtosParados.length === 0 ? (
-                <tr><td colSpan="4" style={{ padding: '40px', textAlign: 'center', color: '#34d399', fontWeight: 800 }}>✅ Excelente! Sem excessos alarmantes de estoque.</td></tr>
+                <tr><td colSpan="4" style={{ padding: '40px', textAlign: 'center', color: '#34d399', fontWeight: 800 }}>✅ {tx('Excelente! Sem excessos alarmantes de estoque.','¡Excelente! Sin excesos alarmantes de stock.','Excellent! No alarming excess stock.')}</td></tr>
               ) : (
                 produtosParados.map(p => (
                   <tr key={p.id} style={{ borderBottom: '1px solid #1e293b' }}>

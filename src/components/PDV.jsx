@@ -58,7 +58,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
   const [senhaMargemInput, setSenhaMargemInput] = useState('');
   const mostrarZen = (variante, titulo, mensagem, detalhes = []) => setModalZen({ variante, titulo, mensagem, detalhes, apenasConfirmar: true });
   const pedirConfirmacaoZen = ({ titulo, mensagem, detalhes = [], confirmarTexto = 'Continuar', variante = 'warning' }) =>
-    new Promise(resolve => setModalZen({ variante, titulo, mensagem, detalhes, confirmarTexto, cancelarTexto: 'Cancelar', resolver: resolve }));
+    new Promise(resolve => setModalZen({ variante, titulo, mensagem, detalhes, confirmarTexto, cancelarTexto: tx('Cancelar','Cancelar','Cancel'), resolver: resolve }));
   const inputBuscaRef = useRef(null);
   const inputQtdRapidaRef = useRef(null);
   const inputValorLancamentoRef = useRef(null);
@@ -117,7 +117,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
       });
       setClienteSelecionadoPDV(cli); setNomeClienteVulso(cli.nome); setFocoInputCliente(false);
       setItensVenda(novosItens);
-    } catch (erro) { mostrarZen('danger', 'Preço não recalculado', erro.message || 'Não foi possível recalcular os preços com segurança.'); }
+    } catch (erro) { mostrarZen('danger', tx('Preço não recalculado','Precio no recalculado','Price not recalculated'), erro.message || tx('Não foi possível recalcular os preços com segurança.','No fue posible recalcular los precios con seguridad.','Could not safely recalculate prices.')); }
   };
 
   const removerClienteDoPDV = () => {
@@ -128,7 +128,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
       });
       setClienteSelecionadoPDV(null); setNomeClienteVulso('');
       setItensVenda(novosItens);
-    } catch (erro) { mostrarZen('danger', 'Preço não restaurado', erro.message || 'Não foi possível retornar aos preços de balcão com segurança.'); }
+    } catch (erro) { mostrarZen('danger', tx('Preço não restaurado','Precio no restaurado','Price not restored'), erro.message || tx('Não foi possível retornar aos preços de balcão com segurança.','No fue posible volver a los precios de mostrador con seguridad.','Could not safely restore counter prices.')); }
   };
 
   const abrirCadastroClientePDV = () => {
@@ -153,7 +153,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
       selecionarClienteNoPDV(clienteConfirmado);
       setModalClientePDVAberto(false);
     } catch (erro) {
-      mostrarZen('danger', 'Cliente não salvo', 'A nuvem não confirmou o novo cliente. O cadastro rápido não foi concluído.', [erro?.message || 'Falha de persistência']);
+      mostrarZen('danger', tx('Cliente não salvo','Cliente no guardado','Customer not saved'), tx('A nuvem não confirmou o novo cliente. O cadastro rápido não foi concluído.','La nube no confirmó el nuevo cliente. El registro rápido no fue concluido.','The cloud did not confirm the new customer. Quick registration was not completed.'), [erro?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
     }
   };
 
@@ -185,7 +185,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
       ? Math.max(0, Number(normalizarProduto(produtoEmEdicaoPDV).estoque) || 0)
       : estoqueVitrineNovo + estoqueGalpaoNovo;
 
-    if (skuJaExiste(produtos, formProdutoPDV.sku, produtoEmEdicaoPDV)) return mostrarZen('danger', 'SKU duplicado', `Já existe outro produto com o SKU ${formProdutoPDV.sku}. Use um SKU diferente.`);
+    if (skuJaExiste(produtos, formProdutoPDV.sku, produtoEmEdicaoPDV)) return mostrarZen('danger', tx('SKU duplicado','SKU duplicado','Duplicate SKU'), `${tx('Já existe outro produto com o SKU','Ya existe otro producto con el SKU','Another product already uses SKU')} ${formProdutoPDV.sku}. ${tx('Use um SKU diferente.','Use un SKU diferente.','Use a different SKU.')}`);
     const usoUnicoEncomendado = Boolean(formProdutoPDV.usoUnicoEncomendado);
     const skuAjustado = ajustarSkuPorTipoProdutoRapido(formProdutoPDV.sku, usoUnicoEncomendado);
     const dadosFinais = normalizarProduto({
@@ -207,7 +207,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
     let listaProposta;
     if (produtoEmEdicaoPDV) {
       try { listaProposta = atualizarProdutoUnico(produtos, produtoEmEdicaoPDV, dadosFinais, 'edição rápida no PDV'); }
-      catch (erro) { return mostrarZen('danger', 'Edição bloqueada', erro.message || 'Não foi possível editar este produto com segurança.'); }
+      catch (erro) { return mostrarZen('danger', tx('Edição bloqueada','Edición bloqueada','Edit blocked'), erro.message || tx('Não foi possível editar este produto com segurança.','No fue posible editar este producto con seguridad.','Could not safely edit this product.')); }
     } else {
       listaProposta = [dadosFinais, ...(produtos || [])];
     }
@@ -228,7 +228,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
     }
 
     try { await reservarIdentidadeProduto({ db, userId, produto: dadosFinais, produtoAnterior: produtoEmEdicaoPDV }); }
-    catch (erro) { return setModalZen({variante:'danger',titulo:'Produto duplicado',mensagem:erro.message,apenasConfirmar:true}); }
+    catch (erro) { return setModalZen({variante:'danger',titulo:tx('Produto duplicado','Producto duplicado','Duplicate product'),mensagem:erro.message,apenasConfirmar:true}); }
 
     try {
       let produtosConfirmados = listaProposta;
@@ -258,7 +258,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
         if (produtoEmEdicaoPDV) await reservarIdentidadeProduto({ db, userId, produto:produtoEmEdicaoPDV, produtoAnterior:dadosFinais });
         else await liberarIdentidadeProduto({ db, userId, produto:dadosFinais });
       } catch (rollbackErro) { console.error('[ZenOS][ATT10.2] Falha ao restaurar índice do produto rápido:', rollbackErro); }
-      mostrarZen('danger','Produto não salvo','A nuvem não confirmou o cadastro rápido. Nenhuma alteração foi considerada concluída.',[erro?.message || 'Falha de persistência']);
+      mostrarZen('danger',tx('Produto não salvo','Producto no guardado','Product not saved'),tx('A nuvem não confirmou o cadastro rápido. Nenhuma alteração foi considerada concluída.','La nube no confirmó el registro rápido. Ningún cambio fue considerado concluido.','The cloud did not confirm quick registration. No change was considered complete.'),[erro?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
     }
   };
 
@@ -275,7 +275,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
     const qtdNum = Math.max(1, parseInt(qtdDigitadaRapida) || 1);
     if (itemParaAdicionar.tipoItem !== 'servico' && !ehEncomendaUsoUnico(itemParaAdicionar)) {
       const saldo = obterEstoqueProduto(itemParaAdicionar);
-      if (qtdNum > saldo.estoque) return mostrarZen('warning', 'Estoque insuficiente', `Disponível: ${saldo.estoque} unidade(s). Você tentou adicionar ${qtdNum}.`, [`Vitrine: ${saldo.estoqueVitrine || 0}`, `Depósito: ${saldo.estoqueGalpao || 0}`]);
+      if (qtdNum > saldo.estoque) return mostrarZen('warning', tx('Estoque insuficiente','Stock insuficiente','Insufficient stock'), `${tx('Disponível:','Disponible:','Available:')} ${saldo.estoque} ${tx('unidade(s). Você tentou adicionar','unidad(es). Intentó agregar','unit(s). You tried to add')} ${qtdNum}.`, [`${tx('Vitrine:','Exhibición:','Display:')} ${saldo.estoqueVitrine || 0}`, `${tx('Depósito:','Depósito:','Warehouse:')} ${saldo.estoqueGalpao || 0}`]);
     }
     const precoBase = aplicarPrecoPorPerfilCliente(itemParaAdicionar, clienteSelecionadoPDV);
 
@@ -427,25 +427,25 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
     if (configForma.id === 'voucher') {
       const codigo = String(voucherCodigoInput || '').trim().toUpperCase();
       voucherSelecionado = (vouchers || []).find(v => String(v.codigo || '').toUpperCase() === codigo && v.status === 'ativo' && Number(v.saldoBRL || 0) > 0);
-      if (!voucherSelecionado) return setModalZen({variante:'danger',titulo:'Voucher inválido',mensagem:'Código não encontrado, já utilizado ou sem saldo.',apenasConfirmar:true});
-      if (valorNum > Number(voucherSelecionado.saldoBRL || 0) + 0.001) return setModalZen({variante:'warning',titulo:'Saldo insuficiente no voucher',mensagem:`Saldo disponível: ${fmt(voucherSelecionado.saldoBRL, 'BRL')}`,apenasConfirmar:true});
+      if (!voucherSelecionado) return setModalZen({variante:'danger',titulo:tx('Voucher inválido','Voucher inválido','Invalid voucher'),mensagem:tx('Código não encontrado, já utilizado ou sem saldo.','Código no encontrado, ya utilizado o sin saldo.','Code not found, already used, or has no balance.'),apenasConfirmar:true});
+      if (valorNum > Number(voucherSelecionado.saldoBRL || 0) + 0.001) return setModalZen({variante:'warning',titulo:tx('Saldo insuficiente no voucher','Saldo insuficiente en el voucher','Insufficient voucher balance'),mensagem:`${tx('Saldo disponível:','Saldo disponible:','Available balance:')} ${fmt(voucherSelecionado.saldoBRL, 'BRL')}`,apenasConfirmar:true});
     }
     const valorBRL = converterParaBRL(valorNum, configForma.moedaOrigem);
 
   if (configForma.id === 'crediario') {
-      if (!clienteSelecionadoPDV) return mostrarZen('warning', 'Cliente obrigatório', 'Para vender fiado, vincule um cliente antes de finalizar.');
+      if (!clienteSelecionadoPDV) return mostrarZen('warning', tx('Cliente obrigatório','Cliente obligatorio','Customer required'), tx('Para vender fiado, vincule um cliente antes de finalizar.','Para vender a crédito, vincule un cliente antes de finalizar.','To sell on credit, link a customer before completing the sale.'));
 
       const limite = parseFloat(clienteSelecionadoPDV.limiteCreditoBRL) || 0;
       
       // TRAVA 1: Se o cliente não tem limite ou o limite é zero
       if (limite <= 0) {
-        return mostrarZen('danger', 'Venda bloqueada', 'Este cliente não possui limite de crédito cadastrado ou o limite é zero.');
+        return mostrarZen('danger', tx('Venda bloqueada','Venta bloqueada','Sale blocked'), tx('Este cliente não possui limite de crédito cadastrado ou o limite é zero.','Este cliente no posee límite de crédito registrado o el límite es cero.','This customer has no registered credit limit or the limit is zero.'));
       }
 
       // TRAVA 2: Se a compra ultrapassar o limite (Sem opção de confirmar)
       const novoDevedor = (parseFloat(clienteSelecionadoPDV.saldoDevedorBRL) || 0) + valorBRL;
       if (novoDevedor > limite) {
-        return mostrarZen('danger', 'Limite de crédito excedido', `Limite: ${fmt(limite, 'BRL')}. Com esta compra, a dívida iria para ${fmt(novoDevedor, 'BRL')}.`);
+        return mostrarZen('danger', tx('Limite de crédito excedido','Límite de crédito excedido','Credit limit exceeded'), `${tx('Limite:','Límite:','Limit:')} ${fmt(limite, 'BRL')}. ${tx('Com esta compra, a dívida iria para','Con esta compra, la deuda quedaría en','With this purchase, the debt would become')} ${fmt(novoDevedor, 'BRL')}.`);
       }
     }
 
@@ -509,10 +509,10 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
           const linhas = itensComUsoVitrine.map(({ item, previsao }) => `${item.nome}: baixa prevista Vitrine ${previsao.movimento.vitrine} + Depósito ${previsao.movimento.galpao} • saldo atual V:${previsao.saldo.estoqueVitrine} D:${previsao.saldo.estoqueGalpao}`);
           const confirmouVitrine = await pedirConfirmacaoZen({
             variante:'warning',
-            titulo:'Atenção ao estoque da vitrine',
-            mensagem:'Esta venda utilizará unidades expostas na vitrine.',
-            detalhes:[...linhas, 'Considere repor a vitrine após concluir a venda.'],
-            confirmarTexto:'Continuar venda'
+            titulo:tx('Atenção ao estoque da vitrine','Atención al stock de exhibición','Display stock warning'),
+            mensagem:tx('Esta venda utilizará unidades expostas na vitrine.','Esta venta utilizará unidades expuestas en exhibición.','This sale will use units currently on display.'),
+            detalhes:[...linhas, tx('Considere repor a vitrine após concluir a venda.','Considere reponer la exhibición después de concluir la venta.','Consider replenishing the display after completing the sale.')],
+            confirmarTexto:tx('Continuar venda','Continuar venta','Continue sale')
           });
           if (!confirmouVitrine) return;
         }
@@ -736,7 +736,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
             entityKey:'id',
             property:'estado',
             expected:'pendente',
-            message:'Este pré-pedido já foi liquidado ou deixou de estar pendente em outro caixa. Atualize a fila antes de continuar.',
+            message:tx('Este pré-pedido já foi liquidado ou deixou de estar pendente em outro caixa. Atualize a fila antes de continuar.','Este pre-pedido ya fue liquidado o dejó de estar pendiente en otra caja. Actualice la cola antes de continuar.','This pre-order was already settled or is no longer pending at another register. Refresh the queue before continuing.'),
           });
         }
         const confirmado = await commitVendaCritica({
@@ -749,8 +749,8 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
         if (!confirmado?.cloudOk) {
           setModalZen({
             variante:'danger',
-            titulo: tipoFinalizacao === 'venda' ? 'Venda não concluída' : 'Documento não salvo',
-            mensagem:'A nuvem não confirmou esta operação. Nada foi finalizado no PDV.',
+            titulo: tipoFinalizacao === 'venda' ? tx('Venda não concluída','Venta no concluida','Sale not completed') : tx('Documento não salvo','Documento no guardado','Document not saved'),
+            mensagem:tx('A nuvem não confirmou esta operação. Nada foi finalizado no PDV.','La nube no confirmó esta operación. Nada fue finalizado en el TPV.','The cloud did not confirm this operation. Nothing was finalized in the POS.'),
             detalhes: confirmado?.error?.message || 'Verifique conexão/quota e tente novamente sem fechar esta tela.',
             apenasConfirmar:true,
           });
@@ -775,10 +775,10 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
     } catch (err) {
       console.error("Erro fatal ao finalizar documento:", err);
       if (err?.code === 'ZENOS_ESTOQUE_INSUFICIENTE' || err?.code === 'ZENOS_PRODUTO_NAO_ENCONTRADO' || err?.code === 'ZENOS_PRODUTO_IDENTIDADE_DUPLICADA') {
-        mostrarZen('danger', 'Venda não concluída', err.message);
+        mostrarZen('danger', tx('Venda não concluída','Venta no concluida','Sale not completed'), err.message);
         return;
       }
-      mostrarZen('danger', 'Documento não concluído', 'Houve um erro interno ao processar o documento. Nenhum passo adicional deve ser realizado até tentar novamente.');
+      mostrarZen('danger', tx('Documento não concluído','Documento no concluido','Document not completed'), tx('Houve um erro interno ao processar o documento. Nenhum passo adicional deve ser realizado até tentar novamente.','Ocurrió un error interno al procesar el documento. No realice pasos adicionales hasta intentar nuevamente.','An internal error occurred while processing the document. Do not take additional steps until trying again.'));
     } finally {
       operacaoEmAndamentoRef.current = false;
       setProcessandoTransacao(false);
@@ -789,9 +789,9 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
     const elementoCupom = document.getElementById('area-cupom-pdv');
     if (!elementoCupom) return;
     const janelaImpressao = window.open('', '_blank', 'width=400,height=600');
-    if (!janelaImpressao) return mostrarZen('warning', 'Impressão bloqueada', 'O navegador bloqueou a janela de impressão. Permita pop-ups para o ZenOS e tente novamente.');
+    if (!janelaImpressao) return mostrarZen('warning', tx('Impressão bloqueada','Impresión bloqueada','Printing blocked'), tx('O navegador bloqueou a janela de impressão. Permita pop-ups para o ZenOS e tente novamente.','El navegador bloqueó la ventana de impresión. Permita ventanas emergentes para ZenOS e intente nuevamente.','The browser blocked the print window. Allow pop-ups for ZenOS and try again.'));
     janelaImpressao.document.write(`
-      <!DOCTYPE html><html><head><title>Cupom</title><style>@page{margin:0;size:${larguraCssRecibo(perfilRecibo)} auto;}body{font-family:monospace;font-size:12px;color:#000;background:#fff;margin:0;padding:10px;width:${larguraCssRecibo(perfilRecibo)};box-sizing:border-box;}table{width:100%;border-collapse:collapse;font-size:11px;}th,td{padding:3px 0;}</style></head>
+      <!DOCTYPE html><html><head><title>${tx('Cupom','Comprobante','Receipt')}</title><style>@page{margin:0;size:${larguraCssRecibo(perfilRecibo)} auto;}body{font-family:monospace;font-size:12px;color:#000;background:#fff;margin:0;padding:10px;width:${larguraCssRecibo(perfilRecibo)};box-sizing:border-box;}table{width:100%;border-collapse:collapse;font-size:11px;}th,td{padding:3px 0;}</style></head>
       <body>${elementoCupom.innerHTML}<script>window.onload=function(){window.focus();window.print();setTimeout(function(){window.close();},500);};</script></body></html>
     `);
     janelaImpressao.document.close();
@@ -817,30 +817,30 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
       `}</style>
 
 
-      <ZenModal aberto={!!modalZen} variante={modalZen?.variante} titulo={modalZen?.titulo} mensagem={modalZen?.mensagem} detalhes={modalZen?.detalhes} confirmarTexto={modalZen?.confirmarTexto||'OK'} cancelarTexto={modalZen?.cancelarTexto||'Cancelar'} apenasConfirmar={modalZen?.apenasConfirmar} onConfirmar={()=>{ const r=modalZen?.resolver; setModalZen(null); if(r) r(true); }} onCancelar={()=>{ const r=modalZen?.resolver; setModalZen(null); if(r) r(false); }}/>
+      <ZenModal aberto={!!modalZen} variante={modalZen?.variante} titulo={modalZen?.titulo} mensagem={modalZen?.mensagem} detalhes={modalZen?.detalhes} confirmarTexto={modalZen?.confirmarTexto||'OK'} cancelarTexto={modalZen?.cancelarTexto||tx('Cancelar','Cancelar','Cancel')} apenasConfirmar={modalZen?.apenasConfirmar} onConfirmar={()=>{ const r=modalZen?.resolver; setModalZen(null); if(r) r(true); }} onCancelar={()=>{ const r=modalZen?.resolver; setModalZen(null); if(r) r(false); }}/>
 
-      {modalSenhaMargem && <div style={{position:'fixed',inset:0,zIndex:20500,background:'rgba(2,6,23,.9)',backdropFilter:'blur(8px)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}><div style={{width:'100%',maxWidth:460,background:'#0b1120',border:'1px solid #f43f5e',borderRadius:24,overflow:'hidden',color:'#fff',boxShadow:'0 30px 80px rgba(0,0,0,.65)'}}><div style={{display:'flex',alignItems:'center',gap:14,padding:'20px 22px',background:'linear-gradient(135deg,#2e0a16,#0b1120)'}}><img src="/logo-zenos.png?v=4" alt="ZenOS" style={{width:48,height:48,objectFit:'contain'}}/><div><div style={{fontSize:10,fontWeight:900,letterSpacing:2,color:'#f43f5e'}}>ZENOS • PROTEÇÃO DE MARGEM</div><div style={{fontSize:19,fontWeight:900,marginTop:3}}>🔐 Autorização gerencial</div></div></div><div style={{padding:'20px 22px'}}><div style={{fontSize:13,lineHeight:1.55,color:'#e2e8f0',marginBottom:14}}>Margem atual: <b>{margemLucroReal.toFixed(1)}%</b> • mínimo: <b>{margemMinima}%</b>. Informe a senha gerencial para liberar excepcionalmente esta venda.</div><input autoFocus type="text" inputMode="text" autoComplete="one-time-code" name="zenos-manager-approval-pin" data-lpignore="true" data-1p-ignore="true" value={senhaMargemInput} onChange={e=>setSenhaMargemInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')confirmarSenhaMargem();}} placeholder="PIN do Administrador / Gerência" style={{width:'100%',WebkitTextSecurity:'disc',boxSizing:'border-box',padding:13,borderRadius:10,border:'1px solid #f43f5e',background:'#020617',color:'#fff',outline:'none'}}/></div><div style={{display:'flex',gap:10,padding:'16px 22px 20px',borderTop:'1px solid #1e293b'}}><button onClick={()=>{setModalSenhaMargem(false);setSenhaMargemInput('');}} style={{flex:1,padding:12,borderRadius:10,border:'1px solid #334155',background:'#020617',color:'#cbd5e1',fontWeight:900,cursor:'pointer'}}>Cancelar</button><button onClick={confirmarSenhaMargem} style={{flex:1,padding:12,borderRadius:10,border:'none',background:'#e11d48',color:'#fff',fontWeight:900,cursor:'pointer'}}>Autorizar venda</button></div></div></div>}
+      {modalSenhaMargem && <div style={{position:'fixed',inset:0,zIndex:20500,background:'rgba(2,6,23,.9)',backdropFilter:'blur(8px)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}><div style={{width:'100%',maxWidth:460,background:'#0b1120',border:'1px solid #f43f5e',borderRadius:24,overflow:'hidden',color:'#fff',boxShadow:'0 30px 80px rgba(0,0,0,.65)'}}><div style={{display:'flex',alignItems:'center',gap:14,padding:'20px 22px',background:'linear-gradient(135deg,#2e0a16,#0b1120)'}}><img src="/logo-zenos.png?v=4" alt="ZenOS" style={{width:48,height:48,objectFit:'contain'}}/><div><div style={{fontSize:10,fontWeight:900,letterSpacing:2,color:'#f43f5e'}}>ZENOS • {tx('PROTEÇÃO DE MARGEM','PROTECCIÓN DE MARGEN','MARGIN PROTECTION')}</div><div style={{fontSize:19,fontWeight:900,marginTop:3}}>🔐 {tx('Autorização gerencial','Autorización gerencial','Manager authorization')}</div></div></div><div style={{padding:'20px 22px'}}><div style={{fontSize:13,lineHeight:1.55,color:'#e2e8f0',marginBottom:14}}>{tx('Margem atual:','Margen actual:','Current margin:')} <b>{margemLucroReal.toFixed(1)}%</b> • {tx('mínimo:','mínimo:','minimum:')} <b>{margemMinima}%</b>. {tx('Informe a senha gerencial para liberar excepcionalmente esta venda.','Ingrese la contraseña gerencial para autorizar excepcionalmente esta venta.','Enter the manager password to exceptionally authorize this sale.')}</div><input autoFocus type="text" inputMode="text" autoComplete="one-time-code" name="zenos-manager-approval-pin" data-lpignore="true" data-1p-ignore="true" value={senhaMargemInput} onChange={e=>setSenhaMargemInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')confirmarSenhaMargem();}} placeholder={tx('PIN do Administrador / Gerência','PIN del Administrador / Gerencia','Administrator / Management PIN')} style={{width:'100%',WebkitTextSecurity:'disc',boxSizing:'border-box',padding:13,borderRadius:10,border:'1px solid #f43f5e',background:'#020617',color:'#fff',outline:'none'}}/></div><div style={{display:'flex',gap:10,padding:'16px 22px 20px',borderTop:'1px solid #1e293b'}}><button onClick={()=>{setModalSenhaMargem(false);setSenhaMargemInput('');}} style={{flex:1,padding:12,borderRadius:10,border:'1px solid #334155',background:'#020617',color:'#cbd5e1',fontWeight:900,cursor:'pointer'}}>{tx('Cancelar','Cancelar','Cancel')}</button><button onClick={confirmarSenhaMargem} style={{flex:1,padding:12,borderRadius:10,border:'none',background:'#e11d48',color:'#fff',fontWeight:900,cursor:'pointer'}}>{tx('Autorizar venda','Autorizar venta','Authorize sale')}</button></div></div></div>}
 
       {modalResgateAberto && (
         <div className="no-print" style={{ position: 'fixed', inset: 0, zIndex: 2000, backgroundColor: 'rgba(2,6,23,0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
           <div style={{ backgroundColor: '#0b1120', border: '1px solid #8b5cf6', borderRadius: '20px', width: '100%', maxWidth: '600px', padding: '24px', color: '#fff', maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 25px 50px rgba(0,0,0,0.5)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div>
-                <span style={{ fontSize: '11px', fontWeight: 900, color: '#c084fc', letterSpacing: '1px', textTransform: 'uppercase' }}>Fila do Caixa</span>
-                <h3 style={{ margin: '4px 0 0 0', color: '#ffffff', fontSize: '18px', fontWeight: 900 }}>📥 Resgatar Pré-Pedidos</h3>
+                <span style={{ fontSize: '11px', fontWeight: 900, color: '#c084fc', letterSpacing: '1px', textTransform: 'uppercase' }}>{tx('Fila do Caixa','Cola de Caja','Checkout Queue')}</span>
+                <h3 style={{ margin: '4px 0 0 0', color: '#ffffff', fontSize: '18px', fontWeight: 900 }}>📥 {tx('Resgatar Pré-Pedidos','Recuperar Pre-Pedidos','Retrieve Pre-Orders')}</h3>
               </div>
               <button onClick={() => setModalResgateAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #334155', color: '#94a3b8', borderRadius: '10px', width: '36px', height: '36px', cursor: 'pointer', fontWeight: 900 }}>✕</button>
             </div>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {historicoVendas.filter(v => v.estado === 'pendente').length === 0 ? (
-                <div style={{ textAlign: 'center', color: '#475569', padding: '40px', backgroundColor: '#020617', borderRadius: '12px', border: '1px solid #1e293b' }}>Nenhum pré-pedido a aguardar pagamento no caixa.</div>
+                <div style={{ textAlign: 'center', color: '#475569', padding: '40px', backgroundColor: '#020617', borderRadius: '12px', border: '1px solid #1e293b' }}>{tx('Nenhum pré-pedido a aguardar pagamento no caixa.','Ningún pre-pedido pendiente de pago en caja.','No pre-orders awaiting payment at checkout.')}</div>
               ) : (
                 historicoVendas.filter(v => v.estado === 'pendente').map(v => (
                   <div key={v.id} onClick={() => carregarPrePedido(v)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', backgroundColor: '#1e1b4b', border: '1px solid #4c1d95', borderRadius: '12px', cursor: 'pointer', transition: 'transform 0.2s', boxShadow: '0 4px 10px rgba(76,29,149,0.2)' }}>
                     <div>
                       <strong style={{ display: 'block', color: '#e2e8f0', fontSize: '15px' }}>{v.clienteNome}</strong>
-                      <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', display: 'block' }}>Vendedor: <span style={{color: '#a78bfa', fontWeight: 800}}>{v.vendedorNome}</span> • {v.dataHora}</span>
+                      <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', display: 'block' }}>{tx('Vendedor:','Vendedor:','Seller:')} <span style={{color: '#a78bfa', fontWeight: 800}}>{v.vendedorNome}</span> • {v.dataHora}</span>
                     </div>
                     <div style={{ fontWeight: 900, color: '#34d399', fontSize: '16px' }}>{fmt(v.totalBRL)}</div>
                   </div>
@@ -857,16 +857,16 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
               <div id="area-cupom-pdv" style={{ padding: '20px', fontFamily: 'monospace', fontSize: '12px' }}>
                 <div style={{ textAlign: 'center', marginBottom: '10px' }}>
                   {perfilRecibo.mostrarLogoRecibo !== false && perfilRecibo.logoLoja && <img src={perfilRecibo.logoLoja} alt="Logo" style={{maxWidth:'110px',maxHeight:'55px',objectFit:'contain',marginBottom:4}}/>}<h2 style={{ margin: '0 0 4px 0', fontSize: '16px' }}>{perfilRecibo.nomeFantasia || 'ZenOS - SISTEMA DE GESTÃO'}</h2>{perfilRecibo.cabecalhoRecibo && <div style={{fontSize:'10px'}}>{perfilRecibo.cabecalhoRecibo}</div>}
-                  <div style={{ fontSize: '10px' }}>{vendaConcluidaObj.tipoDocumento === 'pre_pedido' ? 'TICKET DE PRÉ-PEDIDO (NÃO PAGO)' : 'ORÇAMENTO SEM VALOR FISCAL'}<br/>{vendaConcluidaObj.dataHora}</div>
+                  <div style={{ fontSize: '10px' }}>{vendaConcluidaObj.tipoDocumento === 'pre_pedido' ? tx('TICKET DE PRÉ-PEDIDO (NÃO PAGO)','TICKET DE PRE-PEDIDO (NO PAGADO)','PRE-ORDER TICKET (UNPAID)') : tx('ORÇAMENTO SEM VALOR FISCAL','PRESUPUESTO SIN VALOR FISCAL','QUOTE WITH NO FISCAL VALUE')}<br/>{vendaConcluidaObj.dataHora}</div>
                 </div>
                 <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
                 <div style={{ marginBottom: '8px', fontSize: '11px' }}>
-                  <strong>Cliente:</strong> {vendaConcluidaObj.clienteNome}<br/>
-                  <strong>Balconista:</strong> {vendaConcluidaObj.vendedorNome}
+                  <strong>{tx('Cliente:','Cliente:','Customer:')}</strong> {vendaConcluidaObj.clienteNome}<br/>
+                  <strong>{tx('Balconista:','Vendedor:','Counter Clerk:')}</strong> {vendaConcluidaObj.vendedorNome}
                 </div>
                 <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
                 <table style={{ width: '100%', textAlign: 'left', fontSize: '11px' }}>
-                  <thead><tr><th>Qtd</th><th>Item</th><th style={{ textAlign: 'right' }}>Vl. Un</th><th style={{ textAlign: 'right' }}>Total</th></tr></thead>
+                  <thead><tr><th>{tx('Qtd','Cant.','Qty')}</th><th>{tx('Item','Ítem','Item')}</th><th style={{ textAlign: 'right' }}>{tx('Vl. Un','Val. Un.','Unit Price')}</th><th style={{ textAlign: 'right' }}>{tx('Total','Total','Total')}</th></tr></thead>
                   <tbody>
                     {vendaConcluidaObj.itens.map((it, idx) => (
                       <tr key={idx}><td>{it.qtd}</td><td>{it.nome.substring(0, 15)}</td><td style={{ textAlign: 'right' }}>{converterDeBRL(it.precoPraticadoBRL, moeda).toFixed(2)}</td><td style={{ textAlign: 'right' }}>{converterDeBRL((it.precoPraticadoBRL * it.qtd), moeda).toFixed(2)}</td></tr>
@@ -874,7 +874,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
                   </tbody>
                 </table>
                 <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '14px' }}><span>TOTAL A PAGAR</span><span>{fmt(vendaConcluidaObj.totalBRL)}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '14px' }}><span>{tx('TOTAL A PAGAR','TOTAL A PAGAR','TOTAL DUE')}</span><span>{fmt(vendaConcluidaObj.totalBRL)}</span></div>
                 <div style={{ marginTop: 6, fontSize: '10px' }}>
                   {moedasReciboAtivas.map(codigo => (
                     <div key={codigo} style={{ display:'flex', justifyContent:'space-between' }}>
@@ -885,7 +885,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
                 </div>
                 
                 <div style={{ marginTop: '15px', textAlign: 'center', fontSize: '14px', fontWeight: 'bold', border: '1px solid #000', padding: '5px' }}>
-                  {vendaConcluidaObj.tipoDocumento === 'pre_pedido' ? 'DIRIJA-SE AO CAIXA PARA PAGAR' : 'ORÇAMENTO VÁLIDO POR 7 DIAS'}
+                  {vendaConcluidaObj.tipoDocumento === 'pre_pedido' ? tx('DIRIJA-SE AO CAIXA PARA PAGAR','DIRÍJASE A CAJA PARA PAGAR','GO TO CHECKOUT TO PAY') : tx('ORÇAMENTO VÁLIDO POR 7 DIAS','PRESUPUESTO VÁLIDO POR 7 DÍAS','QUOTE VALID FOR 7 DAYS')}
                 </div>
 
                 <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
@@ -924,7 +924,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
               <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: '8px', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '14px', overflow: 'hidden', zIndex: 50, maxHeight: '200px', overflowY: 'auto', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
                 {clientesSugeridos.map((c, index) => (
   <div key={c.id || `cli-antigo-${index}`} onMouseDown={(e) => { e.preventDefault(); selecionarClienteNoPDV(c); }} style={{ padding: '12px 20px', borderBottom: '1px solid #1e293b', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div><strong style={{ color: '#f8fafc', fontSize: '14px' }}>{c.nome}</strong><br/><span style={{ color: '#64748b', fontSize: '11px' }}>Doc: {c.documento}</span></div><span style={{ color: '#38bdf8', fontSize: '11px', fontWeight: 800 }}>Vincular ➜</span>
+                    <div><strong style={{ color: '#f8fafc', fontSize: '14px' }}>{c.nome}</strong><br/><span style={{ color: '#64748b', fontSize: '11px' }}>Doc: {c.documento}</span></div><span style={{ color: '#38bdf8', fontSize: '11px', fontWeight: 800 }}>{tx('Vincular ➜','Vincular ➜','Link ➜')}</span>
                   </div>
                 ))}
               </div>
@@ -1034,7 +1034,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
               if (itemParaAdicionar.tipoItem === 'servico' || ehEncomendaUsoUnico(itemParaAdicionar)) return null;
               const saldo = obterEstoqueProduto(itemParaAdicionar);
               const previsao = preverBaixaEstoqueProduto(itemParaAdicionar, Math.max(1, parseInt(qtdDigitadaRapida) || 1));
-              if (saldo.estoqueVitrine > 0) return <div style={{ marginBottom: '14px', padding: '10px 12px', backgroundColor: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.45)', borderRadius: '10px', color: '#fbbf24', fontSize: '12px', fontWeight: 800 }}>⚠️ Disponibilidade: Vitrine {saldo.estoqueVitrine} • Depósito {saldo.estoqueGalpao} • Total {saldo.estoque}. Para esta quantidade, a baixa prevista é Vitrine {previsao.movimento.vitrine} + Depósito {previsao.movimento.galpao}. {saldo.estoqueGalpao > 0 ? 'Considere repor a vitrine após a venda.' : 'O produto está disponível somente na vitrine.'}</div>;
+              if (saldo.estoqueVitrine > 0) return <div style={{ marginBottom: '14px', padding: '10px 12px', backgroundColor: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.45)', borderRadius: '10px', color: '#fbbf24', fontSize: '12px', fontWeight: 800 }}>⚠️ {tx('Disponibilidade:','Disponibilidad:','Availability:')} {tx('Vitrine','Exhibición','Display')} {saldo.estoqueVitrine} • {tx('Depósito','Depósito','Warehouse')} {saldo.estoqueGalpao} • {tx('Total','Total','Total')} {saldo.estoque}. {tx('Para esta quantidade, a baixa prevista é','Para esta cantidad, la baja prevista es','For this quantity, the expected deduction is')} {tx('Vitrine','Exhibición','Display')} {previsao.movimento.vitrine} + {tx('Depósito','Depósito','Warehouse')} {previsao.movimento.galpao}. {saldo.estoqueGalpao > 0 ? 'Considere repor a vitrine após a venda.' : 'O produto está disponível somente na vitrine.'}</div>;
               return <div style={{ marginBottom: '12px', color: '#64748b', fontSize: '11px' }}>Vitrine: {saldo.estoqueVitrine} • Depósito: {saldo.estoqueGalpao} • Total: {saldo.estoque}</div>;
             })()}
             <input ref={inputQtdRapidaRef} type="number" value={qtdDigitadaRapida} onChange={e => setQtdDigitadaRapida(e.target.value)} onFocus={e=>e.target.select()} onKeyDown={e=>{if(e.key==='Enter') confirmarAdicaoRapida(); if(e.key==='Escape') setItemParaAdicionar(null);}} style={{ width: '80px', padding: '10px', fontSize: '20px', textAlign: 'center', backgroundColor: '#020617', border: '1px solid #6366f1', color: '#fff', borderRadius: '8px', marginBottom: '20px', outline: 'none' }} />
@@ -1074,7 +1074,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1500, padding: '16px' }}>
           <div style={{ backgroundColor: '#0b1120', border: '1px solid #0284c7', borderRadius: '24px', width: '100%', maxWidth: '820px', maxHeight: '92vh', overflowY: 'auto', padding: '28px', color: '#fff', boxSizing: 'border-box' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <div><span style={{ fontSize: '11px', fontWeight: 800, color: '#38bdf8', letterSpacing: '1px', textTransform: 'uppercase' }}>Ficha Cadastral Universal • PDV Balcão</span><h3 style={{ fontSize: '18px', fontWeight: 900, margin: '2px 0 0 0' }}>{produtoEmEdicaoPDV ? `Editar: ${produtoEmEdicaoPDV.nome}` : tx('Cadastrar Novo Produto', 'Registrar Nuevo Producto', 'New Product')}</h3></div>
+              <div><span style={{ fontSize: '11px', fontWeight: 800, color: '#38bdf8', letterSpacing: '1px', textTransform: 'uppercase' }}>{tx('Ficha Cadastral Universal • PDV Balcão','Ficha Universal • TPV Mostrador','Universal Record • POS Counter')}</span><h3 style={{ fontSize: '18px', fontWeight: 900, margin: '2px 0 0 0' }}>{produtoEmEdicaoPDV ? `Editar: ${produtoEmEdicaoPDV.nome}` : tx('Cadastrar Novo Produto', 'Registrar Nuevo Producto', 'New Product')}</h3></div>
               <button onClick={() => setModalProdutoPDVAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#64748b', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>✕</button>
             </div>
             <div style={{ backgroundColor: 'rgba(217, 119, 6, 0.15)', border: '1px solid rgba(217, 119, 6, 0.4)', borderRadius: '14px', padding: '14px 20px', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -1090,27 +1090,27 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '18px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
                 <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>SKU</label><input type="text" value={formProdutoPDV.sku} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, sku: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 800, fontSize: '13px', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
-                <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Nome do Item</label><input type="text" value={formProdutoPDV.nome} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, nome: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 700, fontSize: '13px', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
+                <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Nome do Item','Nombre del Ítem','Item Name')}</label><input type="text" value={formProdutoPDV.nome} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, nome: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 700, fontSize: '13px', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
                 <div>
-                  <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Grupo / Categoria (Livre)</label>
-                  <input type="text" placeholder="Ex: Tintas, Pincéis..." value={formProdutoPDV.grupo || ''} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, grupo: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 700, fontSize: '13px', padding: '10px', outline: 'none', boxSizing: 'border-box' }} />
+                  <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Grupo / Categoria (Livre)','Grupo / Categoría (Libre)','Group / Category (Free)')}</label>
+                  <input type="text" placeholder={tx('Ex: Tintas, Pincéis...','Ej: Pinturas, Pinceles...','Ex: Paints, Brushes...')} value={formProdutoPDV.grupo || ''} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, grupo: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 700, fontSize: '13px', padding: '10px', outline: 'none', boxSizing: 'border-box' }} />
                 </div>
                 <div>
-                  <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Fornecedor / Marca</label>
-                  <input type="text" placeholder="Ex: Suvinil, Tigre..." value={formProdutoPDV.fornecedor || ''} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, fornecedor: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 700, fontSize: '13px', padding: '10px', outline: 'none', boxSizing: 'border-box' }} />
+                  <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Fornecedor / Marca','Proveedor / Marca','Supplier / Brand')}</label>
+                  <input type="text" placeholder={tx('Ex: Suvinil, Tigre...','Ej: Suvinil, Tigre...','Ex: Suvinil, Tigre...')} value={formProdutoPDV.fornecedor || ''} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, fornecedor: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 700, fontSize: '13px', padding: '10px', outline: 'none', boxSizing: 'border-box' }} />
                 </div>
               </div>
             </div>
             <div style={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', padding: '16px 20px', marginBottom: '18px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: '12px', alignItems: 'start', marginBottom: '12px' }}>
-                <div><label style={{ minHeight:28, display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>Custo (R$)</label><input type="text" value={formProdutoPDV.custoBRL} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, custoBRL: e.target.value })} style={{ width: '100%', height:40, backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontWeight: 800, fontSize: '14px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
-                <div><label style={{ minHeight:28, display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>Preço Venda (R$)</label><input type="text" value={formProdutoPDV.precoBRL} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, precoBRL: e.target.value })} style={{ width: '100%', height:40, backgroundColor: '#0b1120', border: '1px solid #34d399', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
-                <div><label style={{ minHeight:28, display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#38bdf8', fontWeight: 700 }}>Vitrine / Loja</label><input type="number" disabled={Boolean(produtoEmEdicaoPDV)} value={formProdutoPDV.estoqueVitrine ?? 0} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, estoqueVitrine: e.target.value })} style={{ width: '100%', height:40, backgroundColor: '#0b1120', border: '1px solid #0369a1', borderRadius: '8px', color: '#38bdf8', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '10px', outline: 'none', boxSizing: 'border-box', opacity: produtoEmEdicaoPDV ? .65 : 1 }} /></div>
-                <div><label style={{ minHeight:28, display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#a855f7', fontWeight: 700 }}>Galpão / Depósito</label><input type="number" disabled={Boolean(produtoEmEdicaoPDV)} value={formProdutoPDV.estoqueGalpao ?? 0} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, estoqueGalpao: e.target.value })} style={{ width: '100%', height:40, backgroundColor: '#0b1120', border: '1px solid #7e22ce', borderRadius: '8px', color: '#a855f7', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '10px', outline: 'none', boxSizing: 'border-box', opacity: produtoEmEdicaoPDV ? .65 : 1 }} /></div>
+                <div><label style={{ minHeight:28, display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Custo (R$)','Costo (R$)','Cost (R$)')}</label><input type="text" value={formProdutoPDV.custoBRL} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, custoBRL: e.target.value })} style={{ width: '100%', height:40, backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontWeight: 800, fontSize: '14px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
+                <div><label style={{ minHeight:28, display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Preço Venda (R$)','Precio Venta (R$)','Sale Price (R$)')}</label><input type="text" value={formProdutoPDV.precoBRL} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, precoBRL: e.target.value })} style={{ width: '100%', height:40, backgroundColor: '#0b1120', border: '1px solid #34d399', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
+                <div><label style={{ minHeight:28, display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#38bdf8', fontWeight: 700 }}>{tx('Vitrine / Loja','Exhibición / Tienda','Display / Store')}</label><input type="number" disabled={Boolean(produtoEmEdicaoPDV)} value={formProdutoPDV.estoqueVitrine ?? 0} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, estoqueVitrine: e.target.value })} style={{ width: '100%', height:40, backgroundColor: '#0b1120', border: '1px solid #0369a1', borderRadius: '8px', color: '#38bdf8', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '10px', outline: 'none', boxSizing: 'border-box', opacity: produtoEmEdicaoPDV ? .65 : 1 }} /></div>
+                <div><label style={{ minHeight:28, display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#a855f7', fontWeight: 700 }}>{tx('Galpão / Depósito','Depósito / Almacén','Warehouse / Storage')}</label><input type="number" disabled={Boolean(produtoEmEdicaoPDV)} value={formProdutoPDV.estoqueGalpao ?? 0} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, estoqueGalpao: e.target.value })} style={{ width: '100%', height:40, backgroundColor: '#0b1120', border: '1px solid #7e22ce', borderRadius: '8px', color: '#a855f7', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '10px', outline: 'none', boxSizing: 'border-box', opacity: produtoEmEdicaoPDV ? .65 : 1 }} /></div>
               </div>
-              {produtoEmEdicaoPDV && <div style={{fontSize:10,color:'#64748b',marginTop:-4,marginBottom:10}}>Para alterar estoque de produto existente, use as movimentações auditadas de Vitrine/Depósito no Catálogo.</div>}
+              {produtoEmEdicaoPDV && <div style={{fontSize:10,color:'#64748b',marginTop:-4,marginBottom:10}}>{tx('Para alterar estoque de produto existente, use as movimentações auditadas de Vitrine/Depósito no Catálogo.','Para alterar el stock de un producto existente, use los movimientos auditados de Exhibición/Depósito en el Catálogo.','To change stock for an existing product, use audited Display/Warehouse movements in the Catalog.')}</div>}
             </div>
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
               <button onClick={() => setModalProdutoPDVAberto(false)} style={{ flex: 1, backgroundColor: '#020617', border: '1px solid #1e293b', color: '#94a3b8', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}>{tx('Cancelar', 'Cancelar', 'Cancel')}</button>
@@ -1133,12 +1133,12 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
                   </div>
                   <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
                   <div style={{ marginBottom: '8px', fontSize: '11px' }}>
-                    <strong>Cliente:</strong> {vendaConcluidaObj?.clienteNome}<br/>
-                    <strong>Operador:</strong> {vendaConcluidaObj?.vendedorNome}
+                    <strong>{tx('Cliente:','Cliente:','Customer:')}</strong> {vendaConcluidaObj?.clienteNome}<br/>
+                    <strong>{tx('Operador:','Operador:','Operator:')}</strong> {vendaConcluidaObj?.vendedorNome}
                   </div>
                   <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
                   <table style={{ width: '100%', textAlign: 'left', fontSize: '11px' }}>
-                    <thead><tr><th>Qtd</th><th>Item</th><th style={{ textAlign: 'right' }}>Vl. Un</th><th style={{ textAlign: 'right' }}>Total</th></tr></thead>
+                    <thead><tr><th>{tx('Qtd','Cant.','Qty')}</th><th>{tx('Item','Ítem','Item')}</th><th style={{ textAlign: 'right' }}>{tx('Vl. Un','Val. Un.','Unit Price')}</th><th style={{ textAlign: 'right' }}>{tx('Total','Total','Total')}</th></tr></thead>
                     <tbody>
                       {vendaConcluidaObj?.itens.map((it, idx) => (
                         <tr key={idx}><td>{it.qtd}</td><td>{it.nome.substring(0, 15)}</td><td style={{ textAlign: 'right' }}>{converterDeBRL(it.precoPraticadoBRL, moeda).toFixed(2)}</td><td style={{ textAlign: 'right' }}>{converterDeBRL((it.precoPraticadoBRL * it.qtd), moeda).toFixed(2)}</td></tr>
@@ -1146,7 +1146,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
                     </tbody>
                   </table>
                   <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '14px' }}><span>TOTAL A PAGAR</span><span>{fmt(vendaConcluidaObj?.totalBRL)}</span></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '14px' }}><span>{tx('TOTAL A PAGAR','TOTAL A PAGAR','TOTAL DUE')}</span><span>{fmt(vendaConcluidaObj?.totalBRL)}</span></div>
                   <div style={{ marginTop: 6, fontSize: '10px' }}>
                     {moedasReciboAtivas.map(codigo => (
                       <div key={codigo} style={{ display:'flex', justifyContent:'space-between' }}>
@@ -1159,14 +1159,14 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
                   {vendaConcluidaObj?.tipoDocumento === 'venda' && (
                     <>
                       <div style={{ marginTop: '10px', fontSize: '11px' }}>
-                        <strong>Pagamentos (Liquidados):</strong><br/>
+                        <strong>{tx('Pagamentos (Liquidados):','Pagos (Liquidados):','Payments (Settled):')}</strong><br/>
                         {vendaConcluidaObj?.pagamentos.map((p, idx) => <div key={idx} style={{ display: 'flex', justifyContent: 'space-between' }}><span>{p.rotulo}</span><span>{p.valorOriginal.toFixed(2)}</span></div>)}
                       </div>
                       {vendaConcluidaObj?.trocoBRL > 0.01 && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginTop: '4px', backgroundColor: '#e2e8f0', padding: '2px' }}><span>TROCO ({vendaConcluidaObj.moedaTrocoInfo})</span><span>{formatarEquivalenciaBRL(vendaConcluidaObj.trocoBRL, vendaConcluidaObj.moedaTrocoInfo || 'BRL', cotacoesRecibo)}</span></div>}
                     </>
                   )}
                   {vendaConcluidaObj?.tipoDocumento === 'pre_pedido' && (
-                    <div style={{ marginTop: '15px', textAlign: 'center', fontSize: '14px', fontWeight: 'bold', border: '1px solid #000', padding: '5px' }}>AGUARDANDO PAGAMENTO NO CAIXA</div>
+                    <div style={{ marginTop: '15px', textAlign: 'center', fontSize: '14px', fontWeight: 'bold', border: '1px solid #000', padding: '5px' }}>{tx('AGUARDANDO PAGAMENTO NO CAIXA','ESPERANDO PAGO EN CAJA','AWAITING PAYMENT AT CHECKOUT')}</div>
                   )}
 
                   <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
@@ -1243,7 +1243,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
                     style={{ padding: '14px', backgroundColor: '#020617', border: '1px solid #10b981', borderRadius: '12px', color: '#34d399', fontSize: '18px', fontWeight: 900, textAlign: 'right', outline: 'none', boxSizing: 'border-box', width: '100%' }} 
                   />
                 </div>
-                {formaSelecionada === 'voucher' && <div style={{margin:'-6px 0 14px'}}><label style={{fontSize:11,color:'#c084fc',fontWeight:900}}>CÓDIGO DO VOUCHER</label><input value={voucherCodigoInput} onChange={e=>setVoucherCodigoInput(e.target.value.toUpperCase())} placeholder="VALE-000000" style={{width:'100%',boxSizing:'border-box',marginTop:6,padding:12,borderRadius:10,border:'1px solid #8b5cf6',background:'#020617',color:'#e9d5ff',fontWeight:900,letterSpacing:1}}/></div>}
+                {formaSelecionada === 'voucher' && <div style={{margin:'-6px 0 14px'}}><label style={{fontSize:11,color:'#c084fc',fontWeight:900}}>{tx('CÓDIGO DO VOUCHER','CÓDIGO DEL VOUCHER','VOUCHER CODE')}</label><input value={voucherCodigoInput} onChange={e=>setVoucherCodigoInput(e.target.value.toUpperCase())} placeholder="VALE-000000" style={{width:'100%',boxSizing:'border-box',marginTop:6,padding:12,borderRadius:10,border:'1px solid #8b5cf6',background:'#020617',color:'#e9d5ff',fontWeight:900,letterSpacing:1}}/></div>}
                 
                 <button 
                   onClick={adicionarPagamento} 
