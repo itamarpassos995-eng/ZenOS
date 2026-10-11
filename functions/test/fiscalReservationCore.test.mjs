@@ -1,0 +1,16 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {planoReservaFiscal,reservarEmissaoFiscal,classificacaoRetornoFiscal,permiteReenvioAutomatico} from '../src/fiscalReservationCore.js';
+const entrada={lojaId:'loja1',vendaId:'venda1',pais:'BR',tipoDocumento:'nfe',ambiente:'homologacao',conteudoHash:'a'.repeat(64),actorUid:'uid1'};
+const memoria=()=>{const docs=new Map();const firestore={doc(path){return {path}},async runTransaction(callback){const criacoes=[];const tx={async get(ref){return {exists:docs.has(ref.path),data:()=>structuredClone(docs.get(ref.path))}},create(ref,data){criacoes.push([ref.path,data])}};const resposta=await callback(tx);for(const [path] of criacoes)if(docs.has(path))throw Error('precondição');for(const [path,data]of criacoes)docs.set(path,structuredClone(data));return resposta}};return {firestore,docs}};
+test('mesma venda gera trava estável',()=>assert.equal(planoReservaFiscal(entrada).lockId,planoReservaFiscal(entrada).lockId));
+test('outros tipos compartilham trava da venda',()=>assert.equal(planoReservaFiscal(entrada).lockId,planoReservaFiscal({...entrada,tipoDocumento:'nfce'}).lockId));
+test('lojas distintas possuem travas isoladas',()=>assert.notEqual(planoReservaFiscal(entrada).lockId,planoReservaFiscal({...entrada,lojaId:'loja2'}).lockId));
+test('nega produção',()=>assert.throws(()=>planoReservaFiscal({...entrada,ambiente:'producao'}),{code:'FISCAL_PRODUCAO_BLOQUEADA'}));
+test('nega hash incorreto',()=>assert.throws(()=>planoReservaFiscal({...entrada,conteudoHash:'x'}),{code:'FISCAL_HASH_INVALIDO'}));
+test('reserva cria apenas dois documentos fiscais',async()=>{const m=memoria(),p=planoReservaFiscal(entrada);const x=await reservarEmissaoFiscal({firestore:m.firestore,plano:p,now:'2026-10-11T00:00:00Z'});assert.equal(x.criada,true);assert.equal(m.docs.size,2);assert.equal(m.docs.get(p.operationPath).estado,'reservada')});
+test('repetição não cria outro envio',async()=>{const m=memoria(),p=planoReservaFiscal(entrada),args={firestore:m.firestore,plano:p,now:'2026-10-11T00:00:00Z'};await reservarEmissaoFiscal(args);const y=await reservarEmissaoFiscal(args);assert.equal(y.criada,false);assert.equal(y.requerConciliacao,true);assert.equal(m.docs.size,2)});
+test('tentativa com tipo diferente bloqueada',async()=>{const m=memoria(),a=planoReservaFiscal(entrada),b=planoReservaFiscal({...entrada,tipoDocumento:'nfce'});await reservarEmissaoFiscal({firestore:m.firestore,plano:a,now:'2026-10-11T00:00:00Z'});await assert.rejects(reservarEmissaoFiscal({firestore:m.firestore,plano:b,now:'2026-10-11T00:00:00Z'}),{code:'FISCAL_VENDA_JA_RESERVADA'})});
+test('retorno positivo requer conciliação',()=>assert.equal(classificacaoRetornoFiscal({resultado:{autorizacaoInformada:true,requerConciliacao:true}}),'autorizacao_informada'));
+test('timeout vira resultado incerto sem reenvio',()=>{const estado=classificacaoRetornoFiscal({erroDeRede:true});assert.equal(estado,'resultado_incerto');assert.equal(permiteReenvioAutomatico(estado),false)});
+test('não permite reenvio nem após rejeição',()=>assert.equal(permiteReenvioAutomatico('rejeitada'),false));
