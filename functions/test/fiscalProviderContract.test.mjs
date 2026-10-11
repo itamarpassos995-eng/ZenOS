@@ -1,0 +1,14 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {criarChaveProvedorFiscal,prepararRequisicaoProvedorFiscal,validarRespostaTransporteFiscal,transmitirFiscalDesativado} from '../src/fiscalProviderContract.js';
+const base={lojaId:'loja1',vendaId:'venda1',pais:'BR',tipoDocumento:'nfe',ambiente:'homologacao',operacao:'emitir',conteudoHash:'a'.repeat(64)};
+test('chave estável para mesma emissão',()=>assert.equal(criarChaveProvedorFiscal(base),criarChaveProvedorFiscal(base)));
+test('chaves diferentes entre lojas',()=>assert.notEqual(criarChaveProvedorFiscal(base),criarChaveProvedorFiscal({...base,lojaId:'loja2'})));
+test('chaves diferentes entre operações',()=>assert.notEqual(criarChaveProvedorFiscal(base),criarChaveProvedorFiscal({...base,operacao:'consultar',referencia:'protocolo1'})));
+test('bloqueia produção',()=>assert.throws(()=>prepararRequisicaoProvedorFiscal({...base,ambiente:'producao'}),{code:'FISCAL_PRODUCAO_BLOQUEADA'}));
+test('bloqueia conteúdo não verificado',()=>assert.throws(()=>prepararRequisicaoProvedorFiscal({...base,conteudoHash:'abc'}),{code:'FISCAL_CONTEUDO_NAO_VERIFICADO'}));
+test('bloqueia tipo estrangeiro',()=>assert.throws(()=>prepararRequisicaoProvedorFiscal({...base,tipoDocumento:'factura_electronica'}),{code:'FISCAL_TIPO_PAIS_INVALIDO'}));
+test('consulta exige referência',()=>assert.throws(()=>prepararRequisicaoProvedorFiscal({...base,operacao:'consultar'}),{code:'FISCAL_REFERENCIA_OBRIGATORIA'}));
+test('resposta divergente bloqueada',()=>{const req=prepararRequisicaoProvedorFiscal(base);assert.throws(()=>validarRespostaTransporteFiscal({chaveIdempotencia:'errada',status:'recebido'},req),{code:'FISCAL_CHAVE_DIVERGENTE'})});
+test('recebimento não equivale a autorização',()=>{const req=prepararRequisicaoProvedorFiscal(base);assert.equal(validarRespostaTransporteFiscal({chaveIdempotencia:req.chaveIdempotencia,status:'recebido'},req).autorizado,false)});
+test('transmissão permanece desativada',async()=>await assert.rejects(transmitirFiscalDesativado(),{code:'FISCAL_PROVEDOR_NAO_CONFIGURADO'}));
