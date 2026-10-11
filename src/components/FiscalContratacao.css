@@ -1,0 +1,264 @@
+/* ZenOS Fiscal: solicitação isolada do layout comercial. */
+.fiscal-page .fiscal-contratacao {
+  box-sizing:border-box;
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  margin:0 0 18px;
+  padding:clamp(18px,3.2vw,30px);
+  border:1px solid rgba(113,144,190,.34);
+  border-radius:22px;
+  background:linear-gradient(155deg,#0b2445 0%,#08182f 54%,#061226 100%);
+  box-shadow:0 14px 36px rgba(2,6,23,.23);
+  color:#f8fafc;
+  overflow-wrap:anywhere;
+}
+.fiscal-page .fiscal-onboard-heading {
+  display:flex;
+  align-items:flex-start;
+  gap:17px;
+}
+.fiscal-page .fiscal-onboard-heading > div:last-child { min-width:0; }
+.fiscal-page .fiscal-onboard-symbol {
+  flex:0 0 54px;
+  width:54px;
+  height:54px;
+  display:grid;
+  place-items:center;
+  border-radius:16px;
+  border:1px solid rgba(103,232,249,.28);
+  background:rgba(8,145,178,.14);
+  color:#67e8f9;
+  font-size:29px;
+}
+.fiscal-page .fiscal-onboard-kicker {
+  display:block;
+  color:#7dd3fc;
+  font-size:11px;
+  font-weight:850;
+  letter-spacing:.09em;
+  line-height:1.5;
+}
+.fiscal-page .fiscal-onboard-heading h2 {
+  margin:3px 0 8px;
+  color:#fff;
+  font-size:clamp(21px,2.7vw,28px);
+  line-height:1.22;
+  font-weight:800;
+  letter-spacing:-.025em;
+}
+.fiscal-page .fiscal-onboard-heading p {
+  margin:0;
+  color:#cbd5e1;
+  font-size:14px;
+  line-height:1.65;
+  font-weight:400;
+  max-width:66ch;
+}
+.fiscal-page .fiscal-onboard-status {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  max-width:100%;
+  margin:20px 0 0;
+  padding:11px 13px;
+  background:rgba(15,32,58,.85);
+  border:1px solid rgba(148,163,184,.23);
+  border-radius:12px;
+  font-size:13px;
+  line-height:1.5;
+}
+.fiscal-page .fiscal-onboard-status strong {
+  font-size:13px;
+  font-weight:750;
+}
+.fiscal-page .fiscal-onboard-dot {
+  display:block;
+  width:9px;
+  height:9px;
+  flex:0 0 9px;
+  border-radius:50%;
+  background:#38bdf8;
+  box-shadow:0 0 0 3px rgba(56,189,248,.12);
+}
+.fiscal-page .fiscal-onboard-dot-muted {
+  background:#fbbf24;
+  box-shadow:0 0 0 3px rgba(251,191,36,.14);
+}
+.fiscal-page .fiscal-onboard-alert {
+  margin-top:12px;
+  padding:12px 14px;
+  border:1px solid rgba(251,191,36,.45);
+  border-radius:12px;
+  background:rgba(120,53,15,.23);
+  color:#fde68a;
+  font-size:13px;
+  line-height:1.55;
+}
+.fiscal-page .fiscal-onboard-note {
+  color:#cbd5e1;
+  font-size:14px;
+  line-height:1.6;
+  margin:16px 0;
+}
+.fiscal-page .fiscal-onboard-primary,
+.fiscal-page .fiscal-onboard-secondary {
+  box-sizing:border-box;
+  width:max-content;
+  max-width:100%;
+  min-height:48px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:12px;
+  padding:11px 19px;
+  margin-top:18px;
+  background:linear-gradient(125deg,#0891b2,#0369a1);
+  color:#fff;
+  border:1px solid #38bdf8;
+  border-radius:12px;
+  font-size:14px;
+  font-weight:800;
+  line-height:1.4;
+  cursor:pointer;
+  white-space:normal;
+  text-align:center;
+}
+.fiscal-page .fiscal-onboard-primary:hover {background:linear-gradient(125deg,#0e7490,#075985)}
+.fiscal-page .fiscal-onboard-secondary {
+  background:rgba(30,41,59,.75);
+  border-color:rgba(148,163,184,.48);
+}
+.fiscal-page .fiscal-onboard-primary:disabled {
+  cursor:not-allowed;
+  opacity:.6;
+}
+.fiscal-page .fiscal-onboard-primary:focus-visible,
+.fiscal-page .fiscal-onboard-secondary:focus-visible,
+.fiscal-page .fiscal-onboard-textbutton:focus-visible,
+.fiscal-page .fiscal-onboard-field input:focus-visible,
+.fiscal-page .fiscal-onboard-field select:focus-visible {
+  outline:3px solid #67e8f9;
+  outline-offset:2px;
+}
+.fiscal-page .fiscal-onboard-form {
+  width:100%;
+  max-width:850px;
+  min-width:0;
+  margin-top:22px;
+  padding-top:18px;
+  border-top:1px solid rgba(148,163,184,.25);
+}
+.fiscal-page .fiscal-onboard-form-header {
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+  margin-bottom:16px;
+}
+.fiscal-page .fiscal-onboard-form-header h3 {
+  margin:4px 0 0;
+  font-size:19px;
+  color:#f8fafc;
+}
+.fiscal-page .fiscal-onboard-textbutton {
+  flex:0 0 auto;
+  min-height:40px;
+  padding:8px 12px;
+  color:#bae6fd;
+  font-size:13px;
+  font-weight:700;
+  border:1px solid rgba(125,211,252,.35);
+  background:transparent;
+  border-radius:10px;
+  cursor:pointer;
+}
+.fiscal-page .fiscal-onboard-field {
+  min-width:0;
+  width:100%;
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  gap:6px;
+  margin:0;
+}
+.fiscal-page .fiscal-onboard-field > span {
+  color:#e2e8f0;
+  font-size:13px;
+  line-height:1.4;
+  font-weight:650;
+}
+.fiscal-page .fiscal-onboard-field input,
+.fiscal-page .fiscal-onboard-field select {
+  box-sizing:border-box;
+  display:block;
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  min-height:46px;
+  margin:0;
+  padding:10px 12px;
+  color:#f8fafc;
+  background:#06152a;
+  border:1px solid #475569;
+  border-radius:10px;
+  font:inherit;
+  font-size:16px;
+  line-height:1.4;
+  -webkit-appearance:auto;
+  appearance:auto;
+}
+.fiscal-page .fiscal-onboard-field input::placeholder {color:#94a3b8}
+.fiscal-page .fiscal-onboard-field select option {background:#06152a;color:#f8fafc}
+.fiscal-page .fiscal-onboard-country {max-width:360px;margin-bottom:18px}
+.fiscal-page .fiscal-onboard-grid {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:14px;
+  max-width:100%;
+}
+.fiscal-page .fiscal-onboard-extra {
+  box-sizing:border-box;
+  width:100%;
+  max-width:100%;
+  margin-top:18px;
+  padding:13px 15px;
+  border-radius:12px;
+  border:1px solid rgba(148,163,184,.28);
+  background:rgba(2,6,23,.22);
+}
+.fiscal-page .fiscal-onboard-extra summary {
+  font-size:14px;
+  font-weight:700;
+  color:#bae6fd;
+  cursor:pointer;
+}
+.fiscal-page .fiscal-onboard-extra p,
+.fiscal-page .fiscal-onboard-privacy {
+  color:#cbd5e1;
+  font-size:12px;
+  line-height:1.6;
+}
+.fiscal-page .fiscal-onboard-extra .fiscal-onboard-grid {margin-top:14px}
+.fiscal-page .fiscal-onboard-privacy {margin:17px 0 0}
+@media(max-width:700px){
+  .fiscal-page .fiscal-contratacao {padding:17px;border-radius:16px}
+  .fiscal-page .fiscal-onboard-heading {gap:11px}
+  .fiscal-page .fiscal-onboard-symbol {
+    flex-basis:38px;
+    width:38px;
+    height:38px;
+    border-radius:11px;
+    font-size:21px;
+  }
+  .fiscal-page .fiscal-onboard-heading h2 {font-size:21px}
+  .fiscal-page .fiscal-onboard-heading p {font-size:13px}
+  .fiscal-page .fiscal-onboard-status {margin-top:17px}
+  .fiscal-page .fiscal-onboard-grid {grid-template-columns:minmax(0,1fr);gap:14px}
+  .fiscal-page .fiscal-onboard-country {max-width:100%}
+  .fiscal-page .fiscal-onboard-primary,
+  .fiscal-page .fiscal-onboard-secondary {width:100%;justify-content:center}
+}
+@media(prefers-reduced-motion:reduce){
+  .fiscal-page .fiscal-onboard-primary {transition:none}
+}

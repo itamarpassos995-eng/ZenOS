@@ -98,6 +98,21 @@ try {
     }
   });
 
+
+  await check('Contratação fiscal não coleta dados antes de validar backend', async () => {
+    const { default:FiscalContratacao } = await vite.ssrLoadModule('/src/components/FiscalContratacao.jsx');
+    const html = renderToStaticMarkup(React.createElement(FiscalContratacao, {
+      lojaId:'LOJA-BOOT',
+      perfilLoja:{ pais:'BR' },
+    }));
+    assert.match(html, /Verificando disponibilidade/);
+    assert.doesNotMatch(html, /name="cnpj"/);
+    assert.doesNotMatch(html, /type="submit"/);
+    const fonte = fs.readFileSync(new URL('../src/components/FiscalContratacao.jsx', import.meta.url), 'utf8');
+    assert.match(fonte, /disponivel && formAberto && editavel/);
+    assert.match(fonte, /setDisponivel\(false\)/);
+  });
+
   await check('Boundary fiscal oferece fallback sem envolver Dashboard ou PDV', async () => {
     const { default:Boundary } = await vite.ssrLoadModule('/src/components/FiscalErrorBoundary.jsx');
     const boundary = new Boundary({ onVoltar:() => {}, children:null });
