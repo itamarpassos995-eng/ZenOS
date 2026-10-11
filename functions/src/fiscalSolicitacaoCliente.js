@@ -27,7 +27,7 @@ export const fiscalSolicitacaoCliente = onCall({region:'southamerica-east1',time
   return db.runTransaction(async tx=>{
     const snap=await tx.get(ref);
     const atual=snap.exists?snap.data():null;
-    if(atual?.habilitado===true || ![null,'nao_solicitado','em_analise'].includes(atual?.status??null)) throw new HttpsError('failed-precondition','Módulo já aprovado. Alterações exigem análise.');
+    if(atual?.habilitado===true || ![null,'nao_solicitado','em_analise','rejeitado'].includes(atual?.status??null)) throw new HttpsError('failed-precondition','Módulo já aprovado. Alterações exigem análise.');
     const createdAt=atual?.createdAt||new Date().toISOString();
     const agora=new Date().toISOString();
     const historico=Array.isArray(atual?.historico)?atual.historico.slice(-29):[];
