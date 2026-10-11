@@ -1,0 +1,32 @@
+name: Fiscal onboarding CI
+on:
+  pull_request:
+    paths:
+      - 'src/components/Fiscal*.jsx'
+      - 'functions/**'
+      - 'firebase.json'
+      - '.github/workflows/fiscal-solicitacao-ci.yml'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - name: Frontend dependencies
+        run: npm ci
+      - name: Fiscal UI smoke tests
+        run: npm run test:fiscal-boot
+      - name: Frontend production build
+        run: npm run build
+      - name: Backend dependencies
+        working-directory: functions
+        run: npm install --no-package-lock --ignore-scripts --no-audit --no-fund
+      - name: Backend tests
+        working-directory: functions
+        run: npm run check
