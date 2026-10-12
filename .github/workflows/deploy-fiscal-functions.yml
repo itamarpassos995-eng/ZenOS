@@ -61,6 +61,20 @@ jobs:
           npm install --no-package-lock --ignore-scripts --no-audit --no-fund
           npm run check
 
+      - name: Conferir identificadores públicos da identidade do workflow
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          const url = new URL(process.env.ACTIONS_ID_TOKEN_REQUEST_URL);
+          url.searchParams.set('audience', 'https://iam.googleapis.com/projects/411148782192/locations/global/workloadIdentityPools/zenos-fiscal-github/providers/zenos-main-fiscal');
+          const response = await fetch(url, { headers: { Authorization: `Bearer ${process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN}` } });
+          assert(response.ok, 'Identidade OIDC indisponível.');
+          const { value } = await response.json();
+          const claims = JSON.parse(Buffer.from(value.split('.')[1], 'base64url'));
+          const fields = ['repository','repository_id','repository_owner_id','ref','workflow_ref','sub'];
+          console.log(JSON.stringify(Object.fromEntries(fields.map(field => [field, claims[field]]))));
+          NODE
+
       - name: Autenticar com identidade federada restrita ao workflow fiscal
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
         with:
