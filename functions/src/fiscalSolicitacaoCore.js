@@ -6,7 +6,7 @@ const obrigar=(ok,mensagem)=>{if(!ok)throw new FiscalSolicitacaoError(mensagem);
 const texto=(v,max=180)=>typeof v==='string'?v.trim().slice(0,max):'';
 const camposComuns=['responsavel','telefone','email'];
 const camposPais={
- BR:['razaoSocial','cnpj','inscricaoEstadual','inscricaoMunicipal','uf','municipioCodigoIbge','endereco','cep','codigoServico'],
+ BR:['razaoSocial','nomeFantasia','cnpj','inscricaoEstadual','inscricaoMunicipal','regimeTributario','uf','municipio','municipioCodigoIbge','logradouro','numero','complemento','bairro','endereco','cep','codigoServico'],
  PY:['razonSocial','ruc','dv','direccion','departamento','distrito','establecimiento','puntoExpedicion','timbrado'],
 };
 export function cnpjValido(v) {

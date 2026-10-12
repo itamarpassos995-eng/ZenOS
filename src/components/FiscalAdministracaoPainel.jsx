@@ -22,7 +22,7 @@ export default function FiscalAdministracaoPainel(){
  if(!admin)return null;
  return <section style={{margin:'24px 0',padding:20,border:'1px solid #d3dbe7',borderRadius:14}}>
   <h2>Administração ZenOS Fiscal</h2>
-  <p>Solicitações de lojistas. Aprovar o cadastro <strong>não habilita emissão</strong>: credenciamento, cobrança e homologação continuam obrigatórios.</p>
+  <p>Solicitações e configurações de lojistas. As etapas de integração e credenciamento são verificadas separadamente; salvar ou revisar o cadastro <strong>não habilita emissão</strong>.</p>
   <button onClick={atualizar} disabled={ocupado}>Atualizar solicitações</button>
   {limitado&&<p>Exibindo apenas a primeira janela de registros. Paginação administrativa pendente.</p>}
   {erro&&<p role="alert" style={{color:'#b42318'}}>{erro}</p>}
@@ -30,6 +30,7 @@ export default function FiscalAdministracaoPainel(){
   {solicitacoes.map(s=><article key={s.lojaId} style={{padding:'12px 0',borderBottom:'1px solid #d3dbe7'}}>
    <strong>{s.razaoSocial||s.lojaId}</strong> — {s.pais} — {s.status}
    <div style={{fontSize:13}}>{s.email||s.telefone||'Sem contato'} · Loja {s.lojaId}</div>
+   {s.status==='configuracao_pendente'&&<p>Configuração guiada pelo cliente. A emissão permanece desabilitada enquanto existirem requisitos pendentes.</p>}
    {s.status==='em_analise'&&<div style={{display:'flex',gap:8,marginTop:8,flexWrap:'wrap'}}>
     <button disabled={ocupado} onClick={()=>analisar(s.lojaId,'aguardando_credenciamento')}>Cadastro analisado — continuar habilitação</button>
     <button disabled={ocupado} onClick={()=>analisar(s.lojaId,'rejeitado')}>Devolver para correção</button>

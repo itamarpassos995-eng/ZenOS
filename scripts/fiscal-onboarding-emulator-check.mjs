@@ -8,9 +8,11 @@ const app=initializeApp({
  apiKey:'demo-api-key',authDomain:'demo-zenos-local.firebaseapp.com',projectId:'demo-zenos-local',appId:'1:000000000000:web:zenoslocal'
 },'fiscal-onboarding-e2e');
 const auth=getAuth(app),db=getFirestore(app),functions=getFunctions(app,'southamerica-east1');
-connectAuthEmulator(auth,'http://127.0.0.1:9099',{disableWarnings:true});
-connectFirestoreEmulator(db,'127.0.0.1',8080);
-connectFunctionsEmulator(functions,'127.0.0.1',5001);
+const [authHost,authPort]=String(process.env.FIREBASE_AUTH_EMULATOR_HOST||'127.0.0.1:9099').split(':');
+const [firestoreHost,firestorePort]=String(process.env.FIRESTORE_EMULATOR_HOST||'127.0.0.1:8080').split(':');
+connectAuthEmulator(auth,`http://${authHost}:${authPort}`,{disableWarnings:true});
+connectFirestoreEmulator(db,firestoreHost,Number(firestorePort));
+connectFunctionsEmulator(functions,'127.0.0.1',Number(process.env.ZENOS_TEST_FUNCTIONS_PORT||5001));
 const chamar=httpsCallable(functions,'fiscalSolicitacaoCliente');
 const conta=await createUserWithEmailAndPassword(auth,`fiscal-e2e-${Date.now()}@zenos.test`,'Teste-Seguro-2026!');
 const lojaId=conta.user.uid;
@@ -27,9 +29,27 @@ try{
  const consulta=await chamar({action:'consultar',lojaId});
  assert.equal(consulta.data.cadastro.cnpj,'11222333000181');
  assert.equal(consulta.data.status,'em_analise');
+ await assert.rejects(()=>chamar({action:'configurar',lojaId,pais:'BR',cadastro:{razaoSocial:'Loja Teste',cnpj:'11222333000181',email:'teste@example.com'},tiposDocumento:['nfce'],aceiteConfiguracao:false}));
+ const configuracao={action:'configurar',lojaId,pais:'BR',tiposDocumento:['nfce'],aceiteConfiguracao:true,cadastro:{razaoSocial:'Loja Teste',cnpj:'11222333000181',email:'teste@example.com',regimeTributario:'1',uf:'SP',municipio:'São Paulo',municipioCodigoIbge:'3550308',logradouro:'Rua Teste',numero:'10',bairro:'Centro',cep:'01001000',inscricaoEstadual:'ISENTO',apiKey:'NAO_PERSISTIR'}};
+ await assert.rejects(()=>chamar({...configuracao,lojaId:'outra-loja'}));
+ const salva=await chamar({...configuracao,habilitado:true,provedorHomologado:true});
+ assert.equal(salva.data.status,'configuracao_pendente');
+ assert.equal(salva.data.habilitado,false);
+ assert.equal(salva.data.ativacao.cadastroCompleto,true);
+ assert.equal(salva.data.ativacao.emissaoHabilitada,false);
+ assert.ok(!JSON.stringify(salva.data).includes('NAO_PERSISTIR'));
+ await assert.rejects(()=>chamar({action:'validarConfiguracao',lojaId,aceiteCompartilhamentoFocus:false}));
+ const validada=await chamar({action:'validarConfiguracao',lojaId,aceiteCompartilhamentoFocus:true});
+ assert.equal(validada.data.ativacao.validacaoProvedor.codigo,'FOCUS_CONTA_PENDENTE');
+ assert.equal(validada.data.habilitado,false);
+ const configurada=await chamar({action:'consultar',lojaId});
+ assert.equal(configurada.data.status,'configuracao_pendente');
+ assert.deepEqual(configurada.data.tiposDocumento,['nfce']);
+ assert.equal(configurada.data.ativacao.emissaoHabilitada,false);
+ await assert.rejects(()=>chamar({...configuracao,pais:'PY',tiposDocumento:['nfce'],cadastro:{razonSocial:'Test',ruc:'12345678',email:'teste@example.com'}}));
  const comercial=await getDoc(referencia);
  assert.deepEqual(comercial.data(),{historicoVendas:[{id:'V1',total:100}],marcador:'NAO_MEXER'});
- console.log('Onboarding fiscal emulator: solicitação, leitura, isolamento e dados comerciais OK');
+ console.log('Onboarding fiscal emulator: solicitação, configuração, verificação, consentimento, isolamento e dados comerciais OK');
 }finally{
  await deleteApp(app);
 }

@@ -142,6 +142,7 @@
   outline-offset:2px;
 }
 .fiscal-page .fiscal-onboard-form {
+  scroll-margin-top:110px;
   width:100%;
   max-width:850px;
   min-width:0;
@@ -262,3 +263,29 @@
 @media(prefers-reduced-motion:reduce){
   .fiscal-page .fiscal-onboard-primary {transition:none}
 }
+.fiscal-page .fiscal-onboard-steps {display:flex;gap:16px;list-style:none;padding:0;margin:0 0 24px;flex-wrap:wrap}
+.fiscal-page .fiscal-onboard-steps li {display:flex;gap:8px;align-items:center;color:#94a3b8;font-size:12px}
+.fiscal-page .fiscal-onboard-steps li span {display:grid;place-items:center;width:27px;height:27px;border:1px solid #475569;border-radius:50%}
+.fiscal-page .fiscal-onboard-steps .atual {color:#67e8f9;font-weight:750}
+.fiscal-page .fiscal-onboard-steps .atual span {border-color:#67e8f9;background:#083344}
+.fiscal-page .fiscal-onboard-documents {border:0;padding:0;margin:0;display:grid;gap:10px}
+.fiscal-page .fiscal-onboard-documents legend {font-size:14px;font-weight:700;margin-bottom:12px;color:#e2e8f0}
+.fiscal-page .fiscal-onboard-documents label {display:flex;align-items:center;gap:12px;padding:15px;border:1px solid #475569;border-radius:12px;background:#06152a;font-size:14px;cursor:pointer}
+.fiscal-page .fiscal-onboard-documents input,.fiscal-page .fiscal-onboard-consent input {width:20px;height:20px;flex:0 0 20px;accent-color:#0891b2}
+.fiscal-page .fiscal-onboard-actions {display:flex;gap:12px;flex-wrap:wrap}
+.fiscal-page .fiscal-onboard-checklist {margin-top:20px;display:grid;gap:10px}
+.fiscal-page .fiscal-onboard-check {display:flex;align-items:flex-start;gap:12px;padding:13px;border:1px solid #334155;background:#07182c;border-radius:12px}
+.fiscal-page .fiscal-onboard-check>span {font-size:21px;color:#94a3b8}
+.fiscal-page .fiscal-onboard-check.concluido>span {color:#34d399}
+.fiscal-page .fiscal-onboard-check>div {flex:1;min-width:0}
+.fiscal-page .fiscal-onboard-check strong {display:block;font-size:13px;color:#e2e8f0}
+.fiscal-page .fiscal-onboard-check small {display:block;margin-top:5px;color:#94a3b8;font-size:12px;line-height:1.5}
+.fiscal-page .fiscal-onboard-check b {font-size:11px;color:#94a3b8;white-space:nowrap}
+.fiscal-page .fiscal-onboard-check.concluido b {color:#34d399}
+.fiscal-page .fiscal-onboard-summary {display:grid;gap:7px;border:1px solid #334155;border-radius:12px;padding:16px;color:#cbd5e1;font-size:13px}
+.fiscal-page .fiscal-onboard-summary strong {font-size:16px;color:#fff}
+.fiscal-page .fiscal-onboard-consent {display:flex;align-items:flex-start;gap:12px;margin-top:20px;color:#e2e8f0;font-size:13px;line-height:1.6}
+.fiscal-page .fiscal-onboard-provider {margin-top:20px;padding-top:4px;border-top:1px solid #334155}
+.fiscal-page .fiscal-onboard-form h4 {font-size:15px;color:#e2e8f0;margin:24px 0 14px}
+.fiscal-page .fiscal-onboard-consent input:focus-visible,.fiscal-page .fiscal-onboard-documents input:focus-visible {outline:3px solid #67e8f9;outline-offset:3px}
+@media(max-width:700px){.fiscal-page .fiscal-onboard-steps{gap:8px}.fiscal-page .fiscal-onboard-steps li{font-size:11px}.fiscal-page .fiscal-onboard-check{gap:8px}.fiscal-page .fiscal-onboard-check b{font-size:10px}.fiscal-page .fiscal-onboard-actions{gap:0;width:100%}}
