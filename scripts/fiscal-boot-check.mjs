@@ -108,7 +108,7 @@ try {
     assert.match(html, /Verificando disponibilidade/);
     assert.doesNotMatch(html, /name="cnpj"/);
     assert.doesNotMatch(html, /type="submit"/);
-    const fonte = fs.readFileSync(new URL('../src/components/FiscalContratacao.jsx', import.meta.url), 'utf8');
+    const fonte = fs.readFileSync(new URL('../src/components/FiscalAtivacaoAssistente.jsx', import.meta.url), 'utf8');
     assert.match(fonte, /disponivel && formAberto && editavel/);
     assert.match(fonte, /setDisponivel\(false\)/);
   });
