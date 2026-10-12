@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: zenos-fiscal-functions-production
@@ -30,9 +31,9 @@ jobs:
           test "$GITHUB_REPOSITORY" = "itamarpassos995-eng/ZenOS"
           test "$PROJECT_CONFIRMATION" = "zenos-ac6b2"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
           cache: 'npm'
@@ -49,6 +50,8 @@ jobs:
           for (const fn of ['fiscalSolicitacaoCliente','fiscalAdministracao','fiscalBackendStatus']) {
             assert.match(index, new RegExp('export\\s+\\{\\s*'+fn+'\\s*\\}'));
           }
+          const exports = [...index.matchAll(/export\s+\{\s*(\w+)\s*\}/g)].map(m => m[1]).sort();
+          assert.deepEqual(exports, ['fiscalAdministracao','fiscalBackendStatus','fiscalSolicitacaoCliente']);
           console.log('Escopo aprovado: somente codebase fiscal; sem deploy de rules.');
           NODE
 
@@ -58,23 +61,17 @@ jobs:
           npm install --no-package-lock --ignore-scripts --no-audit --no-fund
           npm run check
 
-      - name: Validar disponibilidade de credencial protegida
-        env:
-          HAS_DEPLOY_CREDENTIAL: ${{ secrets.ZENOS_FIREBASE_SA_JSON != '' }}
-        run: |
-          if [ "$HAS_DEPLOY_CREDENTIAL" != "true" ]; then
-            echo "::error::Credencial de deploy nao configurada em secrets.ZENOS_FIREBASE_SA_JSON."
-            exit 1
-          fi
-
-      - name: Autenticar no projeto Firebase alvo
-        uses: google-github-actions/auth@v2
+      - name: Autenticar com identidade federada restrita ao workflow fiscal
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
         with:
-          credentials_json: ${{ secrets.ZENOS_FIREBASE_SA_JSON }}
+          workload_identity_provider: projects/411148782192/locations/global/workloadIdentityPools/zenos-fiscal-github/providers/zenos-main-fiscal
+          service_account: zenos-fiscal-deployer@zenos-ac6b2.iam.gserviceaccount.com
           project_id: zenos-ac6b2
           create_credentials_file: true
 
       - name: Publicar somente 3 Cloud Functions fiscais
+        env:
+          FUNCTIONS_DISCOVERY_TIMEOUT: '120'
         run: |
           npx --yes firebase-tools@15.30.2 deploy \
             --project zenos-ac6b2 \
@@ -87,3 +84,22 @@ jobs:
           grep -q "fiscalSolicitacaoCliente" /tmp/zenos-fiscal-functions.txt
           grep -q "fiscalAdministracao" /tmp/zenos-fiscal-functions.txt
           grep -q "fiscalBackendStatus" /tmp/zenos-fiscal-functions.txt
+
+      - name: Conferir disponibilidade e bloqueio de acesso anônimo
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          for (const name of ['fiscalSolicitacaoCliente','fiscalAdministracao','fiscalBackendStatus']) {
+            const response = await fetch(`https://southamerica-east1-zenos-ac6b2.cloudfunctions.net/${name}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ data: {} }),
+              signal: AbortSignal.timeout(90000),
+            });
+            const data = await response.json();
+            assert.equal(response.status, 401);
+            assert.equal(data.error?.status, 'UNAUTHENTICATED');
+            console.log(`${name}: disponível e protegido por autenticação.`);
+          }
+          NODE
+
