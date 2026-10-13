@@ -1,5 +1,7 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { obterAdminFirestore } from './firebaseAdmin.js';
+import { resumirDemandaFiscal } from './fiscalInteresseCore.js';
+import { avaliarConfiguracaoFiscal } from './fiscalAtivacaoCore.js';
 const validoId = v=>typeof v==='string'&&/^[a-zA-Z0-9._:-]{1,180}$/.test(v);
 const proteger = request=>{
   if(!request.auth?.uid)throw new HttpsError('unauthenticated','Login necessário.');
@@ -18,9 +20,10 @@ export const fiscalAdministracao = onCall({region:'southamerica-east1',timeoutSe
      return {lojaId:doc.ref.parent.parent?.id||null,pais:d.pais||null,
        razaoSocial:d.pais==='PY'?d.cadastro?.razonSocial||'':d.cadastro?.razaoSocial||'',
        status:d.status||'em_analise',email:d.cadastro?.email||'',telefone:d.cadastro?.telefone||'',
+       createdAt:d.createdAt||null,tiposDocumento:d.tiposDocumento||[],cadastroCompleto:avaliarConfiguracaoFiscal(d).cadastroCompleto,
        updatedAt:d.updatedAt||d.createdAt||null,habilitado:d.habilitado===true};
    }).filter(x=>x.lojaId).sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)));
-   return {solicitacoes:itens,limitado:snap.size===250};
+   return {solicitacoes:itens,limitado:snap.size===250,demanda:resumirDemandaFiscal(itens)};
  }
  const lojaId=request.data?.lojaId;
  const decisao=request.data?.decisao;
