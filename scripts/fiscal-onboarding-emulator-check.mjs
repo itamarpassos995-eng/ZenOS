@@ -22,6 +22,15 @@ try{
  await setDoc(referencia,{historicoVendas:[{id:'V1',total:100}],marcador:'NAO_MEXER'});
  const inicial=await chamar({action:'consultar',lojaId});
  assert.equal(inicial.data.status,'nao_solicitado');
+ await assert.rejects(()=>chamar({action:'solicitarModulo',lojaId:'outra-loja',pais:'BR'}));
+ await assert.rejects(()=>chamar({action:'solicitarModulo',lojaId,pais:'XX'}));
+ const interesse=await chamar({action:'solicitarModulo',lojaId,pais:'BR',habilitado:true});
+ assert.equal(interesse.data.status,'solicitado');
+ assert.equal(interesse.data.habilitado,false);
+ assert.equal(interesse.data.cadastro,null);
+ const repetido=await chamar({action:'solicitarModulo',lojaId,pais:'PY'});
+ assert.equal(repetido.data.pais,'BR');
+ assert.equal(repetido.data.createdAt,interesse.data.createdAt);
  await assert.rejects(()=>chamar({action:'solicitar',lojaId:'outra-loja',pais:'BR',cadastro:{razaoSocial:'Teste',cnpj:'11222333000181',email:'teste@example.com'}}));
  const enviado=await chamar({action:'solicitar',lojaId,pais:'BR',cadastro:{razaoSocial:'Loja Teste',cnpj:'11.222.333/0001-81',email:'teste@example.com'}});
  assert.equal(enviado.data.status,'em_analise');
@@ -46,6 +55,9 @@ try{
  assert.equal(configurada.data.status,'configuracao_pendente');
  assert.deepEqual(configurada.data.tiposDocumento,['nfce']);
  assert.equal(configurada.data.ativacao.emissaoHabilitada,false);
+ const preservada=await chamar({action:'solicitarModulo',lojaId,pais:'BR'});
+ assert.deepEqual(preservada.data.cadastro,configurada.data.cadastro);
+ assert.equal(preservada.data.status,'configuracao_pendente');
  await assert.rejects(()=>chamar({...configuracao,pais:'PY',tiposDocumento:['nfce'],cadastro:{razonSocial:'Test',ruc:'12345678',email:'teste@example.com'}}));
  const comercial=await getDoc(referencia);
  assert.deepEqual(comercial.data(),{historicoVendas:[{id:'V1',total:100}],marcador:'NAO_MEXER'});
