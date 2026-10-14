@@ -58,6 +58,16 @@ try{
  const preservada=await chamar({action:'solicitarModulo',lojaId,pais:'BR'});
  assert.deepEqual(preservada.data.cadastro,configurada.data.cadastro);
  assert.equal(preservada.data.status,'configuracao_pendente');
+ const credenciais={aceite:true,homologacao:{idToken:'1',csc:'TESTE-SINTETICO-NAO-REAL-123456'}};
+ await assert.rejects(()=>chamar({action:'salvarCredenciais',lojaId:'outra-loja',credenciais}));
+ await assert.rejects(()=>chamar({action:'salvarCredenciais',lojaId,credenciais:{...credenciais,aceite:false}}));
+ const recebidas=await chamar({action:'salvarCredenciais',lojaId,credenciais});
+ assert.equal(recebidas.data.credenciais.homologacao.cscRecebido,true);
+ assert.equal(recebidas.data.habilitado,false);
+ assert.ok(!JSON.stringify(recebidas.data).includes(credenciais.homologacao.csc));
+ assert.equal(recebidas.data.credenciaisRef,undefined);
+ const segredo=await getDoc(doc(db,'lojas',lojaId,'fiscal_configuracao','solicitacao'));
+ assert.ok(!JSON.stringify(segredo.data()).includes(credenciais.homologacao.csc));
  await assert.rejects(()=>chamar({...configuracao,pais:'PY',tiposDocumento:['nfce'],cadastro:{razonSocial:'Test',ruc:'12345678',email:'teste@example.com'}}));
  const comercial=await getDoc(referencia);
  assert.deepEqual(comercial.data(),{historicoVendas:[{id:'V1',total:100}],marcador:'NAO_MEXER'});

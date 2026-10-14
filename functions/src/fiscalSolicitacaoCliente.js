@@ -6,6 +6,8 @@ import { createHash } from 'node:crypto';
 import { validarConfiguracaoFiscal, avaliarConfiguracaoFiscal } from './fiscalAtivacaoCore.js';
 import { obterTokenFocus, validarEmpresaFocus } from './fiscalFocusOnboarding.js';
 import { registrarInteresseFiscal } from './fiscalInteresseCore.js';
+import { validarCredenciaisFiscais, metadataCredenciais } from './fiscalCredenciaisCore.js';
+import { lerCredenciais, guardarCredenciais, removerCredenciais } from './fiscalCredenciaisVault.js';
 
 const validar = (data,configuracao=false) => {
   try { return configuracao?validarConfiguracaoFiscal(data):validarCadastroSolicitacao(data); }
@@ -15,14 +17,38 @@ const validar = (data,configuracao=false) => {
   }
 };
 const hashConfiguracao=({pais,cadastro,tiposDocumento=[]})=>createHash('sha256').update(JSON.stringify({pais,cadastro,tiposDocumento})).digest('hex');
-const respostaCadastro=d=>({status:d.status||'em_analise',cadastro:d.cadastro||null,pais:d.pais||null,habilitado:d.habilitado===true,createdAt:d.createdAt||null,tiposDocumento:d.tiposDocumento||[],ativacao:avaliarConfiguracaoFiscal(d)});
+const respostaCadastro=d=>({status:d.status||'em_analise',cadastro:d.cadastro||null,pais:d.pais||null,habilitado:d.habilitado===true,createdAt:d.createdAt||null,tiposDocumento:d.tiposDocumento||[],credenciais:d.credenciais||null,ativacao:avaliarConfiguracaoFiscal(d)});
 export const fiscalSolicitacaoCliente = onCall({region:'southamerica-east1',timeoutSeconds:60,memory:'256MiB'}, async request => {
   if (!request.auth?.uid) throw new HttpsError('unauthenticated','Faça login no ZenOS.');
   const action = request.data?.action;
-  if (!['consultar','solicitar','solicitarModulo','configurar','validarConfiguracao'].includes(action)) throw new HttpsError('invalid-argument','Operação inválida.');
+  if (!['consultar','solicitar','solicitarModulo','configurar','salvarCredenciais','validarConfiguracao'].includes(action)) throw new HttpsError('invalid-argument','Operação inválida.');
   const db = await obterAdminFirestore();
   const lojaId = await resolverLojaFiscalAutorizada({auth:request.auth,requestedLojaId:request.data?.lojaId,firestore:db});
   const ref = db.doc(`lojas/${lojaId}/fiscal_configuracao/solicitacao`);
+  if(action==='salvarCredenciais'){
+    const snap=await ref.get();const atual=snap.data();
+    if(!atual||atual.pais!=='BR'||atual.habilitado===true||!avaliarConfiguracaoFiscal(atual).cadastroCompleto)throw new HttpsError('failed-precondition','Complete e salve o cadastro brasileiro antes de enviar as credenciais.');
+    if(Date.now()-Date.parse(atual.credenciais?.recebidoEm||'')<30000)throw new HttpsError('resource-exhausted','Aguarde 30 segundos antes de substituir as credenciais.');
+    let dados;try{dados=validarCredenciaisFiscais(request.data?.credenciais,atual.tiposDocumento);}catch{throw new HttpsError('invalid-argument','Confirme a autorização e revise ID/CSC ou certificado A1 e senha.');}
+    const hash=hashConfiguracao(atual);let versao;
+    try{
+      const anterior=await lerCredenciais(atual.credenciaisRef);
+      if(anterior&&(anterior.lojaId!==lojaId||anterior.hash!==hash))throw Error('FISCAL_IDENTIDADE_DIVERGENTE');
+      const payload={lojaId,hash,cnpj:atual.cadastro.cnpj,dados:{...(anterior?.dados||{}),...dados}};
+      versao=await guardarCredenciais(payload);
+      const agora=new Date().toISOString();const metadata={...metadataCredenciais(payload.dados,agora),autorizadoPor:request.auth.uid,aceiteVersao:1};
+      const resultado=await db.runTransaction(async tx=>{
+        const current=await tx.get(ref);const d=current.data();
+        if(!d||d.habilitado===true||hashConfiguracao(d)!==hash||(d.credenciaisRef||null)!==(atual.credenciaisRef||null))throw new HttpsError('aborted','O cadastro mudou durante o envio. Atualize o status e tente novamente.');
+        const update={credenciais:metadata,credenciaisRef:versao,updatedAt:agora};tx.update(ref,update);return respostaCadastro({...d,...update});
+      });
+      return resultado;
+    }catch(error){
+      if(versao)await removerCredenciais(versao).catch(()=>{});
+      if(error instanceof HttpsError)throw error;
+      throw new HttpsError('unavailable','Não foi possível salvar no cofre seguro. Tente novamente; nenhuma emissão foi liberada.');
+    }
+  }
   if(action==='solicitarModulo') {
     if(!['BR','PY'].includes(request.data?.pais))throw new HttpsError('invalid-argument','Selecione o país da empresa.');
     return db.runTransaction(async tx=>{
