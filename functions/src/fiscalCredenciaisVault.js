@@ -18,7 +18,11 @@ export async function guardarCredenciais(payload){
  if(process.env.FUNCTIONS_EMULATOR==='true'){const ref='emulator/'+(++sequence);emulator.set(ref,payload);return ref;}
  const data=Buffer.from(JSON.stringify(payload)).toString('base64');
  if(Buffer.from(data,'base64').length>65536)throw new Error('FISCAL_CREDENCIAIS_INVALIDAS');
- return (await request(resource()+':addVersion',{payload:{data}})).name;
+ const created=await request(resource()+':addVersion',{payload:{data}});
+ const version=created.name?.split('/').at(-1);
+ if(!/^\d+$/.test(version))throw new Error('FISCAL_COFRE_INDISPONIVEL');
+ // Google pode responder com número de projeto; guardar alias canônico da aplicação.
+ return `${resource()}/versions/${version}`;
 }
 export async function removerCredenciais(ref){
  if(process.env.FUNCTIONS_EMULATOR==='true'){emulator.delete(ref);return;}
