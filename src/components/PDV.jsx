@@ -12,6 +12,7 @@ import { atualizarProdutoUnico, localizarIndiceProdutoUnico, skuJaExiste } from 
 import { formatarEquivalenciaBRL, moedasAtivasRecibo } from '../core/receiptCurrency';
 import { validarCredencialGerencial } from '../core/accessControl';
 import { calcularCmvVenda } from '../core/salesFinancials';
+import { validarComposicaoPagamento } from '../core/paymentValidation';
 
 export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro, commitOperacaoCritica, commitVendaCritica, vouchers = [], setVouchers, userId, produtos, setProdutos, clientes, setClientes, moeda, fmt, t, tx, converterDeBRL, converterParaBRL, historicoVendas, setHistoricoVendas, patenteUsuario, idioma, regrasDesconto, vendedores = [], operadorAtivo, sessaoAtiva }) {
   const [termoBusca, setTermoBusca] = useState('');
@@ -371,10 +372,11 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
   const valorExcedidoGlobal = totalPagoConvertidoBRL - totalFinalBRL;
   const trocoTotalBRL = valorExcedidoGlobal > 0.01 ? Math.min(valorExcedidoGlobal, totalDinheiroBRL) : 0;
   // Pagamentos eletrônicos/fiado/voucher não podem gerar troco fictício.
-  const excessoSemCoberturaEmDinheiro = valorExcedidoGlobal > totalDinheiroBRL + 0.001;
-  const podeFinalizarVenda = totalFinalBRL > 0
-    && totalPagoConvertidoBRL >= (totalFinalBRL - 0.05)
-    && !excessoSemCoberturaEmDinheiro;
+  const { podeConcluir: podeFinalizarVenda } = validarComposicaoPagamento({
+    totalBRL: totalFinalBRL,
+    recebidoBRL: totalPagoConvertidoBRL,
+    recebidoDinheiroBRL: totalDinheiroBRL,
+  });
 
   const abrirCheckoutAposValidacoes = () => {
     if (itensVenda.length === 0 || totalFinalBRL <= 0) return mostrarZen('warning', 'Venda vazia', tx('Adicione produtos à venda.', 'Añada productos.', 'Add products.'));
@@ -438,7 +440,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
     if (!Number.isFinite(valorBRL) || valorBRL <= 0) return mostrarZen('danger', 'Valor inválido', 'Verifique a moeda e a cotação.');
     const recebidoProposto = totalPagoConvertidoBRL + valorBRL;
     const dinheiroProposto = totalDinheiroBRL + (configForma.id.startsWith('dinheiro') ? valorBRL : 0);
-    if (recebidoProposto - totalFinalBRL > dinheiroProposto + 0.001) {
+    if (validarComposicaoPagamento({ totalBRL: totalFinalBRL, recebidoBRL: recebidoProposto, recebidoDinheiroBRL: dinheiroProposto }).excessoEletronico) {
       return mostrarZen('warning', 'Pagamento eletrônico excedente',
         'O valor excede o total da venda e não pode gerar troco em dinheiro. Corrija o valor ou registre o estorno separadamente.');
     }
