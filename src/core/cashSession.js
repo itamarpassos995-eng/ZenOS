@@ -19,9 +19,15 @@ export function calcularResumoSessao({ sessao, historicoVendas = [], caixaMovime
   const inicio = timestampSessao(sessao);
   const vendas = (historicoVendas || []).filter(v => {
     const estadoComFluxo = v.estado === 'concluida' || v.estado === 'parcial' || (v.estado === 'cancelada' && Array.isArray(v.pagamentos) && v.pagamentos.length > 0);
-    return estadoComFluxo
-      && String(v.vendedorId || '') === String(sessao.operadorId || '')
-      && timestampVenda(v) >= inicio;
+    const vinculoExplicito = v.sessaoId != null && String(v.sessaoId).trim() !== '';
+    // Novos registros têm vínculo autoritativo. Legados sem sessaoId usam a
+    // janela histórica limitada ao encerramento (sem reescrever dados antigos).
+    const vinculoTurno = vinculoExplicito
+      ? String(v.sessaoId) === String(sessao.id)
+      : String(v.vendedorId || '') === String(sessao.operadorId || '')
+        && timestampVenda(v) >= inicio
+        && (sessao.fechamento ? timestampVenda(v) <= Date.parse(sessao.fechamento) : true);
+    return estadoComFluxo && vinculoTurno;
   });
   const movs = (caixaMovimentos || []).filter(m => String(m.sessaoId || '') === String(sessao.id || ''));
 
