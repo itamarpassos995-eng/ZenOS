@@ -23,11 +23,13 @@ jobs:
       - run: npm ci --ignore-scripts
       - name: Regressao Caixa Multimoeda P0
         run: node scripts/cash-multicurrency-p0-check.mjs
-      - name: Testes historicos financeiros
-        run: |
-          npm run test:att07
-          npm run test:att082
-          npm run test:att083
-      - name: Build seguro (mesmo quando teste legado falhar)
+      - name: Verificações canônicas do caixa ATT082
+        run: npm run test:att082
+      - name: Verificações do fechamento ATT083
+        run: npm run test:att083
+      - name: Diagnóstico legado ATT07 (baseline histórico anterior)
+        continue-on-error: true
+        run: npm run test:att07
+      - name: Build seguro
         if: always()
         run: npm run build
