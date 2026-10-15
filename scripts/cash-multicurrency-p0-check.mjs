@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { validarComposicaoPagamento } from '../src/core/paymentValidation.js';
 import { interpretarValorMonetario, converterValoresFisicosParaBRL } from '../src/core/cashMoneyInput.js';
 import { calcularResumoSessao } from '../src/core/cashSession.js';
 
@@ -28,12 +30,18 @@ const vendas = [
   { id:'late', estado:'concluida', vendedorId:'OP-1', createdAt:'2026-10-09T18:00:00.000Z', pagamentos:[{formaId:'dinheiro_brl',valorConvertidoBRL:999}] },
 ];
 assert.equal(calcularResumoSessao({sessao,historicoVendas:vendas,caixaMovimentos:[]}).vendasDinheiro,120);
-const checkout = (total, dinheiro, eletronico) => {
-  const totalPago = dinheiro + eletronico;
-  const excedente = totalPago - total;
-  return total > 0 && totalPago >= total - 0.05 && !(excedente > dinheiro + 0.001);
-};
-assert.equal(checkout(100, 0, 120), false);
-assert.equal(checkout(100, 50, 70), true); // até R$20 de troco com lastro em dinheiro
-assert.equal(checkout(100, 0, 100), true);
+assert.equal(validarComposicaoPagamento({totalBRL:100,recebidoBRL:120,recebidoDinheiroBRL:0}).podeConcluir,false);
+assert.equal(validarComposicaoPagamento({totalBRL:100,recebidoBRL:120,recebidoDinheiroBRL:50}).podeConcluir,true);
+assert.equal(validarComposicaoPagamento({totalBRL:100,recebidoBRL:100,recebidoDinheiroBRL:0}).podeConcluir,true);
+assert.equal(validarComposicaoPagamento({totalBRL:100,recebidoBRL:0,recebidoDinheiroBRL:0}).podeConcluir,false);
+assert.equal(validarComposicaoPagamento({totalBRL:100,recebidoBRL:Number.NaN,recebidoDinheiroBRL:0}).podeConcluir,false);
+// Garante que os pontos críticos da interface importem os motores efetivamente exercitados.
+const pdv=fs.readFileSync(new URL('../src/components/PDV.jsx',import.meta.url),'utf8');
+const app=fs.readFileSync(new URL('../src/App.jsx',import.meta.url),'utf8');
+assert.match(pdv,/import \{ validarComposicaoPagamento \} from '..\/core\/paymentValidation'/);
+assert.match(pdv,/const \{ podeConcluir: podeFinalizarVenda \} = validarComposicaoPagamento/);
+assert.match(pdv,/sessaoId: tipoFinalizacao === 'venda' \? sessaoAtiva\?\.id/);
+assert.match(app,/converterValoresFisicosParaBRL\(valoresMovCaixa, taxasCambio\)/);
+assert.match(app,/const contagemValidada = validarValoresMovCaixa\(\)/);
+
 console.log('ZenOS caixa: testes de regressão P0 aprovados.');
