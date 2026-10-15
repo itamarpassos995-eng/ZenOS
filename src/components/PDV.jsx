@@ -370,7 +370,11 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
     
   const valorExcedidoGlobal = totalPagoConvertidoBRL - totalFinalBRL;
   const trocoTotalBRL = valorExcedidoGlobal > 0.01 ? Math.min(valorExcedidoGlobal, totalDinheiroBRL) : 0;
-  const podeFinalizarVenda = totalFinalBRL > 0 && totalPagoConvertidoBRL >= (totalFinalBRL - 0.05);
+  // Pagamentos eletrônicos/fiado/voucher não podem gerar troco fictício.
+  const excessoSemCoberturaEmDinheiro = valorExcedidoGlobal > totalDinheiroBRL + 0.001;
+  const podeFinalizarVenda = totalFinalBRL > 0
+    && totalPagoConvertidoBRL >= (totalFinalBRL - 0.05)
+    && !excessoSemCoberturaEmDinheiro;
 
   const abrirCheckoutAposValidacoes = () => {
     if (itensVenda.length === 0 || totalFinalBRL <= 0) return mostrarZen('warning', 'Venda vazia', tx('Adicione produtos à venda.', 'Añada productos.', 'Add products.'));
@@ -431,6 +435,13 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
       if (valorNum > Number(voucherSelecionado.saldoBRL || 0) + 0.001) return setModalZen({variante:'warning',titulo:tx('Saldo insuficiente no voucher','Saldo insuficiente en el voucher','Insufficient voucher balance'),mensagem:`${tx('Saldo disponível:','Saldo disponible:','Available balance:')} ${fmt(voucherSelecionado.saldoBRL, 'BRL')}`,apenasConfirmar:true});
     }
     const valorBRL = converterParaBRL(valorNum, configForma.moedaOrigem);
+    if (!Number.isFinite(valorBRL) || valorBRL <= 0) return mostrarZen('danger', 'Valor inválido', 'Verifique a moeda e a cotação.');
+    const recebidoProposto = totalPagoConvertidoBRL + valorBRL;
+    const dinheiroProposto = totalDinheiroBRL + (configForma.id.startsWith('dinheiro') ? valorBRL : 0);
+    if (recebidoProposto - totalFinalBRL > dinheiroProposto + 0.001) {
+      return mostrarZen('warning', 'Pagamento eletrônico excedente',
+        'O valor excede o total da venda e não pode gerar troco em dinheiro. Corrija o valor ou registre o estorno separadamente.');
+    }
 
   if (configForma.id === 'crediario') {
       if (!clienteSelecionadoPDV) return mostrarZen('warning', tx('Cliente obrigatório','Cliente obligatorio','Customer required'), tx('Para vender fiado, vincule um cliente antes de finalizar.','Para vender a crédito, vincule un cliente antes de finalizar.','To sell on credit, link a customer before completing the sale.'));
@@ -583,12 +594,16 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
         clienteNome: (String(clienteSelecionadoPDV?.nome || '').trim() || String(nomeClienteVulso || '').trim() || tx('Consumidor Balcão', 'Consumidor', 'Walk-in')),
         vendedorId: idSeguro,
         vendedorNome: nomeSeguro,
+        sessaoId: tipoFinalizacao === 'venda' ? sessaoAtiva?.id || null : null,
         itens: itensDocumento, 
         totalBRL: totalFinalBRL, 
         lucroBRL: tipoFinalizacao === 'venda' ? totalFinalBRL - cmvVendaBRL : lucroEstimadoBRL,
         ...(tipoFinalizacao === 'venda' ? { cmvBRL: cmvVendaBRL } : {}),
         trocoBRL: tipoFinalizacao === 'venda' ? trocoTotalBRL : 0,
         moedaTrocoInfo: tipoFinalizacao === 'venda' && trocoTotalBRL > 0.01 ? `${moedaTrocoEscolhida}` : null,
+        trocoOriginal: tipoFinalizacao === 'venda' && trocoTotalBRL > 0.01
+          ? converterDeBRL(trocoTotalBRL, moedaTrocoEscolhida) : 0,
+        taxasCambioTroco: tipoFinalizacao === 'venda' && trocoTotalBRL > 0.01 ? { ...taxasCambio } : null,
         pagamentos: tipoFinalizacao === 'venda' ? [...pagamentosLancados] : [],
         taxasCambio: { BRL: 1, ...(taxasCambio || {}) },
         detalhesPagamento: tipoFinalizacao === 'venda' ? (pagamentosLancados.map(p => `${p.rotulo}: ${(parseFloat(p.valorOriginal)||0).toFixed(2)}`).join(' • ') || tx('Dinheiro', 'Efectivo', 'Cash')) : docRotulo,
