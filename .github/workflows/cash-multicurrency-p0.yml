@@ -28,5 +28,6 @@ jobs:
           npm run test:att07
           npm run test:att082
           npm run test:att083
-      - name: Build seguro
+      - name: Build seguro (mesmo quando teste legado falhar)
+        if: always()
         run: npm run build
