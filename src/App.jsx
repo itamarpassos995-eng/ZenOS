@@ -32,6 +32,7 @@ import ZenModal from './components/ZenModal';
 import { normalizarPerfilLoja, lerPerfilLojaLocal, salvarPerfilLojaLocal, limparPerfilLojaLocal } from './core/storeProfile';
 import { assinarLivroFinanceiro, registrarLancamentoFinanceiro } from './core/financialLedger';
 import { calcularResumoSessao, calcularConciliacaoEletronicaSessao, timestampSessao, timestampVenda } from './core/cashSession';
+import { converterValoresFisicosParaBRL } from './core/cashMoneyInput';
 import { normalizarRegrasComissao, REGRAS_COMISSAO_PADRAO } from './core/commissionEngine';
 import { normalizarRegrasMargem } from './core/profitability';
 import { patenteEfetivaOperador } from './core/accessControl';
@@ -825,22 +826,33 @@ export default function App() {
   const [valoresMovCaixa, setValoresMovCaixa] = useState({ BRL: '', USD: '', EUR: '', PYG: '' });
   const [descMovCaixa, setDescMovCaixa] = useState('');
 
-  const calcularTotalMovBRL = () => {
-    return (parseFloat(String(valoresMovCaixa.BRL).replace(',','.')) || 0) +
-           converterParaBRL(parseFloat(String(valoresMovCaixa.USD).replace(',','.')) || 0, 'USD') +
-           converterParaBRL(parseFloat(String(valoresMovCaixa.EUR).replace(',','.')) || 0, 'EUR') +
-           converterParaBRL(parseFloat(String(valoresMovCaixa.PYG).replace(',','.')) || 0, 'PYG');
+  const validarValoresMovCaixa = () => {
+    const resultado = converterValoresFisicosParaBRL(valoresMovCaixa, taxasCambio);
+    if (!resultado.ok) {
+      avisarAppZen({
+        variante: 'danger',
+        titulo: tx('Valor monetário inválido', 'Importe monetario inválido', 'Invalid cash amount'),
+        mensagem: resultado.erro,
+      });
+      return null;
+    }
+    return resultado;
   };
+  const calcularTotalMovBRL = () => converterValoresFisicosParaBRL(valoresMovCaixa, taxasCambio).totalBRL ?? NaN;
   const resetarValoresCaixa = () => setValoresMovCaixa({ BRL: '', USD: '', EUR: '', PYG: '' });
 
   const abrirTurnoDeCaixa = async () => {
-    const saldoIni = calcularTotalMovBRL();
+    const contagemValidada = validarValoresMovCaixa();
+    if (!contagemValidada) return;
+    const saldoIni = contagemValidada.totalBRL;
     const novaSessao = {
       id: `SESSAO-${Date.now()}`,
       operadorId: idVendedorAtual,
       operadorNome: operadorAtivo?.nome || 'Administrador',
       saldoInicial: saldoIni,
       detalheAbertura: { ...valoresMovCaixa },
+      detalheAberturaNativos: contagemValidada.valoresNativos,
+      taxasCambioAbertura: { ...taxasCambio },
       status: 'aberta',
       createdAt: new Date().toISOString(),
       abertura: new Date().toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR')
@@ -863,7 +875,9 @@ export default function App() {
 
   const registrarMovimentoCaixa = async () => {
     if (!sessaoAtiva) return avisarAppZen({ variante:'warning', titulo:'Caixa fechado', mensagem:tx('Precisa de abrir o turno de caixa primeiro.', 'Debe abrir turno primero.', 'Must open shift first.') });
-    const valBRL = calcularTotalMovBRL();
+    const movimentoValidado = validarValoresMovCaixa();
+    if (!movimentoValidado) return;
+    const valBRL = movimentoValidado.totalBRL;
     if (valBRL <= 0) return avisarAppZen({ variante:'warning', titulo:'Valor inválido', mensagem:tx('Insira um valor válido.', 'Ingrese un valor válido.', 'Enter a valid amount.') });
     if (tipoMovCaixa === 'sangria' && valBRL > saldoSessaoFisicoBRL + 0.001) {
       return avisarAppZen({ variante:'danger', titulo:'Saldo insuficiente na gaveta', mensagem:tx('A sangria não pode ser maior que o dinheiro físico disponível.', 'La sangría no puede superar el efectivo disponible.', 'Cash drop cannot exceed physical cash available.'), detalhes:[`Disponível: ${fmt(saldoSessaoFisicoBRL,'BRL')}`, `Solicitado: ${fmt(valBRL,'BRL')}`] });
@@ -871,7 +885,7 @@ export default function App() {
     const agoraISO = new Date().toISOString();
     const novoMov = { 
       id: Date.now(), sessaoId: sessaoAtiva.id, dataHora: new Date().toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR'), createdAt: agoraISO,
-      tipo: tipoMovCaixa, valorBRL: valBRL, detalhesMoedas: { ...valoresMovCaixa },
+      tipo: tipoMovCaixa, valorBRL: valBRL, detalhesMoedas: { ...valoresMovCaixa }, detalhesMoedasNativas: movimentoValidado.valoresNativos, taxasCambioMovimento: { ...taxasCambio },
       direcao: tipoMovCaixa === 'suprimento' ? 'entrada' : 'saida', afetaGaveta: true,
       descricao: descMovCaixa || (tipoMovCaixa === 'suprimento' ? tx('Reforço de Fundo', 'Refuerzo de Caja', 'Float Fund') : tx('Retirada de Caixa', 'Retiro de Caja', 'Cash Withdrawal')), 
       operador: operadorAtivo?.nome 
@@ -933,7 +947,9 @@ export default function App() {
       });
     }
 
-    const valInformadoBRL = calcularTotalMovBRL();
+    const contagemValidada = validarValoresMovCaixa();
+    if (!contagemValidada) return;
+    const valInformadoBRL = contagemValidada.totalBRL;
     const saldoEsperadoBRL = Number(resumoSessaoAtiva.saldoEsperado || 0);
     const diferenca = Math.round((valInformadoBRL - saldoEsperadoBRL) * 100) / 100;
 
@@ -955,6 +971,8 @@ export default function App() {
           fechamentoLocal: dataFechoLocal,
           saldoInformado: valInformadoBRL,
           detalheFechamento: { ...valoresMovCaixa },
+          detalheFechamentoNativos: contagemValidada.valoresNativos,
+          taxasCambioFechamento: { ...taxasCambio },
           diferenca,
           saldoSistema: saldoEsperadoBRL,
           fechamentoCego: true,
@@ -976,11 +994,16 @@ export default function App() {
       return s;
     });
 
+    // Relatório informativo bruto por forma E moeda; não comparar valores nativos
+    // de PYG/USD/EUR com o líquido em BRL da gaveta.
     const resumoEntradas = vendasDestaSessao.reduce((res, v) => {
       (v.pagamentos || []).forEach(p => {
         const rotulo = p.rotulo || p.formaId || 'Pagamento';
-        if (!res[rotulo]) res[rotulo] = 0;
-        res[rotulo] += Number(p.valorOriginal || p.valorConvertidoBRL || 0);
+        const moedaOriginal = p.moedaOrigem || (p.valorOriginal == null ? 'BRL' : 'N/I');
+        const chave = JSON.stringify([p.formaId || rotulo, moedaOriginal]);
+        if (!res[chave]) res[chave] = { rotulo, moedaOriginal, valorOriginal: 0, valorBRL: 0 };
+        res[chave].valorOriginal += Number(p.valorOriginal ?? p.valorConvertidoBRL ?? 0);
+        res[chave].valorBRL += Number(p.valorConvertidoBRL || 0);
       });
       return res;
     }, {});
@@ -998,9 +1021,8 @@ export default function App() {
       outrasSaidas: Number(resumoSessaoAtiva.outrasSaidas || 0),
     };
 
-    const moedasContadasHTML = Object.entries(valoresMovCaixa)
-      .map(([m, v]) => [m, String(v ?? '').trim() === '' ? 0 : (parseFloat(String(v).replace(',', '.')) || 0)])
-      .map(([m, v]) => `<div style="display:flex;justify-content:space-between;"><span>${m} contado:</span><span>${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: m === 'PYG' ? 0 : 2, maximumFractionDigits: 2 })}</span></div>`)
+    const moedasContadasHTML = Object.entries(contagemValidada.valoresNativos)
+      .map(([m, v]) => `<div style="display:flex;justify-content:space-between;"><span>${m} contado:</span><span>${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: m === 'PYG' ? 0 : 2, maximumFractionDigits: m === 'PYG' ? 0 : 2 })}</span></div>`)
       .join('');
 
     const escaparHTML = (valor = '') => String(valor ?? '').replace(/[&<>"']/g, caractere => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[caractere]));
@@ -1046,7 +1068,8 @@ export default function App() {
 
         <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
         <div style="margin-bottom:5px;"><strong>>> ${tx('VENDAS POR FORMA DE PAGAMENTO','VENTAS POR FORMA DE PAGO','SALES BY PAYMENT METHOD')}</strong></div>
-        ${Object.keys(resumoEntradas).length > 0 ? Object.entries(resumoEntradas).map(([forma, valor]) => `<div style="display:flex;justify-content:space-between;"><span>${forma}:</span><span>${Number(valor).toFixed(2)}</span></div>`).join('') : `<div style="text-align:center;">${tx('Nenhuma venda','Ninguna venta','No sales')}</div>`}
+        ${Object.keys(resumoEntradas).length > 0 ? Object.values(resumoEntradas).map(item => `<div style="display:flex;justify-content:space-between;gap:6px;"><span>${escaparHTML(item.rotulo)} (${item.moedaOriginal}):</span><span>${Number(item.valorOriginal).toLocaleString('pt-BR', { minimumFractionDigits: item.moedaOriginal === 'PYG' ? 0 : 2, maximumFractionDigits: item.moedaOriginal === 'PYG' ? 0 : 2 })} • ${fmt(item.valorBRL, 'BRL')}</span></div>`).join('') : `<div style="text-align:center;">${tx('Nenhuma venda','Ninguna venta','No sales')}</div>`}
+        <div style="font-size:10px;margin-top:4px;">${tx('Valores por forma são brutos e podem incluir troco. A composição da gaveta apresenta o líquido em BRL. N/I = moeda de origem não registrada.','Los importes por forma son brutos y pueden incluir cambio. El efectivo es neto en BRL. N/I = moneda desconocida.','Payment totals are gross and may include change. Drawer amounts are net BRL. N/I = currency not recorded.')}</div>
 
         <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
         <div style="margin-bottom:5px;"><strong>>> ${tx('CONCILIAÇÃO ELETRÔNICA (NÃO AFETA GAVETA)','CONCILIACIÓN ELECTRÓNICA (NO AFECTA CAJA)','ELECTRONIC RECONCILIATION (DOES NOT AFFECT DRAWER)')}</strong></div>
@@ -1615,7 +1638,7 @@ export default function App() {
                 {tipoMovCaixa === 'fechamento' && (
                   <div style={{ marginTop:'14px', padding:'12px 14px', borderRadius:'12px', background:'#020617', border:'1px solid #1e293b' }}>
                     <div style={{fontSize:'10px',fontWeight:900,letterSpacing:'1px',color:'#64748b',marginBottom:'5px'}}>{tx('TOTAL FÍSICO INFORMADO • CONVERTIDO PARA BRL','TOTAL FÍSICO INFORMADO • CONVERTIDO A BRL','PHYSICAL TOTAL ENTERED • CONVERTED TO BRL')}</div>
-                    <div style={{fontSize:'20px',fontWeight:950,color:'#f8fafc'}}>{fmt(calcularTotalMovBRL(), 'BRL')}</div>
+                    <div style={{fontSize:'20px',fontWeight:950,color:'#f8fafc'}}>{Number.isFinite(calcularTotalMovBRL()) ? fmt(calcularTotalMovBRL(), 'BRL') : tx('Corrija os valores digitados', 'Corrija los importes', 'Correct the entered amounts')}</div>
                     <div style={{fontSize:'10px',color:'#64748b',marginTop:'5px'}}>{tx('O saldo esperado pelo ZenOS permanece oculto até a auditoria ser concluída.','El saldo esperado por ZenOS permanece oculto hasta finalizar la auditoría.','The balance expected by ZenOS remains hidden until the audit is completed.')}</div>
                   </div>
                 )}
