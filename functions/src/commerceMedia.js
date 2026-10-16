@@ -5,17 +5,26 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { getApps } from 'firebase-admin/app';
 import { getStorage } from 'firebase-admin/storage';
+import { protegerAmbienteMidiaCommerce } from './commerceStorageSafetyCore.js';
 import { obterAdminFirestore } from './firebaseAdmin.js';
 import { prepararMidiaCommerce, produtoPertenceLoja } from './commerceMediaServiceCore.js';
 
-const BUCKET = /^[a-z0-9][a-z0-9.-]{2,180}$/;
 const EXPIRACAO_MS = 30*60_000;
 export function obterBucketCommerce(){
-  if(process.env.ZENOS_COMMERCE_MEDIA_ENABLED!=='true')throw new HttpsError('failed-precondition','Upload do Commerce ainda não foi autorizado neste ambiente.');
-  const nome=process.env.ZENOS_COMMERCE_STORAGE_BUCKET;
-  if(!nome||!BUCKET.test(nome))throw new HttpsError('failed-precondition','Armazenamento Commerce não configurado. Nenhuma imagem foi enviada.');
-  const app=getApps()[0];if(!app)throw new HttpsError('unavailable','Firebase Admin não inicializado.');
-  return getStorage(app).bucket(nome);
+  try {
+    protegerAmbienteMidiaCommerce({
+      mediaEnabled: process.env.ZENOS_COMMERCE_MEDIA_ENABLED,
+      homologacao: process.env.ZENOS_COMMERCE_HOMOLOGACAO,
+      projectId: process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT,
+      bucket: process.env.ZENOS_COMMERCE_STORAGE_BUCKET,
+      storageEmulatorHost: process.env.FIREBASE_STORAGE_EMULATOR_HOST,
+    });
+  } catch (e) {
+    throw new HttpsError('failed-precondition', 'Armazenamento Commerce indisponível neste ambiente seguro.');
+  }
+  const app=getApps()[0];
+  if(!app)throw new HttpsError('unavailable','Firebase Admin não inicializado.');
+  return getStorage(app).bucket(process.env.ZENOS_COMMERCE_STORAGE_BUCKET);
 }
 
 export async function assinarMidiaPrivada(bucket,path){

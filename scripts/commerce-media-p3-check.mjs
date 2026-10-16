@@ -50,7 +50,7 @@ const api=readFileSync(new URL('../functions/src/commerceStudio.js',import.meta.
 yes(studio.includes('onUploadProductImage'));
 yes(portal.includes("origem:'cadastro'"));
 yes(portal.includes('prepararFotoProduto(blob)'));
-yes(service.includes("ZENOS_COMMERCE_MEDIA_ENABLED!=='true'"));
+yes(service.includes("protegerAmbienteMidiaCommerce"));
 yes(service.includes('produtoPertenceLoja'));
 yes(api.includes('validarReferenciasNoStorage'));
 yes(api.includes('hidratarUrlsPrivadas'));

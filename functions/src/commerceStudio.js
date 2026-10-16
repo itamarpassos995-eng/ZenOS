@@ -2,6 +2,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { obterAdminFirestore } from './firebaseAdmin.js';
 import { validarRascunhoCommerce, resumoLicencaCommerce, validarRevisao, construirInteresseCommerce, configInicialCommerce } from './commerceStudioCore.js';
 import {obterBucketCommerce,assinarMidiaPrivada,confirmarMidiaPrivada} from './commerceMedia.js';
+import { ambienteMidiaCommercePronto } from './commerceStorageSafetyCore.js';
 
 const codigoErro=e=>String(e?.message||'').slice(0,160);
 const obterReferenciasMidia = regras => Object.entries(regras||{}).flatMap(([produtoId,regra]) => [
@@ -55,7 +56,7 @@ export const commerceStudio = onCall({region:'southamerica-east1',timeoutSeconds
    regras:await hidratarUrlsPrivadas(d.data()?.regras||{},lojaId),licenca:resumoLicencaCommerce(l.data()),interesse:p.data()?.status||'nao_solicitado',
    // Link ainda não disponível: endereço depende de domínio e diretório publicados pelo servidor.
    idPublico:null,publicacaoHabilitada:false,
-   midiaDisponivel:process.env.ZENOS_COMMERCE_MEDIA_ENABLED==='true'&&Boolean(process.env.ZENOS_COMMERCE_STORAGE_BUCKET)};
+   midiaDisponivel:ambienteMidiaCommercePronto(process.env)};
  }
  if(action==='solicitarProposta'){
   const perfil=await db.doc(`lojas/${lojaId}/dados/configuracoes`).get();
