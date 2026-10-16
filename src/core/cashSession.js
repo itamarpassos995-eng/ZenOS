@@ -14,15 +14,61 @@ export function timestampVenda(venda) {
   return Number.isFinite(idTs) ? idTs : 0;
 }
 
+// Uma única regra de inclusão para o cálculo financeiro, o comprovante e o fechamento.
+export function vendasDaSessao({ sessao, historicoVendas = [] }) {
+  if (!sessao) return [];
+  const inicio = timestampSessao(sessao);
+  const fim = sessao.fechamento ? Date.parse(sessao.fechamento) : Infinity;
+  return (historicoVendas || []).filter(v => {
+    const estadoComFluxo = v.estado === 'concluida' || v.estado === 'parcial' || (v.estado === 'cancelada' && Array.isArray(v.pagamentos) && v.pagamentos.length > 0);
+    if (!estadoComFluxo) return false;
+    if (v.sessaoId != null && String(v.sessaoId).trim() !== '') {
+      return String(v.sessaoId) === String(sessao.id);
+    }
+    // Compatibilidade de leitura apenas. Nenhuma venda antiga é reescrita.
+    return String(v.vendedorId || '') === String(sessao.operadorId || '')
+      && timestampVenda(v) >= inicio && timestampVenda(v) <= fim;
+  });
+}
+
+export function assinaturaFinanceiraSessao({ sessao, historicoVendas = [], caixaMovimentos = [] }) {
+  if (!sessao) return '';
+  const vendas = vendasDaSessao({ sessao, historicoVendas })
+    .map(v => [
+      String(v.id), v.estado, String(v.sessaoId ?? ''), String(v.vendedorId ?? ''),
+      v.createdAt ?? '', Number(v.trocoBRL || 0), v.moedaTrocoInfo ?? '',
+      v.trocoOriginal ?? null,
+      (v.pagamentos || []).map(p => [p.formaId ?? '', p.moedaOrigem ?? '',
+        p.valorOriginal ?? null, p.valorConvertidoBRL ?? null]),
+    ]).sort((a,b) => a[0].localeCompare(b[0]));
+  const movimentos = (caixaMovimentos || []).filter(m => String(m.sessaoId || '') === String(sessao.id))
+    .map(m => [
+      String(m.id), m.tipo, m.direcao, m.afetaGaveta, m.valorBRL,
+      ['BRL','USD','EUR','PYG'].map(x => [
+        m.detalhesMoedasNativas?.[x] ?? null, m.detalhesMoedas?.[x] ?? null,
+      ]),
+    ]).sort((a,b) => a[0].localeCompare(b[0]));
+  const abertura = ['BRL','USD','EUR','PYG'].map(m => [
+    sessao.detalheAberturaNativos?.[m] ?? null, sessao.detalheAbertura?.[m] ?? null,
+  ]);
+  const texto = JSON.stringify([
+    sessao.id, sessao.operadorId, sessao.status, sessao.saldoInicial,
+    sessao.createdAt, sessao.fechamento ?? null, abertura, vendas, movimentos,
+  ]);
+  // Assinatura determinística compacta para bloquear mudanças entre a contagem e o commit.
+  // Não é uma assinatura criptográfica/autenticação: é um marcador de concorrência.
+  let h = 2166136261 >>> 0;
+  let h2 = 5381 >>> 0;
+  for (let i = 0; i < texto.length; i += 1) {
+    h = Math.imul(h ^ texto.charCodeAt(i), 16777619) >>> 0;
+    h2 = Math.imul(h2, 33) + texto.charCodeAt(i) >>> 0;
+  }
+  return [vendas.length, movimentos.length, texto.length, h.toString(16), h2.toString(16)].join(':');
+}
+
 export function calcularResumoSessao({ sessao, historicoVendas = [], caixaMovimentos = [] }) {
   if (!sessao) return null;
-  const inicio = timestampSessao(sessao);
-  const vendas = (historicoVendas || []).filter(v => {
-    const estadoComFluxo = v.estado === 'concluida' || v.estado === 'parcial' || (v.estado === 'cancelada' && Array.isArray(v.pagamentos) && v.pagamentos.length > 0);
-    return estadoComFluxo
-      && String(v.vendedorId || '') === String(sessao.operadorId || '')
-      && timestampVenda(v) >= inicio;
-  });
+  const vendas = vendasDaSessao({ sessao, historicoVendas });
   const movs = (caixaMovimentos || []).filter(m => String(m.sessaoId || '') === String(sessao.id || ''));
 
   const vendasDinheiro = vendas.reduce((acc, v) => {

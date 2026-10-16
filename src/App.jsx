@@ -31,7 +31,9 @@ import FiscalErrorBoundary from './components/FiscalErrorBoundary';
 import ZenModal from './components/ZenModal';
 import { normalizarPerfilLoja, lerPerfilLojaLocal, salvarPerfilLojaLocal, limparPerfilLojaLocal } from './core/storeProfile';
 import { assinarLivroFinanceiro, registrarLancamentoFinanceiro } from './core/financialLedger';
-import { calcularResumoSessao, calcularConciliacaoEletronicaSessao, timestampSessao, timestampVenda } from './core/cashSession';
+import { calcularResumoSessao, calcularConciliacaoEletronicaSessao, timestampSessao, timestampVenda, vendasDaSessao, assinaturaFinanceiraSessao } from './core/cashSession';
+import { converterValoresFisicosParaBRL, interpretarValorMonetario } from './core/cashMoneyInput';
+import { calcularConciliacaoFisicaMultimoeda } from './core/cashReconciliation';
 import { normalizarRegrasComissao, REGRAS_COMISSAO_PADRAO } from './core/commissionEngine';
 import { normalizarRegrasMargem } from './core/profitability';
 import { patenteEfetivaOperador } from './core/accessControl';
@@ -751,27 +753,29 @@ export default function App() {
   };
 
   const salvarTaxasCambio = async () => {
-    const rateUSD = parseFloat(taxasInput.USD.replace(',', '.')) || 5.40;
-    const rateEUR = parseFloat(taxasInput.EUR.replace(',', '.')) || 6.05;
-    const ratePYG = parseFloat(taxasInput.PYG.replace(',', '.')) || 1380;
-    const novasTaxas = normalizarTaxasCambio({
-      BRL: 1.0,
-      USD: rateUSD > 0 ? 1 / rateUSD : TAXAS_CAMBIO_PADRAO.USD,
-      EUR: rateEUR > 0 ? 1 / rateEUR : TAXAS_CAMBIO_PADRAO.EUR,
-      PYG: ratePYG > 0 ? ratePYG : TAXAS_CAMBIO_PADRAO.PYG,
-    });
-    setTaxasCambio(novasTaxas);
-    if (userId) {
-      try {
-        notifyPersistenceStatus({status:'SALVANDO',field: 'configuracoes'});
-        await setDoc(doc(db, 'lojas', userId, 'dados', 'configuracoes'), { taxasCambio: novasTaxas, updatedAtClient:new Date().toISOString(), updatedAtServer:serverTimestamp() }, { merge: true });
-        notifyPersistenceStatus({status:'SINCRONIZADO',field: 'configuracoes'});
-      } catch (err) {
-        console.error('[ZenOS][Câmbio] Não foi possível persistir as cotações:', err);
-        notifyPersistenceStatus({status:'ERRO',field: 'configuracoes',error:err?.message||String(err)});
-      }
+    const usd = interpretarValorMonetario(taxasInput.USD, 'BRL');
+    const eur = interpretarValorMonetario(taxasInput.EUR, 'BRL');
+    const pyg = interpretarValorMonetario(taxasInput.PYG, 'PYG');
+    if (!usd.ok || !eur.ok || !pyg.ok || usd.valor <= 0 || eur.valor <= 0 || pyg.valor <= 0) {
+      return avisarAppZen({ variante:'danger', titulo:'Cotação inválida', mensagem:'Informe cotações positivas e completas. Nenhuma cotação foi alterada.' });
     }
-    setModalCambioAberto(false);
+    if (!userId || !nuvemSincronizada) {
+      return avisarAppZen({ variante:'danger', titulo:'Cotação não salva', mensagem:'Aguarde a confirmação da nuvem para alterar o câmbio.' });
+    }
+    const novasTaxas = normalizarTaxasCambio({ BRL:1, USD:1 / usd.valor, EUR:1 / eur.valor, PYG:pyg.valor });
+    try {
+      notifyPersistenceStatus({status:'SALVANDO',field:'configuracoes'});
+      await setDoc(doc(db, 'lojas', userId, 'dados', 'configuracoes'),
+        { taxasCambio: novasTaxas, updatedAtClient:new Date().toISOString(), updatedAtServer:serverTimestamp() }, { merge:true });
+      // Publicação na interface SOMENTE após a confirmação autoritativa.
+      setTaxasCambio(novasTaxas);
+      notifyPersistenceStatus({status:'SINCRONIZADO',field:'configuracoes'});
+      setModalCambioAberto(false);
+    } catch (err) {
+      console.error('[ZenOS][Câmbio] A nuvem não confirmou o novo câmbio:', err);
+      notifyPersistenceStatus({status:'ERRO',field:'configuracoes',error:err?.message || String(err)});
+      avisarAppZen({ variante:'danger', titulo:'Cotação não salva', mensagem:'A nuvem não confirmou a atualização. As taxas anteriores permanecem em uso.' });
+    }
   };
 
   const vendasValidas = historicoVendas.filter(v => v.estado === 'concluida' || v.estado === 'parcial');
@@ -809,10 +813,7 @@ export default function App() {
   // já distingue quais estados possuem fluxo financeiro; por isso recebe o histórico
   // completo, enquanto os indicadores comerciais acima continuam usando vendasValidas.
   const resumoSessaoAtiva = sessaoAtiva ? calcularResumoSessao({ sessao: sessaoAtiva, historicoVendas, caixaMovimentos }) : null;
-  const vendasDestaSessao = sessaoAtiva ? historicoVendas.filter(v => {
-    const estadoComFluxo = v.estado === 'concluida' || v.estado === 'parcial' || (v.estado === 'cancelada' && Array.isArray(v.pagamentos) && v.pagamentos.length > 0);
-    return estadoComFluxo && String(v.vendedorId) === String(idVendedorAtual) && timestampVenda(v) >= timestampSessao(sessaoAtiva);
-  }) : [];
+  const vendasDestaSessao = sessaoAtiva ? vendasDaSessao({ sessao: sessaoAtiva, historicoVendas }) : [];
   const movsSessao = sessaoAtiva ? caixaMovimentos.filter(m => m.sessaoId === sessaoAtiva.id) : [];
   const saldoSessaoFisicoBRL = resumoSessaoAtiva?.saldoEsperado || 0;
   // Compatibilidade dos relatórios/fecho: aliases derivados do resumo canônico da sessão.
@@ -825,22 +826,33 @@ export default function App() {
   const [valoresMovCaixa, setValoresMovCaixa] = useState({ BRL: '', USD: '', EUR: '', PYG: '' });
   const [descMovCaixa, setDescMovCaixa] = useState('');
 
-  const calcularTotalMovBRL = () => {
-    return (parseFloat(String(valoresMovCaixa.BRL).replace(',','.')) || 0) +
-           converterParaBRL(parseFloat(String(valoresMovCaixa.USD).replace(',','.')) || 0, 'USD') +
-           converterParaBRL(parseFloat(String(valoresMovCaixa.EUR).replace(',','.')) || 0, 'EUR') +
-           converterParaBRL(parseFloat(String(valoresMovCaixa.PYG).replace(',','.')) || 0, 'PYG');
+  const validarValoresMovCaixa = () => {
+    const resultado = converterValoresFisicosParaBRL(valoresMovCaixa, taxasCambio);
+    if (!resultado.ok) {
+      avisarAppZen({
+        variante: 'danger',
+        titulo: tx('Valor monetário inválido', 'Importe monetario inválido', 'Invalid cash amount'),
+        mensagem: resultado.erro,
+      });
+      return null;
+    }
+    return resultado;
   };
+  const calcularTotalMovBRL = () => converterValoresFisicosParaBRL(valoresMovCaixa, taxasCambio).totalBRL ?? NaN;
   const resetarValoresCaixa = () => setValoresMovCaixa({ BRL: '', USD: '', EUR: '', PYG: '' });
 
   const abrirTurnoDeCaixa = async () => {
-    const saldoIni = calcularTotalMovBRL();
+    const contagemValidada = validarValoresMovCaixa();
+    if (!contagemValidada) return;
+    const saldoIni = contagemValidada.totalBRL;
     const novaSessao = {
       id: `SESSAO-${Date.now()}`,
       operadorId: idVendedorAtual,
       operadorNome: operadorAtivo?.nome || 'Administrador',
       saldoInicial: saldoIni,
       detalheAbertura: { ...valoresMovCaixa },
+      detalheAberturaNativos: contagemValidada.valoresNativos,
+      taxasCambioAbertura: { ...taxasCambio },
       status: 'aberta',
       createdAt: new Date().toISOString(),
       abertura: new Date().toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR')
@@ -863,7 +875,9 @@ export default function App() {
 
   const registrarMovimentoCaixa = async () => {
     if (!sessaoAtiva) return avisarAppZen({ variante:'warning', titulo:'Caixa fechado', mensagem:tx('Precisa de abrir o turno de caixa primeiro.', 'Debe abrir turno primero.', 'Must open shift first.') });
-    const valBRL = calcularTotalMovBRL();
+    const movimentoValidado = validarValoresMovCaixa();
+    if (!movimentoValidado) return;
+    const valBRL = movimentoValidado.totalBRL;
     if (valBRL <= 0) return avisarAppZen({ variante:'warning', titulo:'Valor inválido', mensagem:tx('Insira um valor válido.', 'Ingrese un valor válido.', 'Enter a valid amount.') });
     if (tipoMovCaixa === 'sangria' && valBRL > saldoSessaoFisicoBRL + 0.001) {
       return avisarAppZen({ variante:'danger', titulo:'Saldo insuficiente na gaveta', mensagem:tx('A sangria não pode ser maior que o dinheiro físico disponível.', 'La sangría no puede superar el efectivo disponible.', 'Cash drop cannot exceed physical cash available.'), detalhes:[`Disponível: ${fmt(saldoSessaoFisicoBRL,'BRL')}`, `Solicitado: ${fmt(valBRL,'BRL')}`] });
@@ -871,7 +885,7 @@ export default function App() {
     const agoraISO = new Date().toISOString();
     const novoMov = { 
       id: Date.now(), sessaoId: sessaoAtiva.id, dataHora: new Date().toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR'), createdAt: agoraISO,
-      tipo: tipoMovCaixa, valorBRL: valBRL, detalhesMoedas: { ...valoresMovCaixa },
+      tipo: tipoMovCaixa, valorBRL: valBRL, detalhesMoedas: { ...valoresMovCaixa }, detalhesMoedasNativas: movimentoValidado.valoresNativos, taxasCambioMovimento: { ...taxasCambio },
       direcao: tipoMovCaixa === 'suprimento' ? 'entrada' : 'saida', afetaGaveta: true,
       descricao: descMovCaixa || (tipoMovCaixa === 'suprimento' ? tx('Reforço de Fundo', 'Refuerzo de Caja', 'Float Fund') : tx('Retirada de Caixa', 'Retiro de Caja', 'Cash Withdrawal')), 
       operador: operadorAtivo?.nome 
@@ -933,9 +947,17 @@ export default function App() {
       });
     }
 
-    const valInformadoBRL = calcularTotalMovBRL();
-    const saldoEsperadoBRL = Number(resumoSessaoAtiva.saldoEsperado || 0);
-    const diferenca = Math.round((valInformadoBRL - saldoEsperadoBRL) * 100) / 100;
+    const contagemValidada = validarValoresMovCaixa();
+    if (!contagemValidada) return;
+    const conciliacaoFisica = calcularConciliacaoFisicaMultimoeda({
+      sessao: sessaoAtiva, historicoVendas, caixaMovimentos,
+      contagem: contagemValidada.valoresNativos, taxas: taxasCambio,
+    });
+    const saldoEsperadoBRL = conciliacaoFisica.confiavel
+      ? conciliacaoFisica.totalEsperadoBRL : Number(resumoSessaoAtiva.saldoEsperado || 0);
+    const valInformadoBRL = contagemValidada.totalBRL;
+    const diferenca = conciliacaoFisica.confiavel ? conciliacaoFisica.diferencaBRL : null;
+    const assinaturaFechamento = assinaturaFinanceiraSessao({ sessao:sessaoAtiva, historicoVendas, caixaMovimentos });
 
     const dataFechoISO = new Date().toISOString();
     const dataFechoLocal = new Date().toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR');
@@ -955,8 +977,18 @@ export default function App() {
           fechamentoLocal: dataFechoLocal,
           saldoInformado: valInformadoBRL,
           detalheFechamento: { ...valoresMovCaixa },
+          detalheFechamentoNativos: contagemValidada.valoresNativos,
+          taxasCambioFechamento: { ...taxasCambio },
           diferenca,
           saldoSistema: saldoEsperadoBRL,
+          saldoSistemaReferencialBRL: Number(resumoSessaoAtiva.saldoEsperado || 0),
+          situacaoConciliacao: !conciliacaoFisica.confiavel ? 'PENDENTE_AUDITORIA'
+            : conciliacaoFisica.divergenciaFisica ? 'DIVERGENCIA_FISICA' : 'CONCILIADO',
+          pendenciasConciliacao: conciliacaoFisica.pendencias,
+          composicaoEsperadaNativa: conciliacaoFisica.esperado,
+          composicaoContadaNativa: conciliacaoFisica.contado,
+          diferencasNativas: conciliacaoFisica.diferencas,
+          assinaturaSnapshotFechamento: assinaturaFechamento,
           fechamentoCego: true,
           conciliacaoEletronica: {
             pixEntradas: conciliacaoEletronica.pixEntradas,
@@ -976,11 +1008,16 @@ export default function App() {
       return s;
     });
 
+    // Relatório informativo bruto por forma E moeda; não comparar valores nativos
+    // de PYG/USD/EUR com o líquido em BRL da gaveta.
     const resumoEntradas = vendasDestaSessao.reduce((res, v) => {
       (v.pagamentos || []).forEach(p => {
         const rotulo = p.rotulo || p.formaId || 'Pagamento';
-        if (!res[rotulo]) res[rotulo] = 0;
-        res[rotulo] += Number(p.valorOriginal || p.valorConvertidoBRL || 0);
+        const moedaOriginal = p.moedaOrigem || (p.valorOriginal == null ? 'BRL' : 'N/I');
+        const chave = JSON.stringify([p.formaId || rotulo, moedaOriginal]);
+        if (!res[chave]) res[chave] = { rotulo, moedaOriginal, valorOriginal: 0, valorBRL: 0 };
+        res[chave].valorOriginal += Number(p.valorOriginal ?? p.valorConvertidoBRL ?? 0);
+        res[chave].valorBRL += Number(p.valorConvertidoBRL || 0);
       });
       return res;
     }, {});
@@ -998,9 +1035,8 @@ export default function App() {
       outrasSaidas: Number(resumoSessaoAtiva.outrasSaidas || 0),
     };
 
-    const moedasContadasHTML = Object.entries(valoresMovCaixa)
-      .map(([m, v]) => [m, String(v ?? '').trim() === '' ? 0 : (parseFloat(String(v).replace(',', '.')) || 0)])
-      .map(([m, v]) => `<div style="display:flex;justify-content:space-between;"><span>${m} contado:</span><span>${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: m === 'PYG' ? 0 : 2, maximumFractionDigits: 2 })}</span></div>`)
+    const moedasContadasHTML = Object.entries(contagemValidada.valoresNativos)
+      .map(([m, v]) => `<div style="display:flex;justify-content:space-between;"><span>${m} contado:</span><span>${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: m === 'PYG' ? 0 : 2, maximumFractionDigits: m === 'PYG' ? 0 : 2 })}</span></div>`)
       .join('');
 
     const escaparHTML = (valor = '') => String(valor ?? '').replace(/[&<>"']/g, caractere => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[caractere]));
@@ -1015,10 +1051,17 @@ export default function App() {
       })
       .join('');
 
-    const temQuebra = Math.abs(diferenca) > 0.05;
-    const descQuebra = temQuebra
-      ? (diferenca < 0 ? tx('FALTA DE CAIXA','FALTA DE CAJA','CASH SHORTAGE') : tx('SOBRA DE CAIXA','SOBRANTE DE CAJA','CASH OVERAGE'))
-      : tx('CAIXA CONCILIADO','CAJA CONCILIADA','CASH RECONCILED');
+    const temQuebra = !conciliacaoFisica.confiavel || conciliacaoFisica.divergenciaFisica;
+    const descQuebra = !conciliacaoFisica.confiavel
+      ? 'AUDITORIA PENDENTE — NÃO IMPUTAR FALTA'
+      : conciliacaoFisica.divergenciaFisica
+        ? 'DIVERGÊNCIA FÍSICA POR MOEDA — CONFERIR'
+        : tx('CAIXA CONCILIADO','CAJA CONCILIADA','CASH RECONCILED');
+    const demonstrativoMoedas = ['BRL','USD','EUR','PYG'].map(m => {
+      const casas = m === 'PYG' ? 0 : 2;
+      const n = valor => Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits:casas, maximumFractionDigits:casas });
+      return `<div style="display:flex;justify-content:space-between;gap:6px;"><span>${m} esperado: ${n(conciliacaoFisica.esperado?.[m])}</span><span>contado: ${n(conciliacaoFisica.contado?.[m])} / dif.: ${n(conciliacaoFisica.diferencas?.[m])}</span></div>`;
+    }).join('');
 
     const reciboFechoHTML = `
       <div style="font-family:monospace;font-size:12px;width:100%;text-align:left;">
@@ -1027,7 +1070,7 @@ export default function App() {
           <div>ZenOS - ${tx('SISTEMA DE GESTÃO','SISTEMA DE GESTIÓN','MANAGEMENT SYSTEM')}</div>
         </div>
         <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
-        <div><strong>${tx('Operador:','Operador:','Operator:')}</strong> ${sessaoAtiva.operadorNome}</div>
+        <div><strong>${tx('Operador:','Operador:','Operator:')}</strong> ${escaparHTML(sessaoAtiva.operadorNome)}</div>
         <div><strong>${tx('Abertura:','Apertura:','Opening:')}</strong> ${sessaoAtiva.abertura}</div>
         <div><strong>${tx('Fechamento:','Cierre:','Closing:')}</strong> ${dataFechoLocal}</div>
         <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
@@ -1046,7 +1089,8 @@ export default function App() {
 
         <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
         <div style="margin-bottom:5px;"><strong>>> ${tx('VENDAS POR FORMA DE PAGAMENTO','VENTAS POR FORMA DE PAGO','SALES BY PAYMENT METHOD')}</strong></div>
-        ${Object.keys(resumoEntradas).length > 0 ? Object.entries(resumoEntradas).map(([forma, valor]) => `<div style="display:flex;justify-content:space-between;"><span>${forma}:</span><span>${Number(valor).toFixed(2)}</span></div>`).join('') : `<div style="text-align:center;">${tx('Nenhuma venda','Ninguna venta','No sales')}</div>`}
+        ${Object.keys(resumoEntradas).length > 0 ? Object.values(resumoEntradas).map(item => `<div style="display:flex;justify-content:space-between;gap:6px;"><span>${escaparHTML(item.rotulo)} (${item.moedaOriginal}):</span><span>${Number(item.valorOriginal).toLocaleString('pt-BR', { minimumFractionDigits: item.moedaOriginal === 'PYG' ? 0 : 2, maximumFractionDigits: item.moedaOriginal === 'PYG' ? 0 : 2 })} • ${fmt(item.valorBRL, 'BRL')}</span></div>`).join('') : `<div style="text-align:center;">${tx('Nenhuma venda','Ninguna venta','No sales')}</div>`}
+        <div style="font-size:10px;margin-top:4px;">${tx('Valores por forma são brutos e podem incluir troco. A composição da gaveta apresenta o líquido em BRL. N/I = moeda de origem não registrada.','Los importes por forma son brutos y pueden incluir cambio. El efectivo es neto en BRL. N/I = moneda desconocida.','Payment totals are gross and may include change. Drawer amounts are net BRL. N/I = currency not recorded.')}</div>
 
         <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
         <div style="margin-bottom:5px;"><strong>>> ${tx('CONCILIAÇÃO ELETRÔNICA (NÃO AFETA GAVETA)','CONCILIACIÓN ELECTRÓNICA (NO AFECTA CAJA)','ELECTRONIC RECONCILIATION (DOES NOT AFFECT DRAWER)')}</strong></div>
@@ -1061,14 +1105,17 @@ export default function App() {
         <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
         <div style="margin-bottom:5px;"><strong>>> ${tx('CONTAGEM INFORMADA PELO OPERADOR','CONTEO INFORMADO POR EL OPERADOR','COUNT ENTERED BY OPERATOR')}</strong></div>
         ${moedasContadasHTML}
+        <div style="margin-top:6px;font-weight:bold;">>>> CONCILIAÇÃO FÍSICA POR MOEDA</div>
+        ${demonstrativoMoedas}
+        ${!conciliacaoFisica.confiavel ? `<div style="margin-top:5px;font-weight:bold;">RECONCILIAÇÃO INCONCLUSIVA: ${conciliacaoFisica.pendencias.map(escaparHTML).join(' | ')}</div>` : ''}
 
         <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
-        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('SALDO ESPERADO:','SALDO ESPERADO:','EXPECTED BALANCE:')}</span><span>${fmt(saldoEsperadoBRL, 'BRL')}</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('SALDO ESPERADO:','SALDO ESPERADO:','EXPECTED BALANCE:')}</span><span>${fmt(saldoEsperadoBRL, 'BRL')}${conciliacaoFisica.confiavel ? '' : ' (REFERENCIAL)'}</span></div>
         <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('TOTAL CONTADO:','TOTAL CONTADO:','TOTAL COUNTED:')}</span><span>${fmt(valInformadoBRL, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('DIFERENÇA:','DIFERENCIA:','DIFFERENCE:')}</span><span>${fmt(diferenca, 'BRL')}</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('DIFERENÇA:','DIFERENCIA:','DIFFERENCE:')}</span><span>${conciliacaoFisica.confiavel ? fmt(diferenca, 'BRL') : 'INDETERMINADA'}</span></div>
         <div style="text-align:center;font-weight:bold;margin-top:8px;">${descQuebra}</div>
 
-        <div style="margin-top:36px;text-align:center;">_________________________________<br/>${tx('Assinatura do Operador','Firma del Operador','Operator Signature')}<br/>${sessaoAtiva.operadorNome}</div>
+        <div style="margin-top:36px;text-align:center;">_________________________________<br/>${tx('Assinatura do Operador','Firma del Operador','Operator Signature')}<br/>${escaparHTML(sessaoAtiva.operadorNome)}</div>
         <div style="margin-top:36px;text-align:center;">_________________________________<br/>${tx('Conferência da Gerência','Revisión de Gerencia','Management Review')}</div>
       </div>
     `;
@@ -1077,7 +1124,11 @@ export default function App() {
       [{ field:'sessoesCaixa', value:sessoesAtualizadas, storageSuffix:'sessoes_caixa' }],
       {
         operationKey: `fechar-caixa:${sessaoAtiva.id}`,
-        guards: [{ type:'cash_session_open', sessionId:sessaoAtiva.id }],
+        guards: [
+          { type:'cash_session_open', sessionId:sessaoAtiva.id },
+          { type:'cash_close_snapshot_matches', sessionId:sessaoAtiva.id, assinatura:assinaturaFechamento },
+          { type:'cash_close_exchange_rates_match', taxas:{ ...taxasCambio } },
+        ],
       }
     );
     if (!fechamentoConfirmado?.cloudOk) {
@@ -1102,15 +1153,18 @@ export default function App() {
 
     avisarAppZen({
       variante: temQuebra ? 'warning' : 'success',
-      titulo: temQuebra ? tx('Fechamento concluído com diferença','Cierre concluido con diferencia','Close completed with difference') : tx('Caixa fechado e conciliado','Caja cerrada y conciliada','Register closed and reconciled'),
-      mensagem: temQuebra
-        ? `${tx('O turno foi encerrado com','El turno fue cerrado con','The shift was closed with')} ${diferenca < 0 ? tx('falta','faltante','a shortage') : tx('sobra','sobrante','an overage')} ${tx('de','de','of')} ${fmt(Math.abs(diferenca), 'BRL')}.`
-        : tx('A contagem física confere com o saldo esperado pelo sistema.','El conteo físico coincide con el saldo esperado por el sistema.','The physical count matches the balance expected by the system.'),
+      titulo: !conciliacaoFisica.confiavel ? 'Fechamento registrado — auditoria pendente'
+        : temQuebra ? 'Fechamento registrado — diferença por moeda' : 'Caixa fechado e conciliado',
+      mensagem: !conciliacaoFisica.confiavel
+        ? 'A documentação de algumas operações não permite concluir a falta ou sobra. Não atribua responsabilidade financeira ao operador sem auditoria.'
+        : temQuebra ? 'As quantidades físicas por moeda não conferem. Confira o demonstrativo individual no comprovante.'
+          : 'A contagem física confere com os valores esperados em cada moeda.',
       detalhes: [
-        `${tx('Saldo esperado:','Saldo esperado:','Expected balance:')} ${fmt(saldoEsperadoBRL, 'BRL')}`,
-        `${tx('Total contado:','Total contado:','Total counted:')} ${fmt(valInformadoBRL, 'BRL')}`,
-        `${tx('Diferença:','Diferencia:','Difference:')} ${fmt(diferenca, 'BRL')}`,
-        janelaImpressao ? tx('Comprovante de fechamento aberto para impressão.','Comprobante de cierre abierto para impresión.','Closing receipt opened for printing.') : tx('Impressão bloqueada pelo navegador; o fechamento foi registrado mesmo assim.','Impresión bloqueada por el navegador; el cierre fue registrado de todos modos.','Printing was blocked by the browser; the closing was still recorded.'),
+        `Saldo esperado: ${fmt(saldoEsperadoBRL, 'BRL')}`,
+        `Total contado: ${fmt(valInformadoBRL, 'BRL')}`,
+        `Diferença: ${conciliacaoFisica.confiavel ? fmt(diferenca, 'BRL') : 'INDETERMINADA'}`,
+        ...conciliacaoFisica.pendencias.slice(0, 4),
+        janelaImpressao ? 'Comprovante aberto para impressão.' : 'A impressão foi bloqueada pelo navegador; o fechamento ficou registrado.',
       ],
       apenasConfirmar: true,
     });
@@ -1615,7 +1669,7 @@ export default function App() {
                 {tipoMovCaixa === 'fechamento' && (
                   <div style={{ marginTop:'14px', padding:'12px 14px', borderRadius:'12px', background:'#020617', border:'1px solid #1e293b' }}>
                     <div style={{fontSize:'10px',fontWeight:900,letterSpacing:'1px',color:'#64748b',marginBottom:'5px'}}>{tx('TOTAL FÍSICO INFORMADO • CONVERTIDO PARA BRL','TOTAL FÍSICO INFORMADO • CONVERTIDO A BRL','PHYSICAL TOTAL ENTERED • CONVERTED TO BRL')}</div>
-                    <div style={{fontSize:'20px',fontWeight:950,color:'#f8fafc'}}>{fmt(calcularTotalMovBRL(), 'BRL')}</div>
+                    <div style={{fontSize:'20px',fontWeight:950,color:'#f8fafc'}}>{Number.isFinite(calcularTotalMovBRL()) ? fmt(calcularTotalMovBRL(), 'BRL') : tx('Corrija os valores digitados', 'Corrija los importes', 'Correct the entered amounts')}</div>
                     <div style={{fontSize:'10px',color:'#64748b',marginTop:'5px'}}>{tx('O saldo esperado pelo ZenOS permanece oculto até a auditoria ser concluída.','El saldo esperado por ZenOS permanece oculto hasta finalizar la auditoría.','The balance expected by ZenOS remains hidden until the audit is completed.')}</div>
                   </div>
                 )}

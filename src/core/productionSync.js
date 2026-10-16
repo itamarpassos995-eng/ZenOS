@@ -3,7 +3,7 @@ import { zenosStorage } from './storage.js';
 import { getV1OperationPath, notifyPersistenceStatus, safeSetLocalJson } from './persistenceSafety.js';
 import { cloneSyncValue, mergeV1FieldThreeWay, syncValuesEqual } from './syncMerge.js';
 import { criarLancamentoFinanceiro } from './financialLedgerCore.js';
-import { calcularResumoSessao } from './cashSession.js';
+import { calcularResumoSessao, assinaturaFinanceiraSessao } from './cashSession.js';
 
 // ATT 10.2: proteção local contra loops/eco. Os limites são deliberadamente
 // conservadores: uma operação real pode alterar muitos campos, mas deve gerar
@@ -154,6 +154,19 @@ const assertBusinessGuards = (data, guards = []) => {
       const session = findEntity(data?.sessoesCaixa, guard.sessionId, 'id');
       if (!session || session.status !== 'aberta') {
         failGuard(guard.message || 'O turno de caixa foi fechado ou alterado em outro terminal.', 'ZENOS_CASH_SESSION_NOT_OPEN');
+      }
+    } else if (guard.type === 'cash_close_snapshot_matches') {
+      const session = findEntity(data?.sessoesCaixa, guard.sessionId, 'id');
+      if (!session || session.status !== 'aberta') {
+        failGuard('O caixa já foi fechado ou mudou em outro terminal.', 'ZENOS_CASH_CLOSE_CONFLICT');
+      }
+      const atual = assinaturaFinanceiraSessao({
+        sessao: session,
+        historicoVendas: data?.historicoVendas || [],
+        caixaMovimentos: data?.caixaMovimentos || [],
+      });
+      if (!guard.assinatura || atual !== guard.assinatura) {
+        failGuard('Entradas, vendas ou sangrias mudaram durante o fechamento. Faça uma nova contagem.', 'ZENOS_CASH_CLOSE_STALE');
       }
     } else if (guard.type === 'cash_balance_at_least') {
       const session = findEntity(data?.sessoesCaixa, guard.sessionId, 'id');
@@ -412,6 +425,16 @@ export const persistV1BusinessOperationSafe = async ({
       const operationRef = doc(db, ...getV1OperationPath(userId));
       const snap = await tx.get(operationRef);
       const data = snap.exists() ? (snap.data() || {}) : {};
+      // A cotação também pertence ao snapshot de fechamento: a transação
+      // deve ser repetida se outro terminal atualizar a configuração.
+      const fechamentoCambio = (guards || []).find(g => g?.type === 'cash_close_exchange_rates_match');
+      if (fechamentoCambio) {
+        const configSnap = await tx.get(doc(db, 'lojas', String(userId), 'dados', 'configuracoes'));
+        const taxasRemotas = configSnap.exists() ? configSnap.data()?.taxasCambio : null;
+        if (taxasRemotas && !syncValuesEqual(taxasRemotas, fechamentoCambio.taxas)) {
+          failGuard('A cotação mudou em outro terminal. Confira o câmbio e refaça o fechamento.', 'ZENOS_CASH_FX_CHANGED');
+        }
+      }
       const existingSyncMeta = data?._syncMeta || {};
       const recentKeys = normalizeRecentOperationKeys(existingSyncMeta);
 
