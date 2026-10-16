@@ -55,6 +55,15 @@ try{
  assert.equal(saved.revision,1);
  assert.equal((await fnA({action:'consultar'})).data.revision,1);
  assert.equal((await fnB({action:'consultar'})).data.revision,0);
+ // Duas abas disputando a mesma revisão: apenas uma pode persistir.
+ const concorrentes=await Promise.allSettled(['A-aba-1','A-aba-2'].map(nomeLoja=>
+  fnA({action:'salvarRascunho',expectedRevision:1,rascunho:{aparencia:{nomeLoja},regras:{}}})));
+ assert.equal(concorrentes.filter(r=>r.status==='fulfilled').length,1);
+ const rejeitada=concorrentes.find(r=>r.status==='rejected');
+ assert.match(String(rejeitada?.reason?.code),/aborted/);
+ assert.equal((await fnA({action:'consultar'})).data.revision,2);
+ assert.equal((await fnB({action:'consultar'})).data.revision,0);
+
  await forbid(getDoc(doc(b.db,'lojas',a.uid,'commerce_private','rascunho')));
  console.log('PASSOU: lojas A/B isoladas, Store privado, Storage negado e callable com revisao.');
 }finally{for(const app of apps)await deleteApp(app);}

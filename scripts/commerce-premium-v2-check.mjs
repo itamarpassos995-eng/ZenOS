@@ -45,14 +45,11 @@ equal(publicList.length,1);equal(publicList[0].precoBRL,79.9);
 ok(!('custoBRL' in publicList[0]));ok(!('fornecedor' in publicList[0]));
 equal(validarCarrinhoServidor({itens:[{skuPublico:'SKU-1',quantidade:2}],produtos:products,regras:rules,lojaAtivada:true}).subtotalCentavos,15980);
 ok(!validarCarrinhoServidor({itens:[{skuPublico:'SKU-1',quantidade:4}],produtos:products,regras:rules,lojaAtivada:true}).ok);
-const preview=fs.readFileSync(new URL('../public/zenos-commerce-premium-preview.html',import.meta.url),'utf8');
-ok(preview.includes('id="openEditor"'));ok(preview.includes('id="edHeadline"'));
-ok(preview.includes('id="edBannerColor"'));ok(preview.includes('id="productGrid"'));
-ok(preview.includes('PRÉVIA INTERATIVA'));ok(preview.includes('NÃO PUBLICADA'));
 const studio=fs.readFileSync(new URL('../src/components/ZenCommerceStudio.jsx',import.meta.url),'utf8');
 ok(studio.includes('onSolicitarAtivacao'));ok(studio.includes('onSalvarRascunho'));ok(studio.includes('onPublicar'));
 ok(studio.includes('estadoPlanoCommerce(licenca)'));
-const script=preview.match(/<script>([\s\S]*?)<\/script>/)?.[1];ok(!!script);
-// Validação sintática do JS do preview, SEM executar browser nem depender de rede.
-await import('node:vm').then(({Script})=>new Script(script,{filename:'zenos-commerce-premium-preview.html'}));checks++;
+// O editor React substituiu o protótipo HTML; validar seus contratos atuais.
+ok(studio.includes("disabled={!plano.ativo||typeof onPublicar!=='function'||carregando}"));
+ok(studio.includes('montarGaleriaProduto'));
+ok(studio.includes('Salvar no ZenOS'));
 console.log(`ZenOS Commerce Premium V2: ${checks} verificações aprovadas (sem GitHub e sem Firestore).`);
