@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "source": "functions",
+    "codebase": "fiscal",
+    "predeploy": ["node scripts/commerce-cloud-hml-deploy.mjs --check"]
+  }
+}

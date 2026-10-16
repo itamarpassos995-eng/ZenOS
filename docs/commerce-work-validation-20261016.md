@@ -78,3 +78,21 @@ Validação desta atualização:
 O proprietário confirmou via CLI o acesso à API Cloud Functions do projeto `zenos-commerce-homologacao`; a listagem retornou `No functions found`, coerente com nenhuma implantação realizada. O console no navegador Work voltou a exigir autenticação; nenhum recurso novo foi implantado nesta atualização.
 
 Pendências atuais: reautenticar o console, configurar Google Auth e domínio da homologação, provisionar vínculos individuais fictícios e Firestore com regras de nuvem auditadas, validar popup desktop/mobile e integração real com GCS. A implementação server-side de autorização está testada em emulador; a homologação de navegador/Google ainda não foi demonstrada. Quotas/limpeza de órfãos, IAM mínimo e custos permanecem pendentes. PR segue draft; nenhuma alteração em produção ou Share V2.
+
+## Implantação exclusiva de homologação preparada
+
+CI do commit `ffc555e`: Caixa P0 aprovado (38922818804) e Fiscal onboarding aprovado (38922818551).
+
+Adicionado `scripts/commerce-cloud-hml-deploy.mjs`, com projeto, conta administrativa e seleção das duas funções Commerce fixos. Usa `firebase.commerce.cloud-hml.json`, sem configurações de regras/Hosting; não utiliza `firebase.json` nem implanta funções fiscais. O predeploy também recusa GCLOUD_PROJECT diferente da homologação. O script cria somente o arquivo de ambiente específico desse projeto, ignorado pelo Git, e recusa sobrescrever configuração divergente. A mídia é habilitada exclusivamente no bucket de homologação previamente autorizado. Upload continua dependendo da autorização individual no servidor.
+
+Checagens executadas: modo `--check` aprovado; argumento para projeto de produção recusado; variável de predeploy com projeto de produção recusada. Conferidos no código do Firebase CLI 15.34.0 o formato do filtro codebase/função e a variável GCLOUD_PROJECT fornecida ao predeploy. **Nenhuma implantação na nuvem foi executada.**
+
+No PowerShell autenticado do proprietário, na cópia limpa da branch:
+
+```powershell
+git pull --ff-only
+node scripts/commerce-cloud-hml-deploy.mjs --check
+node scripts/commerce-cloud-hml-deploy.mjs
+```
+
+Esse comando publica somente o backend Commerce de teste; não torna uma loja pública/comercial. Não resolve sozinho: provisionamento Firestore/Google Auth, vínculos individuais fictícios, IAM/signBlob, testes GCS reais, popup desktop/mobile, quotas e storefront/checkout. O código atual mantém publicação pública e pagamentos desligados. Merge não substitui essas funcionalidades ou a homologação.
