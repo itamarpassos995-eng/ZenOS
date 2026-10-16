@@ -49,7 +49,7 @@ const studio=fs.readFileSync(new URL('../src/components/ZenCommerceStudio.jsx',i
 ok(studio.includes('onSolicitarAtivacao'));ok(studio.includes('onSalvarRascunho'));ok(studio.includes('onPublicar'));
 ok(studio.includes('estadoPlanoCommerce(licenca)'));
 // O editor React substituiu o protótipo HTML; validar seus contratos atuais.
-ok(studio.includes("disabled={!plano.ativo||typeof onPublicar!=='function'||carregando}"));
+ok(studio.includes("disabled={!catalogo.length||!plano.ativo||typeof onPublicar!=='function'||carregando}"));
 ok(studio.includes('montarGaleriaProduto'));
 ok(studio.includes('Salvar no ZenOS'));
 console.log(`ZenOS Commerce Premium V2: ${checks} verificações aprovadas (sem GitHub e sem Firestore).`);

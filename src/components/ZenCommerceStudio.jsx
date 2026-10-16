@@ -84,7 +84,7 @@ export default function ZenCommerceStudio({
     link.download='zenos-commerce-rascunho.json';link.click();URL.revokeObjectURL(ref);
     setAviso('Rascunho exportado. Nenhum produto foi publicado.');
   };
-  const executar=async(fn,sucesso)=>{if(carregando||typeof fn!=='function')return;setCarregando(true);setAviso('');try{const resultado=await fn({aparencia:normalizarAparencia(cfg),regras});if(resultado?.regras)setRegras(resultado.regras);setAviso(resultado?.aviso?sucesso+' '+resultado.aviso:sucesso);}catch(e){setAviso(e?.message||'Operação não confirmada.');}finally{setCarregando(false);}};
+  const executar=async(fn,sucesso)=>{if(carregando||typeof fn!=='function')return;if(fn===onPublicar&&!catalogo.length){setAviso('Selecione pelo menos um produto na aba Produtos antes de publicar.');return;}setCarregando(true);setAviso('');try{const resultado=await fn({aparencia:normalizarAparencia(cfg),regras});if(resultado?.regras)setRegras(resultado.regras);setAviso(resultado?.aviso?sucesso+' '+resultado.aviso:sucesso);}catch(e){setAviso(e?.message||'Operação não confirmada.');}finally{setCarregando(false);}};
   const enviarImagem = async (arquivo, chave) => {
     if (!arquivo) return;
     if (!['image/jpeg','image/png','image/webp'].includes(arquivo.type) || arquivo.size > 3_000_000) {
@@ -199,8 +199,8 @@ export default function ZenCommerceStudio({
             <button style={{...tabStyle(false),flex:1}} onClick={exportar}>Exportar rascunho</button>
             <button disabled={typeof onSalvarRascunho!=='function'||carregando} style={{...barraBotao,flex:1}} onClick={()=>executar(onSalvarRascunho,'Rascunho privado salvo no ZenOS. A vitrine não foi publicada.')}>Salvar no ZenOS</button>
           </div>
-          <button disabled={!plano.ativo||typeof onPublicar!=='function'||carregando} style={{...barraBotao,background:plano.ativo?'#8edaaf':'#445160',color:plano.ativo?'#12271f':'#bdcbd2'}} onClick={()=>executar(onPublicar,'Publicação solicitada e encaminhada ao servidor para validação.')}>Publicar loja</button>
-          <div role="status" style={{fontSize:12,color:'#e3c491',minHeight:18}}>{aviso||(!plano.ativo?'Prévia privada: ninguém compra ou paga nesta tela.':'')}</div>
+          <button disabled={!catalogo.length||!plano.ativo||typeof onPublicar!=='function'||carregando} style={{...barraBotao,background:plano.ativo?'#8edaaf':'#445160',color:plano.ativo?'#12271f':'#bdcbd2'}} onClick={()=>executar(onPublicar,'Publicação solicitada e encaminhada ao servidor para validação.')}>Publicar loja</button>
+          <div role="status" style={{fontSize:12,color:'#e3c491',minHeight:18}}>{aviso||(!catalogo.length?'Selecione produtos para habilitar a publicação.':!plano.ativo?'Prévia privada: ninguém compra ou paga nesta tela.':'')}</div>
         </div>
       </section>
       <section style={{...tile,padding:0,overflow:'hidden',background:cfg.corSuperficie,color:cfg.corTexto}}>
@@ -222,11 +222,12 @@ export default function ZenCommerceStudio({
         <div style={{padding:'26px 20px'}}>
           <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between',gap:10}}><div><small style={{color:'#8b9193',fontWeight:700}}>CURADORIA DA LOJA</small><h3 style={{fontSize:22,margin:'7px 0 20px'}}>Escolhidos para você</h3></div><span style={{fontSize:12,color:cfg.corPrincipal}}>Ver tudo →</span></div>
           <div className="zen-commerce-card-grid" style={{display:'grid',gridTemplateColumns:`repeat(${cfg.layoutGrade}, minmax(0,1fr))`,gap:10}}>
-            {(catalogo.length?catalogo.slice(0,8):[{nome:'Produto em destaque',precoBRL:119.9,categoria:'Novidades',disponivel:true},{nome:'Sua nova coleção',precoBRL:79.9,categoria:'Especiais',disponivel:true},{nome:'Mais vendido',precoBRL:69.9,categoria:'Favoritos',disponivel:true},{nome:'Produto exclusivo',precoBRL:149.9,categoria:'Novidades',disponivel:true}]).map((p,i)=><div key={p.skuPublico||i} style={{minWidth:0,border:'1px solid #e4e3df',borderRadius:10,overflow:'hidden',background:'#fff'}}>
+            {catalogo.slice(0,8).map((p,i)=><div key={p.skuPublico||i} style={{minWidth:0,border:'1px solid #e4e3df',borderRadius:10,overflow:'hidden',background:'#fff'}}>
               <div style={{aspectRatio:'1',display:'grid',placeItems:'center',background:['#e6d7c8','#e9e8e1','#d3dfdb','#ece2e8'][i%4],fontSize:32}}>{p.imagemUrl?<img src={p.imagemUrl} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:['✦','◈','✳','◇'][i%4]}</div>
               <div style={{padding:9}}><div style={{fontSize:9,color:'#76818a'}}>{p.categoria}</div><div style={{fontSize:11,fontWeight:700,minHeight:30,margin:'5px 0'}}>{p.nome}</div><b style={{fontSize:12,color:cfg.corPrincipal}}>{moeda(p.precoBRL)}</b></div>
             </div>)}
           </div>
+          {!catalogo.length&&<div style={{padding:28,border:'1px dashed #cbd5cf',borderRadius:10,textAlign:'center',color:'#697b76',fontSize:12}}>Sua seleção aparecerá aqui. Abra a aba <strong>Produtos</strong> e escolha os itens da loja.</div>}
           <div style={{marginTop:22,textAlign:'center',padding:14,borderRadius:10,background:'#e9edea',fontSize:11}}>{cfg.etiquetaFrete} • Atendimento seguro • Vitrine exclusiva</div>
         </div>
         <div style={{padding:20,background:cfg.corPrincipal,color:'#fff',fontSize:11,display:'flex',justifyContent:'space-between',flexWrap:'wrap',gap:7}}><span>{cfg.nomeLoja} — {cfg.slogan}</span><span>Prévia do ZenOS Commerce</span></div>

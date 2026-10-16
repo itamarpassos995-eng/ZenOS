@@ -100,7 +100,7 @@ export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuve
   {erro&&<div role="status" style={{padding:12,border:'1px solid #84672b',borderRadius:10,color:'#f3ce82',background:'#251f17'}}>
    <strong>Prévia privada:</strong> {erro} Nenhuma contratação ou publicação será feita.
   </div>}
-  {data&&<section style={{padding:16,border:'1px solid #395368',borderRadius:12,color:'#edf4f8',display:'grid',gap:12}}>
+  {data&&<section className="commerce-admin-panel" style={{padding:20,border:'1px solid #395368',borderRadius:12,color:'#edf4f8',display:'grid',gap:12}}>
    <h3 style={{margin:0}}>Pedidos da loja online</h3>
    <label>WhatsApp da loja com código do país<input type="tel" maxLength={25} placeholder="+55 ou +595..." value={whatsapp} onChange={e=>setWhatsapp(e.target.value)} style={{margin:8,padding:10,color:'#162D38'}}/></label>
    <small>Pedidos ficam aguardando confirmação. Nenhuma venda, cobrança ou baixa de estoque é feita automaticamente.</small>
