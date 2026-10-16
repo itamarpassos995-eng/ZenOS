@@ -49,8 +49,8 @@ firebase emulators:exec --project demo-zenos-local --config firebase.commerce.ho
 - CI do commit e36e5cd: Caixa P0 success (38898159560), Fiscal success (38898159492).
 
 ## Pendências reais
-1. O console foi acessado com conta Google conectada, mas negou permissão de listar apps no projeto zenos-ac6b2. CLI sem conta autorizada. Conectar conta administrativa correta antes de criar/selecionar homologação na nuvem. Isso não significa que o Firebase do cliente esteja ausente.
-2. Não foram criados projeto, bucket, IAM ou orçamento, nem ativadas cobranças. Necessário verificar infraestrutura separada de homologação e viabilidade de custo.
+1. Autenticação Google concluída na conta administrativa correta. Projeto separado criado: zenos-commerce-homologacao, nome ZenOS Commerce Homologacao, plano Spark, interface confirma Sem custos (US$ 0/mês). Gemini e Analytics opcionais desativados na criação. Login do CLI continua independente, ainda não concluído.
+2. Storage da homologação mostra literalmente: “Para usar Storage, faça upgrade do plano de preços do seu projeto”. Nenhuma vinculação de faturamento, bucket, IAM ou orçamento foi criada. O proprietário proibiu ativar cobranças; portanto o upgrade não foi executado. Console verificado: https://console.firebase.google.com/u/1/project/zenos-commerce-homologacao/storage . Produção não alterada.
 3. Login Firebase compartilhado entre operadores: as callables ainda identificam a loja, mas não comprovam autorização administrativa individual. Bloqueio de liberação; não resolvido pelo menu nem pelos testes entre lojas.
 4. IAM/signBlob e expiração efetiva de URLs exigem GCS real; não são comprovados pelo emulador.
 5. Falta teste funcional do fluxo completo de interface desktop/mobile no ambiente conectado.
