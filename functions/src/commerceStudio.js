@@ -1,3 +1,4 @@
+import { autorizarOperadorCommerce } from './commerceAuthorization.js';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { obterAdminFirestore } from './firebaseAdmin.js';
 import { validarRascunhoCommerce, resumoLicencaCommerce, validarRevisao, construirInteresseCommerce, configInicialCommerce } from './commerceStudioCore.js';
@@ -31,19 +32,14 @@ async function hidratarUrlsPrivadas(regras,lojaId) {
  }
  return resultado;
 }
-/**
- * Somente a identidade proprietária autenticada (auth.uid) acessa o próprio rascunho.
- * NÃO aceita lojaId do navegador, NÃO publica nada e NÃO concede licença.
- * Importante: login do estabelecimento pode ser compartilhado por operadores; o
- * bloqueio de UI por admin não substitui uma futura autenticação individual de operadores.
- */
+/** Conta individual e vínculo administrativo verificados no servidor em cada ação. */
 export const commerceStudio = onCall({region:'southamerica-east1',timeoutSeconds:30,memory:'256MiB',maxInstances:2},async request=>{
  if(!request.auth?.uid)throw new HttpsError('unauthenticated','Faça login no ZenOS.');
  if(request.data?.lojaId!==undefined)throw new HttpsError('invalid-argument','A identidade da loja não pode ser fornecida pelo navegador.');
  const action=request.data?.action;
  if(!['consultar','salvarRascunho','solicitarProposta'].includes(action))throw new HttpsError('invalid-argument','Ação inválida.');
- const lojaId=request.auth.uid;
  const db=await obterAdminFirestore();
+ const {lojaId,operadorUid}=await autorizarOperadorCommerce(request.auth,db);
  const loja=db.doc(`lojas/${lojaId}`);
  const rascunho=db.doc(`lojas/${lojaId}/commerce_private/rascunho`);
  const licenca=db.doc(`lojas/${lojaId}/commerce_private/licenca`);
@@ -52,7 +48,7 @@ export const commerceStudio = onCall({region:'southamerica-east1',timeoutSeconds
  if(!lojaSnap.exists)throw new HttpsError('permission-denied','Loja não autorizada.');
  if(action==='consultar'){
   const [d,l,p]=await Promise.all([rascunho.get(),licenca.get(),interesse.get()]);
-  return {revision:d.data()?.revision||0,aparencia:d.data()?.aparencia||configInicialCommerce,
+  return {lojaId,revision:d.data()?.revision||0,aparencia:d.data()?.aparencia||configInicialCommerce,
    regras:await hidratarUrlsPrivadas(d.data()?.regras||{},lojaId),licenca:resumoLicencaCommerce(l.data()),interesse:p.data()?.status||'nao_solicitado',
    // Link ainda não disponível: endereço depende de domínio e diretório publicados pelo servidor.
    idPublico:null,publicacaoHabilitada:false,
@@ -83,7 +79,7 @@ export const commerceStudio = onCall({region:'southamerica-east1',timeoutSeconds
   const revision=snap.data()?.revision||0;
   if(!validarRevisao(expectedRevision,revision))throw new HttpsError('aborted','Rascunho modificado em outro dispositivo. Atualize antes de salvar.');
   const next=revision+1;
-  tx.set(rascunho,{...normalizado,revision:next,status:'rascunho_privado',atualizadoEm:new Date().toISOString(),alteradoPor:lojaId});
+  tx.set(rascunho,{...normalizado,revision:next,status:'rascunho_privado',atualizadoEm:new Date().toISOString(),alteradoPor:operadorUid});
   return {revision:next,status:'rascunho_privado',publicado:false};
  });
 });

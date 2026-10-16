@@ -63,3 +63,18 @@ O backend agora reconhece exatamente o par projeto zenos-commerce-homologacao / 
 Bloqueio de ambiente observado: tanto Cloud Shell embutido (shell.cloud.google.com) quanto console Google Cloud (console.cloud.google.com) retornaram “Site Unavailable / Unable to access this site” neste navegador Work. Sem execução de comandos administrativos na nuvem, auditoria de IAM/signBlob ou deploy das Functions. Não é falta de autorização do proprietário. O CLI local segue sem sessão administrativa; o login de navegador não autentica automaticamente o CLI.
 
 Projeto de produção, cadastros e dados operacionais não modificados. PR continua draft. Autorização individual de operadores, quotas de upload no servidor e homologação completa da UI permanecem pendentes.
+
+## Atualização — autorização individual no servidor
+
+Implementada autorização por conta Firebase individual verificada, distinta do UID compartilhado da loja. Cada chamada de Studio e mídia consulta o vínculo administrativo privado `commerce_operator_access/{uidIndividual}`. Login compartilhado, papel enviado pelo cliente, conta anônima, vínculo ausente/inativo e papel de operador não concedem acesso. O rascunho registra o UID individual. Frontend usa sessão Google secundária em memória, sem substituir o login do ZenOS; sair do módulo/trocar operador encerra essa sessão. Detalhes em `docs/commerce-operator-authorization.md`.
+
+Validação desta atualização:
+- Build aprovado; 92 testes Functions aprovados (incluindo dois novos testes de autorização).
+- Premium 46, imagens 41, mídia 36 e Storage 36 verificações aprovadas; checagens estáticas de servidor e isolamento aprovadas.
+- Auth/Functions/Firestore/Storage Emulator reexecutados com mídia desligada e ligada, ambos com exit code 0. Duas lojas e dois administradores individuais verificados. Permissão de operador comum negada para consulta e upload. Revogação aplicada na chamada seguinte. Leitura/escrita da coleção de autorização pelo cliente negadas; tentativa de autoautorização bloqueada.
+- Upload, miniatura, retry, concorrência do rascunho, referências cruzadas e preservação da imagem operacional continuam aprovados.
+- Assinatura usa chave fictícia exclusivamente local; IAM/signBlob e expiração efetiva no GCS continuam pendentes.
+
+O proprietário confirmou via CLI o acesso à API Cloud Functions do projeto `zenos-commerce-homologacao`; a listagem retornou `No functions found`, coerente com nenhuma implantação realizada. O console no navegador Work voltou a exigir autenticação; nenhum recurso novo foi implantado nesta atualização.
+
+Pendências atuais: reautenticar o console, configurar Google Auth e domínio da homologação, provisionar vínculos individuais fictícios e Firestore com regras de nuvem auditadas, validar popup desktop/mobile e integração real com GCS. A implementação server-side de autorização está testada em emulador; a homologação de navegador/Google ainda não foi demonstrada. Quotas/limpeza de órfãos, IAM mínimo e custos permanecem pendentes. PR segue draft; nenhuma alteração em produção ou Share V2.

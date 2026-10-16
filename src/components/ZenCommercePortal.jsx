@@ -1,6 +1,7 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {getFunctions,httpsCallable} from 'firebase/functions';
-import {auth} from '../firebase';
+import {onAuthStateChanged,signOut} from 'firebase/auth';
+import {obterSessaoOperadorCommerce,entrarOperadorCommerce} from '../core/commerceOperatorAuth';
 import ZenCommerceStudio from './ZenCommerceStudio';
 import {prepararFotoProduto,fotoCadastroParaPrevia} from '../core/commerceImages';
 
@@ -16,23 +17,29 @@ const erroAmigavel=e=>{
 /** O storefront público não é ativado por este componente. */
 export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuvemSincronizada=false}){
  const [data,setData]=useState(null),[loading,setLoading]=useState(true),[erro,setErro]=useState('');
+ const [operatorAuth]=useState(obterSessaoOperadorCommerce);
+ const [operatorUid,setOperatorUid]=useState(null);
+ useEffect(()=>onAuthStateChanged(operatorAuth,user=>setOperatorUid(user?.uid||null)),[operatorAuth]);
+ // Trocar operador ou sair do módulo encerra a sessão administrativa em memória.
+ useEffect(()=>()=>{void signOut(operatorAuth);},[operatorAuth,userId,operadorAtivo?.id]);
  const rev=useRef(0);
  const fn=useRef(null);
  const fnMedia=useRef(null);
  useEffect(()=>{
   let ativo=true;setLoading(true);setData(null);setErro('');rev.current=0;fn.current=null;fnMedia.current=null;
   if(!userId||!nuvemSincronizada){setErro('Aguarde a sincronização da loja.');setLoading(false);return()=>{ativo=false;};}
+  if(!operatorUid){setErro('Entre com sua conta individual autorizada para salvar e enviar fotos.');setLoading(false);return()=>{ativo=false;};}
   try{
-   const callable=httpsCallable(getFunctions(auth.app,'southamerica-east1'),'commerceStudio');
+   const callable=httpsCallable(getFunctions(operatorAuth.app,'southamerica-east1'),'commerceStudio');
    fn.current=callable;
-   fnMedia.current=httpsCallable(getFunctions(auth.app,'southamerica-east1'),'commerceMidia');
+   fnMedia.current=httpsCallable(getFunctions(operatorAuth.app,'southamerica-east1'),'commerceMidia');
    callable({action:'consultar'}).then(res=>{
     if(!ativo)return;
-    const d=res.data||{};rev.current=d.revision||0;setData(d);
+    const d=res.data||{};if(d.lojaId!==userId)throw new Error('A conta individual pertence a outra loja.');rev.current=d.revision||0;setData(d);
    }).catch(err=>{if(ativo)setErro(erroAmigavel(err));}).finally(()=>{if(ativo)setLoading(false);});
   }catch(e){if(ativo){setErro(erroAmigavel(e));setLoading(false);}}
   return()=>{ativo=false;fn.current=null;fnMedia.current=null;};
- },[userId,nuvemSincronizada]);
+ },[userId,nuvemSincronizada,operatorUid,operatorAuth]);
  // Upload acontece apenas na funcao de midia privada. Nenhum produto V1 e alterado.
  const blobBase64=blob=>new Promise((ok,fail)=>{const reader=new FileReader();reader.onerror=()=>fail(new Error('Falha ao ler imagem.'));
   reader.onload=()=>{const raw=String(reader.result||'');const base64=raw.split(',')[1];if(!base64)fail(new Error('Imagem inválida.'));else ok(base64);};reader.readAsDataURL(blob);});
@@ -77,6 +84,11 @@ export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuve
  };
  if(loading)return <div style={{padding:25,color:'#f8fafc'}}>Carregando Commerce Studio...</div>;
  return <div style={{display:'grid',gap:12}}>
+  <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
+   <button type="button" onClick={async()=>{try{setErro('');if(operatorUid)await signOut(operatorAuth);else await entrarOperadorCommerce();}catch(e){setErro(erroAmigavel(e));}}}>
+    {operatorUid?'Encerrar acesso individual':'Entrar como administrador do Commerce'}
+   </button>
+  </div>
   {erro&&<div role="status" style={{padding:12,border:'1px solid #84672b',borderRadius:10,color:'#f3ce82',background:'#251f17'}}>
    <strong>Prévia privada:</strong> {erro} Nenhuma contratação ou publicação será feita.
   </div>}

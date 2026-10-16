@@ -2,6 +2,7 @@
  * Nao disponibiliza Storage Rules permissivas; nao torna loja ou imagens publicas.
  * Requer ZENOS_COMMERCE_STORAGE_BUCKET configurado deliberadamente no ambiente.
  */
+import { autorizarOperadorCommerce } from './commerceAuthorization.js';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { getApps } from 'firebase-admin/app';
 import { getStorage } from 'firebase-admin/storage';
@@ -71,13 +72,14 @@ export const commerceMidia = onCall({region:'southamerica-east1',timeoutSeconds:
   if(!request.auth?.uid)throw new HttpsError('unauthenticated','Faça login no ZenOS.');
   if(request.data?.lojaId!==undefined)throw new HttpsError('invalid-argument','A loja é identificada exclusivamente pela sessão autenticada.');
   if(request.data?.action!=='enviarFotoProduto')throw new HttpsError('invalid-argument','Ação de mídia inválida.');
-  const lojaId=request.auth.uid,produtoId=request.data?.produtoId;
+  const db=await obterAdminFirestore();
+  const {lojaId}=await autorizarOperadorCommerce(request.auth,db);
+  const produtoId=request.data?.produtoId;
   // Qualquer erro de formato é tratado antes de acessar Storage.
   let plano;
   try{plano=prepararMidiaCommerce({lojaId,produtoId,origem:request.data?.origem||'galeria',
     principalBase64:request.data?.principalBase64,miniaturaBase64:request.data?.miniaturaBase64});}
   catch(e){throw new HttpsError('invalid-argument',String(e.message||'Imagem inválida.').slice(0,150));}
-  const db=await obterAdminFirestore();
   const [loja,operacao]=await Promise.all([db.doc(`lojas/${lojaId}`).get(),db.doc(`lojas/${lojaId}/dados/operacao`).get()]);
   if(!loja.exists||!produtoPertenceLoja(operacao.data(),produtoId))throw new HttpsError('permission-denied','Produto não encontrado no cadastro desta loja.');
   const bucket=obterBucketCommerce();
