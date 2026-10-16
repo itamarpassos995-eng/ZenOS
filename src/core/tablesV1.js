@@ -1,4 +1,4 @@
-import { doc, onSnapshot, runTransaction, serverTimestamp, setDoc } from 'firebase/firestore';
+import { doc, onSnapshot, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { notifyPersistenceStatus } from './persistenceSafety.js';
 
 export const criarMesasPadrao = () => {
@@ -13,7 +13,16 @@ const refMesas = (db,userId) => doc(db,'lojas',String(userId),'dados','mesas');
 export async function garantirMesasV1({db,userId,mesasIniciais=null}) {
   if(!db||!userId) return;
   const mesas = Array.isArray(mesasIniciais) && mesasIniciais.length ? mesasIniciais : criarMesasPadrao();
-  await setDoc(refMesas(db,userId),{schema:'MESAS_V1_ATT09',mesas,importedFromLocalV1:Array.isArray(mesasIniciais)&&mesasIniciais.length>0,updatedAtClient:new Date().toISOString(),updatedAtServer:serverTimestamp()},{merge:true});
+  // Inicialização atômica e estritamente create-only. O onSnapshot pode entregar
+  // um snapshot ausente em vários terminais ao mesmo tempo. Um setDoc incondicional
+  // sobrescreveria consumos que outro terminal acabou de salvar.
+  return runTransaction(db,async tx=>{
+    const ref=refMesas(db,userId);
+    const snap=await tx.get(ref);
+    if(snap.exists()) return false; // NUNCA reescrever mesas existentes.
+    tx.set(ref,{schema:'MESAS_V1_ATT09',mesas,importedFromLocalV1:Array.isArray(mesasIniciais)&&mesasIniciais.length>0,updatedAtClient:new Date().toISOString(),updatedAtServer:serverTimestamp()});
+    return true;
+  });
 }
 
 export function assinarMesasV1({db,userId,onData,onError}) {
