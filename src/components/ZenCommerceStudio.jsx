@@ -84,7 +84,7 @@ export default function ZenCommerceStudio({
     link.download='zenos-commerce-rascunho.json';link.click();URL.revokeObjectURL(ref);
     setAviso('Rascunho exportado. Nenhum produto foi publicado.');
   };
-  const executar=async(fn,sucesso)=>{if(carregando||typeof fn!=='function')return;setCarregando(true);setAviso('');try{await fn({aparencia:normalizarAparencia(cfg),regras});setAviso(sucesso);}catch(e){setAviso(e?.message||'Operação não confirmada.');}finally{setCarregando(false);}};
+  const executar=async(fn,sucesso)=>{if(carregando||typeof fn!=='function')return;setCarregando(true);setAviso('');try{const resultado=await fn({aparencia:normalizarAparencia(cfg),regras});if(resultado?.regras)setRegras(resultado.regras);setAviso(resultado?.aviso?sucesso+' '+resultado.aviso:sucesso);}catch(e){setAviso(e?.message||'Operação não confirmada.');}finally{setCarregando(false);}};
   const enviarImagem = async (arquivo, chave) => {
     if (!arquivo) return;
     if (!['image/jpeg','image/png','image/webp'].includes(arquivo.type) || arquivo.size > 3_000_000) {
@@ -182,7 +182,7 @@ export default function ZenCommerceStudio({
                 <label style={{display:'grid',gap:6,fontSize:11,color:'#a2bac8'}}>Adicionar fotos em alta resolução (até {MAX_FOTOS_ADICIONAIS} extras)
                   <input type="file" accept="image/jpeg,image/png,image/webp" multiple disabled={carregando||typeof onUploadProductImage!=='function'||regra.galeriaImagens.length>=MAX_FOTOS_ADICIONAIS} style={{...campo,fontSize:11}} onChange={e=>{enviarFotosProduto(p,e.target.files);e.target.value='';}}/>
                 </label>
-                <div style={{fontSize:11,color:'#93aab8'}}>Fotos extras: JPEG, PNG ou WebP até 12 MB por arquivo. Versão premium até 1800 px e miniatura otimizada a 480 px. O upload aguarda armazenamento seguro habilitado.</div>
+                <div style={{fontSize:11,color:'#93aab8'}}>Fotos extras: JPEG, PNG ou WebP até 12 MB por arquivo. Versão premium até 1800 px e miniatura otimizada a 480 px. O upload exige o armazenamento privado configurado e não publica a loja.</div>
               </div>
             </div>;
           })}

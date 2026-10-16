@@ -44,7 +44,7 @@ export function montarGaleriaProduto({produto={},regra={},previa=false}={}) {
   const preferida=regra.capaImagemId;
   const capa=galeria.find(x=>x.id===preferida)||galeria[0]||null;
   const pendente=Boolean(regra.usarFotoCadastro!==false && fotoCadastroParaPrevia(produto)
-    && !urlFotoSegura(produto?.imagem));
+    && !urlFotoSegura(produto?.imagem) && !regra.fotoCadastroStoragePath);
   return {capa,imagens:galeria,pendenteSincronizacao:pendente,
     temFotoCadastro:Boolean(fotoCadastroParaPrevia(produto)),origemCapa:capa?.origem||null};
 }

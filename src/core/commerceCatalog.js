@@ -21,6 +21,7 @@ export function normalizarRegraPublicacao(regra = {}) {
     categoriaPublica: String(regra.categoriaPublica || '').trim().slice(0, 60),
     imagemPublica: urlImagemSegura(regra.imagemPublica),
     usarFotoCadastro: regra.usarFotoCadastro !== false,
+    fotoCadastroStoragePath: typeof regra.fotoCadastroStoragePath==='string' ? regra.fotoCadastroStoragePath.slice(0,350) : '',
     capaImagemId: String(regra.capaImagemId || 'cadastro').slice(0,64),
     galeriaImagens: normalizarFotosExtras(regra.galeriaImagens),
   };

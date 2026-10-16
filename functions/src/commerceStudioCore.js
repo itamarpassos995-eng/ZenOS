@@ -1,3 +1,4 @@
+import { caminhoCommerceValido } from './commerceMediaServiceCore.js';
 /** ZenOS Commerce: validação CANÔNICA no servidor, sem importação do frontend. */
 const estadosLicenca = new Set(['nao_contratado','solicitado','em_homologacao','ativo','suspenso','cancelado']);
 const texto=(v,n)=>String(v??'').replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,n);
@@ -20,16 +21,15 @@ export function normalizarGaleriaServidor(entrada,{lojaId=null,produtoId=null}={
  return entrada.map((f,i)=>{
   if(!f||typeof f!=='object'||Array.isArray(f))throw Error('Foto inválida.');
   const id=fotoId(f.id),original=url(f.url),miniatura=url(f.miniaturaUrl);
-  if(!id||!original||used.has(id))throw Error('Foto sem ID ou link seguro, ou repetida.');
+  if(!id||used.has(id)||(!original&&!f.storagePath))throw Error('Foto sem ID, mídia privada ou link seguro, ou repetida.');
   const storagePath=typeof f.storagePath==='string'?f.storagePath:'';
   // Com identidade autenticada, imagens só podem pertencer à loja e ao produto atuais.
   if(lojaId){
-   const prefix=`commerce/${lojaId}/produtos/${produtoId}/galeria/`;
-   if(!storagePath.startsWith(prefix)||!/^commerce\/[a-zA-Z0-9._:-]{1,120}\/produtos\/[a-zA-Z0-9._:-]{1,120}\/galeria\/[a-f0-9]{64}\.webp$/.test(storagePath))
+   if(!caminhoCommerceValido(storagePath,lojaId,produtoId,{origem:'galeria'}))
     throw Error('Foto não pertence ao catálogo privado desta loja e produto.');
   }
   used.add(id);
-  return {id,url:original,miniaturaUrl:miniatura||original,storagePath,alt:texto(f.alt,140),ordem:inteiro(f.ordem,0,99,i)};
+  return {id,url:lojaId?'':original,miniaturaUrl:lojaId?'':(miniatura||original),storagePath,alt:texto(f.alt,140),ordem:inteiro(f.ordem,0,99,i)};
  }).sort((a,b)=>a.ordem-b.ordem).map((item,i)=>({...item,ordem:i}));
 }
 export function validarRascunhoCommerce(dados,lojaId=null){
@@ -55,16 +55,22 @@ export function validarRascunhoCommerce(dados,lojaId=null){
   layoutGrade:fonte.layoutGrade==='3'?'3':'4',exibirCategorias:fonte.exibirCategorias!==false,
   exibirPesquisa:fonte.exibirPesquisa!==false,exibirWhatsapp:fonte.exibirWhatsapp!==false,banners};
  const chaves=Object.keys(regras);if(chaves.length>produtosLimite)throw Error('Muitos produtos na configuração.');
+ let totalFotosExtras=0;
  const regrasLimpas=Object.create(null);
  for(const id of chaves){
   if(!/^[a-zA-Z0-9._:-]{1,120}$/.test(id)||id==='__proto__')throw Error('ID de produto inválido.');
   const r=regras[id];if(!r||typeof r!=='object'||Array.isArray(r))throw Error('Regra de produto inválida.');
+  const galeria=normalizarGaleriaServidor(r.galeriaImagens,{lojaId,produtoId:id});
+  totalFotosExtras+=galeria.length;
+  if(totalFotosExtras>256)throw Error('Máximo de 256 fotos adicionais por estabelecimento na homologação.');
+  const fotoCadastroStoragePath=typeof r.fotoCadastroStoragePath==='string'?r.fotoCadastroStoragePath:'';
+  if(fotoCadastroStoragePath&&lojaId&&!caminhoCommerceValido(fotoCadastroStoragePath,lojaId,id,{origem:'cadastro'}))throw Error('Foto de cadastro pertence a outra loja ou produto.');
   regrasLimpas[id]={publicado:r.publicado===true,fonteEstoque:['vitrine','deposito','ambos'].includes(r.fonteEstoque)?r.fonteEstoque:'ambos',
    reservaMinima:inteiro(r.reservaMinima,0,1e9),limiteOnline:inteiro(r.limiteOnline,0,1e9,null),
    precoOnlineBRL:moeda(r.precoOnlineBRL),categoriaPublica:texto(r.categoriaPublica,60),imagemPublica:url(r.imagemPublica),
    usarFotoCadastro:r.usarFotoCadastro!==false,
    capaImagemId:fotoId(r.capaImagemId)||'cadastro',
-   galeriaImagens:normalizarGaleriaServidor(r.galeriaImagens,{lojaId,produtoId:id})};
+   fotoCadastroStoragePath,galeriaImagens:galeria};
  }
  return {aparencia,regras:{...regrasLimpas}};
 }
