@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { normalizarCliente } from '../data';
 import ZenModal from './ZenModal';
 import { formaEhDinheiro, lancamentosDoCliente } from '../core/financialLedger';
+import { interpretarValorMonetario } from '../core/cashMoneyInput';
 
 export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, setClientes, moeda, fmt, t, tx = (pt) => pt, converterDeBRL, converterParaBRL }) {
   const [filtroPaisCliente, setFiltroPaisCliente] = useState('todos');
@@ -16,6 +17,7 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
   const [valorAmortizacaoInput, setValorAmortizacaoInput] = useState('');
   const [formaAmortizacaoSel, setFormaAmortizacaoSel] = useState('dinheiro_brl');
   const [clienteExtrato, setClienteExtrato] = useState(null);
+  const recebimentoEmAndamentoRef = useRef(false);
   const [modalZen, setModalZen] = useState(null);
 
   const catalogoFormas = [
@@ -121,8 +123,11 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
   };
 
   const confirmarRecebimentoFiado = async () => {
+    if (recebimentoEmAndamentoRef.current) return;
     const formaCfg = catalogoFormas.find(f => f.id === formaAmortizacaoSel) || catalogoFormas[0];
-    const valorOriginal = parseFloat(valorAmortizacaoInput.replace(',', '.')) || 0;
+    const leitura = interpretarValorMonetario(valorAmortizacaoInput, formaCfg.moedaOrigem);
+    if (!leitura.ok) return setModalZen({ variante:'warning', titulo:'Valor monetário inválido', mensagem:leitura.erro, apenasConfirmar:true });
+    const valorOriginal = leitura.valor;
     const valBRL = converterParaBRL(valorOriginal, formaCfg.moedaOrigem || moeda);
     if (valBRL <= 0) return setModalZen({ variante:'warning', titulo:tx('Valor inválido','Valor inválido','Invalid amount'), mensagem:tx('Informe um valor válido para recebimento.','Informe un valor válido para el cobro.','Enter a valid amount to receive.'), apenasConfirmar:true });
 
@@ -150,6 +155,8 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
       afetaGaveta: true,
       valorBRL: valBRL,
       detalhesMoedas: { [formaCfg.moedaOrigem || 'BRL']: valorOriginal },
+      detalhesMoedasNativas: { [formaCfg.moedaOrigem || 'BRL']: valorOriginal },
+      taxaCambioAplicada: valorOriginal > 0 && valBRL > 0 ? valorOriginal / valBRL : null,
       descricao: `Recebimento fiado • ${clienteReceberFiado.nome}`,
       clienteId: clienteReceberFiado.id,
       operador: operadorAtivo?.nome || 'Administrador',
@@ -176,13 +183,21 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
       operadorNome: operadorAtivo?.nome || 'Administrador',
     };
 
+    recebimentoEmAndamentoRef.current = true;
     try {
       let clientesConfirmados = clientesPropostos;
       let caixaConfirmado = caixaProposto;
       if (typeof commitOperacaoNegocio === 'function') {
         const changes = [{ field:'clientes', value:clientesPropostos, storageSuffix:'clientes' }];
         if (mov) changes.push({ field:'caixaMovimentos', value:caixaProposto, storageSuffix:'caixa_movs' });
-        const confirmado = await commitOperacaoNegocio({ changes, financialEntries:[financeiro] });
+        const confirmado = await commitOperacaoNegocio({
+          changes, financialEntries:[financeiro],
+          guards: [
+            { type:'entity_unchanged', field:'clientes', entityId:clienteReceberFiado.id, entityKey:'id', expected:clienteReceberFiado },
+            ...(dinheiroFisico ? [{ type:'cash_session_open', sessionId:sessaoAtiva.id }] : []),
+          ],
+          operationKey: 'recebimento-fiado:' + recebimentoId,
+        });
         if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou o recebimento.');
         clientesConfirmados = confirmado.values?.clientes || clientesPropostos;
         caixaConfirmado = confirmado.values?.caixaMovimentos || caixaProposto;
@@ -194,6 +209,8 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
     } catch (err) {
       console.error('[ZenOS][ATT10.2] Falha no recebimento:', err);
       return setModalZen({ variante:'danger', titulo:tx('Recebimento não concluído','Cobro no concluido','Payment not completed'), mensagem:tx('A nuvem não confirmou o recebimento. Nenhum saldo foi alterado.','La nube no confirmó el cobro. Ningún saldo fue alterado.','The cloud did not confirm the payment. No balance was changed.'), detalhes:[err?.message || 'Falha de persistência'], apenasConfirmar:true });
+    } finally {
+      recebimentoEmAndamentoRef.current = false;
     }
 
     setModalZen({ variante:'success', titulo:tx('Recebimento registrado','Cobro registrado','Payment recorded'), mensagem:`${fmt(valBRL, 'BRL')} recebidos de ${clienteReceberFiado.nome}.`, detalhes:[`Saldo anterior: ${fmt(saldoAntes, 'BRL')}`, `Saldo atual: ${fmt(saldoDepois, 'BRL')}`, dinheiroFisico ? 'Entrada registrada na gaveta do turno.' : 'Recebimento financeiro sem movimentar a gaveta física.'], apenasConfirmar:true });

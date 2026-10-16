@@ -13,6 +13,7 @@ import { formatarEquivalenciaBRL, moedasAtivasRecibo } from '../core/receiptCurr
 import { validarCredencialGerencial } from '../core/accessControl';
 import { calcularCmvVenda } from '../core/salesFinancials';
 import { validarComposicaoPagamento } from '../core/paymentValidation';
+import { interpretarValorMonetario } from '../core/cashMoneyInput';
 
 export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro, commitOperacaoCritica, commitVendaCritica, vouchers = [], setVouchers, userId, produtos, setProdutos, clientes, setClientes, moeda, fmt, t, tx, converterDeBRL, converterParaBRL, historicoVendas, setHistoricoVendas, patenteUsuario, idioma, regrasDesconto, vendedores = [], operadorAtivo, sessaoAtiva }) {
   const [termoBusca, setTermoBusca] = useState('');
@@ -426,9 +427,12 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
   });
 
   const adicionarPagamento = () => {
-    const valorNum = parseFloat(String(valorLancamentoInput).replace(',', '.')) || 0;
-    if (valorNum <= 0) return;
     const configForma = catalogoFormas.find(f => f.id === formaSelecionada) || catalogoFormas[0];
+    const leituraValor = interpretarValorMonetario(valorLancamentoInput, configForma.moedaOrigem);
+    if (!leituraValor.ok || leituraValor.valor <= 0) {
+      return mostrarZen('warning', 'Valor monetário inválido', leituraValor.erro || 'Digite um valor maior que zero.');
+    }
+    const valorNum = leituraValor.valor;
     let voucherSelecionado = null;
     if (configForma.id === 'voucher') {
       const codigo = String(voucherCodigoInput || '').trim().toUpperCase();
@@ -468,13 +472,18 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
       rotulo: configForma.rotulo,
       icone: configForma.icone,
       moedaOrigem: configForma.moedaOrigem,
-      valorOriginal: valorNum, 
-      valorConvertidoBRL: valorBRL,
+      valorOriginal: valorNum,
+      valorConvertidoBRL: Math.round(valorBRL * 100) / 100,
+      taxaCambioAplicada: Number(taxasCambio[configForma.moedaOrigem] || 1),
       voucherCodigo: voucherSelecionado?.codigo || null
     }];
     setPagamentosLancados(novaLista);
     const novoSaldo = Math.max(0, totalFinalBRL - novaLista.reduce((acc, p) => acc + p.valorConvertidoBRL, 0));
-    setValorLancamentoInput(novoSaldo > 0 ? converterDeBRL(novoSaldo, configForma.moedaOrigem).toFixed(2) : '');
+    setValorLancamentoInput(novoSaldo > 0 ? (
+      configForma.moedaOrigem === 'PYG'
+        ? String(Math.ceil(converterDeBRL(novoSaldo, 'PYG')))
+        : converterDeBRL(novoSaldo, configForma.moedaOrigem).toFixed(2)
+    ) : '');
     if (configForma.id === 'voucher') setVoucherCodigoInput('');
   };
 
@@ -604,7 +613,10 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
         trocoBRL: tipoFinalizacao === 'venda' ? trocoTotalBRL : 0,
         moedaTrocoInfo: tipoFinalizacao === 'venda' && trocoTotalBRL > 0.01 ? `${moedaTrocoEscolhida}` : null,
         trocoOriginal: tipoFinalizacao === 'venda' && trocoTotalBRL > 0.01
-          ? converterDeBRL(trocoTotalBRL, moedaTrocoEscolhida) : 0,
+          ? (moedaTrocoEscolhida === 'PYG'
+              ? Math.round(converterDeBRL(trocoTotalBRL, 'PYG'))
+              : Math.round(converterDeBRL(trocoTotalBRL, moedaTrocoEscolhida) * 100) / 100)
+          : 0,
         taxasCambioTroco: tipoFinalizacao === 'venda' && trocoTotalBRL > 0.01 ? { ...taxasCambio } : null,
         pagamentos: tipoFinalizacao === 'venda' ? [...pagamentosLancados] : [],
         taxasCambio: { BRL: 1, ...(taxasCambio || {}) },
@@ -674,6 +686,14 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
               valor: valorEfetivo,
               formaPagamento: pag.formaId,
               createdAt: novaVenda.createdAt,
+              detalhes: {
+                moedaOrigem: pag.moedaOrigem || 'BRL',
+                valorOriginal: Number(pag.valorOriginal ?? 0),
+                valorRecebidoConvertidoBRL: Number(pag.valorConvertidoBRL || 0),
+                taxaCambioAplicada: Number(pag.taxaCambioAplicada || 1),
+                trocoVendaMoeda: novaVenda.moedaTrocoInfo,
+                trocoVendaOriginal: Number(novaVenda.trocoOriginal || 0),
+              },
               afetaCaixaFisico: String(pag.formaId || '').startsWith('dinheiro'),
               afetaResultado: true,
               direcao: 'entrada',
@@ -1238,7 +1258,11 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
                       setFormaSelecionada(novaForma);
                       const pendenteBRL = Math.max(0, totalFinalBRL - totalPagoConvertidoBRL);
                       const conf = catalogoFormas.find(f => f.id === novaForma) || catalogoFormas[0];
-                      setValorLancamentoInput(pendenteBRL > 0 ? converterDeBRL(pendenteBRL, conf.moedaOrigem).toFixed(2) : '');
+                      setValorLancamentoInput(pendenteBRL > 0 ? (
+                        conf.moedaOrigem === 'PYG'
+                          ? String(Math.ceil(converterDeBRL(pendenteBRL, 'PYG')))
+                          : converterDeBRL(pendenteBRL, conf.moedaOrigem).toFixed(2)
+                      ) : '');
                     }} 
                     style={{ padding: '14px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '12px', color: '#f8fafc', fontSize: '14px', fontWeight: 800, outline: 'none', cursor: 'pointer', width: '100%', boxSizing: 'border-box' }}
                   >
