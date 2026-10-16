@@ -40,7 +40,7 @@ assert.equal(validarComposicaoPagamento({totalBRL:100,recebidoBRL:Number.NaN,rec
 const pdv=fs.readFileSync(new URL('../src/components/PDV.jsx',import.meta.url),'utf8');
 const app=fs.readFileSync(new URL('../src/App.jsx',import.meta.url),'utf8');
 assert.match(pdv,/import \{ validarComposicaoPagamento \} from '..\/core\/paymentValidation'/);
-assert.match(pdv,/const \{ podeConcluir: podeFinalizarVenda \} = validarComposicaoPagamento/);
+assert.match(pdv,/const \{ podeConcluir: podeFinalizarVenda, trocoBRL: trocoCalculadoBRL \} = validarComposicaoPagamento/);
 assert.match(pdv,/sessaoId: tipoFinalizacao === 'venda' \? sessaoAtiva\?\.id/);
 assert.match(app,/converterValoresFisicosParaBRL\(valoresMovCaixa, taxasCambio\)/);
 assert.match(app,/const contagemValidada = validarValoresMovCaixa\(\)/);
