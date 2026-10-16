@@ -1,35 +1,58 @@
-# Commerce — verificação Work em 16/10/2026
+# Commerce — homologação Work, 16/10/2026
 
-Base inspecionada: 77df4a8b49df0f2c19215e5072a734f65fc9fd94, PR #30 draft.
+## Resultado atual
+Auth + Firestore + Functions + Storage Emulator executados com sucesso (exit code 0), com mídia ligada e desligada. Projeto exclusivamente demo-zenos-local. Produção e Share V2 sem alterações.
 
-## Resultados executados
-- npm ci na raiz: aprovado; Functions não tem lockfile, instalado com npm install --package-lock=false.
-- node --test functions/test/*.test.mjs: 90 testes aprovados.
-- commerce-images-check: 41 verificações aprovadas.
-- commerce-media-p3-check: 36 verificações aprovadas.
-- commerce-premium-v2-check: 46 verificações aprovadas após substituir a referência ao protótipo HTML ausente por contratos do editor React atual.
-- commerce-storage-hml-check: 32 verificações aprovadas.
-- commerce-tenant-hml-static-check e commerce-studio-server-check: aprovados.
-- npm run build: aprovado; aviso de bundle maior que 500 kB.
-- Acrescentado teste concorrente de duas gravações da mesma revisão: exige uma aprovação, uma rejeição aborted e isolamento da revisão da loja B. Ainda não executado em emulador.
+### Verificações integradas aprovadas
+- Duas contas/lojas fictícias distintas, leitura e escrita próprias.
+- Leitura/escrita cruzadas negadas.
+- Rascunho e licença privados inacessíveis pelo SDK do navegador.
+- Tentativa de definir lojaId na callable rejeitada.
+- Rascunho persistido e recuperado; revisão da outra loja preservada.
+- Duas gravações concorrentes na mesma revisão: uma aceita, outra aborted.
+- Upload WebP e miniatura via callable, retorno privado.
+- Retry do mesmo arquivo reutiliza o caminho.
+- Leitura direta do Storage negada para ambas as lojas.
+- Produto inexistente e imagem inválida rejeitados.
+- Galeria recuperada do rascunho com URLs assinadas.
+- Referência da mídia da loja A rejeitada pela loja B.
+- Foto de origem cadastro salva em caminho separado e recuperada.
+- Campo imagem operacional preservado após upload e gravação do rascunho.
+- Prazo retornado da URL próximo de 30 minutos. Expiração efetiva no GCS não simulada.
 
-## Bloqueios verificáveis
-- Firebase CLI 15.34.0 instalado. login:list retornou: No authorized accounts.
-- Java disponível: OpenJDK 17.0.20. emulators:exec recusou inicialização: firebase-tools no longer supports Java version before 21.
-- Nenhum teste integrado de isolamento, upload ou assinatura foi aprovado nesta execução.
-- Plugin Firebase instalado, mas sem ferramentas MCP administrativas expostas nesta sessão.
-- Não houve criação de projeto, bucket, IAM, orçamento ou ativação de faturamento.
+Saída final:
+```
+PASSOU: upload/miniatura privados, retry, persistência, foto cadastro, URLs com prazo e rejeição cruzada. IAM/expiração GCS real não simulados.
+PASSOU: lojas A/B isoladas, Store privado, Storage negado e callable com revisao.
+Script exited successfully (code 0)
+```
 
-## Auditoria de autorização
-As callables commerceStudio e commerceMidia usam request.auth.uid como identidade da loja, rejeitam lojaId enviado pelo cliente e verificam existência da loja; upload também exige produto cadastrado. Isso NÃO identifica o operador: a sessão Firebase compartilhada permite chamar o backend independentemente do menu. Não existe autorização administrativa individual comprovada. Bloqueio obrigatório antes de liberação. Não conceder claim administrativa à conta compartilhada como solução, pois todos os operadores herdariam a permissão.
+## Ambiente e reprodutibilidade
+Firebase CLI 15.34.0; Java 21 obtido e extraído em /tmp; Node 24 utilizado pelo emulador, com aviso de diferença do runtime alvo Node 22.
+O Work bloqueia Unix sockets; adaptado SOMENTE o CLI instalado fora do repositório para usar sua classe TCPConn em loopback na comunicação entre emulador e worker. Nenhuma regra ou verificação de autenticação do Firebase foi removida. Em computador sem essa restrição, usar CLI padrão.
 
-## Avaliação das regras exclusivas do emulador
-{"score":2,"summary":"Isolamento por UID presente, mas autorização administrativa individual não demonstrada; regras de homologação não são regras de produção.","findings":[{"check":"Authority Source","severity":"major","issue":"Sessão Firebase compartilhada não distingue gerente e operador nas callables Commerce.","recommendation":"Exigir identidade individual verificável no servidor e testar operador negado/administrador permitido."},{"check":"Type Safety / Storage Abuse","severity":"minor","issue":"Regras de homologação permitem escrita ampla da própria loja fora de commerce_private; não validam schema nem tamanho.","recommendation":"Manter regras exclusivas de emulador; não usar como política de produção."}]}
+Assinatura local usou chave RSA fictícia gerada em /tmp, sem conta de serviço real e sem autorização de nuvem. Não commitada. Para reproduzir o bloco de mídia, usar credencial de assinatura fictícia local via GOOGLE_APPLICATION_CREDENTIALS, ZENOS_COMMERCE_MEDIA_ENABLED=true, ZENOS_COMMERCE_HOMOLOGACAO=true e ZENOS_COMMERCE_STORAGE_BUCKET=demo-zenos-local.appspot.com. Os hosts de emuladores são configurados pelo emulators:exec. Nunca usar credenciais de produção.
 
-## Próximas validações obrigatórias
-Executar emuladores com Java 21; autenticar conta administrativa para criar projeto separado; confirmar viabilidade do bucket sem ativar cobranças. Validar IAM/signBlob, upload e miniaturas, URLs expiradas, leitura direta negada, referências cruzadas, persistência após reload e interface desktop/mobile. Nenhum emulador prova IAM nem expiração real de URL GCS.
+Comando de teste:
+```sh
+firebase emulators:exec --project demo-zenos-local --config firebase.commerce.homologacao.json --only auth,firestore,functions,storage 'node scripts/commerce-tenant-hml-emulator-check.mjs'
+```
 
-Produção zenos-ac6b2 não acessada. Share V2 e dados operacionais não alterados. Sem merge ou deploy.
+## Outras validações
+- Build aprovado.
+- Functions: 90 testes aprovados.
+- Imagens P2: 41 verificações.
+- Mídia P3: 36 verificações.
+- Premium V2: 46 verificações; corrigida referência a HTML ausente para validar contratos do editor React atual.
+- Storage: 32 verificações.
+- Checagens estáticas de isolamento e servidor aprovadas.
+- CI do commit e36e5cd: Caixa P0 success (38898159560), Fiscal success (38898159492).
 
-## Complemento da execução
-Tentou-se obter Java 21 pelo pacote oficial Ubuntu sem modificar o repositório. O download reportou sucesso, mas o arquivo local apresentou tamanho inconsistente e extração truncada. A tentativa de iniciar Firestore com a extração incompleta falhou (ClassFormatError); não constitui teste de isolamento aprovado. CI Caixa Multimoeda P0 do commit 69a0119: success, execução 38897939748; Fiscal ainda em andamento no último acompanhamento. Login administrativo continua pendente.
+## Pendências reais
+1. O console foi acessado com conta Google conectada, mas negou permissão de listar apps no projeto zenos-ac6b2. CLI sem conta autorizada. Conectar conta administrativa correta antes de criar/selecionar homologação na nuvem. Isso não significa que o Firebase do cliente esteja ausente.
+2. Não foram criados projeto, bucket, IAM ou orçamento, nem ativadas cobranças. Necessário verificar infraestrutura separada de homologação e viabilidade de custo.
+3. Login Firebase compartilhado entre operadores: as callables ainda identificam a loja, mas não comprovam autorização administrativa individual. Bloqueio de liberação; não resolvido pelo menu nem pelos testes entre lojas.
+4. IAM/signBlob e expiração efetiva de URLs exigem GCS real; não são comprovados pelo emulador.
+5. Falta teste funcional do fluxo completo de interface desktop/mobile no ambiente conectado.
+
+PR permanece draft. Sem merge, deploy de produção, checkout ou pagamentos reais.

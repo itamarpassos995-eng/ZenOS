@@ -8,7 +8,7 @@ import {initializeApp,deleteApp} from 'firebase/app';
 import {getAuth,connectAuthEmulator,signInAnonymously} from 'firebase/auth';
 import {getFirestore,connectFirestoreEmulator,doc,setDoc,getDoc} from 'firebase/firestore';
 import {getFunctions,connectFunctionsEmulator,httpsCallable} from 'firebase/functions';
-import {getStorage,connectStorageEmulator,ref,uploadBytes} from 'firebase/storage';
+import {getStorage,connectStorageEmulator,ref,uploadBytes,getBytes} from 'firebase/storage';
 
 const local=s=>/^(127\.0\.0\.1|localhost):\d+$/.test(String(s||''));
 if(process.env.GCLOUD_PROJECT!=='demo-zenos-local' ||
@@ -36,7 +36,7 @@ try{
  assert.notEqual(a.uid,b.uid);
  for(const x of [a,b]){
   await setDoc(doc(x.db,'lojas',x.uid),{tipo:'homologacao'});
-  await setDoc(doc(x.db,'lojas',x.uid,'dados','operacao'),{produtos:[{id:'P-1',nome:'Produto demo',estoque:2}]});
+  await setDoc(doc(x.db,'lojas',x.uid,'dados','operacao'),{produtos:[{id:'P-1',nome:'Produto demo',estoque:2,imagem:'data:image/webp;base64,ORIGINAL_PRESERVADO'}]});
   assert.equal((await getDoc(doc(x.db,'lojas',x.uid,'dados','operacao'))).data().produtos[0].id,'P-1');
  }
  await forbid(getDoc(doc(a.db,'lojas',b.uid,'dados','operacao')));
@@ -65,5 +65,31 @@ try{
  assert.equal((await fnB({action:'consultar'})).data.revision,0);
 
  await forbid(getDoc(doc(b.db,'lojas',a.uid,'commerce_private','rascunho')));
+ if(process.env.ZENOS_COMMERCE_MEDIA_ENABLED==='true'){
+  const webp='UklGRmIAAABXRUJQVlA4IFYAAACwBgCdASp4AHgAPm02mUmkIyKhIIgAgA2JaW7hdJlwAAE9tiLxBUc9sReIKjntiLxBUc9sReIKjntiLxBNgAD+/paf//tTBJGUv//dBlnDdIAAAAAAAA==';
+  const media=httpsCallable(a.fns,'commerceMidia');
+  const payload={action:'enviarFotoProduto',produtoId:'P-1',principalBase64:webp,miniaturaBase64:webp};
+  const uploaded=(await media(payload)).data;
+  assert.equal(uploaded.status,'privado');
+  assert.ok(uploaded.storagePath.startsWith('commerce/'+a.uid+'/'));
+  assert.equal((await media(payload)).data.storagePath,uploaded.storagePath);
+  assert.ok(Date.parse(uploaded.expiraEm)>Date.now()+29*60_000);
+  assert.ok(Date.parse(uploaded.expiraEm)<=Date.now()+30*60_000);
+  await forbid(getBytes(ref(a.storage,uploaded.storagePath)));
+  await forbid(getBytes(ref(b.storage,uploaded.storagePath)));
+  await assert.rejects(media({...payload,produtoId:'produto-ausente'}),e=>/permission-denied/.test(e.code));
+  await assert.rejects(media({...payload,principalBase64:'AAAA'}),e=>/invalid-argument/.test(e.code));
+  const rule={publicado:true,galeriaImagens:[{...uploaded,ordem:0}]};
+  await fnA({action:'salvarRascunho',expectedRevision:2,rascunho:{aparencia:{nomeLoja:'Galeria A'},regras:{'P-1':rule}}});
+  const restored=(await fnA({action:'consultar'})).data;
+  assert.equal(restored.regras['P-1'].galeriaImagens[0].storagePath,uploaded.storagePath);
+  assert.match(restored.regras['P-1'].galeriaImagens[0].miniaturaUrl,/Signature=/);
+  await assert.rejects(fnB({action:'salvarRascunho',expectedRevision:0,rascunho:{aparencia:{},regras:{'P-1':rule}}}),e=>/invalid-argument|permission-denied/.test(e.code));
+  const original=(await media({...payload,origem:'cadastro'})).data;
+  await fnA({action:'salvarRascunho',expectedRevision:3,rascunho:{aparencia:{},regras:{'P-1':{...rule,fotoCadastroStoragePath:original.storagePath}}}});
+  assert.match((await fnA({action:'consultar'})).data.regras['P-1'].fotoCadastroPreviewUrl,/Signature=/);
+  assert.equal((await getDoc(doc(a.db,'lojas',a.uid,'dados','operacao'))).data().produtos[0].imagem,'data:image/webp;base64,ORIGINAL_PRESERVADO');
+  console.log('PASSOU: upload/miniatura privados, retry, persistência, foto cadastro, URLs com prazo e rejeição cruzada. IAM/expiração GCS real não simulados.');
+ }
  console.log('PASSOU: lojas A/B isoladas, Store privado, Storage negado e callable com revisao.');
 }finally{for(const app of apps)await deleteApp(app);}
