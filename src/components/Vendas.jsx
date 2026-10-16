@@ -451,10 +451,10 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
             <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
             <div style={{ textAlign: 'center', fontSize: '10px' }}>{tx('Obrigado pela preferência!','¡Gracias por su preferencia!','Thank you for your business!')}<br/>{tx('Documento sem valor fiscal.','Documento sin valor fiscal.','Document with no fiscal value.')}</div>
           </div>
-          <div className="no-print" style={{ display: 'flex', gap: '10px', padding: '20px', backgroundColor: '#f1f5f9', borderTop: '1px solid #cbd5e1' }}>
-            <div style={{flex:'1 1 190px'}}><ZenShareButton documento={cupomParaImprimir} perfilLoja={perfilRecibo}/></div>
-            <button onClick={executarImpressaoNativa} style={{ flex: 1, padding: '14px', backgroundColor: '#0284c7', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', fontSize: '14px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}><span>🖨️</span> {tx('Confirmar Impressão', 'Confirmar Impresión', 'Confirm Print')}</button>
-            <button onClick={() => setCupomParaImprimir(null)} style={{ flex: 1, padding: '14px', backgroundColor: '#475569', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', fontSize: '14px' }}>{tx('Voltar', 'Volver', 'Back')}</button>
+          <div className="no-print" style={{ display:'grid', gridTemplateColumns:'repeat(3, minmax(0, 1fr))', alignItems:'stretch', gap: '10px', padding: '20px', backgroundColor: '#f1f5f9', borderTop: '1px solid #cbd5e1' }}>
+            <div style={{minWidth:0,height:62}}><ZenShareButton documento={cupomParaImprimir} perfilLoja={perfilRecibo}/></div>
+            <button onClick={executarImpressaoNativa} style={{ width:'100%', minWidth:0, height:62, boxSizing:'border-box', lineHeight:1.2, padding:'6px 8px', backgroundColor: '#0284c7', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', fontSize: '12px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}><span>🖨️</span> {tx('Confirmar Impressão', 'Confirmar Impresión', 'Confirm Print')}</button>
+            <button onClick={() => setCupomParaImprimir(null)} style={{ width:'100%', minWidth:0, height:62, boxSizing:'border-box', lineHeight:1.2, padding:'6px 8px', backgroundColor: '#475569', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 900, cursor: 'pointer', fontSize: '12px' }}>{tx('Voltar', 'Volver', 'Back')}</button>
           </div>
         </div>
       </div>
