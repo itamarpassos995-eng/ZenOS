@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    {"source": "/loja/:id", "destination": "/index.html"},
+    {"source": "/commerce-homologacao", "destination": "/index.html"}
+  ]
+}
