@@ -33,7 +33,7 @@ export function assinarMesasV1({db,userId,onData,onError}) {
   },onError);
 }
 
-export async function atualizarMesaV1({db,userId,mesaId,mutator,operador}) {
+async function atualizarMesaDiretoV1({db,userId,mesaId,mutator,operador}) {
   if(!db||!userId||!mesaId||typeof mutator!=='function') throw new Error('Parâmetros inválidos para atualizar mesa.');
   notifyPersistenceStatus({status:'SALVANDO',field:'mesas'});
   try {
@@ -54,7 +54,28 @@ export async function atualizarMesaV1({db,userId,mesaId,mutator,operador}) {
     notifyPersistenceStatus({status:'SINCRONIZADO',field:'mesas'});
     return resultado;
   } catch(error) {
-    notifyPersistenceStatus({status:'ERRO',field:'mesas',error:error?.message||String(error)});
-    throw error;
+    const codigo=String(error?.code||'').toLowerCase();
+    const mensagem=String(error?.message||'');
+    const conflito=codigo.includes('aborted') || /stored version.*base version|too much contention|transaction was aborted/i.test(mensagem);
+    // Não reexecutar cegamente uma alteração cujo resultado possa estar incerto:
+    // o operador precisa conferir o consumo recebido do listener em tempo real.
+    const reportado=conflito?Object.assign(new Error('Outra operação atualizou as mesas simultaneamente. Confira os itens e o total antes de tentar novamente; não repita pagamentos sem conferir o histórico.'),{code:'ZENOS_MESAS_CONFLITO_CONCORRENCIA',cause:error}):error;
+    notifyPersistenceStatus({status:'ERRO',field:'mesas',error:reportado?.message||String(reportado)});
+    throw reportado;
   }
+}
+
+// Uma fila por mesa serializa cliques no MESMO navegador sem descartar alterações.
+// Outros terminais continuam protegidos pela transação Firestore sobre o estado
+// mais recente. Não há tentativas automáticas cegas após erro de confirmação.
+const pendingMesaWrites=new Map();
+export async function atualizarMesaV1(args) {
+  const {db,userId,mesaId,mutator}=args||{};
+  if(!db||!userId||!mesaId||typeof mutator!=='function') throw new Error('Parâmetros inválidos para atualizar mesa.');
+  const key=`${String(userId)}:${String(mesaId)}`;
+  const anterior=pendingMesaWrites.get(key)||Promise.resolve();
+  const atual=anterior.catch(()=>{}).then(()=>atualizarMesaDiretoV1(args));
+  pendingMesaWrites.set(key,atual);
+  try { return await atual; }
+  finally { if(pendingMesaWrites.get(key)===atual) pendingMesaWrites.delete(key); }
 }
