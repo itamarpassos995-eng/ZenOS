@@ -55,6 +55,16 @@ export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuve
     return resultado.data;
   } catch(e){throw new Error(erroAmigavel(e));}
  };
+ const subirBanner=async({arquivo,bannerId,tipo})=>{
+  if(!data?.midiaDisponivel||!fnMedia.current)throw new Error('Armazenamento privado indisponível.');
+  const preparado=await prepararFotoProduto(arquivo);
+  const [principalBase64,miniaturaBase64]=await Promise.all([blobBase64(preparado.principal.blob),blobBase64(preparado.miniatura.blob)]);
+  try{
+   const r=(await fnMedia.current({action:'enviarBanner',bannerId,tipo:tipo==='imagemMobile'?'mobile':'desktop',principalBase64,miniaturaBase64})).data;
+   if(r?.status!=='privado'||r.publicado!==false||!r.storagePath)throw new Error('Upload privado do banner não confirmado.');
+   return r;
+  }catch(e){throw new Error(erroAmigavel(e));}
+ };
  const save=async({aparencia,regras})=>{
   if(!fn.current||!data)throw new Error('Servidor Commerce indisponível. Exporte o rascunho para não perder alterações.');
   try{
@@ -117,6 +127,6 @@ export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuve
    idPublico={data?.idPublico||''}
    onSalvarRascunho={data?save:null} onSolicitarAtivacao={data?proposal:null}
    urlBase={window.location.origin}
-   onPublicar={data?.publicacaoHabilitada?publicar:null} onUploadBannerImage={null} onUploadProductImage={data?.midiaDisponivel?subirProduto:null}/>
+   onPublicar={data?.publicacaoHabilitada?publicar:null} onUploadBannerImage={data?.midiaDisponivel?subirBanner:null} onUploadProductImage={data?.midiaDisponivel?subirProduto:null}/>
  </div>;
 }

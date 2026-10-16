@@ -1,4 +1,4 @@
-import { caminhoCommerceValido } from './commerceMediaServiceCore.js';
+import { caminhoCommerceValido, caminhoBannerValido } from './commerceMediaServiceCore.js';
 /** ZenOS Commerce: validação CANÔNICA no servidor, sem importação do frontend. */
 const estadosLicenca = new Set(['nao_contratado','solicitado','em_homologacao','ativo','suspenso','cancelado']);
 const texto=(v,n)=>String(v??'').replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,n);
@@ -44,8 +44,14 @@ export function validarRascunhoCommerce(dados,lojaId=null){
   if(!b||typeof b!=='object'||Array.isArray(b))throw Error('Banner inválido.');
   const id=/^b-[a-z0-9-]{1,30}$/.test(b.id||'')?b.id:`b-${i+1}`;
   if(ids.has(id))throw Error('Identificador de banner repetido.');ids.add(id);
+  const midia={};
+  for(const tipo of ['Desktop','Mobile']){
+   const campo='imagem'+tipo,path=b[campo+'StoragePath']||'';
+   if(path&&(!lojaId||!caminhoBannerValido(path,lojaId,id,tipo.toLowerCase())))throw Error('Imagem do banner pertence a outra loja, banner ou formato.');
+   midia[campo+'StoragePath']=path;midia[campo]=path?'':url(b[campo]);
+  }
   return {id,ativo:b.ativo!==false,titulo:texto(b.titulo,90),subtitulo:texto(b.subtitulo,180),selo:texto(b.selo,36),
-   chamada:texto(b.chamada,32),caminho:destino(b.caminho),imagemDesktop:url(b.imagemDesktop),imagemMobile:url(b.imagemMobile),
+   chamada:texto(b.chamada,32),caminho:destino(b.caminho),...midia,
    alinhamento:b.alinhamento==='centro'?'centro':'esquerda',corFundo:cor(b.corFundo,'#193D4E'),ordem:inteiro(b.ordem,0,99,i)};
  }).sort((a,b)=>a.ordem-b.ordem);
  const aparencia={versao:2,nomeLoja:texto(fonte.nomeLoja||configInicialCommerce.nomeLoja,65),slogan:texto(fonte.slogan,120),

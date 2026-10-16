@@ -95,15 +95,17 @@ export default function ZenCommerceStudio({
     }
     setCarregando(true);
     try {
-      const url = await onUploadBannerImage({ arquivo, bannerId:banner.id, tipo:chave });
+      const resultado = await onUploadBannerImage({ arquivo, bannerId:banner.id, tipo:chave });
+      const url=resultado?.url;
       if (typeof url !== 'string' || !url.startsWith('https://')) throw new Error('O servidor não retornou um link HTTPS válido.');
-      atualizarBanner(chave, url);
+      if(!resultado.storagePath)throw new Error('Armazenamento privado do banner não confirmado.');
+      setCfg(prev=>normalizarAparencia({...prev,banners:prev.banners.map(b=>b.id===banner.id?{...b,[chave]:url,[chave+'StoragePath']:resultado.storagePath}:b)}));
       setAviso('Imagem enviada e associada ao rascunho.');
     } catch (e) {setAviso(e?.message || 'Falha no upload.');}
     finally {setCarregando(false);}
   };
   const publicado=cfg.banners.filter(b=>b.ativo);
-  const destaque=publicado[0]||cfg.banners[0];
+  const destaque=cfg.banners.find(b=>b.id===bannerId)||publicado[0]||cfg.banners[0];
   const barraBotao={background:'#ccaa73',color:'#1e2a32',border:0,borderRadius:10,fontWeight:900,cursor:'pointer',padding:'12px 16px'};
   return <div style={{background:'#081621',borderRadius:22,padding:18,color:'#f8fafc',fontFamily:'Inter,system-ui,sans-serif',display:'grid',gap:17}}>
     <div style={{display:'flex',gap:12,justifyContent:'space-between',alignItems:'center',flexWrap:'wrap'}}>
@@ -143,8 +145,10 @@ export default function ZenCommerceStudio({
             <button type="button" style={tabStyle(false)} onClick={novaBanner}>+ Adicionar</button></div>
           {banner&&<>
             <label style={{display:'flex',gap:10,alignItems:'center',fontSize:12}}><input type="checkbox" checked={banner.ativo} onChange={e=>atualizarBanner('ativo',e.target.checked)}/> Exibir banner na loja</label>
-            {[["selo","Selo / campanha"],["titulo","Título principal"],["subtitulo","Subtítulo"],["chamada","Texto do botão"],["caminho","Destino interno (ex.: /catalogo)"],["imagemDesktop","Imagem HTTPS para desktop"],["imagemMobile","Imagem HTTPS para celular"]].map(([key,title])=><label key={key} style={{display:'grid',gap:6}}><span style={lbl}>{title}</span><input style={campo} value={banner[key]||''} onChange={e=>atualizarBanner(key,e.target.value)} placeholder={key.startsWith('imagem')?'https://...':undefined}/></label>)}
-            <label style={{display:'grid',gap:6}}><span style={lbl}>Enviar imagem (JPG, PNG ou WebP)</span><input type="file" accept="image/jpeg,image/png,image/webp" style={{...campo,fontSize:11}} disabled={carregando} onChange={e=>enviarImagem(e.target.files?.[0],'imagemDesktop')}/></label>
+            {[["selo","Selo / campanha"],["titulo","Título principal"],["subtitulo","Subtítulo"],["chamada","Texto do botão"],["caminho","Destino interno (ex.: /catalogo)"],["imagemDesktop","Imagem HTTPS para desktop"],["imagemMobile","Imagem HTTPS para celular"]].map(([key,title])=><label key={key} style={{display:'grid',gap:6}}><span style={lbl}>{title}</span><input style={campo} value={banner[key]||''} onChange={e=>{atualizarBanner(key,e.target.value);if(key.startsWith('imagem'))atualizarBanner(key+'StoragePath','');}} placeholder={key.startsWith('imagem')?'https://...':undefined}/></label>)}
+            <label style={{display:'grid',gap:6}}><span style={lbl}>Enviar imagem (JPG, PNG ou WebP)</span><input type="file" accept="image/jpeg,image/png,image/webp" style={{...campo,fontSize:11}} disabled={carregando||!onUploadBannerImage} onChange={e=>enviarImagem(e.target.files?.[0],'imagemDesktop')}/></label>
+            <label style={{display:'grid',gap:6}}><span style={lbl}>Imagem para celular (opcional)</span><input type="file" accept="image/jpeg,image/png,image/webp" style={{...campo,fontSize:11}} disabled={carregando||!onUploadBannerImage} onChange={e=>enviarImagem(e.target.files?.[0],'imagemMobile')}/></label>
+            {!onUploadBannerImage&&<small>Entre com uma conta autorizada para enviar imagens.</small>}
             <label style={{display:'grid',gap:6}}><span style={lbl}>Cor de fundo quando imagem não estiver disponível</span><input type="color" value={banner.corFundo} onChange={e=>atualizarBanner('corFundo',e.target.value)} style={{...campo,padding:3,height:42}}/></label>
             <button type="button" style={{...tabStyle(false),color:'#febbbb'}} onClick={()=>{const restantes=cfg.banners.filter(b=>b.id!==banner.id);setCfg(prev=>normalizarAparencia({...prev,banners:restantes}));setBannerId(restantes[0]?.id||'');}}>Remover banner</button>
           </>}
@@ -210,7 +214,7 @@ export default function ZenCommerceStudio({
         </div>
         {cfg.exibirPesquisa&&<div style={{padding:'0 22px 18px'}}><div style={{padding:'11px 14px',border:'1px solid #dde1e2',borderRadius:40,fontSize:12,color:'#78858a'}}>Buscar produtos, marcas e categorias... ⌕</div></div>}
         <div style={{margin:'0 14px',minHeight:290,background:destaque?.corFundo||cfg.corPrincipal,color:'#fff',borderRadius:14,overflow:'hidden',position:'relative',display:'flex',alignItems:'center'}}>
-          {destaque?.imagemDesktop&&<img alt="" src={destaque.imagemDesktop} style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',opacity:.48}}/>}
+          {(destaque?.imagemDesktop||destaque?.imagemMobile)&&<img alt="" src={destaque.imagemDesktop||destaque.imagemMobile} style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',opacity:.48}}/>}
           <div style={{position:'relative',padding:'28px 32px',maxWidth:440}}>
             <small style={{fontWeight:900,letterSpacing:'.16em',color:'#f8e7cf'}}>{destaque?.selo||'SELEÇÃO ESPECIAL'}</small>
             <h2 style={{fontSize:'clamp(23px,3vw,35px)',lineHeight:1.13,letterSpacing:-1,margin:'15px 0'}}>{destaque?.titulo||'Seus produtos, sua vitrine'}</h2>

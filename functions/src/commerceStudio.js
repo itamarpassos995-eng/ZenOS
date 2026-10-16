@@ -32,6 +32,20 @@ export async function hidratarUrlsPrivadas(regras,lojaId) {
  }
  return resultado;
 }
+export async function processarBannersPrivados(aparencia,lojaId,{hidratar=false,publico=false}={}) {
+ const resultado={...aparencia,banners:(aparencia?.banners||[]).map(b=>({...b}))};
+ let bucket;
+ for(const b of resultado.banners)for(const tipo of ['Desktop','Mobile']){
+  const campo='imagem'+tipo,path=b[campo+'StoragePath'];
+  if(path){
+   bucket ||= obterBucketCommerce();
+   await confirmarMidiaPrivada(bucket,path,{lojaId,produtoId:b.id,origem:tipo.toLowerCase()});
+   if(hidratar)b[campo]=await assinarMidiaPrivada(bucket,path);
+  }
+  if(publico)delete b[campo+'StoragePath'];
+ }
+ return resultado;
+}
 /** Conta individual e vínculo administrativo verificados no servidor em cada ação. */
 export const commerceStudio = onCall({region:'southamerica-east1',timeoutSeconds:30,memory:'256MiB',maxInstances:2},async request=>{
  if(!request.auth?.uid)throw new HttpsError('unauthenticated','Faça login no ZenOS.');
@@ -48,7 +62,7 @@ export const commerceStudio = onCall({region:'southamerica-east1',timeoutSeconds
  if(!lojaSnap.exists)throw new HttpsError('permission-denied','Loja não autorizada.');
  if(action==='consultar'){
   const [d,l,p,pub]=await Promise.all([rascunho.get(),licenca.get(),interesse.get(),db.doc(`lojas/${lojaId}/commerce_private/publicacao`).get()]);
-  return {lojaId,revision:d.data()?.revision||0,aparencia:d.data()?.aparencia||configInicialCommerce,
+  return {lojaId,revision:d.data()?.revision||0,aparencia:await processarBannersPrivados(d.data()?.aparencia||configInicialCommerce,lojaId,{hidratar:true}),
    regras:await hidratarUrlsPrivadas(d.data()?.regras||{},lojaId),licenca:resumoLicencaCommerce(l.data()),interesse:p.data()?.status||'nao_solicitado',
    // Link ainda não disponível: endereço depende de domínio e diretório publicados pelo servidor.
    idPublico:pub.data()?.idPublico||null,whatsapp:pub.data()?.whatsapp||'',lojaPublicada:pub.data()?.ativo===true,
@@ -72,7 +86,7 @@ export const commerceStudio = onCall({region:'southamerica-east1',timeoutSeconds
  let normalizado;
  try{normalizado=validarRascunhoCommerce(request.data?.rascunho,lojaId);}
  catch(e){throw new HttpsError('invalid-argument',codigoErro(e));}
- try{await validarReferenciasNoStorage(normalizado.regras,lojaId);}
+ try{await validarReferenciasNoStorage(normalizado.regras,lojaId);await processarBannersPrivados(normalizado.aparencia,lojaId);}
  catch(e){if(e instanceof HttpsError)throw e;throw new HttpsError('failed-precondition','Imagens da galeria não foram confirmadas no armazenamento desta loja.');}
  const expectedRevision=request.data?.expectedRevision;
  return db.runTransaction(async tx=>{

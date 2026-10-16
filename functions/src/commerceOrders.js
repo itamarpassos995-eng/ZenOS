@@ -4,7 +4,7 @@ import {obterAdminFirestore} from './firebaseAdmin.js';
 import {autorizarOperadorCommerce} from './commerceAuthorization.js';
 import {validarRascunhoCommerce,resumoLicencaCommerce} from './commerceStudioCore.js';
 import {ambienteMidiaCommercePronto} from './commerceStorageSafetyCore.js';
-import {hidratarUrlsPrivadas,validarReferenciasNoStorage} from './commerceStudio.js';
+import {hidratarUrlsPrivadas,validarReferenciasNoStorage,processarBannersPrivados} from './commerceStudio.js';
 import {validarCatalogoPublicavel,urlImagemCommerce,publicIdValido,telefoneCommerce,catalogoCommerceServidor,validarPedidoCommerce,chavePedidoCommerce,assinaturaPedidoCommerce,respostaPedidoCommerce} from './commerceOrdersCore.js';
 const opts={region:'southamerica-east1',timeoutSeconds:60,memory:'512MiB',maxInstances:2};
 const habilitado=()=>{if(!ambienteMidiaCommercePronto(process.env))throw new HttpsError('failed-precondition','Loja online indisponível neste ambiente.');};
@@ -36,6 +36,7 @@ export const commercePedidosAdmin=onCall(opts,async request=>{
   if(request.data.expectedRevision!==draft.data().revision)throw new HttpsError('aborted','O rascunho mudou. Salve e tente novamente.');
   let limpo,whatsapp;try{limpo=validarRascunhoCommerce(draft.data(),lojaId);whatsapp=telefoneCommerce(request.data.whatsapp);}catch(e){throw invalid(e);}
   await validarReferenciasNoStorage(limpo.regras,lojaId);
+  await processarBannersPrivados(limpo.aparencia,lojaId);
   return db.runTransaction(async tx=>{
    const [current,latestDraft,latestLicense,latestOperation]=await Promise.all([tx.get(pubRef),tx.get(draftRef(db,lojaId,'rascunho')),tx.get(draftRef(db,lojaId,'licenca')),tx.get(db.doc(`lojas/${lojaId}/dados/operacao`))]);
    exigirLicenca(latestLicense);if(latestDraft.data()?.revision!==draft.data().revision)throw new HttpsError('aborted','Rascunho alterado durante a publicação.');
@@ -72,7 +73,7 @@ export const commerceLoja=onCall(opts,async request=>{
    const capa=fotos.find(f=>f.id===r.capaImagemId)||fotos[0];
    const {produtoId,...publico}=p;return {...publico,imagens:fotos,imagemUrl:urlImagemCommerce(r.imagemPublica)||capa?.url||null};
   });
-  return {idPublico:id,revision:publication.revision,aparencia:publication.aparencia,whatsapp:publication.whatsapp,catalogo};
+  return {idPublico:id,revision:publication.revision,aparencia:await processarBannersPrivados(publication.aparencia,lojaId,{hidratar:true,publico:true}),whatsapp:publication.whatsapp,catalogo};
  }
  if(!request.auth?.uid)throw new HttpsError('unauthenticated','Identifique a sessão para enviar seu pedido.');
  let key,assinatura;try{if(JSON.stringify(request.data.pedido||{}).length>15000)throw Error('Pedido excede o tamanho permitido.');key=chavePedidoCommerce(request.auth.uid,request.data.chaveEnvio);assinatura=assinaturaPedidoCommerce(request.data.pedido||{});}catch(e){throw invalid(e);}

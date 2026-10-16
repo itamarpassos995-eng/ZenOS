@@ -56,3 +56,14 @@ export function derivarMiniaturaPath(path,lojaId,produtoId,origem='galeria'){
 export function produtoPertenceLoja(operacao,produtoId){
   return Array.isArray(operacao?.produtos) && operacao.produtos.filter(p=>String(p?.id)===String(produtoId)&&p.estado!=='inativo').length===1;
 }
+
+export function prepararBannerCommerce({lojaId,bannerId,tipo='desktop',principalBase64,miniaturaBase64}={}) {
+ if(!/^b-[a-z0-9-]{1,30}$/.test(bannerId||'')||!['desktop','mobile'].includes(tipo))throw Error('Banner ou formato inválido.');
+ const plano=prepararMidiaCommerce({lojaId,produtoId:bannerId,principalBase64,miniaturaBase64});
+ return {...plano,path:`commerce/${lojaId}/banners/${bannerId}/${tipo}/${plano.hash}.webp`,thumbPath:`commerce/${lojaId}/banners/${bannerId}/miniaturas/${plano.hash}.webp`};
+}
+export function caminhoBannerValido(path,lojaId,bannerId,tipo='desktop') {
+ if(!ID.test(lojaId||'')||!/^b-[a-z0-9-]{1,30}$/.test(bannerId||'')||!['desktop','mobile'].includes(tipo))return false;
+ const prefix=`commerce/${lojaId}/banners/${bannerId}/${tipo}/`;
+ return typeof path==='string'&&path.startsWith(prefix)&&path.endsWith('.webp')&&HASH.test(path.slice(prefix.length,-5));
+}

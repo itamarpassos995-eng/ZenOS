@@ -10,7 +10,7 @@ import { getApps } from 'firebase-admin/app';
 import { getStorage } from 'firebase-admin/storage';
 import { protegerAmbienteMidiaCommerce } from './commerceStorageSafetyCore.js';
 import { obterAdminFirestore } from './firebaseAdmin.js';
-import { prepararMidiaCommerce, produtoPertenceLoja } from './commerceMediaServiceCore.js';
+import { prepararMidiaCommerce, prepararBannerCommerce, caminhoBannerValido, produtoPertenceLoja } from './commerceMediaServiceCore.js';
 
 const EXPIRACAO_MS = 30*60_000;
 export function obterBucketCommerce(){
@@ -40,8 +40,9 @@ export async function assinarMidiaPrivada(bucket,path){
 
 export async function confirmarMidiaPrivada(bucket,path,{lojaId,produtoId,origem='galeria'}={}){
   const {caminhoCommerceValido,derivarMiniaturaPath}=await import('./commerceMediaServiceCore.js');
-  if(!caminhoCommerceValido(path,lojaId,produtoId,{origem}))throw new HttpsError('permission-denied','Imagem de outra loja ou produto.');
-  const thumbPath=derivarMiniaturaPath(path,lojaId,produtoId,origem);
+  const banner=origem==='desktop'||origem==='mobile';
+  if(!(banner?caminhoBannerValido(path,lojaId,produtoId,origem):caminhoCommerceValido(path,lojaId,produtoId,{origem})))throw new HttpsError('permission-denied','Imagem de outra loja ou produto.');
+  const thumbPath=banner?`commerce/${lojaId}/banners/${produtoId}/miniaturas/${path.split('/').at(-1)}`:derivarMiniaturaPath(path,lojaId,produtoId,origem);
   const [full,thumb]=await Promise.all([bucket.file(path).getMetadata(),bucket.file(thumbPath).getMetadata()]);
   if(full?.[0]?.contentType!=='image/webp'||thumb?.[0]?.contentType!=='image/webp'||
     full?.[0]?.metadata?.lojaId!==lojaId||full?.[0]?.metadata?.produtoId!==produtoId||
@@ -73,17 +74,18 @@ async function gravarSeNovo(bucket,path,bytes,{lojaId,produtoId,hash}){
 export const commerceMidia = onCall({region:'southamerica-east1',timeoutSeconds:90,memory:'512MiB',maxInstances:2},async request=>{
   if(!request.auth?.uid)throw new HttpsError('unauthenticated','Faça login no ZenOS.');
   if(request.data?.lojaId!==undefined)throw new HttpsError('invalid-argument','A loja é identificada exclusivamente pela sessão autenticada.');
-  if(request.data?.action!=='enviarFotoProduto')throw new HttpsError('invalid-argument','Ação de mídia inválida.');
+  if(!['enviarFotoProduto','enviarBanner'].includes(request.data?.action))throw new HttpsError('invalid-argument','Ação de mídia inválida.');
   const db=await obterAdminFirestore();
   const {lojaId}=await autorizarOperadorCommerce(request.auth,db);
-  const produtoId=request.data?.produtoId;
+  const banner=request.data.action==='enviarBanner';
+  const produtoId=banner?request.data?.bannerId:request.data?.produtoId;
   // Qualquer erro de formato é tratado antes de acessar Storage.
   let plano;
-  try{plano=prepararMidiaCommerce({lojaId,produtoId,origem:request.data?.origem||'galeria',
-    principalBase64:request.data?.principalBase64,miniaturaBase64:request.data?.miniaturaBase64});}
+  try{const bytes={principalBase64:request.data?.principalBase64,miniaturaBase64:request.data?.miniaturaBase64};
+    plano=banner?prepararBannerCommerce({lojaId,bannerId:produtoId,tipo:request.data.tipo,...bytes}):prepararMidiaCommerce({lojaId,produtoId,origem:request.data?.origem||'galeria',...bytes});}
   catch(e){throw new HttpsError('invalid-argument',String(e.message||'Imagem inválida.').slice(0,150));}
   const [loja,operacao]=await Promise.all([db.doc(`lojas/${lojaId}`).get(),db.doc(`lojas/${lojaId}/dados/operacao`).get()]);
-  if(!loja.exists||!produtoPertenceLoja(operacao.data(),produtoId))throw new HttpsError('permission-denied','Produto não encontrado no cadastro desta loja.');
+  if(!loja.exists||(!banner&&!produtoPertenceLoja(operacao.data(),produtoId)))throw new HttpsError('permission-denied','Produto não encontrado no cadastro desta loja.');
   const bucket=obterBucketCommerce();
   const dia=new Date().toISOString().slice(0,10),bytes=plano.principal.length+plano.miniatura.length;
   const marca=db.doc(`lojas/${lojaId}/commerce_private/midia-${createHash('sha256').update(plano.path).digest('hex')}`);

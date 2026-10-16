@@ -121,3 +121,15 @@ node scripts/commerce-cloud-hml-deploy.mjs --ui-fix
 ```
 
 O destino permanece fixo em zenos-commerce-homologacao. Após o deploy, conferir loja e configuração: roda/trackpad, teclado, celular, galeria e carrinho. Nenhuma alteração de produção, merge ou pagamento realizado.
+
+## Banners privados e pedido real de homologação
+
+Proprietário confirmou o fluxo pedido → WhatsApp; print recebido mostra pedido BE322277A4, R$29,90, sem cobrança ou reserva automática. Upload de produto passou após o proprietário habilitar IAM Credentials API e conceder Token Creator à conta de execução sobre si mesma no projeto de homologação. A expiração real de URLs GCS continua sem teste concluído.
+
+Corrigidos upload de banners desconectado e prévia mostrando sempre o primeiro banner. Adicionada ação autenticada enviarBanner na callable existente, WebP/miniatura com quota compartilhada e namespace separado por loja/banner/formato desktop ou mobile. Servidor valida caminho e metadados antes de salvar/publicar/assinar; persiste caminho, não URL temporária; catálogo e configuração renovam URLs a cada consulta. Resposta pública remove os campos internos de caminho dos banners. Não há alteração de regras Storage/Firestore.
+
+Validação: 99 testes Functions, 46 verificações premium, 36 Storage, build Vite e suite real de emuladores aprovados (exit 0). Integração cobre upload desktop/mobile de banner, persistência sem URL assinada, reabertura com assinatura, rejeição de referência de outra loja e outro banner, negação de leitura direta e catálogo com URLs assinadas sem campos de caminho.
+
+Limites: a interface autenticada de banners ainda precisa de verificação visual e upload na nuvem após deploy. Sem alegação de aprovação de mouse/toque/mobile nessa alteração. Deploy isolado preparado: node scripts/commerce-cloud-hml-deploy.mjs --banner-fix (quatro funções Commerce e Hosting; sem regras/Auth/bootstrap/produção).
+
+Notificação automática e importação de pedido no PDV ainda não implementadas. Fila manual já existente não substitui alerta. Continuidade do chat normal e gates do Work registrados em docs/commerce-proximas-etapas.md.

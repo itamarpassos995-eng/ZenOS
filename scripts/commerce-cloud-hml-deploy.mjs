@@ -8,7 +8,7 @@ const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const project='zenos-commerce-homologacao';
 const bucket='zenos-commerce-homologacao.firebasestorage.app';
 if(process.env.GCLOUD_PROJECT&&process.env.GCLOUD_PROJECT!==project)throw Error('Projeto diferente da homologação: implantação bloqueada.');
-if(process.argv.slice(2).some(arg=>!['--check','--ui-fix'].includes(arg)))throw Error('Argumentos não permitidos. O destino de homologação é fixo.');
+if(process.argv.slice(2).some(arg=>!['--check','--ui-fix','--banner-fix'].includes(arg)))throw Error('Argumentos não permitidos. O destino de homologação é fixo.');
 protegerAmbienteMidiaCommerce({mediaEnabled:'true',homologacao:'true',projectId:project,bucket});
 const config=JSON.parse(readFileSync(resolve(root,'firebase.commerce.cloud-hml.json'),'utf8'));
 if(config.firestore?.rules!=='firestore.commerce.cloud-hml.rules'||config.storage?.rules!=='storage.commerce.cloud-hml.rules'||config.hosting?.public!=='dist-commerce-hml'||config.functions?.source!=='functions'||config.functions?.codebase!=='fiscal'||config.auth?.providers?.anonymous!==true||config.auth?.providers?.googleSignIn?.supportEmail!=='itamarbenit@gmail.com')
@@ -28,9 +28,10 @@ if(process.argv.includes('--check')){
  process.exit(0);
 }
 if(!existsSync(envPath))writeFileSync(envPath,Object.entries(vars).map(([k,v])=>`${k}=${v}`).join('\n')+'\n',{flag:'wx',mode:0o600});
+const bannerFix=process.argv.includes('--banner-fix');
 const uiFix=process.argv.includes('--ui-fix');
-console.log(uiFix?'Atualizando somente a publicação Commerce e a interface da homologação.':'Implantando Commerce, Auth Google/anônimo e regras deny-all exclusivamente em '+project+'.');
-const targets=uiFix?'functions:fiscal:commercePedidosAdmin':'auth,firestore:rules,storage,functions:fiscal:commerceStudio,functions:fiscal:commerceMidia,functions:fiscal:commerceLoja,functions:fiscal:commercePedidosAdmin,functions:fiscal:commerceHmlBootstrap';
+console.log(bannerFix?'Atualizando mídia, rascunho, publicação, catálogo e interface dos banners na homologação.':uiFix?'Atualizando somente a publicação Commerce e a interface da homologação.':'Implantando Commerce, Auth Google/anônimo e regras deny-all exclusivamente em '+project+'.');
+const targets=bannerFix?'functions:fiscal:commerceStudio,functions:fiscal:commerceMidia,functions:fiscal:commerceLoja,functions:fiscal:commercePedidosAdmin':uiFix?'functions:fiscal:commercePedidosAdmin':'auth,firestore:rules,storage,functions:fiscal:commerceStudio,functions:fiscal:commerceMidia,functions:fiscal:commerceLoja,functions:fiscal:commercePedidosAdmin,functions:fiscal:commerceHmlBootstrap';
 const args=['-y','firebase-tools@15.34.0','deploy','--project',project,'--account','itamarbenit@gmail.com','--config','firebase.commerce.cloud-hml.json','--only',targets];
 // cmd.exe precisa resolver npx.cmd; todos os argumentos são constantes, sem entrada do usuário.
 const result=process.platform==='win32'

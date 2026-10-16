@@ -25,6 +25,8 @@ export function normalizarBanner(banner = {}, indice = 0) {
     caminho: caminhoInterno(banner.caminho),
     imagemDesktop: hostImagem(banner.imagemDesktop),
     imagemMobile: hostImagem(banner.imagemMobile),
+    imagemDesktopStoragePath: String(banner.imagemDesktopStoragePath||'').slice(0,350),
+    imagemMobileStoragePath: String(banner.imagemMobileStoragePath||'').slice(0,350),
     alinhamento: banner.alinhamento === 'centro' ? 'centro' : 'esquerda',
     corFundo: corSegura(banner.corFundo, '#193D4E'),
     ordem: Math.max(0,Math.min(99,Math.trunc(Number(banner.ordem)||indice))),
