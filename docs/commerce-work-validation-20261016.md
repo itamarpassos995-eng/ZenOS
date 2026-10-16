@@ -96,3 +96,11 @@ node scripts/commerce-cloud-hml-deploy.mjs
 ```
 
 Esse comando publica somente o backend Commerce de teste; não torna uma loja pública/comercial. Não resolve sozinho: provisionamento Firestore/Google Auth, vínculos individuais fictícios, IAM/signBlob, testes GCS reais, popup desktop/mobile, quotas e storefront/checkout. O código atual mantém publicação pública e pagamentos desligados. Merge não substitui essas funcionalidades ou a homologação.
+
+## Atualização — escopo escolhido: pedido + WhatsApp
+
+O proprietário escolheu catálogo, carrinho e pedido persistido com atendimento pelo WhatsApp. Implementados backend público/admin, publicação licenciada, vitrine com galeria, formulário/carrinho, idempotência transacional, fila/status e quotas de upload/pedidos. Não cobra online, não reserva estoque nem altera caixa/vendas. A escolha substitui a pendência de gateway nesta primeira versão; não significa pagamento homologado.
+
+96 testes Functions, build e checagens anteriores aprovados. Suite integrada real reexecutada com sucesso (exit code 0), agora cobrindo publicação, catálogo allowlist, preço canônico, concorrência de pedido, acesso cruzado, revogação, limite de upload, suspensão/despublicação e preservação da operação. Emulador não comprova IAM/signBlob/expiração GCS. O navegador Work retornou ERR_CONNECTION_REFUSED ao servidor local; a UI desktop/mobile não foi homologada.
+
+O pipeline de homologação agora inclui Auth Google/anônimo, regras de nuvem deny-all próprias (não emulador), cinco funções Commerce e Hosting isolado. Obtém configuração pública do SDK, compila modo exclusivo e impede a inicialização do App operacional nesse site. Há bootstrap idempotente de dados fictícios, limitado ao proprietário Google verificado e ao projeto de homologação; não sobrescreve registros. O script ainda não foi executado com credenciais reais de nuvem no Work. Guia e pendências atuais: `docs/commerce-pedidos-whatsapp.md`. Produção e Share V2 permanecem intocados.

@@ -1,0 +1,7 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Projeto isolado de homologação: todo acesso passa pelas callables auditadas.
+    match /{document=**} { allow read, write: if false; }
+  }
+}
