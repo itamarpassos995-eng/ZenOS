@@ -5,6 +5,7 @@
 import { autorizarOperadorCommerce } from './commerceAuthorization.js';
 import {createHash} from 'node:crypto';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { error as registrarErro } from 'firebase-functions/logger';
 import { getApps } from 'firebase-admin/app';
 import { getStorage } from 'firebase-admin/storage';
 import { protegerAmbienteMidiaCommerce } from './commerceStorageSafetyCore.js';
@@ -94,10 +95,19 @@ export const commerceMidia = onCall({region:'southamerica-east1',timeoutSeconds:
     tx.create(marca,{path:plano.path,bytes,dia});tx.set(quota,{bytes:(atual.bytes||0)+bytes,arquivos:(atual.arquivos||0)+1});
   });
   // A reserva de quota permanece se o upload falhar; retry idêntico não consome quota novamente.
+  let etapa='armazenamento';
   try {
     await gravarSeNovo(bucket,plano.path,plano.principal,{lojaId,produtoId,hash:plano.hash});
     await gravarSeNovo(bucket,plano.thumbPath,plano.miniatura,{lojaId,produtoId,hash:plano.hash});
+    etapa='assinatura';
     const [url,miniaturaUrl]=await Promise.all([assinarMidiaPrivada(bucket,plano.path),assinarMidiaPrivada(bucket,plano.thumbPath)]);
     return {id:plano.id,url,miniaturaUrl,storagePath:plano.path,status:'privado',publicado:false,expiraEm:new Date(Date.now()+EXPIRACAO_MS).toISOString()};
-  }catch(e){if(e instanceof HttpsError)throw e;throw new HttpsError('unavailable','Não foi possível armazenar a imagem com segurança. Tente novamente.');}
+  }catch(e){
+    if(e instanceof HttpsError)throw e;
+    // Não registrar imagem, token, URL assinada ou dados do cliente.
+    const codigo=String(e?.code||'desconhecido').slice(0,60);
+    const motivo=/signBlob|iam.serviceAccounts/i.test(String(e?.message||''))?'permissao-assinatura':/permission|denied|forbidden/i.test(String(e?.message||''))?'permissao':/disabled|not been used/i.test(String(e?.message||''))?'api-indisponivel':'verificar-provedor';
+    registrarErro('commerceMidia: falha de infraestrutura',{etapa,codigo,motivo});
+    throw new HttpsError('unavailable',etapa==='assinatura'?'Não foi possível gerar o link privado da imagem. Verifique as permissões de assinatura da homologação.':'Não foi possível armazenar a imagem no bucket privado. Verifique as permissões da homologação.');
+  }
 });
