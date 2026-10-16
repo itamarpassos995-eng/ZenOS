@@ -30,3 +30,6 @@ As callables commerceStudio e commerceMidia usam request.auth.uid como identidad
 Executar emuladores com Java 21; autenticar conta administrativa para criar projeto separado; confirmar viabilidade do bucket sem ativar cobranças. Validar IAM/signBlob, upload e miniaturas, URLs expiradas, leitura direta negada, referências cruzadas, persistência após reload e interface desktop/mobile. Nenhum emulador prova IAM nem expiração real de URL GCS.
 
 Produção zenos-ac6b2 não acessada. Share V2 e dados operacionais não alterados. Sem merge ou deploy.
+
+## Complemento da execução
+Tentou-se obter Java 21 pelo pacote oficial Ubuntu sem modificar o repositório. O download reportou sucesso, mas o arquivo local apresentou tamanho inconsistente e extração truncada. A tentativa de iniciar Firestore com a extração incompleta falhou (ClassFormatError); não constitui teste de isolamento aprovado. CI Caixa Multimoeda P0 do commit 69a0119: success, execução 38897939748; Fiscal ainda em andamento no último acompanhamento. Login administrativo continua pendente.
