@@ -5,7 +5,7 @@ import {autorizarOperadorCommerce} from './commerceAuthorization.js';
 import {validarRascunhoCommerce,resumoLicencaCommerce} from './commerceStudioCore.js';
 import {ambienteMidiaCommercePronto} from './commerceStorageSafetyCore.js';
 import {hidratarUrlsPrivadas,validarReferenciasNoStorage} from './commerceStudio.js';
-import {urlImagemCommerce,publicIdValido,telefoneCommerce,catalogoCommerceServidor,validarPedidoCommerce,chavePedidoCommerce,assinaturaPedidoCommerce,respostaPedidoCommerce} from './commerceOrdersCore.js';
+import {validarCatalogoPublicavel,urlImagemCommerce,publicIdValido,telefoneCommerce,catalogoCommerceServidor,validarPedidoCommerce,chavePedidoCommerce,assinaturaPedidoCommerce,respostaPedidoCommerce} from './commerceOrdersCore.js';
 const opts={region:'southamerica-east1',timeoutSeconds:60,memory:'512MiB',maxInstances:2};
 const habilitado=()=>{if(!ambienteMidiaCommercePronto(process.env))throw new HttpsError('failed-precondition','Loja online indisponível neste ambiente.');};
 const draftRef=(db,loja,id)=>db.doc(`lojas/${loja}/commerce_private/${id}`);
@@ -37,8 +37,9 @@ export const commercePedidosAdmin=onCall(opts,async request=>{
   let limpo,whatsapp;try{limpo=validarRascunhoCommerce(draft.data(),lojaId);whatsapp=telefoneCommerce(request.data.whatsapp);}catch(e){throw invalid(e);}
   await validarReferenciasNoStorage(limpo.regras,lojaId);
   return db.runTransaction(async tx=>{
-   const [current,latestDraft,latestLicense]=await Promise.all([tx.get(pubRef),tx.get(draftRef(db,lojaId,'rascunho')),tx.get(draftRef(db,lojaId,'licenca'))]);
+   const [current,latestDraft,latestLicense,latestOperation]=await Promise.all([tx.get(pubRef),tx.get(draftRef(db,lojaId,'rascunho')),tx.get(draftRef(db,lojaId,'licenca')),tx.get(db.doc(`lojas/${lojaId}/dados/operacao`))]);
    exigirLicenca(latestLicense);if(latestDraft.data()?.revision!==draft.data().revision)throw new HttpsError('aborted','Rascunho alterado durante a publicação.');
+   try{validarCatalogoPublicavel(latestOperation.data()?.produtos||[],limpo.regras);}catch(e){throw new HttpsError('failed-precondition',e.message);}
    const idPublico=current.data()?.idPublico||gerarId();const directory=db.doc(`commerce_public/${idPublico}`);const old=await tx.get(directory);
    if(old.exists&&old.data().lojaId!==lojaId)throw new HttpsError('aborted','Identificador indisponível. Tente novamente.');
    const revision=(current.data()?.revision||0)+1;

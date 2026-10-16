@@ -50,3 +50,14 @@ export function respostaPedidoCommerce(pedido,id,whatsapp){
  const mensagem=`Olá! Enviei o pedido ${id.slice(0,10).toUpperCase()} pela loja online.\n`+pedido.itens.map(p=>`${p.quantidade} × ${p.nome}`).join('\n')+`\nProdutos: ${total}. Aguardo confirmação de disponibilidade, entrega e pagamento.`;
  return {id,status:pedido.status,totalCentavos:pedido.totalCentavos,moeda:'BRL',estoqueReservado:false,whatsappUrl:`https://wa.me/${telefoneCommerce(whatsapp)}?text=${encodeURIComponent(mensagem)}`};
 }
+
+export function validarCatalogoPublicavel(produtos,regras){
+ const catalogo=catalogoCommerceServidor(produtos,regras);
+ if(!catalogo.length)throw Error('Selecione pelo menos um produto válido na aba Produtos antes de publicar.');
+ for(const item of catalogo){
+  const p=produtos.find(p=>String(p.id)===item.produtoId),r=regras[item.produtoId];
+  if(r.usarFotoCadastro!==false&&String(p.imagem||'').startsWith('data:image/')&&!r.fotoCadastroStoragePath)
+   throw Error('A foto original de um produto ainda está pendente. Salve o rascunho e confirme o upload antes de publicar.');
+ }
+ return catalogo;
+}

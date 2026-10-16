@@ -1,5 +1,5 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
-import {catalogoCommerceServidor,validarPedidoCommerce,chavePedidoCommerce,telefoneCommerce,respostaPedidoCommerce} from '../src/commerceOrdersCore.js';
+import {validarCatalogoPublicavel,catalogoCommerceServidor,validarPedidoCommerce,chavePedidoCommerce,telefoneCommerce,respostaPedidoCommerce} from '../src/commerceOrdersCore.js';
 const produtos=[{id:'P1',sku:'SKU1',nome:'Produto',preco1BRL:12.5,estoque:10,estoqueGalpao:8,custo:1,fornecedor:'SEGREDO',imagem:'data:image/png;base64,PRIVADO'}];
 const regras={P1:{publicado:true,fonteEstoque:'deposito',reservaMinima:2,limiteOnline:4}};
 const entrada={nome:'Cliente Teste',telefone:'+55 (67) 99999-1234',aceiteContato:true,itens:[{skuPublico:'SKU1',quantidade:2,preco:0.01}],observacao:'Retirada'};
@@ -21,4 +21,11 @@ test('pedido agrega duplicados, recusa excesso e ignora preços do navegador',()
 test('idempotência é isolada por comprador e telefone exige país',()=>{
  const key='envio-1234567890123456';assert.equal(chavePedidoCommerce('A',key),chavePedidoCommerce('A',key));assert.notEqual(chavePedidoCommerce('A',key),chavePedidoCommerce('B',key));assert.throws(()=>chavePedidoCommerce('A','../x'));
  assert.equal(telefoneCommerce('+595 981 732 513'),'595981732513');assert.throws(()=>telefoneCommerce('javascript:foo'));
+});
+
+test('publicação rejeita catálogo vazio e foto original pendente',()=>{
+ assert.throws(()=>validarCatalogoPublicavel(produtos,{}),/Selecione/);
+ assert.throws(()=>validarCatalogoPublicavel(produtos,regras),/foto original/);
+ assert.equal(validarCatalogoPublicavel(produtos,{P1:{...regras.P1,usarFotoCadastro:false}}).length,1);
+ assert.equal(validarCatalogoPublicavel(produtos,{P1:{...regras.P1,fotoCadastroStoragePath:'caminho-validado-anteriormente'}}).length,1);
 });

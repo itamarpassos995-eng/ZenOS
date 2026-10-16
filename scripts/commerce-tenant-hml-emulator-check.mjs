@@ -128,6 +128,8 @@ try{
   const adminA=httpsCallable(operatorA.fns,'commercePedidosAdmin'),adminB=httpsCallable(operatorB.fns,'commercePedidosAdmin');
   await forbid(adminA({action:'publicar',expectedRevision:4,whatsapp:'5567999991234'}));
   for(const shop of [a,b])await adb.doc(`lojas/${shop.uid}/commerce_private/licenca`).set({status:'ativo',ativacaoConfirmadaServidor:true});
+  await fnB({action:'salvarRascunho',expectedRevision:0,rascunho:{aparencia:{},regras:{}}});
+  await assert.rejects(adminB({action:'publicar',expectedRevision:1,whatsapp:'5567999991234'}),e=>/failed-precondition/.test(e.code));
   const opRef=adb.doc(`lojas/${a.uid}/dados/operacao`),operacao=(await opRef.get()).data();
   operacao.produtos[0].preco1BRL=9.9;operacao.produtos[0].custo=1;operacao.produtos[0].fornecedor='SEGREDO';await opRef.set(operacao);
   const published=(await adminA({action:'publicar',expectedRevision:4,whatsapp:'5567999991234'})).data;

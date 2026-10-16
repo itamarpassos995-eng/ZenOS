@@ -104,3 +104,20 @@ O proprietário escolheu catálogo, carrinho e pedido persistido com atendimento
 96 testes Functions, build e checagens anteriores aprovados. Suite integrada real reexecutada com sucesso (exit code 0), agora cobrindo publicação, catálogo allowlist, preço canônico, concorrência de pedido, acesso cruzado, revogação, limite de upload, suspensão/despublicação e preservação da operação. Emulador não comprova IAM/signBlob/expiração GCS. O navegador Work retornou ERR_CONNECTION_REFUSED ao servidor local; a UI desktop/mobile não foi homologada.
 
 O pipeline de homologação agora inclui Auth Google/anônimo, regras de nuvem deny-all próprias (não emulador), cinco funções Commerce e Hosting isolado. Obtém configuração pública do SDK, compila modo exclusivo e impede a inicialização do App operacional nesse site. Há bootstrap idempotente de dados fictícios, limitado ao proprietário Google verificado e ao projeto de homologação; não sobrescreve registros. O script ainda não foi executado com credenciais reais de nuvem no Work. Guia e pendências atuais: `docs/commerce-pedidos-whatsapp.md`. Produção e Share V2 permanecem intocados.
+
+## Correção de interface e rolagem — 16/10/2026
+
+A loja pública de homologação foi aberta no navegador. O catálogo estava vazio e a rolagem por roda do mouse não avançou. Corrigido o conflito de overflow/overscroll apenas nas rotas Commerce, preservando o CSS operacional. Vitrine recebeu cabeçalho, composição visual, cartões, busca, estados vazios e carrinho refinados; diálogos nativos controlam foco e rolagem. Preferência permanente de revisão antes da entrega registrada em AGENTS.md.
+
+A publicação agora rejeita catálogo vazio e produtos cuja capa original ainda depende de upload privado, também no servidor. Validação local: 97 testes Functions aprovados; 46 verificações premium; checagens de imagens, mídia, Storage e isolamento; build normal e preview aprovados. Suite real Auth/Functions/Firestore/Storage Emulator terminou com exit 0, incluindo rejeição de publicação vazia e isolamento entre lojas.
+
+Limite da evidência: a versão corrigida ainda não foi verificada visualmente no navegador. A prévia Vercel compilou, mas exige login; o navegador remoto recusou arquivos locais por política. Não há aprovação de responsividade, toque, foco ou rolagem após a correção. Os dados fictícios do harness local não representam teste de nuvem. Upload GCS, miniaturas reais e expiração de URLs continuam pendentes.
+
+O proprietário já implantou a versão anterior em Firebase separado. Para atualizar somente commercePedidosAdmin e a interface, no PowerShell autenticado da branch:
+
+```powershell
+git pull --ff-only
+node scripts/commerce-cloud-hml-deploy.mjs --ui-fix
+```
+
+O destino permanece fixo em zenos-commerce-homologacao. Após o deploy, conferir loja e configuração: roda/trackpad, teclado, celular, galeria e carrinho. Nenhuma alteração de produção, merge ou pagamento realizado.
