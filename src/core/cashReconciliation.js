@@ -52,6 +52,12 @@ export function calcularConciliacaoFisicaMultimoeda({ sessao, historicoVendas = 
   const vendas = vendasDaSessao({ sessao, historicoVendas });
   for (const venda of vendas) {
     for (const pag of venda.pagamentos || []) {
+      if (!pag?.formaId) {
+        // Mesas/lançamentos legados sem formaId podem representar dinheiro
+        // não contabilizado. Nunca declarar caixa conciliado nesse caso.
+        pendencias.push('Venda ' + venda.id + ': pagamento sem forma identificável (registro legado).');
+        continue;
+      }
       if (!ehDinheiro(pag)) continue;
       const moeda = moedaPagamento(pag);
       if (!moeda || pag.valorOriginal == null) {

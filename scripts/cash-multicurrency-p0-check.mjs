@@ -96,4 +96,24 @@ assert.match(app,/assinaturaFinanceiraSessao/);
 assert.match(app,/PENDENTE_AUDITORIA/);
 assert.match(app,/CONCILIAÇÃO FÍSICA POR MOEDA/);
 
+
+// Regressão: um centavo exato não pode ser descartado por comparação de ponto flutuante.
+assert.equal(validarComposicaoPagamento({
+  totalBRL:100.01, recebidoBRL:100.02, recebidoDinheiroBRL:100.02,
+}).trocoBRL,0.01);
+assert.equal(validarComposicaoPagamento({
+  totalBRL:100, recebidoBRL:99.99, recebidoDinheiroBRL:99.99,
+}).podeConcluir,false);
+// Um pagamento legado sem identificador não pode ser ignorado e resultar em "conciliado".
+const vendaFormaLegada = [{
+  ...historicoNativo[0], id:'mesa-antiga',
+  pagamentos:[{rotulo:'Dinheiro (R$)',valorConvertidoBRL:40}],
+}];
+const conciliacaoLegada = calcularConciliacaoFisicaMultimoeda({
+  sessao:cenarioBase, historicoVendas:vendaFormaLegada, caixaMovimentos:[],
+  contagem:{BRL:140}, taxas:{BRL:1,USD:0.2,EUR:0.18,PYG:1380},
+});
+assert.equal(conciliacaoLegada.confiavel,false);
+assert.ok(conciliacaoLegada.pendencias.some(p=>p.includes('sem forma identificável')));
+
 console.log('ZenOS caixa: testes de regressão P0 aprovados.');

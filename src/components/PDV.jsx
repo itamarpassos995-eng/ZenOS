@@ -370,14 +370,14 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
     .filter(p => p.formaId && p.formaId.startsWith('dinheiro'))
     .reduce((acc, p) => acc + (p.valorConvertidoBRL || 0), 0);
     
-  const valorExcedidoGlobal = totalPagoConvertidoBRL - totalFinalBRL;
-  const trocoTotalBRL = valorExcedidoGlobal > 0.01 ? Math.min(valorExcedidoGlobal, totalDinheiroBRL) : 0;
+  // Cálculo de troco em centavos inteiros: R$ 0,01 também deve ser devolvido.
   // Pagamentos eletrônicos/fiado/voucher não podem gerar troco fictício.
-  const { podeConcluir: podeFinalizarVenda } = validarComposicaoPagamento({
+  const { podeConcluir: podeFinalizarVenda, trocoBRL: trocoCalculadoBRL } = validarComposicaoPagamento({
     totalBRL: totalFinalBRL,
     recebidoBRL: totalPagoConvertidoBRL,
     recebidoDinheiroBRL: totalDinheiroBRL,
   });
+  const trocoTotalBRL = trocoCalculadoBRL || 0;
 
   const abrirCheckoutAposValidacoes = () => {
     if (itensVenda.length === 0 || totalFinalBRL <= 0) return mostrarZen('warning', 'Venda vazia', tx('Adicione produtos à venda.', 'Añada productos.', 'Add products.'));
@@ -611,13 +611,13 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
         lucroBRL: tipoFinalizacao === 'venda' ? totalFinalBRL - cmvVendaBRL : lucroEstimadoBRL,
         ...(tipoFinalizacao === 'venda' ? { cmvBRL: cmvVendaBRL } : {}),
         trocoBRL: tipoFinalizacao === 'venda' ? trocoTotalBRL : 0,
-        moedaTrocoInfo: tipoFinalizacao === 'venda' && trocoTotalBRL > 0.01 ? `${moedaTrocoEscolhida}` : null,
-        trocoOriginal: tipoFinalizacao === 'venda' && trocoTotalBRL > 0.01
+        moedaTrocoInfo: tipoFinalizacao === 'venda' && trocoTotalBRL >= 0.01 ? `${moedaTrocoEscolhida}` : null,
+        trocoOriginal: tipoFinalizacao === 'venda' && trocoTotalBRL >= 0.01
           ? (moedaTrocoEscolhida === 'PYG'
               ? Math.round(converterDeBRL(trocoTotalBRL, 'PYG'))
               : Math.round(converterDeBRL(trocoTotalBRL, moedaTrocoEscolhida) * 100) / 100)
           : 0,
-        taxasCambioTroco: tipoFinalizacao === 'venda' && trocoTotalBRL > 0.01 ? { ...taxasCambio } : null,
+        taxasCambioTroco: tipoFinalizacao === 'venda' && trocoTotalBRL >= 0.01 ? { ...taxasCambio } : null,
         pagamentos: tipoFinalizacao === 'venda' ? [...pagamentosLancados] : [],
         taxasCambio: { BRL: 1, ...(taxasCambio || {}) },
         detalhesPagamento: tipoFinalizacao === 'venda' ? (pagamentosLancados.map(p => `${p.rotulo}: ${(parseFloat(p.valorOriginal)||0).toFixed(2)}`).join(' • ') || tx('Dinheiro', 'Efectivo', 'Cash')) : docRotulo,
