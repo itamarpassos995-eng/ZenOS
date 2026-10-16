@@ -3,6 +3,7 @@
  * Requer ZENOS_COMMERCE_STORAGE_BUCKET configurado deliberadamente no ambiente.
  */
 import { autorizarOperadorCommerce } from './commerceAuthorization.js';
+import {createHash} from 'node:crypto';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { getApps } from 'firebase-admin/app';
 import { getStorage } from 'firebase-admin/storage';
@@ -83,6 +84,16 @@ export const commerceMidia = onCall({region:'southamerica-east1',timeoutSeconds:
   const [loja,operacao]=await Promise.all([db.doc(`lojas/${lojaId}`).get(),db.doc(`lojas/${lojaId}/dados/operacao`).get()]);
   if(!loja.exists||!produtoPertenceLoja(operacao.data(),produtoId))throw new HttpsError('permission-denied','Produto não encontrado no cadastro desta loja.');
   const bucket=obterBucketCommerce();
+  const dia=new Date().toISOString().slice(0,10),bytes=plano.principal.length+plano.miniatura.length;
+  const marca=db.doc(`lojas/${lojaId}/commerce_private/midia-${createHash('sha256').update(plano.path).digest('hex')}`);
+  const quota=db.doc(`lojas/${lojaId}/commerce_private/midia-quota-${dia}`);
+  await db.runTransaction(async tx=>{
+    const [m,q]=await Promise.all([tx.get(marca),tx.get(quota)]);if(m.exists)return;
+    const atual=q.data()||{};
+    if((atual.bytes||0)+bytes>60_000_000||(atual.arquivos||0)>=256)throw new HttpsError('resource-exhausted','Limite diário de fotos atingido. Tente novamente amanhã.');
+    tx.create(marca,{path:plano.path,bytes,dia});tx.set(quota,{bytes:(atual.bytes||0)+bytes,arquivos:(atual.arquivos||0)+1});
+  });
+  // A reserva de quota permanece se o upload falhar; retry idêntico não consome quota novamente.
   try {
     await gravarSeNovo(bucket,plano.path,plano.principal,{lojaId,produtoId,hash:plano.hash});
     await gravarSeNovo(bucket,plano.thumbPath,plano.miniatura,{lojaId,produtoId,hash:plano.hash});

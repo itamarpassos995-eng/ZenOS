@@ -10,14 +10,14 @@ const obterReferenciasMidia = regras => Object.entries(regras||{}).flatMap(([pro
  ...(regra?.fotoCadastroStoragePath?[{produtoId,path:regra.fotoCadastroStoragePath,origem:'cadastro'}]:[]),
  ...(regra?.galeriaImagens||[]).filter(img=>img.storagePath).map(img=>({produtoId,path:img.storagePath,origem:'galeria'}))
 ]);
-async function validarReferenciasNoStorage(regras,lojaId) {
+export async function validarReferenciasNoStorage(regras,lojaId) {
  const refs=obterReferenciasMidia(regras);
  if(!refs.length)return;
  const bucket=obterBucketCommerce();
  // Lotes pequenos preservam os limites de memoria e concorrencia do provedor.
  for(let i=0;i<refs.length;i+=8){await Promise.all(refs.slice(i,i+8).map(ref=>confirmarMidiaPrivada(bucket,ref.path,{lojaId,...ref})));}
 }
-async function hidratarUrlsPrivadas(regras,lojaId) {
+export async function hidratarUrlsPrivadas(regras,lojaId) {
  const refs=obterReferenciasMidia(regras);
  if(!refs.length)return regras;
  const bucket=obterBucketCommerce();
@@ -47,11 +47,12 @@ export const commerceStudio = onCall({region:'southamerica-east1',timeoutSeconds
  const lojaSnap=await loja.get();
  if(!lojaSnap.exists)throw new HttpsError('permission-denied','Loja não autorizada.');
  if(action==='consultar'){
-  const [d,l,p]=await Promise.all([rascunho.get(),licenca.get(),interesse.get()]);
+  const [d,l,p,pub]=await Promise.all([rascunho.get(),licenca.get(),interesse.get(),db.doc(`lojas/${lojaId}/commerce_private/publicacao`).get()]);
   return {lojaId,revision:d.data()?.revision||0,aparencia:d.data()?.aparencia||configInicialCommerce,
    regras:await hidratarUrlsPrivadas(d.data()?.regras||{},lojaId),licenca:resumoLicencaCommerce(l.data()),interesse:p.data()?.status||'nao_solicitado',
    // Link ainda não disponível: endereço depende de domínio e diretório publicados pelo servidor.
-   idPublico:null,publicacaoHabilitada:false,
+   idPublico:pub.data()?.idPublico||null,whatsapp:pub.data()?.whatsapp||'',lojaPublicada:pub.data()?.ativo===true,
+   publicacaoHabilitada:resumoLicencaCommerce(l.data()).ativo&&ambienteMidiaCommercePronto(process.env),
    midiaDisponivel:ambienteMidiaCommercePronto(process.env)};
  }
  if(action==='solicitarProposta'){

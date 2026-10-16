@@ -10,9 +10,11 @@ service cloud.firestore {
       // A condicao generica EXCLUI commerce_private; regras sobrepostas
       // sao combinadas por OR no Firestore.
       match /{colecao}/{registro} {
-        allow read, write: if lojaAutorizada(lojaId) && colecao != 'commerce_private';
+        allow read, write: if lojaAutorizada(lojaId) && colecao != 'commerce_private'
+          && !(colecao in ['commerce_pedidos', 'commerce_quotas']);
         match /{subdocumentos=**} {
-          allow read, write: if lojaAutorizada(lojaId) && colecao != 'commerce_private';
+          allow read, write: if lojaAutorizada(lojaId) && colecao != 'commerce_private'
+          && !(colecao in ['commerce_pedidos', 'commerce_quotas']);
         }
       }
     }
