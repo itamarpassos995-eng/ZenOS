@@ -36,7 +36,9 @@ export function protegerAmbienteMidiaCommerce({
   }
   // Bucket novo, exclusivo e explicitamente nomeado para homologação;
   // o nome não é prova de que o recurso exista, nem de sua propriedade/IAM.
-  if (!bucket.startsWith(`zenos-commerce-hml-${projectId}`)) {
+  const bucketFirebaseHomologacao = projectId === 'zenos-commerce-homologacao'
+    && bucket === 'zenos-commerce-homologacao.firebasestorage.app';
+  if (!bucketFirebaseHomologacao && !bucket.startsWith(`zenos-commerce-hml-${projectId}`)) {
     throw new Error('COMMERCE_HML_BUCKET_DEVE_SER_EXCLUSIVO');
   }
   return { bucket, modo: 'nuvem-homologacao' };

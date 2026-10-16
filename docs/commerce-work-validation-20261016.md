@@ -50,9 +50,16 @@ firebase emulators:exec --project demo-zenos-local --config firebase.commerce.ho
 
 ## Pendências reais
 1. Autenticação Google concluída na conta administrativa correta. Projeto separado criado: zenos-commerce-homologacao, nome ZenOS Commerce Homologacao, plano Spark, interface confirma Sem custos (US$ 0/mês). Gemini e Analytics opcionais desativados na criação. Login do CLI continua independente, ainda não concluído.
-2. Storage da homologação mostra literalmente: “Para usar Storage, faça upgrade do plano de preços do seu projeto”. Nenhuma vinculação de faturamento, bucket, IAM ou orçamento foi criada. O proprietário proibiu ativar cobranças; portanto o upgrade não foi executado. Console verificado: https://console.firebase.google.com/u/1/project/zenos-commerce-homologacao/storage . Produção não alterada.
+2. Proprietário autorizou habilitar faturamento SOMENTE na homologação. Plano Blaze confirmado no console após confirmação financeira pelo proprietário. Selecionada conta existente “faturamento zenos”, com orçamento de alerta de R$ 20 configurado no fluxo; o alerta NÃO é teto de gasto e sua criação independente no Cloud Billing ainda precisa de verificação. Bucket criado: zenos-commerce-homologacao.firebasestorage.app, localização US-EAST1, classe Standard. Regras publicadas allow read, write: if false. Simulador do console negou leitura anônima e autenticada com UID fictício loja-teste. Isso não substitui auditoria IAM nem teste de upload da Function real.
 3. Login Firebase compartilhado entre operadores: as callables ainda identificam a loja, mas não comprovam autorização administrativa individual. Bloqueio de liberação; não resolvido pelo menu nem pelos testes entre lojas.
 4. IAM/signBlob e expiração efetiva de URLs exigem GCS real; não são comprovados pelo emulador.
 5. Falta teste funcional do fluxo completo de interface desktop/mobile no ambiente conectado.
 
 PR permanece draft. Sem merge, deploy de produção, checkout ou pagamentos reais.
+
+## Continuidade de infraestrutura — 16/10/2026
+O backend agora reconhece exatamente o par projeto zenos-commerce-homologacao / bucket zenos-commerce-homologacao.firebasestorage.app. Nomes parecidos e bucket de produção continuam rejeitados. 36 verificações Storage, 36 verificações P3 e 90 testes Functions aprovados após o ajuste.
+
+Bloqueio de ambiente observado: tanto Cloud Shell embutido (shell.cloud.google.com) quanto console Google Cloud (console.cloud.google.com) retornaram “Site Unavailable / Unable to access this site” neste navegador Work. Sem execução de comandos administrativos na nuvem, auditoria de IAM/signBlob ou deploy das Functions. Não é falta de autorização do proprietário. O CLI local segue sem sessão administrativa; o login de navegador não autentica automaticamente o CLI.
+
+Projeto de produção, cadastros e dados operacionais não modificados. PR continua draft. Autorização individual de operadores, quotas de upload no servidor e homologação completa da UI permanecem pendentes.

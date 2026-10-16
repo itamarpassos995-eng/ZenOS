@@ -12,6 +12,11 @@ const demo={mediaEnabled:'true',homologacao:'true',projectId:'demo-zenos-local',
 const staging={mediaEnabled:'true',homologacao:'true',projectId:'zenos-staging-2026',bucket:'zenos-commerce-hml-zenos-staging-2026'};
 eq(protegerAmbienteMidiaCommerce(demo),{bucket:demo.bucket,modo:'emulador'});
 eq(protegerAmbienteMidiaCommerce(staging),{bucket:staging.bucket,modo:'nuvem-homologacao'});
+const firebaseHml={...staging,projectId:'zenos-commerce-homologacao',bucket:'zenos-commerce-homologacao.firebasestorage.app'};
+eq(protegerAmbienteMidiaCommerce(firebaseHml),{bucket:firebaseHml.bucket,modo:'nuvem-homologacao'});
+no({...firebaseHml,projectId:'outro-projeto'},/BUCKET_DEVE_SER_EXCLUSIVO/);
+no({...firebaseHml,bucket:'zenos-commerce-homologacao.firebasestorage.app.evil'},/BUCKET_DEVE_SER_EXCLUSIVO/);
+no({...firebaseHml,bucket:'zenos-ac6b2.firebasestorage.app'},/BUCKET_NAO_AUTORIZADO/);
 no({...demo,mediaEnabled:'false'},/DESATIVADO/);
 no({...demo,mediaEnabled:undefined},/DESATIVADO/);
 no({...demo,homologacao:'false'},/DESATIVADO/);
