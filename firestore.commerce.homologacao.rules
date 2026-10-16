@@ -1,0 +1,23 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // SOMENTE EMULADOR COMMERCE. NUNCA USAR NO DEPLOY DE PRODUCAO.
+    function lojaAutorizada(lojaId) {
+      return request.auth != null && request.auth.uid == lojaId;
+    }
+    match /lojas/{lojaId} {
+      allow read, write: if lojaAutorizada(lojaId);
+      // A condicao generica EXCLUI commerce_private; regras sobrepostas
+      // sao combinadas por OR no Firestore.
+      match /{colecao}/{registro} {
+        allow read, write: if lojaAutorizada(lojaId) && colecao != 'commerce_private';
+        match /{subdocumentos=**} {
+          allow read, write: if lojaAutorizada(lojaId) && colecao != 'commerce_private';
+        }
+      }
+    }
+    match /{outros=**} {
+      allow read, write: if false;
+    }
+  }
+}
