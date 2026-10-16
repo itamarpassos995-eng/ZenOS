@@ -1111,7 +1111,7 @@ export default function App() {
 
         <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
         <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('SALDO ESPERADO:','SALDO ESPERADO:','EXPECTED BALANCE:')}</span><span>${fmt(saldoEsperadoBRL, 'BRL')}${conciliacaoFisica.confiavel ? '' : ' (REFERENCIAL)'}</span></div>
-        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('TOTAL CONTADO:''TOTAL CONTADO:','TOTAL COUNTED:')}</span><span>${fmt(valInformadoBRL, 'BRL')}</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('TOTAL CONTADO:','TOTAL CONTADO:','TOTAL COUNTED:')}</span><span>${fmt(valInformadoBRL, 'BRL')}</span></div>
         <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('DIFERENÇA:','DIFERENCIA:','DIFFERENCE:')}</span><span>${conciliacaoFisica.confiavel ? fmt(diferenca, 'BRL') : 'INDETERMINADA'}</span></div>
         <div style="text-align:center;font-weight:bold;margin-top:8px;">${descQuebra}</div>
 
