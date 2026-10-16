@@ -6,6 +6,7 @@ import { criarEventoEstoque, registrarEventosEstoque } from '../core/stockAudit'
 import { ajustarSkuPorTipoProdutoRapido, ehEncomendaUsoUnico, gerarSkuProdutoBalcao } from '../core/orderItems';
 import { classificarMargem } from '../core/profitability';
 import ZenModal from './ZenModal';
+import ZenShareButton from './ZenShareButton';
 import { liberarIdentidadeProduto, reservarIdentidadeProduto } from '../core/productRegistry';
 import { normalizarPerfilLoja, larguraCssRecibo } from '../core/storeProfile';
 import { atualizarProdutoUnico, localizarIndiceProdutoUnico, skuJaExiste } from '../core/productIdentity';
@@ -1210,6 +1211,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
                   <div style={{ textAlign: 'center', fontSize: '10px' }}>{perfilRecibo.rodapeRecibo || 'Obrigado pela preferência! Volte sempre.'}</div>
                 </div>
                 <div className="no-print" style={{ padding: '20px', backgroundColor: '#f1f5f9', display: 'flex', gap: '10px', borderTop: '1px dashed #ccc', borderBottomLeftRadius: '16px', borderBottomRightRadius: '16px', flexWrap: 'wrap' }}>
+                  <div style={{flex:'1 1 190px'}}><ZenShareButton documento={vendaConcluidaObj} perfilLoja={perfilRecibo}/></div>
                   <button onClick={executarImpressaoNativa} style={{ flex: 1, padding: '12px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '14px' }}>🖨️ {tx('Imprimir', 'Imprimir', 'Print')}</button>
                   <button onClick={limparParaNovaVenda} style={{ flex: 1, padding: '12px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '14px' }}>{tx('Novo Atendimento', 'Nueva Venta', 'New Sale')}</button>
                 </div>
