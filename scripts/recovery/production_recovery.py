@@ -54,18 +54,22 @@ class Transport:
         self.token = self.refresh()
         self.token_time = time.monotonic()
 
-    def __call__(self, service, method, resource, body=None):
-        self.count += 1
-        if self.count > 15000:
-            raise RuntimeError('Request budget exceeded')
+    def __call__(self, service, method, resource, body=None, params=None):
         if service not in ['firestore', 'firebaserules'] or not resource.startswith('projects/zenos-ac6b2/'):
             raise ValueError('Unexpected destination')
         if method not in ['GET', 'POST', 'PATCH']:
             raise ValueError('Unsupported method; deletes are forbidden')
         url = 'https://' + service + '.googleapis.com/v1/' + urllib.parse.quote(resource, safe='/():')
+        if params:
+            if method != 'GET':
+                raise ValueError('Query parameters only permitted for reads')
+            url += '?' + urllib.parse.urlencode(params)
         if self.refresh and time.monotonic() - self.token_time > 120:
             self.renew()
-        for attempt in range(2):
+        for attempt in range(3):
+            self.count += 1
+            if self.count > 15000:
+                raise RuntimeError('Request budget exceeded')
             req = urllib.request.Request(url, method=method,
                 data=encoded(body) if body is not None else None,
                 headers={'Authorization': 'Bearer ' + self.token, 'Content-Type': 'application/json'})
@@ -79,10 +83,24 @@ class Transport:
                     print('Renovando credencial para repetir somente a leitura.', flush=True)
                     self.renew()
                     continue
+                if method == 'GET' and error.code in [429,500,502,503,504] and attempt < 2:
+                    print('Repetindo somente leitura temporariamente indisponível.', flush=True)
+                    time.sleep(attempt + 1)
+                    continue
                 # Never automatically replay a write, even after HTTP 401.
                 raise RuntimeError(f'{service} {method}: HTTP {error.code}; stopped, data preserved') from None
             except (TimeoutError, urllib.error.URLError, ConnectionError):
+                if method == 'GET' and attempt < 2:
+                    print('Conexão interrompida; repetindo somente leitura.', flush=True)
+                    time.sleep(attempt + 1)
+                    continue
                 raise RuntimeError(f'{service} {method}: connection interrupted; stopped without replaying writes') from None
+
+    def version(self, resource):
+        # updateTime identifies the entire immutable server document version.
+        # The field mask avoids retransferring the near-limit V1 document.
+        doc = self('firestore', 'GET', resource, params={'mask.fieldPaths':'_syncMeta'})
+        return doc.get('updateTime') if doc else None
 
 
 class Recovery:
@@ -161,6 +179,10 @@ class Recovery:
 
     def unchanged(self):
         original = next(d for d in self.backup['documents'] if d['name'] == self.plan['sourceOperation'])
+        if hasattr(self.api, 'version'):
+            if self.api.version(original['name']) != original['updateTime']:
+                raise RuntimeError('V1 changed since certified backup; stopped without overwriting')
+            return original
         current = self.get(original['name'])
         if not current or current['updateTime'] != original['updateTime'] or current['fields'] != original['fields']:
             raise RuntimeError('V1 changed since certified backup; stopped without overwriting')
@@ -343,6 +365,9 @@ def main():
         # Compare all original documents again, without repeated collection-ID
         # enumeration. Newly staged V2 entities are separately fully compared.
         for index, document in enumerate(backup['documents']):
+            if document['name'] == recovery.plan['sourceOperation']:
+                recovery.unchanged()
+                continue
             current = recovery.get(document['name'])
             if not current or current.get('fields', {}) != document.get('fields', {}):
                 raise RuntimeError('Original inventory changed after snapshot; no activation')

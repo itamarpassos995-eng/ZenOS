@@ -102,6 +102,12 @@ class ProductionRecoveryTests(unittest.TestCase):
         self.assertEqual(self.api.docs[self.r.control]['fields']['mode'],{'stringValue':'v2'})
     def test_missing_homologation_is_refused(self):
         with self.assertRaises(ValueError):Recovery(self.b,self.api,self.tmp.name,{**self.e,'backupChecksum':'wrong'})
+    def test_version_guard_refuses_changed_metadata_without_reading_big_document(self):
+        original=next(d for d in self.b['documents'] if d['name']==self.r.plan['sourceOperation'])
+        self.api.version=lambda resource: original['updateTime']
+        self.assertEqual(self.r.unchanged(),original)
+        self.api.version=lambda resource:'different-version'
+        with self.assertRaisesRegex(RuntimeError,'V1 changed'):self.r.unchanged()
     def test_pilot_rules_never_accept_unreviewed_baseline(self):
         with self.assertRaises(ValueError):generate(BASELINE.replace('!=','=='),'central')
         with self.assertRaises(ValueError):generate(BASELINE,"bad'id")

@@ -8,6 +8,20 @@ RESOURCE='projects/zenos-ac6b2/databases/(default)/documents/lojas/test/dados/op
 
 
 class TransportRefreshTests(unittest.TestCase):
+    def test_small_version_read_requests_mask_and_retains_server_update_time(self):
+        api=Transport('test')
+        with patch('production_recovery.urllib.request.urlopen',return_value=io.BytesIO(b'{"updateTime":"version-1","fields":{}}')) as opened:
+            self.assertEqual(api.version(RESOURCE),'version-1')
+        self.assertTrue(opened.call_args.args[0].full_url.endswith('?mask.fieldPaths=_syncMeta'))
+    def test_connection_failure_retries_only_get(self):
+        api=Transport('test')
+        with patch('production_recovery.time.sleep'),patch('production_recovery.urllib.request.urlopen',side_effect=[TimeoutError(),io.BytesIO(b'{}')]) as opened:
+            self.assertEqual(api('firestore','GET',RESOURCE),{})
+        self.assertEqual(opened.call_count,2)
+        with patch('production_recovery.urllib.request.urlopen',side_effect=TimeoutError()) as opened:
+            with self.assertRaisesRegex(RuntimeError,'without replaying writes'):
+                api('firestore','POST','projects/zenos-ac6b2/databases/(default)/documents:commit',{'writes':[]})
+        self.assertEqual(opened.call_count,1)
     def test_expired_read_renews_once_and_repeats_identical_resource(self):
         refresh=Mock(return_value='new-test-credential')
         api=Transport('old-test-credential',refresh=refresh)
