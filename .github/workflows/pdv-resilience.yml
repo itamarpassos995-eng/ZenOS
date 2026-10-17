@@ -23,5 +23,7 @@ jobs:
       - run: npm ci
       - name: Testar recuperacao do carrinho e protecao V2
         run: node scripts/pdv-rascunho-check.mjs
+      - name: Suite de regressao da interface
+        run: npm run test:recovery:ui
       - name: Compilar aplicativo
         run: npm run build
