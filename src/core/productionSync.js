@@ -145,6 +145,20 @@ const assertBusinessGuards = (data, guards = []) => {
       if (!entity || !syncValuesEqual(entity, guard.expected)) {
         failGuard(guard.message || `O registro ${guard.entityId} foi alterado em outro terminal. Atualize a tela antes de continuar.`, 'ZENOS_ENTITY_CHANGED_REMOTE');
       }
+    } else if (guard.type === 'client_receipt_snapshot') {
+      // Recebimento financeiro: comparar apenas os campos que identificam a conta
+      // e o saldo, não o objeto completo (normalização de campos legados é inofensiva).
+      const candidatos=(Array.isArray(data?.clientes)?data.clientes:[])
+        .filter(cliente=>String(cliente?.id)===String(guard.clientId));
+      const cliente=candidatos.length===1?candidatos[0]:null;
+      const saldoRemoto=Number(cliente?.saldoDevedorBRL);
+      const saldoEsperado=Number(guard.balanceBRL);
+      const mesmoNome=String(cliente?.nome??'').trim()===String(guard.clientName??'').trim();
+      if(!cliente||!mesmoNome||!Number.isFinite(saldoRemoto)||!Number.isFinite(saldoEsperado)
+        ||saldoRemoto<0||saldoEsperado<0
+        ||Math.round(saldoRemoto*100)!==Math.round(saldoEsperado*100)){
+        failGuard('O cadastro ou saldo do cliente mudou, ou há identidade duplicada. Nenhum recebimento foi registrado. Atualize a conta e confira o extrato.', 'ZENOS_CLIENT_RECEIPT_CONFLICT');
+      }
     } else if (guard.type === 'numeric_at_least') {
       const entity = findEntity(data?.[guard.field], guard.entityId, guard.entityKey);
       const actual = Number(entity?.[guard.property] || 0);

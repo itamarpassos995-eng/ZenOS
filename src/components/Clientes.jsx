@@ -124,6 +124,25 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
 
   const confirmarRecebimentoFiado = async () => {
     if (recebimentoEmAndamentoRef.current) return;
+    // O cliente do modal pode ter mudado desde a abertura. Conferir uma única
+    // identidade atual antes de registrar qualquer baixa de saldo ou caixa.
+    const vinculados = (clientes || []).filter(c => clienteReceberFiado?.id != null
+      && String(c?.id) === String(clienteReceberFiado.id));
+    const clienteAtual = vinculados.length===1 ? vinculados[0] : null;
+    if (!clienteAtual || String(clienteAtual.nome || '').trim()!==String(clienteReceberFiado?.nome || '').trim()
+      || Math.round(Number(clienteAtual.saldoDevedorBRL || 0)*100)!==Math.round(Number(clienteReceberFiado?.saldoDevedorBRL || 0)*100)) {
+      return setModalZen({variante:'warning',titulo:'Conta atualizada',
+        mensagem:'O cadastro ou saldo desta conta mudou. Feche o recebimento, confira o extrato atualizado e abra novamente. Nenhum valor foi recebido.',
+        apenasConfirmar:true});
+    }
+    const nomesDivergentes=lancamentosDoCliente(livroFinanceiro,clienteAtual.id)
+      .filter(l=>l.tipo==='venda_fiada' && Date.parse(l.createdAt||'')>=Date.parse('2026-10-16T00:00:00Z') && l.clienteNome
+        && String(l.clienteNome).trim()!==String(clienteAtual.nome).trim());
+    if(nomesDivergentes.length) {
+      return setModalZen({variante:'danger',titulo:'Conta com vínculo divergente',
+        mensagem:'Há uma venda fiada neste extrato em nome de outro cliente. Para não baixar a conta errada, o recebimento foi bloqueado até conferência dos lançamentos. Nenhum valor foi alterado.',
+        detalhes:nomesDivergentes.slice(0,3).map(l=>`Venda ${l.referenciaId || 'sem referência'}: ${l.clienteNome}`),apenasConfirmar:true});
+    }
     const formaCfg = catalogoFormas.find(f => f.id === formaAmortizacaoSel) || catalogoFormas[0];
     const leitura = interpretarValorMonetario(valorAmortizacaoInput, formaCfg.moedaOrigem);
     if (!leitura.ok) return setModalZen({ variante:'warning', titulo:'Valor monetário inválido', mensagem:leitura.erro, apenasConfirmar:true });
@@ -193,7 +212,7 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
         const confirmado = await commitOperacaoNegocio({
           changes, financialEntries:[financeiro],
           guards: [
-            { type:'entity_unchanged', field:'clientes', entityId:clienteReceberFiado.id, entityKey:'id', expected:clienteReceberFiado },
+            { type:'client_receipt_snapshot', clientId:clienteAtual.id, clientName:clienteAtual.nome, balanceBRL:saldoAntes },
             ...(dinheiroFisico ? [{ type:'cash_session_open', sessionId:sessaoAtiva.id }] : []),
           ],
           operationKey: 'recebimento-fiado:' + recebimentoId,
