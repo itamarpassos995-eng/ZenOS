@@ -42,13 +42,13 @@ export function auditarVinculosFiado({clientes=[],historicoVendas=[],livroFinanc
     else if(!encontrados.length)problemas.push('ID da venda não encontrado em Clientes');
     else if(encontrados.length!==1)problemas.push('ID da venda duplicado em Clientes');
     if(atual&&nome(venda.clienteNome)!==nome(atual.nome))
-      problemas.push('Nome da venda diferente do cadastro atual (pode ter sido renomeado)');
+      problemas.push('Nome histórico da venda diferente do nome atual (informativo; ID é a referência)');
     if(lancamentos.length===0)problemas.push('Lançamento do fiado ausente no Livro Financeiro');
     if(lancamentos.length>1)problemas.push('Mais de um lançamento fiado para a mesma venda');
     if(l){
       if(id(l.clienteId)!==ident)problemas.push('ID do lançamento financeiro diferente do ID da venda');
       if(nome(l.clienteNome)!==nome(venda.clienteNome))
-        problemas.push('Nome no lançamento financeiro diferente do nome na venda');
+        problemas.push('Nome histórico no financeiro diferente do comprovante (conferir; não altera IDs)');
       if(cents(l.valor)!==valor)problemas.push('Valor do lançamento financeiro difere da parcela fiada');
     }
     if(problemas.length)saida.push({
@@ -60,4 +60,40 @@ export function auditarVinculosFiado({clientes=[],historicoVendas=[],livroFinanc
     });
   }
   return saida.sort((a,b)=>String(b.vendaId).localeCompare(String(a.vendaId)));
+}
+
+/**
+ * Bloqueio excepcional de recebimento por prova de conflito de IDs, e NÃO
+ * por nomes legados, que continuam válidos após renomeação de um cliente.
+ * A lista é diagnóstica: não realiza operação financeira.
+ */
+export function encontrarConflitosIdsRecebimento({
+  clienteId, historicoVendas=[], livroFinanceiro=[],
+}={}){
+  const key=id(clienteId);
+  if(!key||!Array.isArray(historicoVendas)||!Array.isArray(livroFinanceiro))return [];
+  const vendasPorId=new Map();
+  for(const v of historicoVendas){
+    const k=id(v?.id);
+    if(!k)continue;
+    if(!vendasPorId.has(k))vendasPorId.set(k,[]);
+    vendasPorId.get(k).push(v);
+  }
+  const conflitos=[];
+  for(const lanc of livroFinanceiro){
+    if(lanc?.tipo!=='venda_fiada'||id(lanc.clienteId)!==key
+      ||!(Date.parse(lanc.createdAt||'')>=INICIO_INCIDENTE))continue;
+    const encontrados=vendasPorId.get(id(lanc.referenciaId))||[];
+    // Histórico anterior ao extrato ou venda removida requer investigação,
+    // mas não implica automaticamente um segundo titular.
+    if(encontrados.length!==1)continue;
+    const sale=encontrados[0],saleId=id(sale.clienteId);
+    if(saleId && saleId!==key){
+      conflitos.push({
+        vendaId:id(sale.id),clienteIdVenda:saleId,
+        clienteIdFinanceiro:key,
+      });
+    }
+  }
+  return conflitos;
 }
