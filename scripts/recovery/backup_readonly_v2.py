@@ -5,6 +5,7 @@ Uses the current gcloud identity; never prints tokens or document contents.
 No Firestore write endpoint exists in this program. No third-party packages.
 """
 import argparse
+from contextlib import contextmanager
 import datetime as dt
 import hashlib
 import http.client
@@ -12,7 +13,9 @@ import json
 import os
 from pathlib import Path
 import re
+import signal
 import subprocess
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -26,6 +29,29 @@ def encoded(value):
 
 def digest(value):
     return hashlib.sha256(encoded(value)).hexdigest()
+
+
+@contextmanager
+def read_deadline(seconds=45):
+    # Socket timeouts alone do not bound a response that trickles bytes or DNS.
+    # Cloud Shell runs Unix on the main thread: bound the whole read attempt.
+    enabled = hasattr(signal, 'setitimer') and threading.current_thread() is threading.main_thread()
+    if not enabled:
+        yield
+        return
+    def expired(signum, frame):
+        raise TimeoutError('Firestore read deadline exceeded')
+    previous = signal.getsignal(signal.SIGALRM)
+    previous_timer = signal.getitimer(signal.ITIMER_REAL)
+    if previous_timer[0] != 0:
+        raise RuntimeError('An existing deadline must not be replaced')
+    signal.signal(signal.SIGALRM, expired)
+    signal.setitimer(signal.ITIMER_REAL, seconds)
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous)
 
 
 class ReadOnlyAPI:
@@ -52,7 +78,7 @@ class ReadOnlyAPI:
                 raise RuntimeError("Read/time budget exceeded; backup not certified")
             self.progress(f"Leitura {self.requests} — tentativa {attempt + 1}/3")
             try:
-                with urllib.request.urlopen(request, timeout=90) as response:
+                with read_deadline(), urllib.request.urlopen(request, timeout=30) as response:
                     raw = response.read(32 * 1024 * 1024 + 1)
                     if len(raw) > 32 * 1024 * 1024:
                         raise RuntimeError("Response byte budget exceeded; backup not certified")
