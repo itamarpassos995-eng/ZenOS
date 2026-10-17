@@ -1,10 +1,11 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { normalizarCliente } from '../data';
 import ZenModal from './ZenModal';
 import { formaEhDinheiro, lancamentosDoCliente } from '../core/financialLedger';
 import { interpretarValorMonetario } from '../core/cashMoneyInput';
+import { auditarVinculosFiado } from '../core/clientCreditLinkAudit';
 
-export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, setClientes, moeda, fmt, t, tx = (pt) => pt, converterDeBRL, converterParaBRL }) {
+export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, historicoVendas = [], setClientes, moeda, fmt, t, tx = (pt) => pt, converterDeBRL, converterParaBRL }) {
   const [filtroPaisCliente, setFiltroPaisCliente] = useState('todos');
   const [buscaClienteTexto, setBuscaClienteTexto] = useState('');
   
@@ -36,6 +37,10 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
   const inputValorAmortizacaoRef = useRef(null);
 
   const totalEmFiadoAbertoBRL = clientes.reduce((acc, c) => acc + (c.saldoDevedorBRL || 0), 0);
+  // Apenas leitura: nenhum ajuste de saldo, histórico ou identificação.
+  const inconsistenciasVinculoFiado = useMemo(() => auditarVinculosFiado({
+    clientes,historicoVendas,livroFinanceiro,
+  }),[clientes,historicoVendas,livroFinanceiro]);
 
   const clientesListaFiltrada = clientes.filter(c => {
     if (!c) return false;
@@ -274,6 +279,27 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
         </div>
       </div>
 
+      {inconsistenciasVinculoFiado.length > 0 && (
+        <details style={{border:'1px solid #f59e0b',background:'#1f160a',borderRadius:12,padding:14}}>
+          <summary style={{color:'#fde68a',fontSize:13,fontWeight:900,cursor:'pointer'}}>
+            ⚠ Conferência de vínculos do fiado: {inconsistenciasVinculoFiado.length} venda(s) com dados divergentes — somente leitura
+          </summary>
+          <div style={{marginTop:8,fontSize:12,color:'#e2e8f0'}}>
+            Esta conferência não movimenta valores. Diferença de nome pode representar renomeação legítima; confirme os IDs antes de corrigir qualquer conta.
+          </div>
+          {inconsistenciasVinculoFiado.slice(0,8).map(item => (
+            <div key={item.vendaId} style={{borderTop:'1px solid #6b4e1d',padding:'10px 0',marginTop:8,color:'#fff',fontSize:12,overflowWrap:'anywhere'}}>
+              <div><strong>Venda:</strong> {item.vendaId} · <strong>Fiado:</strong> {fmt(item.valorFiadoBRL,'BRL')}</div>
+              <div><strong>Nome na venda:</strong> {item.vendaNome} · <strong>Cliente vinculado atualmente:</strong> {item.clienteAtualNome}</div>
+              <div><strong>ID da venda:</strong> {item.clienteIdVenda || 'Ausente'} · <strong>ID no Livro Financeiro:</strong> {item.clienteIdFinanceiro}</div>
+              <div><strong>Nome no Livro Financeiro:</strong> {item.clienteNomeFinanceiro}</div>
+              <div style={{color:'#fbbf24'}}>{item.problemas.join(' • ')}</div>
+            </div>
+          ))}
+          {inconsistenciasVinculoFiado.length > 8 &&
+            <div style={{color:'#fbbf24',fontSize:11}}>Exibindo as 8 primeiras divergências. Nenhuma correção automática foi realizada.</div>}
+        </details>
+      )}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0b1120', padding: '16px 20px', borderRadius: '16px', border: '1px solid #1e293b', gap: '16px' }}>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           {[{ id: 'todos', r: t('todosClientes') }, { id: 'com_divida', r: `⚠️ ${t('comDivida')}` }].map(f => (
