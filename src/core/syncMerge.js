@@ -1,11 +1,14 @@
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 
 export const cloneSyncValue = (value) => {
-  if (value === undefined) return undefined;
-  if (typeof structuredClone === 'function') {
-    try { return structuredClone(value); } catch (_) {}
-  }
-  try { return JSON.parse(JSON.stringify(value)); } catch (_) { return value; }
+  if (value === null || typeof value !== 'object') return value;
+  if (value instanceof Date) return new Date(value.getTime());
+  if (Array.isArray(value)) return value.map(cloneSyncValue);
+  // Firestore Timestamp/GeoPoint/Bytes/DocumentReference are immutable SDK
+  // values. structuredClone destroys their prototypes and changes saved types.
+  const proto = Object.getPrototypeOf(value);
+  if (proto !== Object.prototype && proto !== null) return value;
+  return Object.fromEntries(Object.entries(value).map(([key,item]) => [key,cloneSyncValue(item)]));
 };
 
 export const syncValuesEqual = (a, b) => {

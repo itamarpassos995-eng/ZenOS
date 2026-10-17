@@ -1,3 +1,5 @@
+import {getOperationalSnapshot,peekV2Session} from './operationalRepository.js';
+import {getDocFromServer} from 'firebase/firestore';
 import { collection, doc, getDoc, getDocs, limit, query, serverTimestamp, setDoc, writeBatch } from 'firebase/firestore';
 import { BACKUP_VERSION, montarBackup, validarBackup } from './backupCore.js';
 import { chaveAuditoriaProduto } from './productIdentity.js';
@@ -34,9 +36,10 @@ async function lerAuditoriaEstoque({ db, userId, produtos = [] }) {
 
 export async function coletarBackupLoja({ db, userId, operadorNome = 'Administrador' }) {
   if (!db || !userId) throw new Error('Loja não identificada para backup.');
+  const initialOperation=await getOperationalSnapshot(db,userId);
   const [rootSnap, operacaoSnap, configSnap, mesasSnap, financeiroLivro, produtoIndices] = await Promise.all([
     getDoc(doc(db, 'lojas', String(userId))),
-    getDoc(doc(db, 'lojas', String(userId), 'dados', 'operacao')),
+    Promise.resolve(initialOperation),
     getDoc(doc(db, 'lojas', String(userId), 'dados', 'configuracoes')),
     getDoc(doc(db, 'lojas', String(userId), 'dados', 'mesas')),
     lerColecao(collection(db, 'lojas', String(userId), 'financeiro_livro')),
@@ -44,11 +47,24 @@ export async function coletarBackupLoja({ db, userId, operadorNome = 'Administra
   ]);
   const operacao = operacaoSnap.exists() ? operacaoSnap.data() : {};
   const estoqueAuditoria = await lerAuditoriaEstoque({ db, userId, produtos: operacao.produtos || [] });
+  const session=peekV2Session(db,userId);
+  let v2Recovery;
+  if(session){
+    const sequence=operacao._syncMeta?.v2Sequence,documents=[];
+    const head=await getDocFromServer(doc(db,...session.root));
+    const collections=new Set(['legacy_fields','operations',...Object.values(head.data().fieldManifest).filter(v=>v.kind==='array').map(v=>v.collection)]);
+    const savedReads=session.reads;session.reads=0;
+    try{for(const kind of collections)await session.paged([...session.root,kind],snap=>documents.push({collection:kind,id:snap.id,value:snap.data()}));}
+    finally{session.reads=savedReads;}
+    const after=await getDocFromServer(doc(db,...session.root));
+    if(head.data().sequence!==sequence||after.data().sequence!==sequence)throw new Error('Dados mudaram durante o backup. Faça uma nova coleta consistente.');
+    v2Recovery={control:session.control,head:head.data(),documents,sequence};
+  }
   return montarBackup({
     lojaId: userId,
     createdBy: operadorNome,
     zenosVersion: '1.0.0-ATT09',
-    schemaVersion: 1,
+    schemaVersion: session ? 2 : 1,
     dados: {
       rootLoja: rootSnap.exists() ? rootSnap.data() : {},
       operacao,
@@ -57,6 +73,7 @@ export async function coletarBackupLoja({ db, userId, operadorNome = 'Administra
       financeiroLivro,
       produtoIndices,
       estoqueAuditoria,
+      ...(v2Recovery?{v2Recovery}:{}),
     },
   });
 }
@@ -90,6 +107,9 @@ async function destinoHomologacaoEstaVazio({ db, userId }) {
 
 export async function restaurarBackupSomenteHomologacao({ db, userId, backup }) {
   if (!ZENOS_RUNTIME.isHomologacao) throw new Error('Restauração de backup é bloqueada fora da homologação.');
+  if(backup?.data?.v2Recovery||peekV2Session(db,userId))throw new Error('Restauração V2 exige cópia verificada em geração nova; nunca restaure sobre V1.');
+  const control=await getDocFromServer(doc(db,'lojas',String(userId),'dados','storage_control'));
+  if(control.exists()&&!['legacy','shadow'].includes(control.data().mode))throw new Error('Destino V2 não pode receber restauração V1.');
   const validacao = await validarBackup(backup);
   if (!validacao.ok) throw new Error(validacao.erros.join(' '));
   if (!await destinoHomologacaoEstaVazio({ db, userId })) throw new Error('A restauração só é permitida em uma loja de homologação vazia.');

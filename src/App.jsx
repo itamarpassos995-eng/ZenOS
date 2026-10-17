@@ -1,3 +1,4 @@
+import {getOperationalSnapshot,subscribeOperationalSnapshot,clearOperationalSession} from './core/operationalRepository.js';
 import TerminalLogin from './components/TerminalLogin';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { traducoes, moedasConfig, normalizarProduto, normalizarCliente, produtosIniciais, clientesIniciais } from './data';
@@ -388,9 +389,12 @@ export default function App() {
     }
   };
 
+  const authRouteUidRef = useRef(null);
   // 🔒 ATUALIZADO: MOTOR CLOUD-FIRST (A nuvem é a fonte absoluta da verdade)
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (authRouteUidRef.current) clearOperationalSession(db, authRouteUidRef.current);
+      authRouteUidRef.current = user?.uid || null;
       syncCamposRef.current.clear();
       syncBaseRef.current.clear();
       syncRevisionRef.current.clear();
@@ -429,7 +433,7 @@ export default function App() {
             setPlanoLoja('basico');
           }
 
-          const dadosLojaSnap = await getDoc(doc(db, "lojas", user.uid, "dados", "operacao"));
+          const dadosLojaSnap = await getOperationalSnapshot(db, user.uid);
           const adminPadrao = [{ id: 'admin', nome: 'Administrador (Gerência)', patente: 'gerencia', senha: 'admin', pinTrocaObrigatoria: true, percentual: 0, comissaoTipo: 'lucro', permissoes: { admin: true } }];
           if (dadosLojaSnap.exists()) {
             // SE A LOJA TEM DADOS NA NUVEM, PUXA TUDO DAQUI SEM REGRAVAR NO LOGIN.
@@ -552,10 +556,9 @@ export default function App() {
   // ATT 10.2: realtime somente aplica dados remotos; NUNCA ecoa snapshot de volta para a nuvem.
   useEffect(() => {
     if (!userId) return;
-    const refOperacao = doc(db, 'lojas', userId, 'dados', 'operacao');
     const refConfig = doc(db, 'lojas', userId, 'dados', 'configuracoes');
 
-    const unsubOperacao = onSnapshot(refOperacao, (snap) => {
+    const unsubOperacao = subscribeOperationalSnapshot(db, userId, (snap) => {
       if (!snap.exists() || snap.metadata?.fromCache || snap.metadata?.hasPendingWrites) return;
       recordSyncMetric('snapshotReads', 'operacao');
       const d = snap.data() || {};
@@ -593,6 +596,7 @@ export default function App() {
       // Snapshot passivo não muda status para SALVANDO/SINCRONIZADO: o indicador reflete somente writes locais.
     }, err => {
       console.error('[ZenOS][Realtime] operação:', err);
+      setNuvemSincronizada(false);
       notifyPersistenceStatus({status:'ERRO',field: 'operacao_realtime',error:err?.message || 'Falha na sincronização operacional.'});
     });
 
@@ -653,6 +657,7 @@ export default function App() {
       confirmarTexto:tx('Encerrar sessão', 'Cerrar sesión', 'End session')
     });
     if (!confirmou) return;
+    clearOperationalSession(db, userId);
     await signOut(auth);
     // LIMPEZA ABSOLUTA DE MEMÓRIA NO LOGOUT
     setNuvemSincronizada(false);

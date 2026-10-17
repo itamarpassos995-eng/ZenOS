@@ -36,7 +36,8 @@
     "test:fiscal2": "node scripts/fiscal-phase2-check.mjs",
     "test:fiscal-boot": "node scripts/fiscal-boot-check.mjs",
     "test:i18n": "node scripts/i18n-coverage-check.mjs",
-    "emulators:fiscal": "npx --yes firebase-tools@15.30.2 emulators:start --only auth,firestore,functions --project demo-zenos-local"
+    "emulators:fiscal": "npx --yes firebase-tools@15.30.2 emulators:start --only auth,firestore,functions --project demo-zenos-local",
+    "test:recovery:ui": "vitest run --config vitest.recovery.config.js"
   },
   "dependencies": {
     "firebase": "^12.19.0",
@@ -44,12 +45,16 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@testing-library/react": "^16.1.0",
+    "@testing-library/user-event": "^14.6.1",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.19",
+    "jsdom": "^26.1.0",
     "postcss": "^8.4.38",
     "tailwindcss": "^3.4.4",
-    "vite": "^5.3.1"
+    "vite": "^5.3.1",
+    "vitest": "^2.1.9"
   }
 }

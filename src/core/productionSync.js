@@ -1,4 +1,6 @@
+import {exchangeRateSnapshotsEqual} from './exchangeRateGuard.js';
 import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { peekV2Session } from './operationalRepository.js';
 import { zenosStorage } from './storage.js';
 import { getV1OperationPath, notifyPersistenceStatus, safeSetLocalJson } from './persistenceSafety.js';
 import { cloneSyncValue, mergeV1FieldThreeWay, syncValuesEqual } from './syncMerge.js';
@@ -295,6 +297,7 @@ const persistConfirmedLocalCache = (changes, values) => {
  * quota/rede indisponível. Este caminho é usado para alterações reativas simples.
  */
 export const persistV1OperationFieldsSafe = async ({ db, userId, changes = [] }) => {
+  if (peekV2Session(db, userId)) return (await import('./operationalV2.js')).persistV2BusinessOperationSafe({ db, userId, changes, budgetField:'operacao_batch' });
   const valid = (changes || []).filter(c => c?.field);
   if (!db || !userId || valid.length === 0) {
     const error = new Error('Persistência V1 segura chamada sem db, userId ou alterações.');
@@ -327,6 +330,7 @@ export const persistV1OperationFieldsSafe = async ({ db, userId, changes = [] })
   try {
     const persisted = await runTransaction(db, async (tx) => {
       const ref = doc(db, ...getV1OperationPath(userId));
+      await assertLegacyRoute(tx, db, userId);
       const snap = await tx.get(ref);
       const data = snap.exists() ? (snap.data() || {}) : {};
       const payload = {};
@@ -394,6 +398,7 @@ export const persistV1BusinessOperationSafe = async ({
   guards = [],
   operationKey = null,
 }) => {
+  if (peekV2Session(db, userId)) return (await import('./operationalV2.js')).persistV2BusinessOperationSafe({db,userId,changes,financialEntries,stockEvents,guards,operationKey});
   const valid = (changes || []).filter(c => c?.field);
   const financialWriteCount = (financialEntries || []).filter(x => Number(x?.valor) > 0).length;
   const stockWriteCount = (stockEvents || []).filter(x => x?.id && x?.produtoId != null).length;
@@ -423,6 +428,7 @@ export const persistV1BusinessOperationSafe = async ({
   try {
     const result = await runTransaction(db, async tx => {
       const operationRef = doc(db, ...getV1OperationPath(userId));
+      await assertLegacyRoute(tx, db, userId);
       const snap = await tx.get(operationRef);
       const data = snap.exists() ? (snap.data() || {}) : {};
       // A cotação também pertence ao snapshot de fechamento: a transação
@@ -431,7 +437,7 @@ export const persistV1BusinessOperationSafe = async ({
       if (fechamentoCambio) {
         const configSnap = await tx.get(doc(db, 'lojas', String(userId), 'dados', 'configuracoes'));
         const taxasRemotas = configSnap.exists() ? configSnap.data()?.taxasCambio : null;
-        if (taxasRemotas && !syncValuesEqual(taxasRemotas, fechamentoCambio.taxas)) {
+        if (taxasRemotas && !exchangeRateSnapshotsEqual(taxasRemotas, fechamentoCambio.taxas)) {
           failGuard('A cotação mudou em outro terminal. Confira o câmbio e refaça o fechamento.', 'ZENOS_CASH_FX_CHANGED');
         }
       }
@@ -526,3 +532,14 @@ export const persistV1BusinessOperationSafe = async ({
     return { ok:false, cloudOk:false, error, values:{}, revisions:{} };
   }
 };
+
+// Shared, approved business checks. V2 changes storage, not financial behavior.
+export const businessOperationChecks = {assertBusinessGuards,assertStockEventsAgainstRemote,
+  assertMergedFieldInvariants,applyGuardedEntityRemovals,consumeWriteBudget,persistConfirmedLocalCache,
+  recordQuotaFailure:(error,field)=>{if(quotaError(error)){quotaBlockedUntil=Date.now()+QUOTA_COOLDOWN_MS;recordSyncMetric('quotaErrors',field);}}};
+async function assertLegacyRoute(tx,db,userId){
+  const control=await tx.get(doc(db,'lojas',String(userId),'dados','storage_control'));
+  if(control.exists()&&!['legacy','shadow'].includes(control.data().mode)){
+    throw Object.assign(new Error('Armazenamento mudou. Recarregue o sistema antes de operar.'),{code:'ZENOS_STORAGE_ROUTE_CHANGED'});
+  }
+}

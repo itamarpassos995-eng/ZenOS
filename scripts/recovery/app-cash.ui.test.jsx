@@ -1,0 +1,47 @@
+import React from 'react';
+import {beforeAll,afterAll,test,expect,vi} from 'vitest';
+import {render,screen,fireEvent,waitFor,cleanup,configure} from '@testing-library/react';
+import {webcrypto} from 'node:crypto';
+import {getAuth} from 'firebase/auth';
+import {doc,getDoc} from 'firebase/firestore';
+import {createRealFixture} from './real_fixture.mjs';
+import {criarCredencialPin} from '../../src/core/operatorPin.js';
+import {persistV1BusinessOperationSafe} from '../../src/core/productionSync.js';
+import {calcularResumoSessao} from '../../src/core/cashSession.js';
+import {getOperationalSnapshot} from '../../src/core/operationalRepository.js';
+const holder=vi.hoisted(()=>({value:null}));
+vi.mock('../../src/firebase',()=>({get db(){return holder.value?.db;},get auth(){return holder.value?getAuth(holder.value.db.app):null;},ZENOS_RUNTIME:{isHomologacao:true,isProduction:false,environment:'HOMOLOGACAO'}}));
+import App from '../../src/App.jsx';
+Object.defineProperty(globalThis,'crypto',{value:webcrypto,configurable:true});
+window.matchMedia=()=>({matches:false,addEventListener(){},removeEventListener(){},addListener(){},removeListener(){}});
+window.scrollTo=()=>{};window.open=()=>null;
+configure({getElementError:message=>new Error(message)});
+let cash;
+beforeAll(async()=>{
+ const f=await createRealFixture();holder.value=f;cash=f.operation.sessoesCaixa.find(s=>s.status==='aberta');
+ const cred=await criarCredencialPin('4827');const base=f.operation.vendedores;
+ const vendor=base.find(v=>v.id===cash.operadorId);expect(vendor).toBeTruthy();
+ const result=await persistV1BusinessOperationSafe({db:f.db,userId:f.userId,operationKey:'ui-test-operator-only',changes:[{field:'vendedores',baseValue:base,value:base.map(v=>v.id===cash.operadorId?{...v,...cred,nome:'Gerencia de homologacao',patente:'gerencia',permissoes:{admin:true}}:v)}]});
+ expect(result.cloudOk,result.error?.message).toBe(true);
+});
+afterAll(async()=>{cleanup();await holder.value?.close();});
+test('App real: bootstrap V2, login do operador e fechamento da sessao aberta com V1 preservada',async()=>{
+ const f=holder.value,before=(await getDoc(doc(f.db,'lojas',f.userId,'dados','operacao'))).data();render(<App/>);
+ const pin=await screen.findByPlaceholderText('••••',{}, {timeout:30000});
+ const select=screen.getAllByRole('combobox').find(e=>[...e.options].some(o=>o.value===cash.operadorId));
+ fireEvent.change(select,{target:{value:cash.operadorId}});fireEvent.change(pin,{target:{value:'4827'}});
+ fireEvent.click(screen.getByRole('button',{name:'Desbloquear Terminal ➔'}));
+ await screen.findByRole('button',{name:/Encerrar Turno/},{timeout:30000});
+ fireEvent.click(screen.getByRole('button',{name:/Encerrar Turno/}));
+ const headBefore=(await getDoc(doc(f.db,...f.root.split('/')))).data();expect(headBefore.sequence).toBe(1);
+ const total=calcularResumoSessao({sessao:cash,historicoVendas:f.operation.historicoVendas,caixaMovimentos:f.operation.caixaMovimentos}).saldoEsperado;
+ const counts=screen.getAllByPlaceholderText('0.00');expect(counts.length).toBe(4);
+ counts.forEach((e,i)=>fireEvent.change(e,{target:{value:i===0?Number(total).toFixed(2):'0'}}));
+ fireEvent.click(screen.getByRole('button',{name:'Concluir Contagem, Auditar e Imprimir'}));
+ await waitFor(async()=>{
+  const current=(await getDoc(doc(f.db,...f.root.split('/'),'sessoesCaixa',String(cash.id)))).data();expect(current.data.status).toBe('fechada');
+ },{timeout:10000,onTimeout:()=>new Error('Cash UI: '+document.body.textContent.slice(-1700))});
+ expect((await getDoc(doc(f.db,'lojas',f.userId,'dados','operacao'))).data()).toEqual(before);
+ expect((await getDoc(doc(f.db,...f.root.split('/')))).data().sequence).toBe(2);
+ await screen.findByText(/Caixa fechado e conciliado|Fechamento registrado/,{exact:false},{timeout:10000});
+});
