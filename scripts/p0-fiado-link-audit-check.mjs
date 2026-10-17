@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {auditarVinculosFiado} from '../src/core/clientCreditLinkAudit.js';
+import {auditarVinculosFiado,encontrarConflitosIdsRecebimento} from '../src/core/clientCreditLinkAudit.js';
 const clientes=[{id:'marcos-id',nome:'itagay',saldoDevedorBRL:945},{id:1790633161249,nome:'Constructora del Este S.A.',saldoDevedorBRL:4999.70}];
 const venda={id:'VENDA-1792235811140-08elus',tipoDocumento:'venda',estado:'concluida',
   createdAt:'2026-10-17T08:16:51Z',clienteId:1790633161249,clienteNome:'Marcos Roberto (Pinturas & Reformas)',
@@ -29,4 +29,24 @@ assert.deepEqual(prePedido,[]);
 const before=JSON.stringify({clientes,historicoVendas:[venda],livroFinanceiro:[lancamento]});
 run();
 assert.equal(JSON.stringify({clientes,historicoVendas:[venda],livroFinanceiro:[lancamento]}),before);
-console.log('PASS P0: audit only reading mismatched sale names, IDs and ledger, without modifying any data');
+// Evidência do usuário: nome antigo do comprovante ≠ nome atual do cadastro,
+// mas venda + financeiro + cadastro têm o MESMO ID. Recebimento não pode ser bloqueado.
+assert.deepEqual(encontrarConflitosIdsRecebimento({
+  clienteId:1790633161249,historicoVendas:[venda],livroFinanceiro:[{...lancamento,createdAt:venda.createdAt}]
+}),[]);
+const conflicts=encontrarConflitosIdsRecebimento({
+  clienteId:1790633161249,
+  historicoVendas:[{...venda,clienteId:'another-client-id'}],
+  livroFinanceiro:[{...lancamento,createdAt:venda.createdAt}],
+});
+assert.deepEqual(conflicts,[{
+  vendaId:venda.id,clienteIdVenda:'another-client-id',clienteIdFinanceiro:'1790633161249',
+}]);
+assert.deepEqual(encontrarConflitosIdsRecebimento({
+  clienteId:1790633161249,historicoVendas:[{...venda,clienteId:'another-client-id'}],
+  livroFinanceiro:[{...lancamento,createdAt:'2026-10-15T10:00:00Z'}]
+}),[]);
+assert.deepEqual(encontrarConflitosIdsRecebimento({
+  clienteId:1790633161249,historicoVendas:[],livroFinanceiro:[{...lancamento,createdAt:venda.createdAt}]
+}),[]);
+console.log('PASS P0: audit and ID-only receipt safety reading mismatched sale names, IDs and ledger, without modifying any data');
