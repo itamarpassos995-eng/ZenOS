@@ -5,6 +5,10 @@ const centavos = valor => {
   return Number.isFinite(n)?Math.round(n*100):null;
 };
 const mesmoId=(a,b)=>a!=null&&b!=null&&String(a)===String(b);
+const normalizarNome = nome => String(nome??'').normalize('NFD')
+  .replace(/[\u0300-\u036f]/g,'').trim().replace(/\s+/g,' ').toLowerCase();
+const correspondeNome = (a,b) => Boolean(normalizarNome(a))
+  && normalizarNome(a) === normalizarNome(b);
 const isCredit=entry=>entry?.tipo==='venda_fiada'&&entry?.formaPagamento==='crediario';
 const isDebtMutation=entry=>isCredit(entry)||entry?.tipo==='recebimento_fiado'
   ||(entry?.tipo==='devolucao'&&entry?.formaPagamento==='credito_fiado');
@@ -17,6 +21,8 @@ export function planejarReconciliacoesFiado({clientes=[],historicoVendas=[],livr
   const propostas=[];
   for(const cliente of clientes){
     if(!cliente?.id)continue;
+    // Ids duplicados ou alterados tornam insegura a atribuição do fiado.
+    if(clientes.filter(c=>mesmoId(c?.id,cliente.id)).length!==1)continue;
     const lancamentos=livroFinanceiro.filter(e=>mesmoId(e?.clienteId,cliente.id)&&isDebtMutation(e))
       .sort((a,b)=>(Date.parse(a.createdAt||0)||0)-(Date.parse(b.createdAt||0)||0));
     if(!lancamentos.length)continue;
@@ -37,6 +43,11 @@ export function planejarReconciliacoesFiado({clientes=[],historicoVendas=[],livr
       if(saldoAnteriorAuditado===null||saldoAnteriorAuditado!==saldoAntes)continue;
     }
     const venda=historicoVendas.find(v=>mesmoId(v?.id,f.referenciaId));
+    // Uma venda no nome de Marcos jamais pode aumentar a dívida da Constructora.
+    // Bloquear correção automática quando identidade exibida, ID e extrato discordam.
+    if(!correspondeNome(venda?.clienteNome,cliente.nome)
+      || !correspondeNome(f?.clienteNome,cliente.nome)
+      || !correspondeNome(venda?.clienteNome,f?.clienteNome))continue;
     if(!venda||!mesmoId(venda.clienteId,cliente.id)||venda.estado!=='concluida'
         ||venda.tipoDocumento!=='venda'||!Array.isArray(venda.pagamentos)
         ||(Array.isArray(venda.devolucoes)&&venda.devolucoes.length))continue;
