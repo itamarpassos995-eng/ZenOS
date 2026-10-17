@@ -18,7 +18,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from backup_readonly_v2 import collect, digest, encoded, ReadOnlyAPI, verify
+from backup_readonly_v2 import collect, digest, encoded, ReadOnlyAPI, verify, read_deadline
 from emulator_stage_v2 import typed
 from pilot_rules import generate
 from v2_plan import plan_v2, reconstruct_fields, integer
@@ -37,9 +37,22 @@ def inventory(backup):
             if not d['name'].endswith(suffix) and '/v2_generations/' not in d['name']}
 
 
+def google_token():
+    return subprocess.run(['gcloud', 'auth', 'print-access-token'], text=True,
+        capture_output=True, stdin=subprocess.DEVNULL, timeout=30, check=True).stdout.strip()
+
+
 class Transport:
-    def __init__(self, token):
+    def __init__(self, token, refresh=None):
         self.token, self.count = token, 0
+        self.refresh = refresh
+        self.token_time = time.monotonic()
+
+    def renew(self):
+        if not self.refresh:
+            raise RuntimeError('Credential renewal unavailable; stopped without replaying writes')
+        self.token = self.refresh()
+        self.token_time = time.monotonic()
 
     def __call__(self, service, method, resource, body=None):
         self.count += 1
@@ -50,18 +63,26 @@ class Transport:
         if method not in ['GET', 'POST', 'PATCH']:
             raise ValueError('Unsupported method; deletes are forbidden')
         url = 'https://' + service + '.googleapis.com/v1/' + urllib.parse.quote(resource, safe='/():')
-        req = urllib.request.Request(url, method=method,
-            data=encoded(body) if body is not None else None,
-            headers={'Authorization': 'Bearer ' + self.token, 'Content-Type': 'application/json'})
-        try:
-            with urllib.request.urlopen(req, timeout=90) as response:
-                return json.load(response)
-        except urllib.error.HTTPError as error:
-            if method == 'GET' and error.code == 404:
-                return None
-            # Ambiguous mutations are never retried blindly. Rerun the explicit
-            # command: create-only documents are compared and safely resumed.
-            raise RuntimeError(f'{service} {method}: HTTP {error.code}; stopped, data preserved') from None
+        if self.refresh and time.monotonic() - self.token_time > 120:
+            self.renew()
+        for attempt in range(2):
+            req = urllib.request.Request(url, method=method,
+                data=encoded(body) if body is not None else None,
+                headers={'Authorization': 'Bearer ' + self.token, 'Content-Type': 'application/json'})
+            try:
+                with read_deadline(), urllib.request.urlopen(req, timeout=30) as response:
+                    return json.load(response)
+            except urllib.error.HTTPError as error:
+                if method == 'GET' and error.code == 404:
+                    return None
+                if method == 'GET' and error.code == 401 and attempt == 0 and self.refresh:
+                    print('Renovando credencial para repetir somente a leitura.', flush=True)
+                    self.renew()
+                    continue
+                # Never automatically replay a write, even after HTTP 401.
+                raise RuntimeError(f'{service} {method}: HTTP {error.code}; stopped, data preserved') from None
+            except (TimeoutError, urllib.error.URLError, ConnectionError):
+                raise RuntimeError(f'{service} {method}: connection interrupted; stopped without replaying writes') from None
 
 
 class Recovery:
@@ -288,16 +309,16 @@ class Recovery:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['inspect', 'fence', 'stage', 'activate', 'maintenance', 'abort'])
+    parser.add_argument('action', choices=['inspect', 'fence', 'stage', 'resume', 'activate', 'maintenance', 'abort'])
     parser.add_argument('--backup', required=True, type=Path)
     parser.add_argument('--evidence', required=True, type=Path)
     parser.add_argument('--workdir', required=True, type=Path)
     parser.add_argument('--frontend-commit')
     args = parser.parse_args()
     args.workdir.mkdir(mode=0o700, parents=True, exist_ok=True)
-    token = subprocess.run(['gcloud', 'auth', 'print-access-token'], text=True, capture_output=True, timeout=30, check=True).stdout.strip()
+    token = google_token()
     backup = json.loads(args.backup.read_bytes())
-    recovery = Recovery(backup, Transport(token), args.workdir, json.loads(args.evidence.read_bytes()))
+    recovery = Recovery(backup, Transport(token, refresh=google_token), args.workdir, json.loads(args.evidence.read_bytes()))
     if args.action == 'stage':
         recovery.require_fence()
         # Fresh typed snapshot after fence, safely retained even if reconciliation fails.
@@ -312,6 +333,22 @@ def main():
         else:
             save_new(target, current)
         result = recovery.stage(current)
+    elif args.action == 'resume':
+        control = recovery.require_fence()
+        saved = json.loads((args.workdir / 'final-snapshot.json').read_bytes())
+        verify(saved)
+        snapshot_control = next((d for d in saved['documents'] if d['name'] == recovery.control), None)
+        if not snapshot_control or snapshot_control['updateTime'] != control['updateTime']:
+            raise RuntimeError('Control changed since final snapshot; full stage required')
+        # Compare all original documents again, without repeated collection-ID
+        # enumeration. Newly staged V2 entities are separately fully compared.
+        for index, document in enumerate(backup['documents']):
+            current = recovery.get(document['name'])
+            if not current or current.get('fields', {}) != document.get('fields', {}):
+                raise RuntimeError('Original inventory changed after snapshot; no activation')
+            if index % 100 == 0:
+                print(f'Originais conferidos: {index+1}/{len(backup["documents"])}', flush=True)
+        result = recovery.stage(saved)
     elif args.action == 'activate':
         result = recovery.activate(args.frontend_commit or '')
     elif args.action in ['maintenance', 'abort']:
