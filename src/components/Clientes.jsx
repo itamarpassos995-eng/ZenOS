@@ -136,7 +136,7 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
         apenasConfirmar:true});
     }
     const nomesDivergentes=lancamentosDoCliente(livroFinanceiro,clienteAtual.id)
-      .filter(l=>l.tipo==='venda_fiada' && l.clienteNome
+      .filter(l=>l.tipo==='venda_fiada' && Date.parse(l.createdAt||'')>=Date.parse('2026-10-16T00:00:00Z') && l.clienteNome
         && String(l.clienteNome).trim()!==String(clienteAtual.nome).trim());
     if(nomesDivergentes.length) {
       return setModalZen({variante:'danger',titulo:'Conta com vínculo divergente',
