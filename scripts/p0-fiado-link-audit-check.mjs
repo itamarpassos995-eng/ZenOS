@@ -11,7 +11,7 @@ const observed=run();
 assert.equal(observed.length,1);
 assert.equal(observed[0].clienteAtualNome,'Constructora del Este S.A.');
 assert.equal(observed[0].valorFiadoBRL,799.70);
-assert(observed[0].problemas.some(p=>p.includes('Nome da venda diferente')));
+assert(observed[0].problemas.some(p=>p.includes('Nome histórico da venda diferente')));
 const consistent=run([{...clientes[0],nome:venda.clienteNome}],[
   {...venda,clienteId:'marcos-id'}
 ],[{...lancamento,clienteId:'marcos-id'}]);
@@ -19,7 +19,7 @@ assert.deepEqual(consistent,[]);
 const renamed=run([{...clientes[0],nome:'itagay'}],[
   {...venda,clienteId:'marcos-id'}
 ],[{...lancamento,clienteId:'marcos-id'}]);
-assert(renamed[0].problemas.some(p=>p.includes('renomeado')));
+assert(renamed[0].problemas.some(p=>p.includes('informativo')));
 const mixed=run(clientes,[{...venda,clienteId:'marcos-id'}],[lancamento]);
 assert(mixed[0].problemas.some(p=>p.includes('ID do lançamento')));
 const missing=run(clientes,[{...venda,clienteId:'removed-id'}],[]);
