@@ -96,6 +96,15 @@ function ZenosLogo({ aoClicar, tx = (pt) => pt }) {
   );
 }
 
+// Acesso público separado do fluxo autenticado: a sessão existente continua no App.
+// Apenas visitantes sem sessão na rota principal são enviados à apresentação comercial.
+function PublicHomeRedirect() {
+  useEffect(() => {
+    window.location.replace('/home-premium-conceito-c.html');
+  }, []);
+  return <div role="status" aria-live="polite" style={{minHeight:'100vh',display:'grid',placeItems:'center',background:'#f7faf9',color:'#163a50',fontFamily:'system-ui,sans-serif'}}>Abrindo ZenOS…</div>;
+}
+
 export default function App() {
   const [usuarioAutenticado, setUsuarioAutenticado] = useState(null);
   const [userId, setUserId] = useState(null);
@@ -1365,7 +1374,11 @@ export default function App() {
     );
   }
 
-  if (!usuarioAutenticado) return <LandingPage/>;
+  if (!usuarioAutenticado) {
+    // A URL de login mantém a tela existente de usuário e senha, sem tocar na autenticação.
+    const acessoLogin = window.location.pathname === '/login' || new URLSearchParams(window.location.search).get('login') === '1';
+    return acessoLogin ? <LandingPage/> : <PublicHomeRedirect/>;
+  }
 
   if (falhaBootstrapNuvem) {
     return <div style={{minHeight:'100vh',background:'#020617',display:'flex',alignItems:'center',justifyContent:'center',padding:20,fontFamily:'system-ui,sans-serif'}}>
