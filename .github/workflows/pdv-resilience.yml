@@ -1,0 +1,27 @@
+name: PDV Resilience
+on:
+  pull_request:
+    paths:
+      - 'src/components/PDV.jsx'
+      - 'src/App.jsx'
+      - 'src/core/pdvDraft.js'
+      - 'src/core/operationalV2.js'
+      - 'scripts/pdv-rascunho-check.mjs'
+      - '.github/workflows/pdv-resilience.yml'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - name: Testar recuperacao do carrinho e protecao V2
+        run: node scripts/pdv-rascunho-check.mjs
+      - name: Compilar aplicativo
+        run: npm run build
