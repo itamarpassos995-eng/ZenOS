@@ -499,6 +499,18 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
     operacaoEmAndamentoRef.current = true;
     setProcessandoTransacao(true);
     try {
+      // P0: fiado só pode gravar para exatamente um cadastro com ID e nome coerentes.
+      // Bloquear ANTES de qualquer lançamento de estoque, venda ou financeiro.
+      if (tipoFinalizacao === 'venda' && pagamentosLancados.some(p => p.formaId === 'crediario')) {
+        const vinculados = (clientes || []).filter(c =>
+          clienteSelecionadoPDV?.id != null && String(c?.id) === String(clienteSelecionadoPDV.id));
+        if (vinculados.length !== 1
+          || String(vinculados[0]?.nome || '').trim() !== String(clienteSelecionadoPDV?.nome || '').trim()) {
+          mostrarZen('danger', 'Cliente do fiado não confirmado',
+            'O cadastro vinculado não corresponde ao cliente atual. A venda não foi gravada. Selecione novamente o cliente e tente concluir.');
+          return;
+        }
+      }
       let eventosEstoqueVenda = [];
       const lancamentosFinanceirosVenda = [];
       let valorFiadoOperacao = 0;
@@ -761,6 +773,10 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
         if (tipoFinalizacao === 'venda' && sessaoAtiva?.id) guards.push({ type:'cash_session_open', sessionId:sessaoAtiva.id });
         if (tipoFinalizacao === 'venda' && valorFiadoOperacao > 0 && clienteSelecionadoPDV?.id) {
           guards.push({ type:'client_credit_capacity', clientId:clienteSelecionadoPDV.id, amount:valorFiadoOperacao });
+          guards.push({ type:'entity_field_equals', field:'clientes',
+            entityId:clienteSelecionadoPDV.id, entityKey:'id', property:'nome',
+            expected:clienteSelecionadoPDV.nome,
+            message:'Cadastro do cliente alterado em outro terminal. Recarregue e selecione novamente antes de vender fiado.' });
         }
         if (tipoFinalizacao === 'venda') {
           const usosVoucher = new Map();
