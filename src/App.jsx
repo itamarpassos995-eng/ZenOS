@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { traducoes, moedasConfig, normalizarProduto, normalizarCliente, produtosIniciais, clientesIniciais } from './data';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { doc, collection, query, where, getDocsFromServer, getDoc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { inspectLocalSchemaVersion, PERSISTENCE_STATUS_EVENT, notifyPersistenceStatus } from './core/persistenceSafety';
 import { persistV1OperationFieldSafe, persistV1BusinessOperationSafe, recordSyncMetric } from './core/productionSync';
 import { cloneSyncValue, hasLocalSyncChange, syncValuesEqual } from './core/syncMerge';
@@ -32,6 +32,7 @@ import FiscalErrorBoundary from './components/FiscalErrorBoundary';
 import ZenModal from './components/ZenModal';
 import { normalizarPerfilLoja, lerPerfilLojaLocal, salvarPerfilLojaLocal, limparPerfilLojaLocal } from './core/storeProfile';
 import { assinarLivroFinanceiro, registrarLancamentoFinanceiro } from './core/financialLedger';
+import { planejarReconciliacoesFiado } from './core/creditReconciliation.js';
 import { calcularResumoSessao, calcularConciliacaoEletronicaSessao, timestampSessao, timestampVenda, vendasDaSessao, assinaturaFinanceiraSessao } from './core/cashSession';
 import { converterValoresFisicosParaBRL, interpretarValorMonetario } from './core/cashMoneyInput';
 import { calcularConciliacaoFisicaMultimoeda } from './core/cashReconciliation';
@@ -147,6 +148,8 @@ export default function App() {
   const [fornecedores, setFornecedores] = useState([]);
   const [vouchers, setVouchers] = useState([]);
   const [livroFinanceiro, setLivroFinanceiro] = useState([]);
+  const [livroFinanceiroConfirmado, setLivroFinanceiroConfirmado] = useState(false);
+  const reconciliacaoFiadoEmAndamentoRef = useRef(false);
   const [perfilLoja, setPerfilLoja] = useState(() => normalizarPerfilLoja({}));
   const [modalPerfilRapido, setModalPerfilRapido] = useState(false);
   const [perfilRapidoErro, setPerfilRapidoErro] = useState('');
@@ -631,14 +634,77 @@ export default function App() {
 
   // ATT 07: Livro Financeiro aditivo em documentos independentes.
   useEffect(() => {
-    if (!userId) { setLivroFinanceiro([]); return; }
+    if (!userId) { setLivroFinanceiro([]); setLivroFinanceiroConfirmado(false); return; }
+    setLivroFinanceiroConfirmado(false);
     return assinarLivroFinanceiro({
       db,
       userId,
-      onData: (itens, meta) => { setLivroFinanceiro(itens); if (!meta?.fromCache) recordSyncMetric('snapshotReads', 'financeiro_realtime'); },
+      onData: (itens, meta) => { setLivroFinanceiro(itens); if (!meta?.fromCache && !meta?.hasPendingWrites) { setLivroFinanceiroConfirmado(true); recordSyncMetric('snapshotReads', 'financeiro_realtime'); } },
       onError: (err) => { console.error('[ZenOS][ATT07][LivroFinanceiro]', err); notifyPersistenceStatus({status:'ERRO',field: 'financeiro_realtime',error:err?.message || 'Falha na sincronização do Livro Financeiro.'}); },
     });
   }, [userId]);
+
+  // Reparação conservadora: apenas um lançamento fiado isolado com evidência
+  // convergente no histórico, no Livro Financeiro e na V1/V2 atuais.
+  // Sem criação de vendas, migração, restauração, alteração de caixa ou inferência.
+  useEffect(() => {
+    if (!userId || !nuvemSincronizada || !livroFinanceiroConfirmado || reconciliacaoFiadoEmAndamentoRef.current) return;
+    const candidatos = planejarReconciliacoesFiado({clientes,historicoVendas,livroFinanceiro});
+    if (!candidatos.length) return;
+    let cancelado=false;
+    const executar=async()=>{
+      reconciliacaoFiadoEmAndamentoRef.current=true;
+      try {
+        for(const candidato of candidatos){
+          if(cancelado)break;
+          // Segunda leitura obrigatória: jamais gravar com base em tela/cache.
+          const [snapshot, lancamentosSnap] = await Promise.all([
+            getOperationalSnapshot(db,userId),
+            getDocsFromServer(query(collection(db,'lojas',String(userId),'financeiro_livro'),
+              where('clienteId','==',candidato.clienteId))),
+          ]);
+          if(!snapshot.exists())continue;
+          const financeiroRemoto=lancamentosSnap.docs.map(doc=>({id:doc.id,...doc.data()}));
+          if(!financeiroRemoto.some(l=>String(l.id)===candidato.lancamentoId))continue;
+          const remoto=snapshot.data();
+          const candidatosRemotos=planejarReconciliacoesFiado({
+            clientes:remoto.clientes,
+            historicoVendas:remoto.historicoVendas,
+            livroFinanceiro:financeiroRemoto,
+          });
+          const confirmado=candidatosRemotos.find(c=>c.lancamentoId===candidato.lancamentoId
+            && c.clienteId===candidato.clienteId && c.vendaId===candidato.vendaId
+            && c.saldoAnteriorBRL===candidato.saldoAnteriorBRL
+            && c.saldoNovoBRL===candidato.saldoNovoBRL);
+          if(!confirmado)continue;
+          // Revalidar com todas as movimentações do cliente confirmadas pelo servidor.
+          // Uma cobrança posterior nunca pode ser ignorada por cache defasado.
+          const cliente=remoto.clientes.find(c=>String(c.id)===confirmado.clienteId);
+          if(!cliente)continue;
+          const atualizados=remoto.clientes.map(c=>String(c.id)===confirmado.clienteId
+            ? {...c,saldoDevedorBRL:confirmado.saldoNovoBRL}:c);
+          const resultado=await persistV1BusinessOperationSafe({
+            db,userId,
+            changes:[{field:'clientes',baseValue:remoto.clientes,value:atualizados,
+              localStorageKey:`zenos_${userId}_clientes`}],
+            guards:[{type:'entity_unchanged',field:'clientes',entityId:cliente.id,entityKey:'id',expected:cliente}],
+            operationKey:confirmado.operationKey,
+          });
+          if(resultado.cloudOk){
+            registrarBaseSyncCampo('clientes',resultado.values.clientes,resultado.revisions?.clientes);
+            setClientes(resultado.values.clientes);
+          }else{
+            console.error('[ZenOS][Fiado] Reconciliação bloqueada com segurança:',resultado.error);
+          }
+        }
+      }catch(err){console.error('[ZenOS][Fiado] Falha na conferência segura:',err);}
+      finally{reconciliacaoFiadoEmAndamentoRef.current=false;}
+    };
+    void executar();
+    return()=>{cancelado=true;};
+  // Não associar o efeito à função de escrita (recriada a cada render).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[userId,nuvemSincronizada,livroFinanceiroConfirmado,livroFinanceiro,clientes,historicoVendas]);
 
   const salvarPerfilRapido = async () => {
     const pf = normalizarPerfilLoja(perfilRapidoRascunho);

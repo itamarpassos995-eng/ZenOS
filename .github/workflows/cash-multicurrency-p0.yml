@@ -10,6 +10,10 @@ on:
       - 'src/core/cashReconciliation.js'
       - 'src/core/productionSync.js'
       - 'src/components/Clientes.jsx'
+      - 'src/core/creditReconciliation.js'
+      - 'scripts/p0-credit-reconciliation-check.mjs'
+      - 'scripts/p0-fiado-v2-emulator.mjs'
+      - 'src/core/financialLedger.js'
       - 'scripts/cash-multicurrency-p0-check.mjs'
       - '.github/workflows/cash-multicurrency-p0.yml'
   workflow_dispatch:
@@ -24,6 +28,10 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
       - run: npm ci --ignore-scripts
       - name: Regressao Caixa Multimoeda P0
         run: node scripts/cash-multicurrency-p0-check.mjs
@@ -36,6 +44,10 @@ jobs:
       - name: Diagnóstico legado ATT07 (baseline histórico anterior)
         continue-on-error: true
         run: npm run test:att07
+      - name: Reconciliacao de fiado conservadora
+        run: node scripts/p0-credit-reconciliation-check.mjs
+      - name: Fluxo real V2 em emulador - fiado pre-pedido e recarga
+        run: npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local "node scripts/p0-fiado-v2-emulator.mjs"
       - name: Build seguro
         if: always()
         run: npm run build
