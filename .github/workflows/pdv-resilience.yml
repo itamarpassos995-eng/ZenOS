@@ -7,6 +7,7 @@ on:
       - 'src/core/pdvDraft.js'
       - 'src/core/operationalV2.js'
       - 'scripts/pdv-rascunho-check.mjs'
+      - 'scripts/recovery/pdv-draft.ui.test.jsx'
       - '.github/workflows/pdv-resilience.yml'
   workflow_dispatch:
 jobs:
