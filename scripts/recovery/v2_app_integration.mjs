@@ -10,6 +10,7 @@ import {getOperationalSnapshot,subscribeOperationalSnapshot,peekV2Session,clearO
 import {persistV1BusinessOperationSafe,persistV1OperationFieldSafe} from '../../src/core/productionSync.js';
 import {assinaturaFinanceiraSessao} from '../../src/core/cashSession.js';
 import {V2_COLLECTIONS,encodeV2Id,stableV2Json} from '../../src/core/operationalV2Schema.js';
+import {loadPilotFixtureRules} from './pilot_fixture.mjs';
 if(process.env.FIRESTORE_EMULATOR_HOST!=='127.0.0.1:8080'||process.env.GCLOUD_PROJECT!=='demo-zenos-local')throw Error('Local demo required');
 const backup=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
 const plan=JSON.parse(execFileSync('python3',['-c','import json,sys;sys.path.insert(0,"scripts/recovery");from v2_plan import plan_v2;print(json.dumps(plan_v2(json.load(open(sys.argv[1])))))',process.argv[2]],{maxBuffer:20e6}).toString());
@@ -39,9 +40,17 @@ const tickNow=Date.now;let offset=0;
 const tick=()=>{offset+=61000;Date.now=()=>tickNow()+offset;};
 try{
  const userId=(await createUserWithEmailAndPassword(getAuth(apps[0]),email,password)).user.uid;
+ await loadPilotFixtureRules(userId);
  await signInWithEmailAndPassword(getAuth(apps[1]),email,password);
  const db=dbs[0],op=decode({mapValue:{fields:backup.documents.find(d=>d.name.endsWith('/dados/operacao')).fields}});
  const root=['lojas',userId,'v2_generations',plan.generation],opRef=doc(db,'lojas',userId,'dados','operacao');
+ if(process.env.ZENOS_PILOT_RULES==='1'){
+  // Preserve the existing non-pilot baseline and owner module paths without
+  // accidentally granting the catch-all permission to the pilot control.
+  for(const path of ['lojas/non-pilot-store/dados/operacao','lojas/non-pilot-store/v2_generations/unchanged','legacy_admin/example',`lojas/${userId}/fiscal_solicitacoes/test`,`lojas/${userId}/dados/approved-extra`]){
+   const ref=doc(db,...path.split('/'));await setDoc(ref,{compatibilityOnly:true});assert.equal((await getDoc(ref)).data().compatibilityOnly,true);
+  }
+ }
  await admin([{update:{name:'projects/demo-zenos-local/databases/(default)/documents/'+opRef.path,fields:backup.documents.find(d=>d.name.endsWith('/dados/operacao')).fields}}]);const v1Before=(await getDoc(opRef)).data();
  const documents=plan.documents.map(d=>({update:{name:'projects/demo-zenos-local/databases/(default)/documents/'+root.join('/')+d.name.slice(plan.targetRoot.length),fields:d.fields},currentDocument:{exists:false}}));
  for(let i=0;i<documents.length;i+=100)await admin(documents.slice(i,i+100));
@@ -188,7 +197,7 @@ try{
   clearOperationalSession(dbs[1],userId);await adminSet(`lojas/${userId}/dados/storage_control`,{...control,generation:'0'.repeat(24)});
   await assert.rejects(getOperationalSnapshot(dbs[1],userId),e=>e.code==='V2_NOT_READY');
  });
- const report={fencedRules:process.env.ZENOS_FENCED_RULES==='1',suite:'actual-app-v2-central-motos',backupChecksum:backup.checksum,passed:passed.length,tests:passed,productionRequests:0,firstSaleReads:saleResult.reads,firstSaleWrites:saleResult.writes,finalSequence:session(0).sequence,originalV1Preserved:true};
+ const report={fencedRules:process.env.ZENOS_FENCED_RULES==='1',pilotRules:process.env.ZENOS_PILOT_RULES==='1',suite:'actual-app-v2-central-motos',backupChecksum:backup.checksum,passed:passed.length,tests:passed,productionRequests:0,firstSaleReads:saleResult.reads,firstSaleWrites:saleResult.writes,finalSequence:session(0).sequence,originalV1Preserved:true};
  console.log(JSON.stringify(report,null,2));
  if(process.env.ZENOS_REPORT_PATH)fs.writeFileSync(process.env.ZENOS_REPORT_PATH,JSON.stringify(report,null,2)+'\n');
 }finally{Date.now=tickNow;stop?.();await Promise.all(apps.map(deleteApp));}
