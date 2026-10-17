@@ -76,6 +76,11 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
   });
 
   const termosBuscaCli = nomeClienteVulso.toLowerCase().trim().split(/\s+/).filter(Boolean);
+  // Evita utilizar saldo/limite congelado no momento da seleção do cliente.
+  // A venda continua protegida pelas mesmas validações transacionais da nuvem.
+  const clienteAtualPDV = clienteSelecionadoPDV
+    ? clientes.find(c => String(c.id) === String(clienteSelecionadoPDV.id)) || clienteSelecionadoPDV
+    : null;
   const clientesSugeridos = (nomeClienteVulso.trim() && !clienteSelecionadoPDV)
     ? clientes.filter(c => {
         const textoCompleto = `${c.nome || ''} ${c.documento || ''} ${c.telefone || ''}`.toLowerCase();
@@ -451,9 +456,9 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
     }
 
   if (configForma.id === 'crediario') {
-      if (!clienteSelecionadoPDV) return mostrarZen('warning', tx('Cliente obrigatório','Cliente obligatorio','Customer required'), tx('Para vender fiado, vincule um cliente antes de finalizar.','Para vender a crédito, vincule un cliente antes de finalizar.','To sell on credit, link a customer before completing the sale.'));
+      if (!clienteAtualPDV) return mostrarZen('warning', tx('Cliente obrigatório','Cliente obligatorio','Customer required'), tx('Para vender fiado, vincule um cliente antes de finalizar.','Para vender a crédito, vincule un cliente antes de finalizar.','To sell on credit, link a customer before completing the sale.'));
 
-      const limite = parseFloat(clienteSelecionadoPDV.limiteCreditoBRL) || 0;
+      const limite = parseFloat(clienteAtualPDV.limiteCreditoBRL) || 0;
       
       // TRAVA 1: Se o cliente não tem limite ou o limite é zero
       if (limite <= 0) {
@@ -461,7 +466,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
       }
 
       // TRAVA 2: Se a compra ultrapassar o limite (Sem opção de confirmar)
-      const novoDevedor = (parseFloat(clienteSelecionadoPDV.saldoDevedorBRL) || 0) + valorBRL;
+      const novoDevedor = (parseFloat(clienteAtualPDV.saldoDevedorBRL) || 0) + valorBRL;
       if (novoDevedor > limite) {
         return mostrarZen('danger', tx('Limite de crédito excedido','Límite de crédito excedido','Credit limit exceeded'), `${tx('Limite:','Límite:','Limit:')} ${fmt(limite, 'BRL')}. ${tx('Com esta compra, a dívida iria para','Con esta compra, la deuda quedaría en','With this purchase, the debt would become')} ${fmt(novoDevedor, 'BRL')}.`);
       }
@@ -641,7 +646,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
             return registrarFinanceiro(enriquecida);
           };
           let trocoRestante = Math.max(0, Number(trocoTotalBRL) || 0);
-          const clienteAntes = clienteSelecionadoPDV ? Number(clienteSelecionadoPDV.saldoDevedorBRL || 0) : null;
+          const clienteAntes = clienteAtualPDV ? Number(clienteAtualPDV.saldoDevedorBRL || 0) : null;
           const pagamentosFiado = pagamentosLancados.filter(p => p.formaId === 'crediario');
           const valorFiadoTotal = pagamentosFiado.reduce((a,p)=>a+(Number(p.valorConvertidoBRL)||0),0);
           const clienteDepois = clienteAntes == null ? null : clienteAntes + valorFiadoTotal;
