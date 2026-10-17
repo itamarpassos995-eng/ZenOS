@@ -28,6 +28,10 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
       - run: npm ci --ignore-scripts
       - name: Regressao Caixa Multimoeda P0
         run: node scripts/cash-multicurrency-p0-check.mjs
