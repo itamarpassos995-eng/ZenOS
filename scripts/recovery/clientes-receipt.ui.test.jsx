@@ -1,5 +1,6 @@
 import React from 'react';
-import {afterEach,cleanup,fireEvent,render,screen,waitFor,vi,test,expect} from '@testing-library/react';
+import {cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react';
+import {afterEach,vi,test,expect} from 'vitest';
 import Clientes from '../../src/components/Clientes.jsx';
 import {traducoes} from '../../src/data.js';
 
