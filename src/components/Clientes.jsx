@@ -3,7 +3,7 @@ import { normalizarCliente } from '../data';
 import ZenModal from './ZenModal';
 import { formaEhDinheiro, lancamentosDoCliente } from '../core/financialLedger';
 import { interpretarValorMonetario } from '../core/cashMoneyInput';
-import { auditarVinculosFiado } from '../core/clientCreditLinkAudit';
+import { auditarVinculosFiado, encontrarConflitosIdsRecebimento } from '../core/clientCreditLinkAudit';
 
 export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, historicoVendas = [], setClientes, moeda, fmt, t, tx = (pt) => pt, converterDeBRL, converterParaBRL }) {
   const [filtroPaisCliente, setFiltroPaisCliente] = useState('todos');
@@ -140,13 +140,16 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
         mensagem:'O cadastro ou saldo desta conta mudou. Feche o recebimento, confira o extrato atualizado e abra novamente. Nenhum valor foi recebido.',
         apenasConfirmar:true});
     }
-    const nomesDivergentes=lancamentosDoCliente(livroFinanceiro,clienteAtual.id)
-      .filter(l=>l.tipo==='venda_fiada' && Date.parse(l.createdAt||'')>=Date.parse('2026-10-16T00:00:00Z') && l.clienteNome
-        && String(l.clienteNome).trim()!==String(clienteAtual.nome).trim());
-    if(nomesDivergentes.length) {
-      return setModalZen({variante:'danger',titulo:'Conta com vínculo divergente',
-        mensagem:'Há uma venda fiada neste extrato em nome de outro cliente. Para não baixar a conta errada, o recebimento foi bloqueado até conferência dos lançamentos. Nenhum valor foi alterado.',
-        detalhes:nomesDivergentes.slice(0,3).map(l=>`Venda ${l.referenciaId || 'sem referência'}: ${l.clienteNome}`),apenasConfirmar:true});
+    // Nomes nas vendas e no livro são fotografias históricas: podem ser
+    // diferentes após uma edição legítima do cliente. Eles NÃO são chave.
+    // Somente IDs diferentes entre venda e lançamento justificam bloquear.
+    const conflitosVinculo = encontrarConflitosIdsRecebimento({
+      clienteId:clienteAtual.id,historicoVendas,livroFinanceiro,
+    });
+    if(conflitosVinculo.length) {
+      return setModalZen({variante:'danger',titulo:'Conta com vínculo financeiro inconsistente',
+        mensagem:'O ID do cliente no lançamento financeiro é diferente do ID da venda original. Nenhum recebimento foi registrado. Confira os registros antes de baixar.',
+        detalhes:conflitosVinculo.slice(0,3).map(c=>`Venda ${c.vendaId}: ID na venda ${c.clienteIdVenda} / ID no financeiro ${c.clienteIdFinanceiro}`),apenasConfirmar:true});
     }
     const formaCfg = catalogoFormas.find(f => f.id === formaAmortizacaoSel) || catalogoFormas[0];
     const leitura = interpretarValorMonetario(valorAmortizacaoInput, formaCfg.moedaOrigem);
@@ -282,10 +285,10 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
       {inconsistenciasVinculoFiado.length > 0 && (
         <details style={{border:'1px solid #f59e0b',background:'#1f160a',borderRadius:12,padding:14}}>
           <summary style={{color:'#fde68a',fontSize:13,fontWeight:900,cursor:'pointer'}}>
-            ⚠ Conferência de vínculos do fiado: {inconsistenciasVinculoFiado.length} venda(s) com dados divergentes — somente leitura
+            ⚠ Conferência histórica do fiado: {inconsistenciasVinculoFiado.length} venda(s) com observações — somente leitura
           </summary>
           <div style={{marginTop:8,fontSize:12,color:'#e2e8f0'}}>
-            Esta conferência não movimenta valores. Diferença de nome pode representar renomeação legítima; confirme os IDs antes de corrigir qualquer conta.
+            Esta conferência não movimenta valores. Nome diferente com o mesmo ID é uma informação histórica, não motivo para bloquear recebimento nem alterar dívida.
           </div>
           {inconsistenciasVinculoFiado.slice(0,8).map(item => (
             <div key={item.vendaId} style={{borderTop:'1px solid #6b4e1d',padding:'10px 0',marginTop:8,color:'#fff',fontSize:12,overflowWrap:'anywhere'}}>
