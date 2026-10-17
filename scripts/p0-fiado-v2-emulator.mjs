@@ -60,6 +60,14 @@ try{
  const replay=await persistV1BusinessOperationSafe({db,userId:uid,changes,guards,operationKey:fix.operationKey});
  assert.equal(replay.cloudOk,true,replay.error?.message);
  assert.equal(replay.alreadyCommitted,true);
+ // O nome histórico pode mudar sem alterar a identidade persistida da conta.
+ // Esta divergência isolada NÃO deve impedir baixa de saldo.
+ const {encontrarConflitosIdsRecebimento}=await import('../src/core/clientCreditLinkAudit.js');
+ assert.deepEqual(encontrarConflitosIdsRecebimento({
+   clienteId:c.id,
+   historicoVendas:[{...v,clienteNome:'Nome antigo do mesmo cliente'}],
+   livroFinanceiro:[{...l,clienteNome:'Nome antigo do mesmo cliente'}],
+ }),[]);
  // Legacy normalizer may add innocuous registration fields absent in V2.
  // Receiving a legitimate account must depend only on unique ID, name and amount.
  const normalizedUi={...state.clientes[0],pais:'BR',tipoDocumento:'CPF',perfilPreco:'preco1'};
