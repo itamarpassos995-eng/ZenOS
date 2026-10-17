@@ -10,6 +10,8 @@ on:
       - 'src/core/cashReconciliation.js'
       - 'src/core/productionSync.js'
       - 'src/components/Clientes.jsx'
+      - 'src/core/creditReconciliation.js'
+      - 'scripts/p0-credit-reconciliation-check.mjs'
       - 'scripts/cash-multicurrency-p0-check.mjs'
       - '.github/workflows/cash-multicurrency-p0.yml'
   workflow_dispatch:
@@ -36,6 +38,8 @@ jobs:
       - name: Diagnóstico legado ATT07 (baseline histórico anterior)
         continue-on-error: true
         run: npm run test:att07
+      - name: Reconciliacao de fiado conservadora
+        run: node scripts/p0-credit-reconciliation-check.mjs
       - name: Build seguro
         if: always()
         run: npm run build
