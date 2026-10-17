@@ -78,7 +78,7 @@ test('Conflito V2 mantém 30 itens, não duplica venda e reusa ID/data ao tentar
   const primeira=chamadas[0];
   expect(primeira.operationKey).toMatch(/^pdv:VENDA-/);
   // Fechar somente aviso, sem desistir do atendimento.
-  fireEvent.click(screen.getByRole('button',{name:'OK',exact:true}));
+  fireEvent.click(screen.getAllByRole('button',{name:'OK',exact:true}).at(-1));
   fireEvent.click(screen.getByRole('button',{name:'Liquidar no Caixa'}));
   await waitFor(() => expect(chamadas).toHaveLength(2));
   expect(chamadas[1].operationKey).toBe(primeira.operationKey);
