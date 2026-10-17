@@ -12,5 +12,11 @@ assert.deepEqual(run(cliente,{...venda,estado:'cancelada'}),[]);
 assert.deepEqual(run(cliente,{...venda,pagamentos:[{formaId:'crediario',valorConvertidoBRL:130}]}),[]);
 assert.deepEqual(run(cliente,venda,[{...fiado,saldoClienteDepois:130}]),[]);
 assert.deepEqual(run(cliente,{...venda,devolucoes:[{id:'D1'}]}),[]);
-assert.deepEqual(run(cliente,venda,[fiado,{...fiado,id:'F2'}]),[]);
-console.log('PASS: evidence-only credit reconciliation planner (9 cases, no database writes)');
+assert.deepEqual(run(cliente,venda,[fiado,{...fiado,id:'F2',createdAt:'2026-10-17T08:00:01Z'}]),[]);
+assert.deepEqual(run({...cliente,saldoDevedorBRL:80},
+  venda,[{id:'P',tipo:'recebimento_fiado',clienteId:'C1',createdAt:'2026-10-16T11:00:00Z',saldoClienteDepois:80}, {...fiado,saldoClienteAntes:80,saldoClienteDepois:215}]),
+  [{clienteId:'C1',vendaId:'V1',lancamentoId:'F1',saldoAnteriorBRL:80,saldoNovoBRL:215,operationKey:'reconcile-credit:F1'}]);
+assert.deepEqual(run({...cliente,saldoDevedorBRL:80},venda,
+  [{id:'P',tipo:'recebimento_fiado',clienteId:'C1',createdAt:'2026-10-16T11:00:00Z',saldoClienteDepois:90},{...fiado,saldoClienteAntes:80,saldoClienteDepois:215}]),[]);
+assert.deepEqual(run(cliente,venda,[{...fiado,createdAt:'2026-10-15T08:00:00Z'}]),[]);
+console.log('PASS: evidence-only credit reconciliation planner (12 cases, no database writes)');
