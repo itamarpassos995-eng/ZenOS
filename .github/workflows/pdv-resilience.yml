@@ -23,7 +23,9 @@ jobs:
       - run: npm ci
       - name: Testar recuperacao do carrinho e protecao V2
         run: node scripts/pdv-rascunho-check.mjs
-      - name: Suite de regressao da interface
-        run: npm run test:recovery:ui
+      # A suite integrada completa exige backup autorizado + emuladores loopback.
+      # Em CI público executar apenas testes sem dependência de dados reais.
+      - name: Interface PDV e testes isolados de regressao
+        run: npx vitest run --config vitest.recovery.config.js scripts/recovery/pdv-draft.ui.test.jsx scripts/recovery/clientes-receipt.ui.test.jsx scripts/recovery/clientes-quitado-status.ui.test.jsx scripts/recovery/exchange-rate.ui.test.jsx
       - name: Compilar aplicativo
         run: npm run build
