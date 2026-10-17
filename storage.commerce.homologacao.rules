@@ -1,0 +1,10 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Bucket de HOMOLOGAÇÃO, acessível somente via Firebase Admin no backend
+    // autenticado. Nenhum navegador/cliente pode fazer upload ou leitura direta.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "rewrites": [
+    {
+      "source": "/loja/:id",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/commerce-homologacao",
+      "destination": "/index.html"
+    }
+  ],
+  "buildCommand": "node scripts/commerce-preview-build.mjs"
+}

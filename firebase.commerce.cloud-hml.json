@@ -1,0 +1,41 @@
+{
+  "functions": {
+    "source": "functions",
+    "codebase": "fiscal",
+    "predeploy": [
+      "node scripts/commerce-cloud-hml-deploy.mjs --check"
+    ]
+  },
+  "firestore": {
+    "rules": "firestore.commerce.cloud-hml.rules",
+    "database": "(default)",
+    "location": "us-east1",
+    "edition": "standard"
+  },
+  "storage": {
+    "rules": "storage.commerce.cloud-hml.rules"
+  },
+  "auth": {
+    "providers": {
+      "anonymous": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "ZenOS Commerce Homologacao",
+        "supportEmail": "itamarbenit@gmail.com"
+      }
+    }
+  },
+  "hosting": {
+    "public": "dist-commerce-hml",
+    "ignore": [
+      "firebase.commerce.cloud-hml.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

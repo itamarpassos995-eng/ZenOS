@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const root=new URL('../',import.meta.url);
+const cfg=JSON.parse(readFileSync(new URL('firebase.commerce.homologacao.json',root),'utf8'));
+const firestore=readFileSync(new URL('firestore.commerce.homologacao.rules',root),'utf8');
+const storage=readFileSync(new URL('storage.commerce.homologacao.rules',root),'utf8');
+assert.equal(cfg.firestore.rules,'firestore.commerce.homologacao.rules');
+assert.equal(cfg.storage.rules,'storage.commerce.homologacao.rules');
+assert.equal(cfg.emulators.storage.host,'127.0.0.1');
+assert.match(firestore,/request\.auth\.uid == lojaId/);
+assert.match(firestore,/colecao != 'commerce_private'/);
+assert.match(firestore,/match \/lojas\/\{lojaId\}/);
+assert.doesNotMatch(firestore,/allow (read|write)(?:, (read|write))?: if request\.auth != null\s*;/);
+assert.doesNotMatch(firestore,/allow .*?: if true/);
+assert.match(storage,/allow read, write: if false;/);
+console.log('P5: regras e config verificadas; testes de execucao exigem Firebase Emulator.');

@@ -1,0 +1,7 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Clientes não leem nem gravam objetos diretamente; URLs temporárias são emitidas pelo servidor.
+    match /{object=**} { allow read, write: if false; }
+  }
+}

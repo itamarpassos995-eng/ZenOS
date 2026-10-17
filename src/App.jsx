@@ -26,6 +26,7 @@ import Comissoes from './components/Comissoes';
 import Mesas from './components/Mesas';
 import DashboardMobile from './components/DashboardMobile';
 import Configuracoes from './components/Configuracoes';
+import ZenCommercePortal from './components/ZenCommercePortal';
 import GestaoCaixas from './components/GestaoCaixas';
 import Fiscal from './components/Fiscal';
 import FiscalErrorBoundary from './components/FiscalErrorBoundary';
@@ -1247,6 +1248,7 @@ export default function App() {
       id: 'administracao', titulo: tx('Administração', 'Administración', 'Administration'), icone: '⚙️', abertaInicial: false,
       itens: [
         ...(temPermissao('admin') ? [{ id:'config', tela:'configuracoes', icone:'⚙️', rotulo:tx('Configurações','Configuraciones','Settings'), onClick:()=>navegarPara('configuracoes') }] : []),
+        ...(temPermissao('admin') ? [{ id:'commerce', tela:'commerce', icone:'🛍️', rotulo:tx('Minha Loja Online (prévia)','Mi Tienda Online (vista previa)','My Online Store (preview)'), onClick:()=>navegarPara('commerce') }] : []),
         ...(temPermissao('admin') ? [{ id:'importar', tela:'migracao', icone:'📥', rotulo:tx('Importar Dados','Importar Datos','Import Data'), onClick:()=>navegarPara('migracao') }] : []),
       ],
     },
@@ -1604,12 +1606,14 @@ export default function App() {
                 {temPermissao('vendas') && <ZenQuickCard icon="🧾" titulo={tx('Fiscal','Fiscal','Fiscal')} detalhe={`${resultadoFilaFiscal.fila.length} ${tx('pendência(s)','pendiente(s)','pending')}`} tone="blue" onClick={()=>navegarPara('fiscal')} />}
                 {temPermissao('admin') && <ZenQuickCard icon="🤝" titulo={tx('Comissões','Comisiones','Commissions')} detalhe={tx('Metas e bonificações','Metas y bonificaciones','Targets and bonuses')} tone="orange" onClick={()=>navegarPara('comissoes')} />}
                 {temPermissao('despesas') && <ZenQuickCard icon="💸" titulo={tx('Despesas','Gastos','Expenses')} detalhe={tx('Contas a pagar','Cuentas a pagar','Accounts payable')} tone="gold" onClick={()=>navegarPara('despesas')} />}
+                {temPermissao('admin') && <ZenQuickCard icon="🛍️" titulo={tx('Minha Loja Online','Mi Tienda Online','My Online Store')} detalhe={tx('Commerce Premium — prévia privada','Commerce Premium — vista previa privada','Commerce Premium — private preview')} tone="gold" onClick={()=>navegarPara('commerce')} />}
                 {temPermissao('admin') && <ZenQuickCard icon="⚙️" titulo={tx('Configurações','Configuraciones','Settings')} detalhe={tx('Sistema, equipe e backup','Sistema, equipo y respaldo','System, team and backup')} tone="purple" onClick={()=>navegarPara('configuracoes')} />}
               </div>
             </section>
           </div>
  )}
 
+        {ecraAtual === 'commerce' && temPermissao('admin') && <ZenCommercePortal userId={userId} operadorAtivo={operadorAtivo} produtos={produtos} nuvemSincronizada={nuvemSincronizada} />}
         {ecraAtual === 'pdv' && <PDV perfilLoja={perfilLoja} taxasCambio={taxasCambio} registrarFinanceiro={registrarFinanceiro} commitOperacaoCritica={commitOperacaoCritica} commitVendaCritica={commitVendaCritica} vouchers={vouchers} setVouchers={setVouchers} userId={userId} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} patenteUsuario={patenteUsuario} idioma={idioma} regrasDesconto={regrasDesconto} vendedores={vendedores} operadorAtivo={operadorAtivo} sessaoAtiva={sessaoAtiva} />}
         {ecraAtual === 'compras' && <PDVCompras commitOperacaoNegocio={commitVendaCritica} registrarFinanceiro={registrarFinanceiro} saldoSessaoFisicoBRL={saldoSessaoFisicoBRL} userId={userId} produtos={produtos} setProdutos={setProdutos} fornecedores={fornecedores} setFornecedores={setFornecedores} despesas={despesas} setDespesas={setDespesas} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoCompras={historicoCompras} setHistoricoCompras={setHistoricoCompras} operadorAtivo={operadorAtivo} />}
         {ecraAtual === 'fornecedores' && <Fornecedores commitOperacaoNegocio={commitVendaCritica} fornecedores={fornecedores} setFornecedores={setFornecedores} moeda={moeda} tx={tx} />}
