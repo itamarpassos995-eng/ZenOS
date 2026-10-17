@@ -58,6 +58,6 @@ test('nome histórico diferente com MESMO ID: recebe conta, sem reatribuir dívi
 
 test('ID da venda diferente do ID financeiro: impede baixa',async()=>{
  const {commit}=setup({historicoVendas:[{...venda,clienteId:'OUTRO-CLIENTE'}]});
- await waitFor(()=>expect(screen.getByText('Conta com vínculo financeiro inconsistente')).toBeTruthy());
+ await waitFor(()=>expect(screen.getByText(/Conta com vínculo financeiro inconsistente/)).toBeTruthy());
  expect(commit).not.toHaveBeenCalled();
 });
