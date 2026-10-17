@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { traducoes, moedasConfig, normalizarProduto, normalizarCliente, produtosIniciais, clientesIniciais } from './data';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc, getDocFromServer, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { doc, collection, query, where, getDocsFromServer, getDoc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { inspectLocalSchemaVersion, PERSISTENCE_STATUS_EVENT, notifyPersistenceStatus } from './core/persistenceSafety';
 import { persistV1OperationFieldSafe, persistV1BusinessOperationSafe, recordSyncMetric } from './core/productionSync';
 import { cloneSyncValue, hasLocalSyncChange, syncValuesEqual } from './core/syncMerge';
@@ -658,26 +658,27 @@ export default function App() {
         for(const candidato of candidatos){
           if(cancelado)break;
           // Segunda leitura obrigatória: jamais gravar com base em tela/cache.
-          const [snapshot, lancamentoSnap] = await Promise.all([
+          const [snapshot, lancamentosSnap] = await Promise.all([
             getOperationalSnapshot(db,userId),
-            getDocFromServer(doc(db,'lojas',String(userId),'financeiro_livro',candidato.lancamentoId)),
+            getDocsFromServer(query(collection(db,'lojas',String(userId),'financeiro_livro'),
+              where('clienteId','==',candidato.clienteId))),
           ]);
-          if(!snapshot.exists() || !lancamentoSnap.exists())continue;
+          if(!snapshot.exists())continue;
+          const financeiroRemoto=lancamentosSnap.docs.map(doc=>({id:doc.id,...doc.data()}));
+          if(!financeiroRemoto.some(l=>String(l.id)===candidato.lancamentoId))continue;
           const remoto=snapshot.data();
           const candidatosRemotos=planejarReconciliacoesFiado({
             clientes:remoto.clientes,
             historicoVendas:remoto.historicoVendas,
-            livroFinanceiro:[lancamentoSnap.data()],
+            livroFinanceiro:financeiroRemoto,
           });
           const confirmado=candidatosRemotos.find(c=>c.lancamentoId===candidato.lancamentoId
             && c.clienteId===candidato.clienteId && c.vendaId===candidato.vendaId
             && c.saldoAnteriorBRL===candidato.saldoAnteriorBRL
             && c.saldoNovoBRL===candidato.saldoNovoBRL);
           if(!confirmado)continue;
-          // Revalidar que não há outros movimentos no extrato recebido
-          // antes da confirmação remota. Não processar se uma cobrança chegou.
-          if(planejarReconciliacoesFiado({clientes:remoto.clientes,historicoVendas:remoto.historicoVendas,livroFinanceiro})
-            .filter(c=>c.clienteId===candidato.clienteId && c.lancamentoId===candidato.lancamentoId).length!==1)continue;
+          // Revalidar com todas as movimentações do cliente confirmadas pelo servidor.
+          // Uma cobrança posterior nunca pode ser ignorada por cache defasado.
           const cliente=remoto.clientes.find(c=>String(c.id)===confirmado.clienteId);
           if(!cliente)continue;
           const atualizados=remoto.clientes.map(c=>String(c.id)===confirmado.clienteId
