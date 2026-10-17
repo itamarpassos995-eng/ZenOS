@@ -1,4 +1,5 @@
-import { doc, runTransaction, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import {peekV2Session} from './operationalRepository.js';
+import { doc, runTransaction, deleteDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { notifyPersistenceStatus } from './persistenceSafety';
 
 const norm = (v='') => String(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
@@ -46,7 +47,11 @@ export async function liberarIdentidadeProduto({db,userId,produto}){
   if(!db||!userId||!produto) return;
   notifyPersistenceStatus({status:'SALVANDO',field:'produto_indices'});
   try {
-    for(const chave of chavesUnicidadeProduto(produto)) await deleteDoc(doc(db,'lojas',userId,'produto_indices',chave));
+    for(const chave of chavesUnicidadeProduto(produto)){
+      const ref=doc(db,'lojas',userId,'produto_indices',chave);
+      if(peekV2Session(db,userId))await setDoc(ref,{ativo:false,liberadoEm:new Date().toISOString(),updatedAtServer:serverTimestamp()},{merge:true});
+      else await deleteDoc(ref);
+    }
     notifyPersistenceStatus({status:'SINCRONIZADO',field:'produto_indices'});
   } catch(error) {
     notifyPersistenceStatus({status:'ERRO',field:'produto_indices',error:error?.message||String(error)});
