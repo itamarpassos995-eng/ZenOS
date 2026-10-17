@@ -19,13 +19,17 @@ import { lerRascunhoPDV, salvarRascunhoPDV, apagarRascunhoPDV } from '../core/pd
 
 export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro, commitOperacaoCritica, commitVendaCritica, recarregarDadosPDV, vouchers = [], setVouchers, userId, produtos, setProdutos, clientes, setClientes, moeda, fmt, t, tx, converterDeBRL, converterParaBRL, historicoVendas, setHistoricoVendas, patenteUsuario, idioma, regrasDesconto, vendedores = [], operadorAtivo, sessaoAtiva }) {
   const [rascunhoInicial] = useState(() => lerRascunhoPDV(userId, operadorAtivo?.id));
+  const [avisoRascunhoRecuperado, setAvisoRascunhoRecuperado] = useState(Boolean(rascunhoInicial?.itensVenda?.length));
   const [termoBusca, setTermoBusca] = useState('');
   const [indiceFocoBusca, setIndiceFocoBusca] = useState(0);
   const [itensVenda, setItensVenda] = useState(rascunhoInicial?.itensVenda || []);
   const [descontoTexto, setDescontoTexto] = useState(rascunhoInicial?.descontoTexto || '0');
   
   const [nomeClienteVulso, setNomeClienteVulso] = useState(rascunhoInicial?.nomeClienteVulso || '');
-  const [clienteSelecionadoPDV, setClienteSelecionadoPDV] = useState(rascunhoInicial?.clienteSelecionadoPDV || null);
+  const [clienteSelecionadoPDV, setClienteSelecionadoPDV] = useState(() => {
+    const salvo = rascunhoInicial?.clienteSelecionadoPDV;
+    return salvo ? (clientes || []).find(c => String(c?.id) === String(salvo.id)) || salvo : null;
+  });
   const [clienteQuerFiscal, setClienteQuerFiscal] = useState(rascunhoInicial?.clienteQuerFiscal === true);
   const [focoInputCliente, setFocoInputCliente] = useState(false);
 
@@ -918,6 +922,17 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px', width: '100%', boxSizing: 'border-box' }}>
+      {avisoRascunhoRecuperado && !vendaSucesso && (
+        <div role="status" style={{gridColumn:'1 / -1',border:'1px solid #38bdf8',background:'#082f49',borderRadius:12,
+          padding:'12px 16px',display:'flex',gap:12,alignItems:'center',justifyContent:'space-between',color:'#e0f2fe',flexWrap:'wrap'}}>
+          <span>{tx(
+            'Atendimento anterior recuperado. Nenhuma venda foi gerada nesta recuperação. Confira o Histórico, os itens e o pagamento antes de liquidar.',
+            'Atención anterior recuperada. No se generó ninguna venta. Verifique el historial, los artículos y el pago antes de cerrar.',
+            'Previous cart recovered. No sale was created. Check history, items and payment before charging.'
+          )}</span>
+          <button onClick={() => setAvisoRascunhoRecuperado(false)} style={{background:'#0369a1',color:'#fff',border:0,borderRadius:8,padding:'8px 12px',fontWeight:800,cursor:'pointer'}}>OK</button>
+        </div>
+      )}
       <style>{`
         input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         input[type=number] { -moz-appearance: textfield; }
