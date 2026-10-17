@@ -360,7 +360,7 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
                       <td style={{ padding: '16px 12px', textAlign: 'right', fontWeight: 900, color: temDivida ? '#fb7185' : '#34d399', fontSize: '15px', whiteSpace: 'nowrap' }}>{fmt(saldoDevedor, 'BRL')}</td>
                       <td style={{ padding: '16px 12px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                         {estourouLimite ? <span style={{ backgroundColor: 'rgba(244, 63, 94, 0.15)', color: '#fb7185', border: '1px solid #f43f5e', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>🔴 {t('limiteExcedido')}</span>
-                        : dias > 0 ? <span style={{ backgroundColor: 'rgba(244, 63, 94, 0.15)', color: '#fb7185', border: '1px solid #f43f5e', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 900 }}>🔴 {dias}D {t('diasAtraso')}</span>
+                        : temDivida && dias > 0 ? <span style={{ backgroundColor: 'rgba(244, 63, 94, 0.15)', color: '#fb7185', border: '1px solid #f43f5e', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 900 }}>🔴 {dias}D {t('diasAtraso')}</span>
                         : temDivida ? <span style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#fbbf24', border: '1px solid #d97706', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>🟡 {t('aberto')}</span>
                         : <span style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#34d399', border: '1px solid #10b981', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>🟢 {t('emDia')}</span>}
                       </td>
