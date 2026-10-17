@@ -60,6 +60,42 @@ try{
  const replay=await persistV1BusinessOperationSafe({db,userId:uid,changes,guards,operationKey:fix.operationKey});
  assert.equal(replay.cloudOk,true,replay.error?.message);
  assert.equal(replay.alreadyCommitted,true);
+ // Legacy normalizer may add innocuous registration fields absent in V2.
+ // Receiving a legitimate account must depend only on unique ID, name and amount.
+ const normalizedUi={...state.clientes[0],pais:'BR',tipoDocumento:'CPF',perfilPreco:'preco1'};
+ assert.notDeepEqual(normalizedUi,state.clientes[0]);
+ const receiptChanges=[{field:'clientes',baseValue:state.clientes,
+   value:state.clientes.map(x=>x.id==='C1'?{...x,saldoDevedorBRL:85}:x)}];
+ const receiptEntry={id:'RECEIPT-1',tipo:'recebimento_fiado',origem:'clientes',
+   referenciaId:'RECEIPT-1',valor:50,clienteId:'C1',clienteNome:'Cliente teste',
+   formaPagamento:'pix',saldoClienteAntes:135,saldoClienteDepois:85,createdAt:'2026-10-17T09:00:00Z'};
+ const receiptGuard={type:'client_receipt_snapshot',clientId:'C1',
+   clientName:normalizedUi.nome,balanceBRL:normalizedUi.saldoDevedorBRL};
+ const incorrect=await persistV1BusinessOperationSafe({db,userId:uid,
+   changes:receiptChanges,guards:[{...receiptGuard,balanceBRL:134}],
+   financialEntries:[receiptEntry],operationKey:'rejected-stale-receipt'});
+ assert.equal(incorrect.cloudOk,false);
+ assert.equal((await getOperationalSnapshot(db,uid)).data().clientes[0].saldoDevedorBRL,135);
+ assert.equal((await getDoc(doc(db,'lojas',uid,'financeiro_livro','RECEIPT-1'))).exists(),false);
+ const receipt=await persistV1BusinessOperationSafe({db,userId:uid,
+   changes:receiptChanges,guards:[receiptGuard],
+   financialEntries:[receiptEntry],operationKey:'confirmed-receipt'});
+ assert.equal(receipt.cloudOk,true,receipt.error?.message);
+ state=(await getOperationalSnapshot(db,uid)).data();
+ assert.equal(state.clientes[0].saldoDevedorBRL,85);
+ assert.equal((await getDoc(doc(db,'lojas',uid,'financeiro_livro','RECEIPT-1'))).data().valor,50);
+ const duplicate=await persistV1BusinessOperationSafe({db,userId:uid,
+   changes:receiptChanges,guards:[receiptGuard],
+   financialEntries:[receiptEntry],operationKey:'confirmed-receipt'});
+ assert.equal(duplicate.cloudOk,true);
+ assert.equal(duplicate.alreadyCommitted,true);
+ const wrongName=await persistV1BusinessOperationSafe({db,userId:uid,
+   changes:[{field:'clientes',baseValue:state.clientes,
+     value:state.clientes.map(x=>x.id==='C1'?{...x,saldoDevedorBRL:80}:x)}],
+   guards:[{...receiptGuard,clientName:'Outra Pessoa',balanceBRL:85}],
+   operationKey:'rejected-wrong-name'});
+ assert.equal(wrongName.cloudOk,false);
+ assert.equal((await getOperationalSnapshot(db,uid)).data().clientes[0].saldoDevedorBRL,85);
  // The pre-order must persist and be available after a complete V2 reload.
  const pending={id:'PRE-1',estado:'pendente',tipoDocumento:'pre_pedido',
     clienteNome:'Balcão teste',totalBRL:50,itens:[]};
@@ -72,11 +108,11 @@ try{
  assert.equal(state.historicoVendas.filter(x=>x.estado==='pendente').length,1);
  clearOperationalSession(db,uid);
  const loaded=(await getOperationalSnapshot(db,uid)).data();
- assert.equal(loaded.clientes[0].saldoDevedorBRL,135);
+ assert.equal(loaded.clientes[0].saldoDevedorBRL,85);
  assert.equal(loaded.historicoVendas.filter(x=>x.estado==='pendente').length,1);
  assert.equal(loaded.historicoVendas.find(x=>x.id==='V1').totalBRL,335);
  assert.equal((await getDoc(opRef)).data().frozenMarker,'never-edit');
- console.log('PASS P0: V2 fiado repair once + V1 untouched + finance untouched + pre-order reload');
+ console.log('PASS P0: V2 fiado repair + guarded receipt + no double charge + pre-order reload + V1 untouched');
 }finally{
  clearOperationalSession(db,uid);
  await deleteApp(app);
