@@ -14,10 +14,10 @@ const auth=getAuth(app),db=getFirestore(app);
 connectAuthEmulator(auth,'http://127.0.0.1:9099',{disableWarnings:true});
 connectFirestoreEmulator(db,'127.0.0.1',8080);
 const c={id:'C1',nome:'Cliente teste',limiteCreditoBRL:1000,saldoDevedorBRL:0};
-const v={id:'V1',clienteId:'C1',estado:'concluida',tipoDocumento:'venda',
+const v={id:'V1',clienteId:'C1',clienteNome:'Cliente teste',estado:'concluida',tipoDocumento:'venda',
   pagamentos:[{formaId:'dinheiro_brl',valorConvertidoBRL:200},{formaId:'crediario',valorConvertidoBRL:135}],
   totalBRL:335,itens:[]};
-const l={id:'F1',tipo:'venda_fiada',clienteId:'C1',formaPagamento:'crediario',referenciaId:'V1',
+const l={id:'F1',clienteNome:'Cliente teste',tipo:'venda_fiada',clienteId:'C1',formaPagamento:'crediario',referenciaId:'V1',
   createdAt:'2026-10-17T08:00:00Z',valor:135,saldoClienteAntes:0,saldoClienteDepois:135};
 const stamp=Date.now();
 const user=(await createUserWithEmailAndPassword(auth,'p0-'+stamp+'@example.test','EmulatorOnly!1248')).user;
