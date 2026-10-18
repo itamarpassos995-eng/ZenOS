@@ -53,7 +53,7 @@ export const commerceStudio = onCall({region:'southamerica-east1',timeoutSeconds
  const action=request.data?.action;
  if(!['consultar','salvarRascunho','solicitarProposta'].includes(action))throw new HttpsError('invalid-argument','Ação inválida.');
  const db=await obterAdminFirestore();
- const {lojaId,operadorUid}=await autorizarOperadorCommerce(request.auth,db);
+ const {lojaId,operadorUid}=await autorizarOperadorCommerce(request.auth,db,request.data?.sessaoZenOS);
  const loja=db.doc(`lojas/${lojaId}`);
  const rascunho=db.doc(`lojas/${lojaId}/commerce_private/rascunho`);
  const licenca=db.doc(`lojas/${lojaId}/commerce_private/licenca`);

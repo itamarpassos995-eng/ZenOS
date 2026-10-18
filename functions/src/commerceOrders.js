@@ -1,3 +1,4 @@
+import {lerProdutosCommerce,consultarProdutosCommerce} from './commerceOperationalRead.js';
 import {onCall,HttpsError} from 'firebase-functions/v2/https';
 import {randomBytes} from 'node:crypto';
 import {obterAdminFirestore} from './firebaseAdmin.js';
@@ -17,18 +18,19 @@ async function resolverPublicacao(db,id){
  const directory=await db.doc(`commerce_public/${id}`).get();
  if(!directory.exists)throw new HttpsError('not-found','Loja indisponível.');
  const lojaId=directory.data().lojaId;
- const [publication,license,operation]=await Promise.all([draftRef(db,lojaId,'publicacao').get(),draftRef(db,lojaId,'licenca').get(),db.doc(`lojas/${lojaId}/dados/operacao`).get()]);
+ const [publication,license]=await Promise.all([draftRef(db,lojaId,'publicacao').get(),draftRef(db,lojaId,'licenca').get()]);
  exigirLicenca(license);
  if(!publication.exists||publication.data().ativo!==true||publication.data().idPublico!==id)throw new HttpsError('not-found','Loja indisponível.');
- return {lojaId,publication:publication.data(),produtos:operation.data()?.produtos||[]};
+ const ids=Object.keys(publication.data().regras||{}).filter(id=>publication.data().regras[id].publicado===true);
+ return {lojaId,publication:publication.data(),produtos:await consultarProdutosCommerce(db,lojaId,{ids})};
 }
 export const commercePedidosAdmin=onCall(opts,async request=>{
- habilitado();const db=await obterAdminFirestore();const {lojaId,operadorUid}=await autorizarOperadorCommerce(request.auth,db);
+ habilitado();const db=await obterAdminFirestore();const {lojaId,operadorUid}=await autorizarOperadorCommerce(request.auth,db,request.data?.sessaoZenOS);
  if(request.data?.lojaId!==undefined)throw new HttpsError('invalid-argument','Loja definida pelo servidor.');
  const pubRef=draftRef(db,lojaId,'publicacao'),action=request.data?.action;
  if(action==='consultarLoja'){
   const shop=await db.doc(`lojas/${lojaId}`).get();if(!shop.exists)throw new HttpsError('not-found','Loja de homologação não configurada.');
-  const op=await db.doc(`lojas/${lojaId}/dados/operacao`).get();return {lojaId,produtos:op.data()?.produtos||[]};
+  return {lojaId,produtos:await consultarProdutosCommerce(db,lojaId)};
  }
  if(action==='publicar'){
   const [draft,license,shop]=await Promise.all([draftRef(db,lojaId,'rascunho').get(),draftRef(db,lojaId,'licenca').get(),db.doc(`lojas/${lojaId}`).get()]);
@@ -38,9 +40,10 @@ export const commercePedidosAdmin=onCall(opts,async request=>{
   await validarReferenciasNoStorage(limpo.regras,lojaId);
   await processarBannersPrivados(limpo.aparencia,lojaId);
   return db.runTransaction(async tx=>{
-   const [current,latestDraft,latestLicense,latestOperation]=await Promise.all([tx.get(pubRef),tx.get(draftRef(db,lojaId,'rascunho')),tx.get(draftRef(db,lojaId,'licenca')),tx.get(db.doc(`lojas/${lojaId}/dados/operacao`))]);
+   const [current,latestDraft,latestLicense]=await Promise.all([tx.get(pubRef),tx.get(draftRef(db,lojaId,'rascunho')),tx.get(draftRef(db,lojaId,'licenca'))]);
    exigirLicenca(latestLicense);if(latestDraft.data()?.revision!==draft.data().revision)throw new HttpsError('aborted','Rascunho alterado durante a publicação.');
-   try{validarCatalogoPublicavel(latestOperation.data()?.produtos||[],limpo.regras);}catch(e){throw new HttpsError('failed-precondition',e.message);}
+   const produtos=await lerProdutosCommerce(db,lojaId,tx,{ids:Object.keys(limpo.regras).filter(id=>limpo.regras[id].publicado)});
+   try{validarCatalogoPublicavel(produtos,limpo.regras);}catch(e){throw new HttpsError('failed-precondition',e.message);}
    const idPublico=current.data()?.idPublico||gerarId();const directory=db.doc(`commerce_public/${idPublico}`);const old=await tx.get(directory);
    if(old.exists&&old.data().lojaId!==lojaId)throw new HttpsError('aborted','Identificador indisponível. Tente novamente.');
    const revision=(current.data()?.revision||0)+1;
@@ -49,6 +52,10 @@ export const commercePedidosAdmin=onCall(opts,async request=>{
   });
  }
  if(action==='despublicar'){await pubRef.set({ativo:false,alteradoEm:new Date().toISOString(),por:operadorUid},{merge:true});return {ativo:false};}
+ if(action==='resumoPedidos'){
+  const total=await db.collection(`lojas/${lojaId}/commerce_pedidos`).where('status','==','recebido').count().get();
+  return {novos:total.data().count};
+ }
  if(action==='listarPedidos'){
   const snaps=await db.collection(`lojas/${lojaId}/commerce_pedidos`).orderBy('criadoEm','desc').limit(50).get();
   return {pedidos:snaps.docs.map(d=>({id:d.id,...d.data(),clienteUid:undefined,assinatura:undefined})).map(({clienteUid,assinatura,...d})=>d)};
@@ -95,12 +102,13 @@ export const commerceLoja=onCall(opts,async request=>{
  const ref=db.doc(`lojas/${lojaId}/commerce_pedidos/${key}`),dia=new Date().toISOString().slice(0,10);
  const quota=draftRef(db,lojaId,'quota-pedidos-'+dia),userQuota=db.doc(`lojas/${lojaId}/commerce_quotas/${chavePedidoCommerce(request.auth.uid,'quota-'+dia+'-pedidos')}`);
  return db.runTransaction(async tx=>{
-  const [old,q,u,pub,license,op]=await Promise.all([tx.get(ref),tx.get(quota),tx.get(userQuota),tx.get(draftRef(db,lojaId,'publicacao')),tx.get(draftRef(db,lojaId,'licenca')),tx.get(db.doc(`lojas/${lojaId}/dados/operacao`))]);
+  const [old,q,u,pub,license]=await Promise.all([tx.get(ref),tx.get(quota),tx.get(userQuota),tx.get(draftRef(db,lojaId,'publicacao')),tx.get(draftRef(db,lojaId,'licenca'))]);
   exigirLicenca(license);if(pub.data()?.ativo!==true||pub.data()?.idPublico!==id)throw new HttpsError('not-found','Loja indisponível.');
   if(old.exists){if(old.data().assinatura!==assinatura)throw new HttpsError('already-exists','Esse envio já foi usado para outro pedido.');return respostaPedidoCommerce(old.data(),key,pub.data().whatsapp);}
   if(request.data.revision!==pub.data().revision)throw new HttpsError('aborted','O catálogo mudou. Atualize antes de enviar.');
   if((q.data()?.total||0)>=500||(u.data()?.total||0)>=10)throw new HttpsError('resource-exhausted','Limite de pedidos atingido. Entre em contato com a loja.');
-  let pedido;try{pedido=validarPedidoCommerce(request.data.pedido,catalogoCommerceServidor(op.data()?.produtos,pub.data().regras));}catch(e){throw invalid(e);}
+  const produtosAtuais=await lerProdutosCommerce(db,lojaId,tx,{ids:Object.keys(pub.data().regras||{}).filter(id=>pub.data().regras[id].publicado)});
+  let pedido;try{pedido=validarPedidoCommerce(request.data.pedido,catalogoCommerceServidor(produtosAtuais,pub.data().regras));}catch(e){throw invalid(e);}
   // O preço exibido deve coincidir com o canônico atual; alteração exige nova confirmação do cliente.
   if(request.data.totalCentavos!==pedido.totalCentavos)throw new HttpsError('aborted','Preço alterado. Atualize o catálogo e confira o novo total.');
   const data={...pedido,clienteUid:request.auth.uid,assinatura,criadoEm:new Date().toISOString(),idPublico:id};

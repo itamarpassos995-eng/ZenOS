@@ -16,6 +16,8 @@ on:
       - 'scripts/commerce-emulator-check.mjs'
       - 'scripts/commerce-tenant-hml-emulator-check.mjs'
       - 'scripts/recovery/commerce-checkout.ui.test.jsx'
+      - 'scripts/recovery/commerce-session.ui.test.jsx'
+      - 'src/components/TerminalLogin.jsx'
       - '.github/workflows/commerce-product-editor-ci.yml'
   workflow_dispatch:
 jobs:
@@ -37,7 +39,7 @@ jobs:
       - run: npm test
         working-directory: functions
       - run: node --test scripts/commerce-checkout-recovery-check.mjs
-      - run: node node_modules/vitest/vitest.mjs run --config vitest.recovery.config.js scripts/recovery/commerce-checkout.ui.test.jsx
+      - run: node node_modules/vitest/vitest.mjs run --config vitest.recovery.config.js scripts/recovery/commerce-*.ui.test.jsx
   integration:
     runs-on: ubuntu-latest
     timeout-minutes: 20

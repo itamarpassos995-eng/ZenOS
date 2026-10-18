@@ -38,7 +38,8 @@ export default function TerminalLogin({ vendedores, onLoginSuccess, onSairLoja, 
         return setErro(tx('PIN / Senha incorreta! Tente novamente.','PIN / Contraseña incorrecta. Intente nuevamente.','Incorrect PIN / Password. Try again.'));
       }
 
-      onLoginSuccess(operador);
+      onLoginSuccess(operador, senhaDigitada);
+      setSenhaDigitada('');
     } catch (error) {
       console.error('[ZenOS][TERMINAL] Falha ao validar PIN do operador.', error);
       setErro(error?.message || tx('Não foi possível validar o PIN neste dispositivo.','No fue posible validar el PIN en este dispositivo.','Could not validate the PIN on this device.'));

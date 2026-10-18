@@ -1,8 +1,10 @@
+import {autorizarSessaoZenOS} from './commerceZenOSSession.js';
 import { HttpsError } from 'firebase-functions/v2/https';
 
 // Provisionado exclusivamente pelo Admin SDK. Nunca confiar no papel enviado pelo cliente
 // nem no login compartilhado do estabelecimento.
-export async function autorizarOperadorCommerce(auth, firestore) {
+export async function autorizarOperadorCommerce(auth, firestore, sessaoZenOS) {
+ if(sessaoZenOS!==undefined)return autorizarSessaoZenOS(auth,firestore,sessaoZenOS);
  if(!auth?.uid)throw new HttpsError('unauthenticated','Entre com sua conta individual para acessar o Commerce.');
  const provider=auth.token?.firebase?.sign_in_provider;
  if(auth.token?.email_verified!==true||!['google.com','password'].includes(provider))
