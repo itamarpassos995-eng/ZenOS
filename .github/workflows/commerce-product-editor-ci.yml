@@ -13,6 +13,7 @@ on:
       - 'src/App.jsx'
       - 'scripts/commerce-preview-build.mjs'
       - 'scripts/commerce-checkout-recovery-check.mjs'
+      - 'scripts/commerce-emulator-check.mjs'
       - 'scripts/commerce-tenant-hml-emulator-check.mjs'
       - 'scripts/recovery/commerce-checkout.ui.test.jsx'
       - '.github/workflows/commerce-product-editor-ci.yml'
@@ -61,4 +62,4 @@ jobs:
           ZENOS_COMMERCE_MEDIA_ENABLED: 'true'
           ZENOS_COMMERCE_HOMOLOGACAO: 'true'
           ZENOS_COMMERCE_STORAGE_BUCKET: demo-zenos-local.appspot.com
-        run: npx --yes firebase-tools@15.34.0 emulators:exec --project demo-zenos-local --config firebase.commerce.homologacao.json --only auth,firestore,functions,storage "node scripts/commerce-tenant-hml-emulator-check.mjs"
+        run: node scripts/commerce-emulator-check.mjs
