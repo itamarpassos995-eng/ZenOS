@@ -135,7 +135,11 @@ const applyGuardedEntityRemovals = ({ field, mergedValue, removeEntityIds, guard
 const assertBusinessGuards = (data, guards = []) => {
   for (const guard of guards || []) {
     if (!guard?.type) continue;
-    if (guard.type === 'entity_field_equals') {
+    if (guard.type === 'entity_absent') {
+      const matches = (Array.isArray(data?.[guard.field]) ? data[guard.field] : [])
+        .filter(e => String(e?.[guard.entityKey || 'id'] ?? '') === String(guard.entityId));
+      if (matches.length) failGuard(guard.message || `O documento ${guard.entityId} já existe. Recarregue o atendimento.`, 'ZENOS_ENTITY_ALREADY_EXISTS');
+    } else if (guard.type === 'entity_field_equals') {
       const entity = findEntity(data?.[guard.field], guard.entityId, guard.entityKey);
       const actual = entity?.[guard.property];
       if (!entity || !syncValuesEqual(actual, guard.expected)) {
