@@ -80,7 +80,8 @@ try{
   const changes=[{field:'produtos',baseValue:[product],value:[{...product,estoque:3,estoqueGalpao:3}]},
    {field:'historicoVendas',baseValue:pending,value:[sale],removeEntityIds:[pre.id]}];
   const guards=[{type:'commerce_order_once',orderId:id,saleId:vendaId},
-   {type:'entity_field_equals',field:'historicoVendas',entityId:pre.id,entityKey:'id',property:'estado',expected:'pendente'}];
+   {type:'entity_field_equals',field:'historicoVendas',entityId:pre.id,entityKey:'id',property:'estado',expected:'pendente'},
+   {type:'entity_unchanged',field:'historicoVendas',entityId:pre.id,entityKey:'id',expected:pre}];
   const financialEntries=[{id:`VENDA-${vendaId}-DINHEIRO`,tipo:'venda',referenciaId:vendaId,valor:25,afetaCaixaFisico:true}];
   const stockEvents=[{id:`EST-${vendaId}`,produtoId:'P1',sku:'S1',tipo:'venda',detalhes:{deposito:2}}];
   // Ambos os terminais iniciam da base confirmada contendo o mesmo pre-pedido.
