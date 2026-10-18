@@ -18,6 +18,10 @@ O backend de ativação precisa provisionar `lojas/{lojaUid}/commerce_operator_c
 
 Sessões têm `expiresAt` para configuração de TTL antes de habilitar na nuvem. A expiração é conferida em cada chamada independentemente da limpeza. Não há configuração TTL ou permissão real alterada por este PR.
 
+## Aviso global de novos pedidos
+
+O shell principal do ZenOS monta o aviso após a autorização integrada. Ele continua montado durante a navegação em PDV/produtos/outros módulos, consulta contagem agregada de pedidos recebidos a cada 90 segundos e ao retornar à aba, e pausa com a aba oculta. O botão abre a central Commerce. Falha de conexão aparece explicitamente; não é tratada como zero pedidos. Cada consulta é autorizada pela sessão privada e isolada por loja. Não oferece push com aplicativo fechado.
+
 ## Leitura canônica de produtos
 
 Novo adaptador somente de leitura segue `storage_control`: legacy/shadow continuam V1; V2 exige certificado completo, geração ready e manifesto de produtos compatível. Tombstones não são reintroduzidos. Erro, modo maintenance ou geração inválida bloqueiam o Commerce sem fallback silencioso para V1. Publicação e checkout leem produtos dentro da transação; catálogo/admin/mídia também respeitam a geração ativa.
@@ -33,8 +37,8 @@ Não há migração, atualização de estoque, alteração de preço operacional
 
 ## Próximas integrações ainda pendentes
 
-Ativação/provisionamento de operadores no backend; acesso operacional completo à homologação isolada com regras próprias e nenhuma rota de fallback para produção; notificações globais no ZenOS; rascunho PDV com trava e vínculo transacional pedido→venda; comprovantes via Share V2. Não há botão de PDV fictício nesta etapa.
+Ativação/provisionamento de operadores no backend; acesso operacional completo à homologação isolada com regras próprias e nenhuma rota de fallback para produção; validar notificações globais na nuvem autenticada; rascunho PDV com trava e vínculo transacional pedido→venda; comprovantes via Share V2. Não há botão de PDV fictício nesta etapa.
 
 ## Custos e rollback
 
-Sem novo fornecedor, projeto ou dependência. Uma sessão gera registros privados e cada chamada integrada lê sessão/permissão; leituras V2 proporcionais aos produtos consultados. Medir e otimizar antes de liberar em escala. Flag desligada desativa o caminho integrado no navegador; revogar versão/ativo bloqueia sessão no servidor. Reverter somente os commits desta etapa mantém pedidos, produtos e operações existentes. Sem merge na main ou deploy de produção autorizado.
+Sem novo fornecedor, projeto ou dependência. Uma sessão gera registros privados e cada chamada integrada lê sessão/permissão; leituras V2 proporcionais aos produtos consultados. O aviso global usa uma consulta agregada por ciclo de 90s visível; o painel de pedidos mantém sua consulta própria enquanto aberto. Medir e otimizar antes de liberar em escala. Flag desligada desativa o caminho integrado no navegador; revogar versão/ativo bloqueia sessão no servidor. Reverter somente os commits desta etapa mantém pedidos, produtos e operações existentes. Sem merge na main ou deploy de produção autorizado.

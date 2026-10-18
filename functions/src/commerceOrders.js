@@ -52,6 +52,10 @@ export const commercePedidosAdmin=onCall(opts,async request=>{
   });
  }
  if(action==='despublicar'){await pubRef.set({ativo:false,alteradoEm:new Date().toISOString(),por:operadorUid},{merge:true});return {ativo:false};}
+ if(action==='resumoPedidos'){
+  const total=await db.collection(`lojas/${lojaId}/commerce_pedidos`).where('status','==','recebido').count().get();
+  return {novos:total.data().count};
+ }
  if(action==='listarPedidos'){
   const snaps=await db.collection(`lojas/${lojaId}/commerce_pedidos`).orderBy('criadoEm','desc').limit(50).get();
   return {pedidos:snaps.docs.map(d=>({id:d.id,...d.data(),clienteUid:undefined,assinatura:undefined})).map(({clienteUid,assinatura,...d})=>d)};

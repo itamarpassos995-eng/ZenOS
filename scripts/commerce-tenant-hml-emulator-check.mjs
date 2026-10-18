@@ -85,7 +85,7 @@ try{
  await credencialRef.set(credencial);
  const bridge=httpsCallable(operatorA.fns,'commerceSessaoZenOS');
  await forbid(bridge({operadorId:'caixa-1',pin:'999999'}));
- await forbid(httpsCallable(a.fns,'commerceSessaoZenOS')({operadorId:'caixa-1',pin:pinSessao}));
+ await assert.rejects(httpsCallable(a.fns,'commerceSessaoZenOS')({operadorId:'caixa-1',pin:pinSessao}),e=>e.code==='functions/unauthenticated');
  await forbid(getDoc(doc(operatorA.db,'lojas',operatorA.uid,'commerce_operator_credentials','caixa-1')));
  await forbid(setDoc(doc(operatorA.db,'lojas',operatorA.uid,'commerce_operator_credentials','caixa-1'),{...credencial,papel:'admin'}));
  const sessaoIntegrada=(await bridge({operadorId:'caixa-1',pin:pinSessao})).data;
@@ -194,8 +194,12 @@ try{
   await forbid(setDoc(doc(a.db,'lojas',a.uid,'commerce_pedidos',receipt.id),{totalCentavos:1}));
   await forbid(setDoc(doc(a.db,'lojas',a.uid,'commerce_quotas','forjada'),{total:0}));
   await assert.rejects(adminB({action:'atualizarStatus',id:receipt.id,status:'em_atendimento'}),e=>/not-found/.test(e.code));
+  assert.equal((await adminA({action:'resumoPedidos'})).data.novos,1);
+  assert.equal((await adminB({action:'resumoPedidos'})).data.novos,0);
   const list=(await adminA({action:'listarPedidos'})).data;assert.equal(list.pedidos.length,1);assert.equal(list.pedidos[0].cliente.nome,'Comprador Teste');
   await adminA({action:'atualizarStatus',id:receipt.id,status:'em_atendimento'});
+  assert.equal((await adminA({action:'resumoPedidos'})).data.novos,0);
+
   await adminA({action:'atualizarStatus',id:receipt.id,status:'encerrado'});
   await assert.rejects(adminA({action:'atualizarStatus',id:receipt.id,status:'cancelado'}),e=>/failed-precondition/.test(e.code));
   await adb.doc(`lojas/${a.uid}/commerce_private/licenca`).update({bloqueado:true});

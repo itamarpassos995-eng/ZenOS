@@ -1,3 +1,4 @@
+import ZenCommerceOrderNotice from './components/ZenCommerceOrderNotice';
 import {iniciarSessaoCommerceZenOS,limparSessaoCommerceZenOS,ponteCommerceZenOSHabilitada} from './core/commerceZenOSSession';
 import {getOperationalSnapshot,subscribeOperationalSnapshot,clearOperationalSession} from './core/operationalRepository.js';
 import TerminalLogin from './components/TerminalLogin';
@@ -1653,6 +1654,7 @@ export default function App() {
           />
 
           <main className="zen-main no-print">
+          {ponteCommerceZenOSHabilitada&&temPermissao('admin')&&<ZenCommerceOrderNotice userId={userId} operadorId={operadorAtivo?.id} onAbrir={()=>navegarPara('commerce')}/>}
         
  {ecraAtual === 'hub' && (
           <div className="zen-dashboard-home">
