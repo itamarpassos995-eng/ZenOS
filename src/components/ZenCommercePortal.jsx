@@ -107,6 +107,7 @@ export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuve
    }
    const res=await fn.current({action:'salvarRascunho',expectedRevision:rev.current,rascunho:{aparencia,regras:revisadas}});
    rev.current=res.data.revision;
+   setData(prev=>prev?{...prev,revision:res.data.revision,regras:revisadas,aparencia}:prev);
    return {...res.data,regras:revisadas,aviso:pendentes.length?`Foto original ainda pendente de sincronização em ${pendentes.length} produto(s). A loja segue privada.`:''};
   }catch(e){throw new Error(erroAmigavel(e));}
  };
