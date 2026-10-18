@@ -159,6 +159,23 @@ try{
   assert.equal(session(0).sequence,previousSequence);
   assert.equal((await getDoc(doc(db,...root,'vendas',encodeV2Id(pending.id)))).data().deleted,true);
  });
+ await test('New PDV sale never rewrites stale removed historic documents',async()=>{
+  tick();const remote=state(0);
+  const tombstoned=[...session(0).records.get('historicoVendas').values()]
+    .find(r=>r.deleted&&r.data?.estado==='pendente');
+  assert(tombstoned,'pre-order tombstone fixture required');
+  const staleBase=[tombstoned.data,...remote.historicoVendas];
+  const staleEdited={...tombstoned.data,estado:'concluida',clienteNome:'Outdated terminal'};
+  const newSale={id:'V2-PDV-REAL-WRITE-INTENT',estado:'concluida',totalBRL:110,itens:[]};
+  const result=await commit(0,{
+   operationKey:`pdv:${newSale.id}`,
+   changes:[{field:'historicoVendas',baseValue:staleBase,value:[newSale,staleEdited,...remote.historicoVendas]}],
+   guards:[{type:'cash_session_open',sessionId:cash.id}],
+  });ok(result);
+  assert(state(0).historicoVendas.some(v=>v.id===newSale.id));
+  assert(!state(0).historicoVendas.some(v=>v.id===tombstoned.data.id));
+  assert.equal((await getDoc(doc(db,...root,'vendas',encodeV2Id(tombstoned.data.id)))).data().deleted,true);
+ });
  await test('Expense, cash movement and canonical finance share a single atomic commit',async()=>{
   tick();const b=state(0);ok(await commit(0,{operationKey:'expense-test',changes:[change(b,'despesas',[{id:'EMULATOR-EXPENSE',valor:1},...b.despesas]),change(b,'caixaMovimentos',[{id:'EMULATOR-MOV',valor:1,sessaoId:cash.id,tipo:'sangria'},...b.caixaMovimentos])],guards:[{type:'cash_session_open',sessionId:cash.id}],financialEntries:[{id:'expense-ledger',tipo:'despesa',referenciaId:'EMULATOR-EXPENSE',valor:1,direcao:'saida',createdAt:'2026-10-17T00:00:00.000Z'}]}));
   assert((await getDoc(doc(db,'lojas',userId,'financeiro_livro','expense-ledger'))).exists());
