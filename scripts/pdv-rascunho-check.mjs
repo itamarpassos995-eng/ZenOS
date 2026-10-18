@@ -56,7 +56,7 @@ assert.match(pdv,/if \(!rascunhoSeguro\)/);
 assert.match(pdv,/if \(!confirmado\?\.cloudOk\)[\s\S]*?return;/);
 assert.match(pdv,/apagarRascunhoPDV\(userId, operadorAtivo\?\.id\);\s*setVendaConcluidaObj/);
 assert.match(pdv,/operationKey: `pdv:\$\{vendaId\}`/);
-assert.match(pdv,/confirmado\?\.error\?\.code === 'V2_REUSE_ID'/);
+assert.match(pdv,/\['V2_REUSE_ID','ZENOS_ENTITY_DELETED_REMOTE'\]\.includes\(confirmado\?\.error\?\.code\)/);
 assert.match(app,/recarregarDadosPDV=\{recarregarDadosPDV\}/);
 assert.match(v2,/if\(cached\?\.deleted&&after\.has\(id\)\)throw v2Error\('V2_REUSE_ID'/);
 console.log('PDV: rascunho por operador/loja, dados mínimos, retry idempotente e tombstone preservado — OK');
