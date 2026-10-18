@@ -193,15 +193,17 @@ try{
   await forbid(getDoc(doc(buyer.db,'lojas',a.uid,'commerce_pedidos',receipt.id)));
   await forbid(setDoc(doc(a.db,'lojas',a.uid,'commerce_pedidos',receipt.id),{totalCentavos:1}));
   await forbid(setDoc(doc(a.db,'lojas',a.uid,'commerce_quotas','forjada'),{total:0}));
-  await assert.rejects(adminB({action:'atualizarStatus',id:receipt.id,status:'em_atendimento'}),e=>/not-found/.test(e.code));
+  await assert.rejects(adminB({action:'atualizarStatus',id:receipt.id,status:'cancelado'}),e=>/not-found/.test(e.code));
   assert.equal((await adminA({action:'resumoPedidos'})).data.novos,1);
   assert.equal((await adminB({action:'resumoPedidos'})).data.novos,0);
   const list=(await adminA({action:'listarPedidos'})).data;assert.equal(list.pedidos.length,1);assert.equal(list.pedidos[0].cliente.nome,'Comprador Teste');
-  await adminA({action:'atualizarStatus',id:receipt.id,status:'em_atendimento'});
+  // Nao existe mais atalho manual que declara atendimento ou faturamento.
+  for(const status of ['em_atendimento','encerrado'])
+   await assert.rejects(adminA({action:'atualizarStatus',id:receipt.id,status}),e=>/invalid-argument/.test(e.code));
+  assert.equal((await adminA({action:'resumoPedidos'})).data.novos,1);
+  await adminA({action:'atualizarStatus',id:receipt.id,status:'cancelado'});
   assert.equal((await adminA({action:'resumoPedidos'})).data.novos,0);
-
-  await adminA({action:'atualizarStatus',id:receipt.id,status:'encerrado'});
-  await assert.rejects(adminA({action:'atualizarStatus',id:receipt.id,status:'cancelado'}),e=>/failed-precondition/.test(e.code));
+  assert.equal((await adminA({action:'atualizarStatus',id:receipt.id,status:'cancelado'})).data.status,'cancelado');
   await adb.doc(`lojas/${a.uid}/commerce_private/licenca`).update({bloqueado:true});
   await forbid(lojaApi({action:'catalogo',idPublico:published.idPublico}));
   await adb.doc(`lojas/${a.uid}/commerce_private/licenca`).update({bloqueado:false});
