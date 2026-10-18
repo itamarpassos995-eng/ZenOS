@@ -25,7 +25,7 @@ export function salvarRascunhoPDV(lojaId, operadorId, rascunho) {
   const chave = chaveRascunhoPDV(lojaId, operadorId);
   if (!chave) return false;
   // Evita manter atendimento vazio, sem intenção de venda.
-  if (!rascunho?.itensVenda?.length && !rascunho?.prePedidoEmAbertoId) {
+  if (!rascunho?.itensVenda?.length && !rascunho?.prePedidoEmAbertoId && !rascunho?.commerceOrigem) {
     return zenosStorage.removeItem(chave);
   }
   return zenosStorage.setItem(chave, JSON.stringify({

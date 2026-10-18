@@ -1,3 +1,4 @@
+import {lerTravaFaturamentoCommerce,gravarTravaFaturamentoCommerce} from './commerceSaleFence.js';
 import {exchangeRateSnapshotsEqual} from './exchangeRateGuard.js';
 import {doc,getDocFromServer,runTransaction,serverTimestamp} from 'firebase/firestore';
 import {peekV2Session} from './operationalRepository.js';
@@ -70,6 +71,7 @@ export async function persistV2BusinessOperationSafe({db,userId,changes=[],finan
        ||stableV2Json(control.data())!==stableV2Json(session.control))throw v2Error('V2_ROUTE_CHANGED','Armazenamento mudou; recarregue antes de operar.');
      const headRef=doc(db,...session.root),receiptRef=doc(db,...session.root,'operations',receiptId);
      const head=await tx.get(headRef),prior=await tx.get(receiptRef);
+     const travaCommerce=await lerTravaFaturamentoCommerce(tx,db,userId,guards,valid);
      if(prior.exists()){
       if(prior.data().fingerprint!==fingerprint)throw v2Error('V2_IDEMPOTENCY_CONFLICT','Esta operação já existe com conteúdo diferente.');
       return {receipt:prior.data(),alreadyCommitted:true};
@@ -114,13 +116,14 @@ export async function persistV2BusinessOperationSafe({db,userId,changes=[],finan
      const audit=stockEvents.filter(e=>e?.id&&e?.produtoId!=null).map(e=>({ref:doc(db,'lojas',String(userId),'estoque_auditoria',sanitize(e.produtoAuditKey||`${e.produtoId}-${e.sku||''}`),'movimentos',sanitize(e.id)),value:cleanV2Value(e)}));
      const paths=new Set();for(const w of [...writes,...ledger,...audit]){
       if(paths.has(w.ref.path))throw v2Error('V2_DUPLICATE_WRITE','Destino duplicado na operação.');paths.add(w.ref.path);}
-     const count=writes.length+ledger.length+audit.length+2;
+     const count=writes.length+ledger.length+audit.length+2+(travaCommerce?1:0);
      if(normalized.length>350)throw v2Error('V2_FINANCE_BUDGET','Muitos lançamentos em uma operação.');
-     if(count>450||writes.length+ledger.length+audit.length+4+(fx?1:0)>400)throw v2Error('ZENOS_ATOMIC_WRITE_LIMIT','Operação excede o orçamento de leitura/gravação.');
+     if(count>450||writes.length+ledger.length+audit.length+4+(fx?1:0)+(travaCommerce?1:0)>400)throw v2Error('ZENOS_ATOMIC_WRITE_LIMIT','Operação excede o orçamento de leitura/gravação.');
      for(const w of [...ledger,...audit])if((await tx.get(w.ref)).exists())throw v2Error('V2_HISTORY_COLLISION','Histórico já existe sem comprovante da operação. Reconciliação necessária.');
      const receipt=cleanV2Value({schema:2,key,fingerprint,sequence:next,revisions,patches,financialEntries:normalized,
-      reads:writes.length+ledger.length+audit.length+4+(fx?1:0),writes:count,createdAtClient:new Date().toISOString()});
+      reads:writes.length+ledger.length+audit.length+4+(fx?1:0)+(travaCommerce?1:0),writes:count,createdAtClient:new Date().toISOString()});
      requireSize(receipt,750_000,'V2_RECEIPT_SIZE');requireSize([...writes,...ledger,...audit].map(w=>w.value),2_000_000,'V2_COMMIT_SIZE');
+     gravarTravaFaturamentoCommerce(tx,travaCommerce);
      for(const w of writes)tx.set(w.ref,w.value);
      for(const w of [...ledger,...audit])tx.set(w.ref,{...w.value,serverRecordedAt:serverTimestamp(),_v2:{generation:session.generation,commandId:receiptId,sequence:next}});
      tx.set(receiptRef,receipt);tx.update(headRef,{sequence:next,lastReceipt:receiptId,fieldCounts,fieldRevisions:revisions,updatedAtServer:serverTimestamp()});

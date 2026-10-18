@@ -1,3 +1,4 @@
+import {atenderPedidoPDV} from './commercePDV.js';
 import {lerProdutosCommerce,consultarProdutosCommerce} from './commerceOperationalRead.js';
 import {onCall,HttpsError} from 'firebase-functions/v2/https';
 import {randomBytes} from 'node:crypto';
@@ -28,6 +29,7 @@ export const commercePedidosAdmin=onCall(opts,async request=>{
  habilitado();const db=await obterAdminFirestore();const {lojaId,operadorUid}=await autorizarOperadorCommerce(request.auth,db,request.data?.sessaoZenOS);
  if(request.data?.lojaId!==undefined)throw new HttpsError('invalid-argument','Loja definida pelo servidor.');
  const pubRef=draftRef(db,lojaId,'publicacao'),action=request.data?.action;
+ if(['prepararPDV','confirmarFaturamento'].includes(action))return atenderPedidoPDV(db,{lojaId,operadorUid,id:request.data.id,confirmar:action==='confirmarFaturamento'});
  if(action==='consultarLoja'){
   const shop=await db.doc(`lojas/${lojaId}`).get();if(!shop.exists)throw new HttpsError('not-found','Loja de homologação não configurada.');
   return {lojaId,produtos:await consultarProdutosCommerce(db,lojaId)};
@@ -64,6 +66,7 @@ export const commercePedidosAdmin=onCall(opts,async request=>{
   if(!/^[a-f0-9]{32}$/.test(request.data.id||'')||!['em_atendimento','encerrado','cancelado'].includes(request.data.status))throw new HttpsError('invalid-argument','Pedido ou status inválido.');
   const ref=db.doc(`lojas/${lojaId}/commerce_pedidos/${request.data.id}`);
   await db.runTransaction(async tx=>{const snap=await tx.get(ref);if(!snap.exists)throw new HttpsError('not-found','Pedido não encontrado.');
+   if(snap.data().pdv||snap.data().vendaId)throw new HttpsError('failed-precondition','Pedido vinculado ao PDV. Conclua ou confira o atendimento antes de alterar o status.');
    if(['encerrado','cancelado'].includes(snap.data().status)&&snap.data().status!==request.data.status)throw new HttpsError('failed-precondition','Pedido já encerrado.');
    tx.update(ref,{status:request.data.status,atualizadoEm:new Date().toISOString(),alteradoPor:operadorUid});});return {status:request.data.status};
  }

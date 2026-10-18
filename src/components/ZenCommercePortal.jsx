@@ -1,3 +1,4 @@
+import {lerRascunhoPDV} from '../core/pdvDraft';
 import {observarSessaoCommerceZenOS,obterAuthCommerceZenOS,callableCommerceZenOS,ponteCommerceZenOSHabilitada} from '../core/commerceZenOSSession';
 import React,{useEffect,useRef,useState} from 'react';
 import {getFunctions,httpsCallable} from 'firebase/functions';
@@ -16,7 +17,7 @@ const erroAmigavel=e=>{
 };
 
 /** O storefront público não é ativado por este componente. */
-export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuvemSincronizada=false,produtoFocoId=null,integrado=ponteCommerceZenOSHabilitada}){
+export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuvemSincronizada=false,produtoFocoId=null,onAbrirPedidoPDV=null,integrado=ponteCommerceZenOSHabilitada}){
  const [data,setData]=useState(null),[loading,setLoading]=useState(true),[erro,setErro]=useState('');
  const [operatorAuth]=useState(()=>integrado?obterAuthCommerceZenOS():obterSessaoOperadorCommerce());
  const [operatorUid,setOperatorUid]=useState(null);
@@ -47,6 +48,16 @@ export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuve
   return()=>{ativo=false;fn.current=null;fnMedia.current=null;};
  },[userId,nuvemSincronizada,operatorUid,operatorAuth,sessaoRevision]);
  const adminApi=async(action,extra={})=>(await (integrado?callableCommerceZenOS('commercePedidosAdmin'):httpsCallable(getFunctions(operatorAuth.app,'southamerica-east1'),'commercePedidosAdmin'))({action,...extra})).data;
+ const abrirPedidoPDV=async id=>{
+  if(painelBusy)return;setPainelBusy(true);setPainelErro('');
+  try {
+   const atual=lerRascunhoPDV(userId,operadorAtivo?.id);
+   if((atual?.itensVenda?.length||atual?.prePedidoEmAbertoId||atual?.commerceOrigem)&&atual?.commerceOrigem?.pedidoId!==id)throw Error('Há um atendimento no PDV. Conclua-o antes de abrir outro pedido.');
+   const pedido=await adminApi('prepararPDV',{id});
+   if(pedido.faturado){await onAbrirPedidoPDV(pedido);await carregarPedidos();setPainelErro('Este pedido já foi faturado. Venda '+pedido.vendaId+'.');return;}
+   await onAbrirPedidoPDV(pedido);
+  }catch(e){setPainelErro(erroAmigavel(e));}finally{setPainelBusy(false);}
+ };
  const carregarPedidos=async(manual=false)=>{
   if(!data?.lojaId||!operatorUid||consultaEmCurso.current)return;
   const lojaAtual=data.lojaId;consultaEmCurso.current=true;
@@ -145,7 +156,7 @@ export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuve
     {data.lojaPublicada&&<button disabled={painelBusy} onClick={async()=>{if(!window.confirm('Retirar a loja do ar? Os pedidos serão preservados.'))return;setPainelBusy(true);try{await adminApi('despublicar');setData(prev=>({...prev,lojaPublicada:false}));}catch(e){setPainelErro(erroAmigavel(e));}finally{setPainelBusy(false);}}}>Retirar loja do ar</button>}
    </div>
    {painelErro&&<p role="alert">{painelErro}</p>}
-   {pedidos.map(p=><article key={p.id} style={{background:'#10212e',padding:12,borderRadius:9}}><b>{p.id.slice(0,10).toUpperCase()} — {p.cliente.nome}</b><p>{p.criadoEm} • {p.status} • R$ {(p.totalCentavos/100).toFixed(2)}</p><p>{p.itens.map(i=>i.quantidade+' × '+i.nome).join(' / ')}</p><p>{p.observacao}</p><a style={{color:'#e9bc7a'}} href={'https://wa.me/'+p.cliente.telefone} target="_blank" rel="noopener noreferrer">Atender pelo WhatsApp</a><div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:10}}>{['em_atendimento','encerrado','cancelado'].map(status=><button key={status} disabled={painelBusy||p.status===status||['encerrado','cancelado'].includes(p.status)} onClick={async()=>{setPainelBusy(true);try{await adminApi('atualizarStatus',{id:p.id,status});await carregarPedidos();}catch(e){setPainelErro(erroAmigavel(e));}finally{setPainelBusy(false);}}}>{status.replace('_',' ')}</button>)}</div></article>)}
+   {pedidos.map(p=><article key={p.id} style={{background:'#10212e',padding:12,borderRadius:9}}><b>{p.id.slice(0,10).toUpperCase()} — {p.cliente.nome}</b><p>{p.criadoEm} • {p.status} • R$ {(p.totalCentavos/100).toFixed(2)}</p><p>{p.itens.map(i=>i.quantidade+' × '+i.nome).join(' / ')}</p><p>{p.observacao}</p><a style={{color:'#e9bc7a'}} href={'https://wa.me/'+p.cliente.telefone} target="_blank" rel="noopener noreferrer">Atender pelo WhatsApp</a><div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:10}}>{integrado&&onAbrirPedidoPDV&&p.status!=='cancelado'&&<button disabled={painelBusy} onClick={()=>abrirPedidoPDV(p.id)}>{p.vendaId?'Conferir faturamento':'Abrir no PDV'}</button>}{['em_atendimento','encerrado','cancelado'].map(status=><button key={status} disabled={painelBusy||!!p.pdv||!!p.vendaId||p.status===status||['encerrado','cancelado'].includes(p.status)} onClick={async()=>{setPainelBusy(true);try{await adminApi('atualizarStatus',{id:p.id,status});await carregarPedidos();}catch(e){setPainelErro(erroAmigavel(e));}finally{setPainelBusy(false);}}}>{status.replace('_',' ')}</button>)}</div></article>)}
    {!pedidos.length&&<small>Clique em atualizar para consultar os últimos 50 pedidos.</small>}
   </section>}
   <ZenCommerceStudio key={String(userId)+'-'+String(produtoFocoId||'studio')} produtos={produtos} produtoFocoId={produtoFocoId} aparenciaInicial={data?.aparencia}

@@ -11,11 +11,39 @@ service cloud.firestore {
       // sao combinadas por OR no Firestore.
       match /{colecao}/{registro} {
         allow read, write: if lojaAutorizada(lojaId) && colecao != 'commerce_private'
-          && !(colecao in ['commerce_pedidos', 'commerce_quotas']);
+          && !(colecao in ['commerce_pedidos', 'commerce_quotas', 'commerce_faturamentos']);
         match /{subdocumentos=**} {
           allow read, write: if lojaAutorizada(lojaId) && colecao != 'commerce_private'
-          && !(colecao in ['commerce_pedidos', 'commerce_quotas']);
+          && !(colecao in ['commerce_pedidos', 'commerce_quotas', 'commerce_faturamentos']);
         }
+      }
+      match /commerce_faturamentos/{pedidoId} {
+        function pedidoPreparado() {
+          let p = get(/databases/$(database)/documents/lojas/$(lojaId)/commerce_pedidos/$(pedidoId)).data;
+          return p.status == 'em_atendimento' && p.pdv.vendaId == 'COMMERCE-' + pedidoId;
+        }
+        function vendaConfirmada() {
+          let control = /databases/$(database)/documents/lojas/$(lojaId)/dados/storage_control;
+          let v2 = exists(control) && get(control).data.mode == 'v2';
+          let rota = v2
+            ? /databases/$(database)/documents/lojas/$(lojaId)/v2_generations/$(get(control).data.generation)/vendas/$('COMMERCE-' + pedidoId)
+            : /databases/$(database)/documents/lojas/$(lojaId)/dados/operacao;
+          let registro = getAfter(rota).data;
+          let venda = v2 ? registro.data : registro.historicoVendas[0];
+          return venda.id == 'COMMERCE-' + pedidoId && venda.origem == 'commerce'
+            && venda.commercePedidoId == pedidoId && venda.estado == 'concluida';
+        }
+        allow read: if lojaAutorizada(lojaId);
+        allow create: if lojaAutorizada(lojaId)
+          && pedidoPreparado()
+          && vendaConfirmada()
+          && pedidoId.matches('^[a-f0-9]{32}$')
+          && request.resource.data.keys().hasOnly(['pedidoId','vendaId','criadoEm'])
+          && request.resource.data.pedidoId == pedidoId
+          && request.resource.data.vendaId == 'COMMERCE-' + pedidoId
+          && request.resource.data.criadoEm is string
+          && request.resource.data.criadoEm.size() <= 40;
+        allow update, delete: if false;
       }
     }
     match /{outros=**} {

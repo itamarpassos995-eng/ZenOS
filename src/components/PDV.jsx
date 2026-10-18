@@ -1,3 +1,4 @@
+import {callableCommerceZenOS} from '../core/commerceZenOSSession';
 import React, { useState, useEffect, useRef } from 'react';
 import { normalizarProduto, normalizarCliente } from '../data';
 import { aplicarVendaAoEstoque, obterEstoqueProduto, preverBaixaEstoqueProduto } from '../core/inventory';
@@ -57,6 +58,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
   const operacaoDocumentoRef = useRef(rascunhoInicial?.operacaoDocumento?.id ? rascunhoInicial.operacaoDocumento : { assinatura: null, id: null, instante: null });
 
   const [modalResgateAberto, setModalResgateAberto] = useState(false);
+  const [commerceOrigem,setCommerceOrigem] = useState(rascunhoInicial?.commerceOrigem || null);
   const [prePedidoEmAbertoId, setPrePedidoEmAbertoId] = useState(rascunhoInicial?.prePedidoEmAbertoId || null);
 
   // Persistir o carrinho após cada edição; a confirmação da venda continua exclusiva da nuvem.
@@ -68,12 +70,12 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
       clienteSelecionadoPDV: clienteSelecionadoPDV ? {
         id: clienteSelecionadoPDV.id, nome: clienteSelecionadoPDV.nome,
       } : null,
-      clienteQuerFiscal, pagamentosLancados, prePedidoEmAbertoId,
+      clienteQuerFiscal, pagamentosLancados, prePedidoEmAbertoId, commerceOrigem,
       modalFechamentoAberto, operacaoDocumento: operacaoDocumentoRef.current,
     });
   }, [userId, operadorAtivo?.id, itensVenda, descontoTexto, nomeClienteVulso,
       clienteSelecionadoPDV, clienteQuerFiscal, pagamentosLancados,
-      prePedidoEmAbertoId, modalFechamentoAberto, vendaSucesso]);
+      prePedidoEmAbertoId, commerceOrigem, modalFechamentoAberto, vendaSucesso]);
 
   const perfilRecibo = normalizarPerfilLoja(perfilLoja);
   const cotacoesRecibo = vendaConcluidaObj?.taxasCambio || taxasCambio || {};
@@ -141,6 +143,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
   const selecionarClienteNoPDV = (cli) => {
     try {
       const novosItens = itensVenda.map(item => {
+        if(commerceOrigem)return item;
         const prodOriginal = obterProdutoCatalogoSeguro(item, 'reprecificação por cliente');
         const novoPrecoBRL = aplicarPrecoPorPerfilCliente(prodOriginal, cli);
         return { ...item, precoPraticadoBRL: novoPrecoBRL, precoTexto: converterDeBRL(novoPrecoBRL, moeda).toFixed(2) };
@@ -153,6 +156,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
   const removerClienteDoPDV = () => {
     try {
       const novosItens = itensVenda.map(item => {
+        if(commerceOrigem)return item;
         const prodOriginal = obterProdutoCatalogoSeguro(item, 'retorno ao preço de balcão');
         return { ...item, precoPraticadoBRL: prodOriginal.precoBRL || 0, precoTexto: converterDeBRL(prodOriginal.precoBRL || 0, moeda).toFixed(2) };
       });
@@ -336,6 +340,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
   const lidarDigitacaoPreco = (id, valorDigitado) => { setItensVenda(itensVenda.map(item => item.id === id ? { ...item, precoTexto: valorDigitado, precoPraticadoBRL: converterParaBRL(parseFloat(valorDigitado.replace(',', '.')) || 0, moeda) } : item)); };
 
   const carregarPrePedido = (pedido) => {
+    if(commerceOrigem)return mostrarZen('warning','Pedido em atendimento','Conclua o pedido online antes de resgatar outro documento.');
     setItensVenda(itensVendaComCustoAtual(pedido.itens));
     setClienteQuerFiscal(pedido.clienteQuerFiscal === true);
     if (pedido.clienteId) {
@@ -516,6 +521,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
   };
 
   const concluirTransacao = async (tipoFinalizacao) => {
+    if(commerceOrigem && (tipoFinalizacao!=='venda'||typeof commitVendaCritica!=='function'))return mostrarZen('warning','Pedido da Loja Online','Conclua este pedido como venda pelo fluxo protegido do PDV.');
     if (operacaoEmAndamentoRef.current) return;
     if (tipoFinalizacao === 'venda' && (!podeFinalizarVenda || !sessaoAtiva)) return;
     operacaoEmAndamentoRef.current = true;
@@ -553,7 +559,9 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
       const itensVendaAtualizada = itensVendaComCustoAtual(itensVenda);
       let itensDocumento = [...itensVendaAtualizada];
       const docRotulo = tipoFinalizacao === 'venda' ? 'VENDA' : (tipoFinalizacao === 'pre_pedido' ? 'PRÉ-PEDIDO' : 'ORÇAMENTO');
-      if (operacaoDocumentoRef.current.assinatura !== assinaturaOperacao || !operacaoDocumentoRef.current.id) {
+      if (commerceOrigem) {
+        operacaoDocumentoRef.current = {assinatura:assinaturaOperacao,id:commerceOrigem.vendaId,instante:commerceOrigem.preparadoEm};
+      } else if (operacaoDocumentoRef.current.assinatura !== assinaturaOperacao || !operacaoDocumentoRef.current.id) {
         operacaoDocumentoRef.current = {
           assinatura: assinaturaOperacao,
           id: `${docRotulo}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -568,7 +576,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
         clienteSelecionadoPDV: clienteSelecionadoPDV ? {
           id: clienteSelecionadoPDV.id, nome: clienteSelecionadoPDV.nome,
         } : null,
-        clienteQuerFiscal, pagamentosLancados, prePedidoEmAbertoId,
+        clienteQuerFiscal, pagamentosLancados, prePedidoEmAbertoId, commerceOrigem,
         modalFechamentoAberto: true, operacaoDocumento: operacaoDocumentoRef.current,
       });
       if (!rascunhoSeguro) {
@@ -655,6 +663,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
 
       const novaVenda = {
         id: vendaId,
+        ...(commerceOrigem ? {origem:'commerce',commercePedidoId:commerceOrigem.pedidoId} : {}),
         createdAt: instanteVenda.toISOString(),
         dataHora: instanteVenda.toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR'),
         clienteId: clienteSelecionadoPDV ? clienteSelecionadoPDV.id : null,
@@ -826,6 +835,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
           }
           for (const [code, amount] of usosVoucher.entries()) guards.push({ type:'voucher_balance_at_least', code, amount });
         }
+        if (commerceOrigem) guards.push({type:'commerce_order_once',orderId:commerceOrigem.pedidoId,saleId:commerceOrigem.vendaId});
         if (prePedidoEmAbertoId) {
           guards.push({
             type:'entity_field_equals',
@@ -882,8 +892,12 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
       apagarRascunhoPDV(userId, operadorAtivo?.id);
       setVendaConcluidaObj(novaVenda);
       setVendaSucesso(true);
-      // Força a tela de imprimir o recibo a saltar, mesmo em Orçamentos/Pré-Pedidos
+      // Mostrar o recibo confirmado antes de reconciliar a fila Commerce.
       setModalFechamentoAberto(true);
+      if(commerceOrigem) {
+        try {await callableCommerceZenOS('commercePedidosAdmin')({action:'confirmarFaturamento',id:commerceOrigem.pedidoId});}
+        catch {mostrarZen('warning','Venda concluída; pedido aguardando sincronização','A venda foi registrada. Abra o pedido na Loja Online para recuperar o vínculo. Não refature.');}
+      }
 
     } catch (err) {
       console.error("Erro fatal ao finalizar documento:", err);
@@ -916,12 +930,13 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
     setItensVenda([]); setDescontoTexto('0'); setPagamentosLancados([]);
     setClienteSelecionadoPDV(null); setNomeClienteVulso('');
     setClienteQuerFiscal(false);
-    setPrePedidoEmAbertoId(null); 
+    setPrePedidoEmAbertoId(null); setCommerceOrigem(null);
     setModalFechamentoAberto(false); setVendaSucesso(false); setVendaConcluidaObj(null);
   };
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px', width: '100%', boxSizing: 'border-box' }}>
+      {commerceOrigem && <p style={{gridColumn:'1 / -1',color:'#34d399'}}>Pedido online {commerceOrigem.pedidoId.slice(0,10).toUpperCase()} — confira itens, valores e pagamento antes de concluir.</p>}
       {avisoRascunhoRecuperado && !vendaSucesso && (
         <div role="status" style={{gridColumn:'1 / -1',border:'1px solid #38bdf8',background:'#082f49',borderRadius:12,
           padding:'12px 16px',display:'flex',gap:12,alignItems:'center',justifyContent:'space-between',color:'#e0f2fe',flexWrap:'wrap'}}>
