@@ -15,7 +15,8 @@ Não recebem credenciais, dados ou backups de clientes. Nenhum deploy de Firesto
 regras, Functions fiscais ou mudança de estrutura de dados faz parte deste fluxo.
 
 Na Vercel, exigir `ZenOS Release Gate` em Settings > Build and Deployment >
-Deployment Checks, importado do GitHub. A Vercel pode construir uma versão enquanto
+Deployment Checks, exigindo o status `Vercel - zen-os: release` reportado pela ação
+oficial da Vercel no job final. A Vercel pode construir uma versão enquanto
 o CI roda, mas só deve associar os domínios oficiais quando o check for aprovado.
 Não usar Force Promote para contornar falhas. Um check ausente ou pendente não é
 aprovação. A alteração do nome do job exige atualizar a configuração da Vercel.

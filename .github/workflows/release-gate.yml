@@ -53,7 +53,14 @@ jobs:
     needs: [business, emulator]
     runs-on: ubuntu-latest
     timeout-minutes: 2
+    permissions:
+      contents: read
+      statuses: write
     steps:
+      - name: Report release status to Vercel
+        uses: vercel/repository-dispatch/actions/status@v1
+        with:
+          name: 'Vercel - zen-os: release'
       - name: Refuse failed, skipped or cancelled prerequisites
         env:
           BUSINESS_RESULT: ${{ needs.business.result }}
