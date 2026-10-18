@@ -71,7 +71,7 @@ export const commerceLoja=onCall(opts,async request=>{
   const catalogo=catalogoCommerceServidor(produtos,regras).map(p=>{
    const r=regras[p.produtoId],original=r.fotoCadastroPreviewUrl||urlImagemCommerce(produtos.find(prod=>String(prod.id)===p.produtoId)?.imagem);const fotos=[...(r.usarFotoCadastro!==false&&original?[{id:'cadastro',url:original,alt:p.nome}]:[]),...(r.galeriaImagens||[]).map(f=>({id:f.id,url:f.url,alt:f.alt,miniaturaUrl:f.miniaturaUrl}))];
    const capa=fotos.find(f=>f.id===r.capaImagemId)||fotos[0];
-   const {produtoId,...publico}=p;return {...publico,imagens:fotos,imagemUrl:urlImagemCommerce(r.imagemPublica)||capa?.url||null};
+   const {produtoId,...publico}=p;const antigo=Number(r.precoAnteriorBRL||0);return {...publico,descricao:String(r.descricaoWeb||p.descricao||'').slice(0,800),precoAnteriorCentavos:antigo>p.precoBRL?Math.round(antigo*100):null,imagens:fotos,imagemUrl:urlImagemCommerce(r.imagemPublica)||capa?.url||null};
   });
   return {idPublico:id,revision:publication.revision,aparencia:await processarBannersPrivados(publication.aparencia,lojaId,{hidratar:true,publico:true}),whatsapp:publication.whatsapp,catalogo};
  }
