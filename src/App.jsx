@@ -1,3 +1,4 @@
+import {montarPrePedidoCommerce,recuperarPrePedidoCommerce} from './core/commercePrePedido';
 import {importarRascunhoCommerce,reconciliarRascunhoCommerceFaturado} from './core/commercePDVDraft';
 import ZenCommerceOrderNotice from './components/ZenCommerceOrderNotice';
 import {iniciarSessaoCommerceZenOS,limparSessaoCommerceZenOS,ponteCommerceZenOSHabilitada} from './core/commerceZenOSSession';
@@ -111,6 +112,7 @@ function PublicHomeRedirect() {
 
 export default function App() {
   const [usuarioAutenticado, setUsuarioAutenticado] = useState(null);
+  const [versaoAberturaPDV,setVersaoAberturaPDV] = useState(0);
   const [userId, setUserId] = useState(null);
   const [statusLoja, setStatusLoja] = useState(null);
   const [planoLoja, setPlanoLoja] = useState('basico');
@@ -1722,8 +1724,21 @@ export default function App() {
           </div>
  )}
 
-        {ecraAtual === 'commerce' && temPermissao('admin') && <ZenCommercePortal userId={userId} operadorAtivo={operadorAtivo} produtos={produtos} nuvemSincronizada={nuvemSincronizada} onAbrirPedidoPDV={ponteCommerceZenOSHabilitada && temPermissao('pdv') ? async pedido=>{if(pedido.faturado){reconciliarRascunhoCommerceFaturado({lojaId:userId,operadorId:operadorAtivo?.id,pedido});await recarregarDadosPDV();return;}importarRascunhoCommerce({lojaId:userId,operadorId:operadorAtivo?.id,pedido,produtos,converterDeBRL:v=>converterDeBRL(v,moeda)});navegarPara('pdv');}:null} />}
-        {ecraAtual === 'pdv' && <PDV perfilLoja={perfilLoja} taxasCambio={taxasCambio} registrarFinanceiro={registrarFinanceiro} commitOperacaoCritica={commitOperacaoCritica} commitVendaCritica={commitVendaCritica} recarregarDadosPDV={recarregarDadosPDV} vouchers={vouchers} setVouchers={setVouchers} userId={userId} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} patenteUsuario={patenteUsuario} idioma={idioma} regrasDesconto={regrasDesconto} vendedores={vendedores} operadorAtivo={operadorAtivo} sessaoAtiva={sessaoAtiva} />}
+        {ecraAtual === 'commerce' && temPermissao('admin') && <ZenCommercePortal userId={userId} operadorAtivo={operadorAtivo} produtos={produtos} nuvemSincronizada={nuvemSincronizada} onAbrirPedidoPDV={ponteCommerceZenOSHabilitada && temPermissao('pdv') ? async pedido=>{if(pedido.faturado){reconciliarRascunhoCommerceFaturado({lojaId:userId,operadorId:operadorAtivo?.id,pedido});await recarregarDadosPDV();return;}const existente=recuperarPrePedidoCommerce(historicoVendas,pedido.pedidoId);
+if(!existente){
+ const pre=montarPrePedidoCommerce({pedido,produtos,operadorId:operadorAtivo?.id,operadorNome:operadorAtivo?.nome});
+ const resultado=await commitVendaCritica({
+  changes:[{field:'historicoVendas',value:[pre,...historicoVendas],storageSuffix:'historico_vendas'}],
+  guards:[{type:'entity_absent',field:'historicoVendas',entityKey:'id',entityId:pre.id}],
+  financialEntries:[],stockEvents:[],operationKey:'commerce:prepedido:'+pedido.pedidoId
+ });
+ if(!resultado?.cloudOk)throw Error(resultado?.error?.message||'O pre-pedido nao foi confirmado na nuvem. Nenhum estoque ou caixa foi movimentado.');
+ setHistoricoVendas(resultado.values?.historicoVendas||[pre,...historicoVendas]);
+}
+importarRascunhoCommerce({lojaId:userId,operadorId:operadorAtivo?.id,pedido,produtos,converterDeBRL:v=>converterDeBRL(v,moeda)});
+setVersaoAberturaPDV(n=>n+1);
+navegarPara('pdv');}:null} />}
+        {ecraAtual === 'pdv' && <PDV key={`${userId}:${operadorAtivo?.id}:${versaoAberturaPDV}`} perfilLoja={perfilLoja} taxasCambio={taxasCambio} registrarFinanceiro={registrarFinanceiro} commitOperacaoCritica={commitOperacaoCritica} commitVendaCritica={commitVendaCritica} recarregarDadosPDV={recarregarDadosPDV} vouchers={vouchers} setVouchers={setVouchers} userId={userId} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} patenteUsuario={patenteUsuario} idioma={idioma} regrasDesconto={regrasDesconto} vendedores={vendedores} operadorAtivo={operadorAtivo} sessaoAtiva={sessaoAtiva} />}
         {ecraAtual === 'compras' && <PDVCompras commitOperacaoNegocio={commitVendaCritica} registrarFinanceiro={registrarFinanceiro} saldoSessaoFisicoBRL={saldoSessaoFisicoBRL} userId={userId} produtos={produtos} setProdutos={setProdutos} fornecedores={fornecedores} setFornecedores={setFornecedores} despesas={despesas} setDespesas={setDespesas} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoCompras={historicoCompras} setHistoricoCompras={setHistoricoCompras} operadorAtivo={operadorAtivo} />}
         {ecraAtual === 'fornecedores' && <Fornecedores commitOperacaoNegocio={commitVendaCritica} fornecedores={fornecedores} setFornecedores={setFornecedores} moeda={moeda} tx={tx} />}
         {ecraAtual === 'mesas' && <Mesas commitOperacaoNegocio={commitVendaCritica} userId={userId} produtos={produtos} fmt={fmt} tx={tx} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} moeda={moeda} idioma={idioma} operadorAtivo={operadorAtivo} />}

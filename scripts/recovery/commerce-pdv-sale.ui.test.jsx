@@ -9,8 +9,8 @@ vi.mock('../../src/core/commerceZenOSSession',()=>({callableCommerceZenOS:()=>mo
 import PDV from '../../src/components/PDV';
 const pedidoId='ab'.repeat(16),vendaId=`COMMERCE-${pedidoId}`,loja='loja-ui-commerce',op={id:'op',nome:'Teste',patente:'gerencia',permissoes:{admin:true}};
 const produto={id:'P1',sku:'S1',nome:'Produto online',tipoItem:'produto',custoBRL:2,precoBRL:99,estoque:5,estoqueVitrine:0,estoqueGalpao:5};
-function mount(commit){return render(<PDV userId={loja} operadorAtivo={op} produtos={[produto]} clientes={[]} vouchers={[]} vendedores={[op]}
- setProdutos={()=>{}} setClientes={()=>{}} setHistoricoVendas={()=>{}} historicoVendas={[]} commitVendaCritica={commit}
+function mount(commit,history=[]){return render(<PDV userId={loja} operadorAtivo={op} produtos={[produto]} clientes={[]} vouchers={[]} vendedores={[op]}
+ setProdutos={()=>{}} setClientes={()=>{}} setHistoricoVendas={()=>{}} historicoVendas={history} commitVendaCritica={commit}
  sessaoAtiva={{id:'caixa',status:'aberta'}} idioma="pt" moeda="BRL" fmt={n=>Number(n||0).toFixed(2)}
  t={k=>traducoes.pt[k]||k} tx={pt=>pt} converterDeBRL={v=>v} converterParaBRL={v=>v} regrasDesconto={{margemMinima:0}} taxasCambio={{BRL:1}}/>);}
 beforeEach(()=>{
@@ -45,4 +45,27 @@ test('pedido online não vira pré-pedido, preservando rascunho e financeiro',as
  expect(button).toBeTruthy();fireEvent.click(button);
  await screen.findByText(/Conclua este pedido como venda/);expect(commit).not.toHaveBeenCalled();
  expect(lerRascunhoPDV(loja,op.id).commerceOrigem.pedidoId).toBe(pedidoId);
+});
+
+test('pré-pedido persistido só pode ser faturado na versão originalmente conferida', async()=>{
+ const preId='PRE-COMMERCE-'+pedidoId;
+ const pre={id:preId,origem:'commerce',commercePedidoId:pedidoId,commerceVendaId:vendaId,
+  estado:'pendente',tipoDocumento:'pre_pedido',itens:[],totalBRL:25};
+ const existente=lerRascunhoPDV(loja,op.id);
+ salvarRascunhoPDV(loja,op.id,{...existente,prePedidoEmAbertoId:preId});
+ const commit=vi.fn(async()=>({cloudOk:false,error:new Error('Documento alterado em outro caixa')}));
+ mount(commit,[pre]);
+ fireEvent.click(screen.getByRole('button',{name:'Liquidar no Caixa'}));
+ await waitFor(()=>expect(commit).toHaveBeenCalledTimes(1));
+ const req=commit.mock.calls[0][0];
+ expect(req.guards).toContainEqual({type:'entity_field_equals',field:'historicoVendas',
+  entityId:preId,entityKey:'id',property:'estado',expected:'pendente',
+  message:expect.any(String)});
+ expect(req.guards).toContainEqual({type:'entity_unchanged',field:'historicoVendas',
+  entityKey:'id',entityId:preId,expected:pre,message:expect.any(String)});
+ expect(req.changes.find(c=>c.field==='historicoVendas').removeEntityIds).toEqual([preId]);
+ expect(req.financialEntries.length).toBeGreaterThan(0);
+ expect(lerRascunhoPDV(loja,op.id).prePedidoEmAbertoId).toBe(preId);
+ await screen.findByText(/Documento alterado em outro caixa/);
+ expect(mocks.confirmar).not.toHaveBeenCalled();
 });
