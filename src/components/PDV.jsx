@@ -15,16 +15,22 @@ import { validarCredencialGerencial } from '../core/accessControl';
 import { calcularCmvVenda } from '../core/salesFinancials';
 import { validarComposicaoPagamento } from '../core/paymentValidation';
 import { interpretarValorMonetario } from '../core/cashMoneyInput';
+import { lerRascunhoPDV, salvarRascunhoPDV, apagarRascunhoPDV } from '../core/pdvDraft';
 
-export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro, commitOperacaoCritica, commitVendaCritica, vouchers = [], setVouchers, userId, produtos, setProdutos, clientes, setClientes, moeda, fmt, t, tx, converterDeBRL, converterParaBRL, historicoVendas, setHistoricoVendas, patenteUsuario, idioma, regrasDesconto, vendedores = [], operadorAtivo, sessaoAtiva }) {
+export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro, commitOperacaoCritica, commitVendaCritica, recarregarDadosPDV, vouchers = [], setVouchers, userId, produtos, setProdutos, clientes, setClientes, moeda, fmt, t, tx, converterDeBRL, converterParaBRL, historicoVendas, setHistoricoVendas, patenteUsuario, idioma, regrasDesconto, vendedores = [], operadorAtivo, sessaoAtiva }) {
+  const [rascunhoInicial] = useState(() => lerRascunhoPDV(userId, operadorAtivo?.id));
+  const [avisoRascunhoRecuperado, setAvisoRascunhoRecuperado] = useState(Boolean(rascunhoInicial?.itensVenda?.length));
   const [termoBusca, setTermoBusca] = useState('');
   const [indiceFocoBusca, setIndiceFocoBusca] = useState(0);
-  const [itensVenda, setItensVenda] = useState([]);
-  const [descontoTexto, setDescontoTexto] = useState('0');
+  const [itensVenda, setItensVenda] = useState(rascunhoInicial?.itensVenda || []);
+  const [descontoTexto, setDescontoTexto] = useState(rascunhoInicial?.descontoTexto || '0');
   
-  const [nomeClienteVulso, setNomeClienteVulso] = useState('');
-  const [clienteSelecionadoPDV, setClienteSelecionadoPDV] = useState(null);
-  const [clienteQuerFiscal, setClienteQuerFiscal] = useState(false);
+  const [nomeClienteVulso, setNomeClienteVulso] = useState(rascunhoInicial?.nomeClienteVulso || '');
+  const [clienteSelecionadoPDV, setClienteSelecionadoPDV] = useState(() => {
+    const salvo = rascunhoInicial?.clienteSelecionadoPDV;
+    return salvo ? (clientes || []).find(c => String(c?.id) === String(salvo.id)) || salvo : null;
+  });
+  const [clienteQuerFiscal, setClienteQuerFiscal] = useState(rascunhoInicial?.clienteQuerFiscal === true);
   const [focoInputCliente, setFocoInputCliente] = useState(false);
 
   const [modalProdutoPDVAberto, setModalProdutoPDVAberto] = useState(false);
@@ -36,9 +42,9 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
 
   const [itemParaAdicionar, setItemParaAdicionar] = useState(null);
   const [qtdDigitadaRapida, setQtdDigitadaRapida] = useState('1');
-  const [modalFechamentoAberto, setModalFechamentoAberto] = useState(false);
+  const [modalFechamentoAberto, setModalFechamentoAberto] = useState(Boolean(rascunhoInicial?.modalFechamentoAberto));
 
-  const [pagamentosLancados, setPagamentosLancados] = useState([]);
+  const [pagamentosLancados, setPagamentosLancados] = useState(rascunhoInicial?.pagamentosLancados || []);
   const [formaSelecionada, setFormaSelecionada] = useState('dinheiro_brl');
   const [valorLancamentoInput, setValorLancamentoInput] = useState('');
   const [voucherCodigoInput, setVoucherCodigoInput] = useState('');
@@ -48,10 +54,26 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
   const [vendaConcluidaObj, setVendaConcluidaObj] = useState(null);
   const [processandoTransacao, setProcessandoTransacao] = useState(false);
   const operacaoEmAndamentoRef = useRef(false);
-  const operacaoDocumentoRef = useRef({ assinatura: null, id: null });
+  const operacaoDocumentoRef = useRef(rascunhoInicial?.operacaoDocumento?.id ? rascunhoInicial.operacaoDocumento : { assinatura: null, id: null, instante: null });
 
   const [modalResgateAberto, setModalResgateAberto] = useState(false);
-  const [prePedidoEmAbertoId, setPrePedidoEmAbertoId] = useState(null);
+  const [prePedidoEmAbertoId, setPrePedidoEmAbertoId] = useState(rascunhoInicial?.prePedidoEmAbertoId || null);
+
+  // Persistir o carrinho após cada edição; a confirmação da venda continua exclusiva da nuvem.
+  // Guardar somente dados comerciais necessários (nunca fotos grandes no localStorage).
+  useEffect(() => {
+    if (vendaSucesso) return;
+    salvarRascunhoPDV(userId, operadorAtivo?.id, {
+      itensVenda, descontoTexto, nomeClienteVulso,
+      clienteSelecionadoPDV: clienteSelecionadoPDV ? {
+        id: clienteSelecionadoPDV.id, nome: clienteSelecionadoPDV.nome,
+      } : null,
+      clienteQuerFiscal, pagamentosLancados, prePedidoEmAbertoId,
+      modalFechamentoAberto, operacaoDocumento: operacaoDocumentoRef.current,
+    });
+  }, [userId, operadorAtivo?.id, itensVenda, descontoTexto, nomeClienteVulso,
+      clienteSelecionadoPDV, clienteQuerFiscal, pagamentosLancados,
+      prePedidoEmAbertoId, modalFechamentoAberto, vendaSucesso]);
 
   const perfilRecibo = normalizarPerfilLoja(perfilLoja);
   const cotacoesRecibo = vendaConcluidaObj?.taxasCambio || taxasCambio || {};
@@ -76,6 +98,11 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
   });
 
   const termosBuscaCli = nomeClienteVulso.toLowerCase().trim().split(/\s+/).filter(Boolean);
+  // Evita utilizar saldo/limite congelado no momento da seleção do cliente.
+  // A venda continua protegida pelas mesmas validações transacionais da nuvem.
+  const clienteAtualPDV = clienteSelecionadoPDV
+    ? clientes.find(c => String(c.id) === String(clienteSelecionadoPDV.id)) || clienteSelecionadoPDV
+    : null;
   const clientesSugeridos = (nomeClienteVulso.trim() && !clienteSelecionadoPDV)
     ? clientes.filter(c => {
         const textoCompleto = `${c.nome || ''} ${c.documento || ''} ${c.telefone || ''}`.toLowerCase();
@@ -451,9 +478,9 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
     }
 
   if (configForma.id === 'crediario') {
-      if (!clienteSelecionadoPDV) return mostrarZen('warning', tx('Cliente obrigatório','Cliente obligatorio','Customer required'), tx('Para vender fiado, vincule um cliente antes de finalizar.','Para vender a crédito, vincule un cliente antes de finalizar.','To sell on credit, link a customer before completing the sale.'));
+      if (!clienteAtualPDV) return mostrarZen('warning', tx('Cliente obrigatório','Cliente obligatorio','Customer required'), tx('Para vender fiado, vincule um cliente antes de finalizar.','Para vender a crédito, vincule un cliente antes de finalizar.','To sell on credit, link a customer before completing the sale.'));
 
-      const limite = parseFloat(clienteSelecionadoPDV.limiteCreditoBRL) || 0;
+      const limite = parseFloat(clienteAtualPDV.limiteCreditoBRL) || 0;
       
       // TRAVA 1: Se o cliente não tem limite ou o limite é zero
       if (limite <= 0) {
@@ -461,7 +488,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
       }
 
       // TRAVA 2: Se a compra ultrapassar o limite (Sem opção de confirmar)
-      const novoDevedor = (parseFloat(clienteSelecionadoPDV.saldoDevedorBRL) || 0) + valorBRL;
+      const novoDevedor = (parseFloat(clienteAtualPDV.saldoDevedorBRL) || 0) + valorBRL;
       if (novoDevedor > limite) {
         return mostrarZen('danger', tx('Limite de crédito excedido','Límite de crédito excedido','Credit limit exceeded'), `${tx('Limite:','Límite:','Limit:')} ${fmt(limite, 'BRL')}. ${tx('Com esta compra, a dívida iria para','Con esta compra, la deuda quedaría en','With this purchase, the debt would become')} ${fmt(novoDevedor, 'BRL')}.`);
       }
@@ -494,6 +521,18 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
     operacaoEmAndamentoRef.current = true;
     setProcessandoTransacao(true);
     try {
+      // P0: fiado só pode gravar para exatamente um cadastro com ID e nome coerentes.
+      // Bloquear ANTES de qualquer lançamento de estoque, venda ou financeiro.
+      if (tipoFinalizacao === 'venda' && pagamentosLancados.some(p => p.formaId === 'crediario')) {
+        const vinculados = (clientes || []).filter(c =>
+          clienteSelecionadoPDV?.id != null && String(c?.id) === String(clienteSelecionadoPDV.id));
+        if (vinculados.length !== 1
+          || String(vinculados[0]?.nome || '').trim() !== String(clienteSelecionadoPDV?.nome || '').trim()) {
+          mostrarZen('danger', 'Cliente do fiado não confirmado',
+            'O cadastro vinculado não corresponde ao cliente atual. A venda não foi gravada. Selecione novamente o cliente e tente concluir.');
+          return;
+        }
+      }
       let eventosEstoqueVenda = [];
       const lancamentosFinanceirosVenda = [];
       let valorFiadoOperacao = 0;
@@ -513,15 +552,32 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
       let novosClientes = null;
       const itensVendaAtualizada = itensVendaComCustoAtual(itensVenda);
       let itensDocumento = [...itensVendaAtualizada];
-      const instanteVenda = new Date();
       const docRotulo = tipoFinalizacao === 'venda' ? 'VENDA' : (tipoFinalizacao === 'pre_pedido' ? 'PRÉ-PEDIDO' : 'ORÇAMENTO');
       if (operacaoDocumentoRef.current.assinatura !== assinaturaOperacao || !operacaoDocumentoRef.current.id) {
         operacaoDocumentoRef.current = {
           assinatura: assinaturaOperacao,
           id: `${docRotulo}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          instante: new Date().toISOString(),
         };
       }
       const vendaId = operacaoDocumentoRef.current.id;
+      // Mesmo ID/data em cada retry: não duplicar recibos financeiros após timeout.
+      const instanteVenda = new Date(operacaoDocumentoRef.current.instante || new Date().toISOString());
+      const rascunhoSeguro = salvarRascunhoPDV(userId, operadorAtivo?.id, {
+        itensVenda, descontoTexto, nomeClienteVulso,
+        clienteSelecionadoPDV: clienteSelecionadoPDV ? {
+          id: clienteSelecionadoPDV.id, nome: clienteSelecionadoPDV.nome,
+        } : null,
+        clienteQuerFiscal, pagamentosLancados, prePedidoEmAbertoId,
+        modalFechamentoAberto: true, operacaoDocumento: operacaoDocumentoRef.current,
+      });
+      if (!rascunhoSeguro) {
+        mostrarZen('danger', tx('Atendimento não protegido','Atención sin protección','Sale not protected'),
+          tx('Não foi possível salvar o carrinho neste dispositivo. Libere espaço antes de finalizar.',
+             'No se pudo guardar el carrito en este dispositivo. Libere espacio antes de finalizar.',
+             'Unable to save the cart on this device. Free storage before completing.'));
+        return;
+      }
 
       if (tipoFinalizacao === 'venda') {
         const itensComUsoVitrine = (itensVendaAtualizada || []).filter((it) => !ehEncomendaUsoUnico(it) && it.tipoItem !== 'servico').map((it) => {
@@ -641,7 +697,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
             return registrarFinanceiro(enriquecida);
           };
           let trocoRestante = Math.max(0, Number(trocoTotalBRL) || 0);
-          const clienteAntes = clienteSelecionadoPDV ? Number(clienteSelecionadoPDV.saldoDevedorBRL || 0) : null;
+          const clienteAntes = clienteAtualPDV ? Number(clienteAtualPDV.saldoDevedorBRL || 0) : null;
           const pagamentosFiado = pagamentosLancados.filter(p => p.formaId === 'crediario');
           const valorFiadoTotal = pagamentosFiado.reduce((a,p)=>a+(Number(p.valorConvertidoBRL)||0),0);
           const clienteDepois = clienteAntes == null ? null : clienteAntes + valorFiadoTotal;
@@ -756,6 +812,10 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
         if (tipoFinalizacao === 'venda' && sessaoAtiva?.id) guards.push({ type:'cash_session_open', sessionId:sessaoAtiva.id });
         if (tipoFinalizacao === 'venda' && valorFiadoOperacao > 0 && clienteSelecionadoPDV?.id) {
           guards.push({ type:'client_credit_capacity', clientId:clienteSelecionadoPDV.id, amount:valorFiadoOperacao });
+          guards.push({ type:'entity_field_equals', field:'clientes',
+            entityId:clienteSelecionadoPDV.id, entityKey:'id', property:'nome',
+            expected:clienteSelecionadoPDV.nome,
+            message:'Cadastro do cliente alterado em outro terminal. Recarregue e selecione novamente antes de vender fiado.' });
         }
         if (tipoFinalizacao === 'venda') {
           const usosVoucher = new Map();
@@ -785,11 +845,25 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
           operationKey: `pdv:${vendaId}`,
         });
         if (!confirmado?.cloudOk) {
+          let detalheFalha = confirmado?.error?.message || 'Verifique conexão/quota e tente novamente sem fechar esta tela.';
+          if (['V2_REUSE_ID','ZENOS_ENTITY_DELETED_REMOTE'].includes(confirmado?.error?.code) && typeof recarregarDadosPDV === 'function') {
+            try {
+              await recarregarDadosPDV();
+              detalheFalha = tx(
+                'O cadastro mudou em outro terminal. Dados atualizados; seu carrinho foi preservado. Confira estoque, itens e pagamentos antes de tentar de novo.',
+                'El registro cambió en otra terminal. Datos actualizados y carrito conservado. Revise stock, artículos y pagos.',
+                'Another register changed this record. Data refreshed and cart preserved. Review stock, items and payments before retrying.');
+            } catch (erroAtualizacao) {
+              detalheFalha += ' ' + tx('Carrinho preservado. Não atualize a página; tente novamente quando a sincronização voltar.',
+                'Carrito conservado. No recargue la página; espere la sincronización.',
+                'Cart preserved. Do not reload the page; wait for synchronization.');
+            }
+          }
           setModalZen({
             variante:'danger',
             titulo: tipoFinalizacao === 'venda' ? tx('Venda não concluída','Venta no concluida','Sale not completed') : tx('Documento não salvo','Documento no guardado','Document not saved'),
             mensagem:tx('A nuvem não confirmou esta operação. Nada foi finalizado no PDV.','La nube no confirmó esta operación. Nada fue finalizado en el TPV.','The cloud did not confirm this operation. Nothing was finalized in the POS.'),
-            detalhes: confirmado?.error?.message || 'Verifique conexão/quota e tente novamente sem fechar esta tela.',
+            detalhes: detalheFalha,
             apenasConfirmar:true,
           });
           return;
@@ -805,6 +879,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
       if (typeof setHistoricoVendas === 'function') {
         setHistoricoVendas(valoresConfirmados.historicoVendas || historicoProposto);
       }
+      apagarRascunhoPDV(userId, operadorAtivo?.id);
       setVendaConcluidaObj(novaVenda);
       setVendaSucesso(true);
       // Força a tela de imprimir o recibo a saltar, mesmo em Orçamentos/Pré-Pedidos
@@ -836,7 +911,8 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
   };
 
   const limparParaNovaVenda = () => {
-    operacaoDocumentoRef.current = { assinatura: null, id: null };
+    apagarRascunhoPDV(userId, operadorAtivo?.id);
+    operacaoDocumentoRef.current = { assinatura: null, id: null, instante: null };
     setItensVenda([]); setDescontoTexto('0'); setPagamentosLancados([]);
     setClienteSelecionadoPDV(null); setNomeClienteVulso('');
     setClienteQuerFiscal(false);
@@ -846,6 +922,17 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px', width: '100%', boxSizing: 'border-box' }}>
+      {avisoRascunhoRecuperado && !vendaSucesso && (
+        <div role="status" style={{gridColumn:'1 / -1',border:'1px solid #38bdf8',background:'#082f49',borderRadius:12,
+          padding:'12px 16px',display:'flex',gap:12,alignItems:'center',justifyContent:'space-between',color:'#e0f2fe',flexWrap:'wrap'}}>
+          <span>{tx(
+            'Atendimento anterior recuperado. Nenhuma venda foi gerada nesta recuperação. Confira o Histórico, os itens e o pagamento antes de liquidar.',
+            'Atención anterior recuperada. No se generó ninguna venta. Verifique el historial, los artículos y el pago antes de cerrar.',
+            'Previous cart recovered. No sale was created. Check history, items and payment before charging.'
+          )}</span>
+          <button onClick={() => setAvisoRascunhoRecuperado(false)} style={{background:'#0369a1',color:'#fff',border:0,borderRadius:8,padding:'8px 12px',fontWeight:800,cursor:'pointer'}}>OK</button>
+        </div>
+      )}
       <style>{`
         input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         input[type=number] { -moz-appearance: textfield; }

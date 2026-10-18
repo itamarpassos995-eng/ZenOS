@@ -1,9 +1,10 @@
+import {getOperationalSnapshot,subscribeOperationalSnapshot,clearOperationalSession} from './core/operationalRepository.js';
 import TerminalLogin from './components/TerminalLogin';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { traducoes, moedasConfig, normalizarProduto, normalizarCliente, produtosIniciais, clientesIniciais } from './data';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { doc, collection, query, where, getDocsFromServer, getDoc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { inspectLocalSchemaVersion, PERSISTENCE_STATUS_EVENT, notifyPersistenceStatus } from './core/persistenceSafety';
 import { persistV1OperationFieldSafe, persistV1BusinessOperationSafe, recordSyncMetric } from './core/productionSync';
 import { cloneSyncValue, hasLocalSyncChange, syncValuesEqual } from './core/syncMerge';
@@ -32,6 +33,7 @@ import FiscalErrorBoundary from './components/FiscalErrorBoundary';
 import ZenModal from './components/ZenModal';
 import { normalizarPerfilLoja, lerPerfilLojaLocal, salvarPerfilLojaLocal, limparPerfilLojaLocal } from './core/storeProfile';
 import { assinarLivroFinanceiro, registrarLancamentoFinanceiro } from './core/financialLedger';
+import { planejarReconciliacoesFiado } from './core/creditReconciliation.js';
 import { calcularResumoSessao, calcularConciliacaoEletronicaSessao, timestampSessao, timestampVenda, vendasDaSessao, assinaturaFinanceiraSessao } from './core/cashSession';
 import { converterValoresFisicosParaBRL, interpretarValorMonetario } from './core/cashMoneyInput';
 import { calcularConciliacaoFisicaMultimoeda } from './core/cashReconciliation';
@@ -95,6 +97,15 @@ function ZenosLogo({ aoClicar, tx = (pt) => pt }) {
   );
 }
 
+// Acesso público separado do fluxo autenticado: a sessão existente continua no App.
+// Apenas visitantes sem sessão na rota principal são enviados à apresentação comercial.
+function PublicHomeRedirect() {
+  useEffect(() => {
+    window.location.replace('/home-premium-conceito-c.html');
+  }, []);
+  return <div role="status" aria-live="polite" style={{minHeight:'100vh',display:'grid',placeItems:'center',background:'#f7faf9',color:'#163a50',fontFamily:'system-ui,sans-serif'}}>Abrindo ZenOS…</div>;
+}
+
 export default function App() {
   const [usuarioAutenticado, setUsuarioAutenticado] = useState(null);
   const [userId, setUserId] = useState(null);
@@ -147,6 +158,8 @@ export default function App() {
   const [fornecedores, setFornecedores] = useState([]);
   const [vouchers, setVouchers] = useState([]);
   const [livroFinanceiro, setLivroFinanceiro] = useState([]);
+  const [livroFinanceiroConfirmado, setLivroFinanceiroConfirmado] = useState(false);
+  const reconciliacaoFiadoEmAndamentoRef = useRef(false);
   const [perfilLoja, setPerfilLoja] = useState(() => normalizarPerfilLoja({}));
   const [modalPerfilRapido, setModalPerfilRapido] = useState(false);
   const [perfilRapidoErro, setPerfilRapidoErro] = useState('');
@@ -273,6 +286,29 @@ export default function App() {
   };
 
 
+  // Reconsulta autoritativa após conflito V2. Não fecha o PDV nem altera o carrinho.
+  // O merge/revisão existente mantém a proteção contra escritas concorrentes.
+  const recarregarDadosPDV = async () => {
+    if (!userId) throw new Error('Loja não autenticada.');
+    const snap = await getOperationalSnapshot(db, userId);
+    if (!snap.exists()) throw new Error('Dados da loja indisponíveis.');
+    const dados = snap.data() || {};
+    const revisions = dados?._syncMeta?.fieldRevisions || {};
+    const atualizar = (field, setter, sufixo, normalizar = v => v) => {
+      if (!Array.isArray(dados[field])) throw new Error(`Dados incompletos da loja: ${field}.`);
+      aplicarCampoRemoto({
+        field, value: normalizar(dados[field]), setter,
+        revision: revisions[field] === undefined ? null : Number(revisions[field]) || 0,
+        localStorageKey: `zenos_${userId}_${sufixo}`,
+      });
+    };
+    atualizar('produtos', setProdutos, 'produtos', lista => lista.map((v, i) => normalizarProduto(v, i)));
+    atualizar('clientes', setClientes, 'clientes', lista => lista.map((v, i) => normalizarCliente(v, i)));
+    atualizar('historicoVendas', setHistoricoVendas, 'historico_vendas');
+    atualizar('vouchers', setVouchers, 'vouchers');
+    atualizar('sessoesCaixa', setSessoesCaixa, 'sessoes_caixa');
+  };
+
   const commitVendaCritica = async ({ changes = [], financialEntries = [], stockEvents = [], guards = [], operationKey = null } = {}) => {
     if (!nuvemSincronizada || !userId) {
       return { ok:false, cloudOk:false, error:new Error('Nuvem não confirmada. Venda/pré-pedido não foi finalizado.'), values:{}, revisions:{} };
@@ -389,9 +425,12 @@ export default function App() {
     }
   };
 
+  const authRouteUidRef = useRef(null);
   // 🔒 ATUALIZADO: MOTOR CLOUD-FIRST (A nuvem é a fonte absoluta da verdade)
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (authRouteUidRef.current) clearOperationalSession(db, authRouteUidRef.current);
+      authRouteUidRef.current = user?.uid || null;
       syncCamposRef.current.clear();
       syncBaseRef.current.clear();
       syncRevisionRef.current.clear();
@@ -430,7 +469,7 @@ export default function App() {
             setPlanoLoja('basico');
           }
 
-          const dadosLojaSnap = await getDoc(doc(db, "lojas", user.uid, "dados", "operacao"));
+          const dadosLojaSnap = await getOperationalSnapshot(db, user.uid);
           const adminPadrao = [{ id: 'admin', nome: 'Administrador (Gerência)', patente: 'gerencia', senha: 'admin', pinTrocaObrigatoria: true, percentual: 0, comissaoTipo: 'lucro', permissoes: { admin: true } }];
           if (dadosLojaSnap.exists()) {
             // SE A LOJA TEM DADOS NA NUVEM, PUXA TUDO DAQUI SEM REGRAVAR NO LOGIN.
@@ -553,10 +592,9 @@ export default function App() {
   // ATT 10.2: realtime somente aplica dados remotos; NUNCA ecoa snapshot de volta para a nuvem.
   useEffect(() => {
     if (!userId) return;
-    const refOperacao = doc(db, 'lojas', userId, 'dados', 'operacao');
     const refConfig = doc(db, 'lojas', userId, 'dados', 'configuracoes');
 
-    const unsubOperacao = onSnapshot(refOperacao, (snap) => {
+    const unsubOperacao = subscribeOperationalSnapshot(db, userId, (snap) => {
       if (!snap.exists() || snap.metadata?.fromCache || snap.metadata?.hasPendingWrites) return;
       recordSyncMetric('snapshotReads', 'operacao');
       const d = snap.data() || {};
@@ -594,6 +632,7 @@ export default function App() {
       // Snapshot passivo não muda status para SALVANDO/SINCRONIZADO: o indicador reflete somente writes locais.
     }, err => {
       console.error('[ZenOS][Realtime] operação:', err);
+      setNuvemSincronizada(false);
       notifyPersistenceStatus({status:'ERRO',field: 'operacao_realtime',error:err?.message || 'Falha na sincronização operacional.'});
     });
 
@@ -628,14 +667,77 @@ export default function App() {
 
   // ATT 07: Livro Financeiro aditivo em documentos independentes.
   useEffect(() => {
-    if (!userId) { setLivroFinanceiro([]); return; }
+    if (!userId) { setLivroFinanceiro([]); setLivroFinanceiroConfirmado(false); return; }
+    setLivroFinanceiroConfirmado(false);
     return assinarLivroFinanceiro({
       db,
       userId,
-      onData: (itens, meta) => { setLivroFinanceiro(itens); if (!meta?.fromCache) recordSyncMetric('snapshotReads', 'financeiro_realtime'); },
+      onData: (itens, meta) => { setLivroFinanceiro(itens); if (!meta?.fromCache && !meta?.hasPendingWrites) { setLivroFinanceiroConfirmado(true); recordSyncMetric('snapshotReads', 'financeiro_realtime'); } },
       onError: (err) => { console.error('[ZenOS][ATT07][LivroFinanceiro]', err); notifyPersistenceStatus({status:'ERRO',field: 'financeiro_realtime',error:err?.message || 'Falha na sincronização do Livro Financeiro.'}); },
     });
   }, [userId]);
+
+  // Reparação conservadora: apenas um lançamento fiado isolado com evidência
+  // convergente no histórico, no Livro Financeiro e na V1/V2 atuais.
+  // Sem criação de vendas, migração, restauração, alteração de caixa ou inferência.
+  useEffect(() => {
+    if (!userId || !nuvemSincronizada || !livroFinanceiroConfirmado || reconciliacaoFiadoEmAndamentoRef.current) return;
+    const candidatos = planejarReconciliacoesFiado({clientes,historicoVendas,livroFinanceiro});
+    if (!candidatos.length) return;
+    let cancelado=false;
+    const executar=async()=>{
+      reconciliacaoFiadoEmAndamentoRef.current=true;
+      try {
+        for(const candidato of candidatos){
+          if(cancelado)break;
+          // Segunda leitura obrigatória: jamais gravar com base em tela/cache.
+          const [snapshot, lancamentosSnap] = await Promise.all([
+            getOperationalSnapshot(db,userId),
+            getDocsFromServer(query(collection(db,'lojas',String(userId),'financeiro_livro'),
+              where('clienteId','==',candidato.clienteId))),
+          ]);
+          if(!snapshot.exists())continue;
+          const financeiroRemoto=lancamentosSnap.docs.map(doc=>({id:doc.id,...doc.data()}));
+          if(!financeiroRemoto.some(l=>String(l.id)===candidato.lancamentoId))continue;
+          const remoto=snapshot.data();
+          const candidatosRemotos=planejarReconciliacoesFiado({
+            clientes:remoto.clientes,
+            historicoVendas:remoto.historicoVendas,
+            livroFinanceiro:financeiroRemoto,
+          });
+          const confirmado=candidatosRemotos.find(c=>c.lancamentoId===candidato.lancamentoId
+            && c.clienteId===candidato.clienteId && c.vendaId===candidato.vendaId
+            && c.saldoAnteriorBRL===candidato.saldoAnteriorBRL
+            && c.saldoNovoBRL===candidato.saldoNovoBRL);
+          if(!confirmado)continue;
+          // Revalidar com todas as movimentações do cliente confirmadas pelo servidor.
+          // Uma cobrança posterior nunca pode ser ignorada por cache defasado.
+          const cliente=remoto.clientes.find(c=>String(c.id)===confirmado.clienteId);
+          if(!cliente)continue;
+          const atualizados=remoto.clientes.map(c=>String(c.id)===confirmado.clienteId
+            ? {...c,saldoDevedorBRL:confirmado.saldoNovoBRL}:c);
+          const resultado=await persistV1BusinessOperationSafe({
+            db,userId,
+            changes:[{field:'clientes',baseValue:remoto.clientes,value:atualizados,
+              localStorageKey:`zenos_${userId}_clientes`}],
+            guards:[{type:'entity_unchanged',field:'clientes',entityId:cliente.id,entityKey:'id',expected:cliente}],
+            operationKey:confirmado.operationKey,
+          });
+          if(resultado.cloudOk){
+            registrarBaseSyncCampo('clientes',resultado.values.clientes,resultado.revisions?.clientes);
+            setClientes(resultado.values.clientes);
+          }else{
+            console.error('[ZenOS][Fiado] Reconciliação bloqueada com segurança:',resultado.error);
+          }
+        }
+      }catch(err){console.error('[ZenOS][Fiado] Falha na conferência segura:',err);}
+      finally{reconciliacaoFiadoEmAndamentoRef.current=false;}
+    };
+    void executar();
+    return()=>{cancelado=true;};
+  // Não associar o efeito à função de escrita (recriada a cada render).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[userId,nuvemSincronizada,livroFinanceiroConfirmado,livroFinanceiro,clientes,historicoVendas]);
 
   const salvarPerfilRapido = async () => {
     const pf = normalizarPerfilLoja(perfilRapidoRascunho);
@@ -654,6 +756,7 @@ export default function App() {
       confirmarTexto:tx('Encerrar sessão', 'Cerrar sesión', 'End session')
     });
     if (!confirmou) return;
+    clearOperationalSession(db, userId);
     await signOut(auth);
     // LIMPEZA ABSOLUTA DE MEMÓRIA NO LOGOUT
     setNuvemSincronizada(false);
@@ -1296,7 +1399,11 @@ export default function App() {
     );
   }
 
-  if (!usuarioAutenticado) return <LandingPage/>;
+  if (!usuarioAutenticado) {
+    // A URL de login mantém a tela existente de usuário e senha, sem tocar na autenticação.
+    const acessoLogin = window.location.pathname === '/login' || new URLSearchParams(window.location.search).get('login') === '1';
+    return acessoLogin ? <LandingPage/> : <PublicHomeRedirect/>;
+  }
 
   if (falhaBootstrapNuvem) {
     return <div style={{minHeight:'100vh',background:'#020617',display:'flex',alignItems:'center',justifyContent:'center',padding:20,fontFamily:'system-ui,sans-serif'}}>
@@ -1609,7 +1716,7 @@ export default function App() {
  )}
 
         {ecraAtual === 'commerce' && temPermissao('admin') && <ZenCommercePortal userId={userId} operadorAtivo={operadorAtivo} produtos={produtos} nuvemSincronizada={nuvemSincronizada} />}
-        {ecraAtual === 'pdv' && <PDV perfilLoja={perfilLoja} taxasCambio={taxasCambio} registrarFinanceiro={registrarFinanceiro} commitOperacaoCritica={commitOperacaoCritica} commitVendaCritica={commitVendaCritica} vouchers={vouchers} setVouchers={setVouchers} userId={userId} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} patenteUsuario={patenteUsuario} idioma={idioma} regrasDesconto={regrasDesconto} vendedores={vendedores} operadorAtivo={operadorAtivo} sessaoAtiva={sessaoAtiva} />}
+        {ecraAtual === 'pdv' && <PDV perfilLoja={perfilLoja} taxasCambio={taxasCambio} registrarFinanceiro={registrarFinanceiro} commitOperacaoCritica={commitOperacaoCritica} commitVendaCritica={commitVendaCritica} recarregarDadosPDV={recarregarDadosPDV} vouchers={vouchers} setVouchers={setVouchers} userId={userId} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} patenteUsuario={patenteUsuario} idioma={idioma} regrasDesconto={regrasDesconto} vendedores={vendedores} operadorAtivo={operadorAtivo} sessaoAtiva={sessaoAtiva} />}
         {ecraAtual === 'compras' && <PDVCompras commitOperacaoNegocio={commitVendaCritica} registrarFinanceiro={registrarFinanceiro} saldoSessaoFisicoBRL={saldoSessaoFisicoBRL} userId={userId} produtos={produtos} setProdutos={setProdutos} fornecedores={fornecedores} setFornecedores={setFornecedores} despesas={despesas} setDespesas={setDespesas} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoCompras={historicoCompras} setHistoricoCompras={setHistoricoCompras} operadorAtivo={operadorAtivo} />}
         {ecraAtual === 'fornecedores' && <Fornecedores commitOperacaoNegocio={commitVendaCritica} fornecedores={fornecedores} setFornecedores={setFornecedores} moeda={moeda} tx={tx} />}
         {ecraAtual === 'mesas' && <Mesas commitOperacaoNegocio={commitVendaCritica} userId={userId} produtos={produtos} fmt={fmt} tx={tx} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} moeda={moeda} idioma={idioma} operadorAtivo={operadorAtivo} />}
@@ -1617,7 +1724,7 @@ export default function App() {
         {ecraAtual === 'inteligencia' && <EstoqueInteligente produtos={produtos} fmt={fmt} tx={tx} />}
         {ecraAtual === 'comissoes' && <Comissoes commitOperacaoNegocio={commitVendaCritica} historicoVendas={historicoVisivelParaOperador} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} operadorAtivo={operadorAtivo} regrasDesconto={regrasDesconto} regrasComissao={regrasComissao} setRegrasComissao={setRegrasComissao} />}
         {ecraAtual === 'dashboardMobile' && <DashboardMobile historicoVendas={historicoVendas} despesas={despesas} clientes={clientes} produtos={produtos} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} regrasDesconto={regrasDesconto} />}
-        {ecraAtual === 'clientes' && <Clientes commitOperacaoNegocio={commitVendaCritica} livroFinanceiro={livroFinanceiro} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} operadorAtivo={operadorAtivo} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} />}
+        {ecraAtual === 'clientes' && <Clientes commitOperacaoNegocio={commitVendaCritica} livroFinanceiro={livroFinanceiro} historicoVendas={historicoVendas} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} operadorAtivo={operadorAtivo} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} />}
         {ecraAtual === 'vendas' && <Vendas commitOperacaoNegocio={commitVendaCritica} taxasCambio={taxasCambio} sessoesCaixa={sessoesCaixa} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} saldoSessaoFisicoBRL={saldoSessaoFisicoBRL} perfilLoja={perfilLoja} vouchers={vouchers} setVouchers={setVouchers} userId={userId} operadorAtivo={operadorAtivo} historicoVendas={historicoVisivelParaOperador} setHistoricoVendas={setHistoricoVendas} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} fmt={fmt} t={t} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterDeBRL={converterDeBRL} />}
         {ecraAtual === 'fiscal' && <FiscalErrorBoundary resetKey={`${userId || ''}:${perfilLoja?.pais || ''}:${resultadoFilaFiscal.erro || ''}`} onVoltar={() => navegarPara('hub')} tx={tx}><Fiscal lojaId={userId} perfilLoja={perfilLoja} filaFiscal={resultadoFilaFiscal.fila} erroFila={resultadoFilaFiscal.erro} clientes={clientes} ambiente="homologacao" onVerVenda={() => navegarPara('vendas')} tx={tx} idioma={idioma} /></FiscalErrorBoundary>}
         {ecraAtual === 'migracao' && <Migracao commitOperacaoNegocio={commitVendaCritica} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} t={t} tx={tx} />}

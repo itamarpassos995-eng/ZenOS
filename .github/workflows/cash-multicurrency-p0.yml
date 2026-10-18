@@ -10,6 +10,15 @@ on:
       - 'src/core/cashReconciliation.js'
       - 'src/core/productionSync.js'
       - 'src/components/Clientes.jsx'
+      - 'src/core/creditReconciliation.js'
+      - 'scripts/p0-credit-reconciliation-check.mjs'
+      - 'scripts/p0-fiado-v2-emulator.mjs'
+      - 'scripts/p0-client-receipt-check.mjs'
+      - 'src/core/financialLedger.js'
+      - 'src/core/clientCreditLinkAudit.js'
+      - 'scripts/p0-fiado-link-audit-check.mjs'
+      - 'scripts/recovery/clientes-receipt.ui.test.jsx'
+      - 'scripts/recovery/clientes-quitado-status.ui.test.jsx'
       - 'scripts/cash-multicurrency-p0-check.mjs'
       - '.github/workflows/cash-multicurrency-p0.yml'
   workflow_dispatch:
@@ -24,6 +33,10 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
       - run: npm ci --ignore-scripts
       - name: Regressao Caixa Multimoeda P0
         run: node scripts/cash-multicurrency-p0-check.mjs
@@ -36,6 +49,18 @@ jobs:
       - name: Diagnóstico legado ATT07 (baseline histórico anterior)
         continue-on-error: true
         run: npm run test:att07
+      - name: Reconciliacao de fiado conservadora
+        run: node scripts/p0-credit-reconciliation-check.mjs
+      - name: Guardas de recebimento de cliente legado
+        run: node scripts/p0-client-receipt-check.mjs
+      - name: UI recebimento legado sem bloqueio pelo nome antigo
+        run: npm run test:recovery:ui -- scripts/recovery/clientes-receipt.ui.test.jsx
+      - name: Conta quitada nao mostra atraso legado - teste UI
+        run: npm run test:recovery:ui -- scripts/recovery/clientes-quitado-status.ui.test.jsx
+      - name: Fluxo real V2 em emulador - fiado pre-pedido e recarga
+        run: npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local "node scripts/p0-fiado-v2-emulator.mjs"
+      - name: Diagnostico somente leitura dos vinculos de fiado
+        run: node scripts/p0-fiado-link-audit-check.mjs
       - name: Build seguro
         if: always()
         run: npm run build

@@ -1,10 +1,11 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { normalizarCliente } from '../data';
 import ZenModal from './ZenModal';
 import { formaEhDinheiro, lancamentosDoCliente } from '../core/financialLedger';
 import { interpretarValorMonetario } from '../core/cashMoneyInput';
+import { auditarVinculosFiado, encontrarConflitosIdsRecebimento } from '../core/clientCreditLinkAudit';
 
-export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, setClientes, moeda, fmt, t, tx = (pt) => pt, converterDeBRL, converterParaBRL }) {
+export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, historicoVendas = [], setClientes, moeda, fmt, t, tx = (pt) => pt, converterDeBRL, converterParaBRL }) {
   const [filtroPaisCliente, setFiltroPaisCliente] = useState('todos');
   const [buscaClienteTexto, setBuscaClienteTexto] = useState('');
   
@@ -36,6 +37,10 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
   const inputValorAmortizacaoRef = useRef(null);
 
   const totalEmFiadoAbertoBRL = clientes.reduce((acc, c) => acc + (c.saldoDevedorBRL || 0), 0);
+  // Apenas leitura: nenhum ajuste de saldo, histórico ou identificação.
+  const inconsistenciasVinculoFiado = useMemo(() => auditarVinculosFiado({
+    clientes,historicoVendas,livroFinanceiro,
+  }),[clientes,historicoVendas,livroFinanceiro]);
 
   const clientesListaFiltrada = clientes.filter(c => {
     if (!c) return false;
@@ -124,6 +129,28 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
 
   const confirmarRecebimentoFiado = async () => {
     if (recebimentoEmAndamentoRef.current) return;
+    // O cliente do modal pode ter mudado desde a abertura. Conferir uma única
+    // identidade atual antes de registrar qualquer baixa de saldo ou caixa.
+    const vinculados = (clientes || []).filter(c => clienteReceberFiado?.id != null
+      && String(c?.id) === String(clienteReceberFiado.id));
+    const clienteAtual = vinculados.length===1 ? vinculados[0] : null;
+    if (!clienteAtual || String(clienteAtual.nome || '').trim()!==String(clienteReceberFiado?.nome || '').trim()
+      || Math.round(Number(clienteAtual.saldoDevedorBRL || 0)*100)!==Math.round(Number(clienteReceberFiado?.saldoDevedorBRL || 0)*100)) {
+      return setModalZen({variante:'warning',titulo:'Conta atualizada',
+        mensagem:'O cadastro ou saldo desta conta mudou. Feche o recebimento, confira o extrato atualizado e abra novamente. Nenhum valor foi recebido.',
+        apenasConfirmar:true});
+    }
+    // Nomes nas vendas e no livro são fotografias históricas: podem ser
+    // diferentes após uma edição legítima do cliente. Eles NÃO são chave.
+    // Somente IDs diferentes entre venda e lançamento justificam bloquear.
+    const conflitosVinculo = encontrarConflitosIdsRecebimento({
+      clienteId:clienteAtual.id,historicoVendas,livroFinanceiro,
+    });
+    if(conflitosVinculo.length) {
+      return setModalZen({variante:'danger',titulo:'Conta com vínculo financeiro inconsistente',
+        mensagem:'O ID do cliente no lançamento financeiro é diferente do ID da venda original. Nenhum recebimento foi registrado. Confira os registros antes de baixar.',
+        detalhes:conflitosVinculo.slice(0,3).map(c=>`Venda ${c.vendaId}: ID na venda ${c.clienteIdVenda} / ID no financeiro ${c.clienteIdFinanceiro}`),apenasConfirmar:true});
+    }
     const formaCfg = catalogoFormas.find(f => f.id === formaAmortizacaoSel) || catalogoFormas[0];
     const leitura = interpretarValorMonetario(valorAmortizacaoInput, formaCfg.moedaOrigem);
     if (!leitura.ok) return setModalZen({ variante:'warning', titulo:'Valor monetário inválido', mensagem:leitura.erro, apenasConfirmar:true });
@@ -193,7 +220,7 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
         const confirmado = await commitOperacaoNegocio({
           changes, financialEntries:[financeiro],
           guards: [
-            { type:'entity_unchanged', field:'clientes', entityId:clienteReceberFiado.id, entityKey:'id', expected:clienteReceberFiado },
+            { type:'client_receipt_snapshot', clientId:clienteAtual.id, clientName:clienteAtual.nome, balanceBRL:saldoAntes },
             ...(dinheiroFisico ? [{ type:'cash_session_open', sessionId:sessaoAtiva.id }] : []),
           ],
           operationKey: 'recebimento-fiado:' + recebimentoId,
@@ -255,6 +282,27 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
         </div>
       </div>
 
+      {inconsistenciasVinculoFiado.length > 0 && (
+        <details style={{border:'1px solid #f59e0b',background:'#1f160a',borderRadius:12,padding:14}}>
+          <summary style={{color:'#fde68a',fontSize:13,fontWeight:900,cursor:'pointer'}}>
+            ⚠ Conferência histórica do fiado: {inconsistenciasVinculoFiado.length} venda(s) com observações — somente leitura
+          </summary>
+          <div style={{marginTop:8,fontSize:12,color:'#e2e8f0'}}>
+            Esta conferência não movimenta valores. Nome diferente com o mesmo ID é uma informação histórica, não motivo para bloquear recebimento nem alterar dívida.
+          </div>
+          {inconsistenciasVinculoFiado.slice(0,8).map(item => (
+            <div key={item.vendaId} style={{borderTop:'1px solid #6b4e1d',padding:'10px 0',marginTop:8,color:'#fff',fontSize:12,overflowWrap:'anywhere'}}>
+              <div><strong>Venda:</strong> {item.vendaId} · <strong>Fiado:</strong> {fmt(item.valorFiadoBRL,'BRL')}</div>
+              <div><strong>Nome na venda:</strong> {item.vendaNome} · <strong>Cliente vinculado atualmente:</strong> {item.clienteAtualNome}</div>
+              <div><strong>ID da venda:</strong> {item.clienteIdVenda || 'Ausente'} · <strong>ID no Livro Financeiro:</strong> {item.clienteIdFinanceiro}</div>
+              <div><strong>Nome no Livro Financeiro:</strong> {item.clienteNomeFinanceiro}</div>
+              <div style={{color:'#fbbf24'}}>{item.problemas.join(' • ')}</div>
+            </div>
+          ))}
+          {inconsistenciasVinculoFiado.length > 8 &&
+            <div style={{color:'#fbbf24',fontSize:11}}>Exibindo as 8 primeiras divergências. Nenhuma correção automática foi realizada.</div>}
+        </details>
+      )}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0b1120', padding: '16px 20px', borderRadius: '16px', border: '1px solid #1e293b', gap: '16px' }}>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           {[{ id: 'todos', r: t('todosClientes') }, { id: 'com_divida', r: `⚠️ ${t('comDivida')}` }].map(f => (
@@ -312,7 +360,7 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
                       <td style={{ padding: '16px 12px', textAlign: 'right', fontWeight: 900, color: temDivida ? '#fb7185' : '#34d399', fontSize: '15px', whiteSpace: 'nowrap' }}>{fmt(saldoDevedor, 'BRL')}</td>
                       <td style={{ padding: '16px 12px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                         {estourouLimite ? <span style={{ backgroundColor: 'rgba(244, 63, 94, 0.15)', color: '#fb7185', border: '1px solid #f43f5e', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>🔴 {t('limiteExcedido')}</span>
-                        : dias > 0 ? <span style={{ backgroundColor: 'rgba(244, 63, 94, 0.15)', color: '#fb7185', border: '1px solid #f43f5e', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 900 }}>🔴 {dias}D {t('diasAtraso')}</span>
+                        : temDivida && dias > 0 ? <span style={{ backgroundColor: 'rgba(244, 63, 94, 0.15)', color: '#fb7185', border: '1px solid #f43f5e', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 900 }}>🔴 {dias}D {t('diasAtraso')}</span>
                         : temDivida ? <span style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#fbbf24', border: '1px solid #d97706', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>🟡 {t('aberto')}</span>
                         : <span style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#34d399', border: '1px solid #10b981', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>🟢 {t('emDia')}</span>}
                       </td>
@@ -418,13 +466,21 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
       <ZenModal aberto={!!modalZen} variante={modalZen?.variante} titulo={modalZen?.titulo} mensagem={modalZen?.mensagem} detalhes={modalZen?.detalhes} confirmarTexto={modalZen?.confirmarTexto||'OK'} cancelarTexto={modalZen?.cancelarTexto||'Cancelar'} apenasConfirmar={modalZen?.apenasConfirmar} onConfirmar={()=>{ const fn=modalZen?.aoConfirmar; setModalZen(null); if(fn) fn(); }} onCancelar={()=>setModalZen(null)} />
 
       {clienteExtrato && (() => {
-        const linhas = lancamentosDoCliente(livroFinanceiro, clienteExtrato.id);
+        // Modal guarda somente a identidade escolhida. O cadastro e o extrato
+        // precisam refletir os dados atuais recebidos da nuvem, sem saldo antigo em estado local.
+        const clienteAtual = clientes.find(c => String(c.id) === String(clienteExtrato.id)) || clienteExtrato;
+        const linhas = lancamentosDoCliente(livroFinanceiro, clienteAtual.id);
+        const ultimoSaldoAuditado = linhas.find(l => l.saldoClienteDepois !== null && l.saldoClienteDepois !== undefined);
+        const saldoAuditado = ultimoSaldoAuditado ? Number(ultimoSaldoAuditado.saldoClienteDepois) : null;
+        const saldoCadastrado = Number(clienteAtual.saldoDevedorBRL || 0);
+        const saldoDivergente = saldoAuditado !== null && Number.isFinite(saldoAuditado) && Math.abs(saldoAuditado - saldoCadastrado) >= 0.01;
         return <div style={{ position:'fixed', inset:0, zIndex:1800, background:'rgba(2,6,23,.88)', backdropFilter:'blur(7px)', display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
           <div style={{ width:'100%', maxWidth:900, maxHeight:'82vh', overflow:'hidden', background:'#0b1120', border:'1px solid #38bdf8', borderRadius:22, color:'#fff', boxShadow:'0 30px 80px rgba(0,0,0,.55)' }}>
             <div style={{ padding:22, borderBottom:'1px solid #1e293b', display:'flex', justifyContent:'space-between', gap:16, alignItems:'center' }}>
-              <div><div style={{ color:'#38bdf8', fontSize:11, fontWeight:900, letterSpacing:1 }}>{tx('CONTA CORRENTE DO CLIENTE','CUENTA CORRIENTE DEL CLIENTE','CUSTOMER ACCOUNT')}</div><h3 style={{ margin:'4px 0 0', fontSize:20 }}>{clienteExtrato.nome}</h3><div style={{ color:'#94a3b8', fontSize:12, marginTop:4 }}>{tx('Saldo atual cadastrado:','Saldo actual registrado:','Current registered balance:')} <strong style={{color:'#fb7185'}}>{fmt(clienteExtrato.saldoDevedorBRL||0,'BRL')}</strong></div></div>
+              <div><div style={{ color:'#38bdf8', fontSize:11, fontWeight:900, letterSpacing:1 }}>{tx('CONTA CORRENTE DO CLIENTE','CUENTA CORRIENTE DEL CLIENTE','CUSTOMER ACCOUNT')}</div><h3 style={{ margin:'4px 0 0', fontSize:20 }}>{clienteAtual.nome}</h3><div style={{ color:'#94a3b8', fontSize:12, marginTop:4 }}>{tx('Saldo atual cadastrado:','Saldo actual registrado:','Current registered balance:')} <strong style={{color:'#fb7185'}}>{fmt(clienteAtual.saldoDevedorBRL||0,'BRL')}</strong></div></div>
               <button onClick={()=>setClienteExtrato(null)} style={{width:36,height:36,borderRadius:9,border:'1px solid #334155',background:'#020617',color:'#94a3b8',cursor:'pointer'}}>✕</button>
             </div>
+            {saldoDivergente && <div role="alert" style={{padding:'12px 16px',background:'#451a03',borderBottom:'1px solid #f59e0b',color:'#fde68a',fontSize:12,fontWeight:800}}>⚠ Divergência no fiado: cadastro {fmt(saldoCadastrado,'BRL')} e último saldo auditado {fmt(saldoAuditado,'BRL')}. Confira os lançamentos antes de receber; nenhum saldo foi alterado automaticamente.</div>}
             <div style={{ padding:14, color:'#94a3b8', fontSize:11, borderBottom:'1px solid #1e293b' }}>{tx('O extrato auditável começa com os novos lançamentos da ATT 07. O histórico anterior não é reconstruído por inferência.','El extracto auditable comienza con los nuevos movimientos de ATT 07. El historial anterior no se reconstruye por inferencia.','The auditable statement starts with new ATT 07 entries. Previous history is not reconstructed by inference.')}</div>
             <div style={{ overflow:'auto', maxHeight:'58vh' }}>
               <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,minWidth:760}}><thead><tr style={{color:'#64748b',textTransform:'uppercase',fontSize:10,borderBottom:'1px solid #1e293b'}}><th style={{padding:12,textAlign:'left'}}>{tx('Data','Fecha','Date')}</th><th style={{textAlign:'left'}}>{tx('Tipo','Tipo','Type')}</th><th style={{textAlign:'left'}}>{tx('Descrição','Descripción','Description')}</th><th style={{textAlign:'right'}}>{tx('Débito','Débito','Debit')}</th><th style={{textAlign:'right'}}>{tx('Crédito','Crédito','Credit')}</th><th style={{textAlign:'right'}}>{tx('Saldo','Saldo','Balance')}</th><th style={{textAlign:'left',paddingLeft:14}}>{tx('Forma / Operador','Forma / Operador','Method / Operator')}</th></tr></thead><tbody>

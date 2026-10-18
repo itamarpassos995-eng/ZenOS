@@ -1,0 +1,107 @@
+rules_version = '2';
+// PROTOTYPE: reviewed in Emulator only, never deployed.
+// storage_control and generation creation: privileged migration operator only.
+// head: schema=2, state=ready, monotonic sequence, immutable manifest/source.
+// entities: {data: legacy map, legacyField, legacyIndex, version, deleted,commandId}.
+// Legacy inner maps deliberately preserve approved/unknown fields. This fence
+// does not claim to replace domain validation with a complete backend service.
+service cloud.firestore {
+ match /databases/{database}/documents {
+  function owner(store){return request.auth!=null&&request.auth.uid==store;}
+  function control(store){return /databases/$(database)/documents/lojas/$(store)/dados/storage_control;}
+  function legacy(store){return !exists(control(store))||get(control(store)).data.mode in ['legacy','shadow'];}
+  function active(store,generation){return exists(control(store))&&get(control(store)).data.mode=='v2'&&get(control(store)).data.generation==generation;}
+  function head(store,generation){return /databases/$(database)/documents/lojas/$(store)/v2_generations/$(generation);}
+  function operation(store,generation,id){return /databases/$(database)/documents/lojas/$(store)/v2_generations/$(generation)/operations/$(id);}
+  function command(store,generation,id,sequence){
+   return id is string&&id.size()==64&&active(store,generation)
+    &&getAfter(head(store,generation)).data.sequence==sequence
+    &&get(head(store,generation)).data.sequence+1==sequence
+    &&getAfter(head(store,generation)).data.lastReceipt==id
+    &&!exists(operation(store,generation,id))
+    &&getAfter(operation(store,generation,id)).data.sequence==sequence;
+  }
+  function validMap(data){return data is map&&data.size()<=300;}
+  function validEntity(data,kind){
+   let fields={'produtos':'produtos','clientes':'clientes','vendas':'historicoVendas','compras':'historicoCompras','movimentosCaixa':'caixaMovimentos','sessoesCaixa':'sessoesCaixa','operadores':'vendedores','fornecedores':'fornecedores','despesas':'despesas','vouchers':'vouchers'};
+   return data.legacyField==fields[kind]&&((kind=='vouchers'&&data.data.codigo is string&&data.data.codigo.size()>0&&data.data.codigo.size()<=1000)
+    ||(kind!='vouchers'&&('id' in data.data)&&(data.data.id is string||data.data.id is int)))&&data.keys().hasOnly(['data','legacyField','legacyIndex','version','deleted','commandId'])
+   &&data.keys().hasAll(['data','legacyField','legacyIndex','version','deleted','commandId'])
+   &&validMap(data.data)&&data.legacyField is string&&data.legacyField.size()<60
+   &&data.legacyIndex is int&&data.version is int&&data.version>0&&data.deleted is bool;}
+  function recordedEntity(store,generation,id,data){
+   return getAfter(operation(store,generation,data.commandId)).data.patches.hasAny([{
+    'field':data.legacyField,'routeId':id,'data':data.data,'deleted':data.deleted,
+    'legacyField':data.legacyField,'legacyIndex':data.legacyIndex,'version':data.version,'commandId':data.commandId}]);
+  }
+  function validValue(data){return data.keys().hasOnly(['field','value','version','commandId'])
+   &&data.keys().hasAll(['field','value','version','commandId'])&&data.field in ['regrasComissao','regrasDesconto']
+   &&validMap(data.value)&&data.version is int&&data.version>0;}
+  function validReceipt(data){return data.keys().hasOnly(['schema','key','fingerprint','sequence','revisions','patches','financialEntries','reads','writes','createdAtClient'])
+   &&data.schema==2&&data.key is string&&data.key.size()>0&&data.key.size()<=1000
+   &&data.fingerprint is string&&data.fingerprint.size()==64&&data.sequence is int&&data.sequence>0
+   &&validMap(data.revisions)&&data.patches is list&&data.patches.size()<=350
+   &&data.financialEntries is list&&data.financialEntries.size()<=350
+   &&data.reads is int&&data.reads<=400&&data.writes is int&&data.writes<=450
+   &&data.createdAtClient is string&&data.createdAtClient.size()<=40;}
+  function validHead(data){return data.schema==2&&data.state=='ready'&&data.sequence is int
+   &&validMap(data.fieldRevisions)&&validMap(data.fieldCounts)&&data.lastReceipt is string&&data.lastReceipt.size()==64
+   &&data.updatedAtServer==request.time;}
+  function validHistory(data){return validMap(data)&&data.id is string&&data.id.size()>0&&data.id.size()<=200
+   &&data.serverRecordedAt==request.time;}
+  function historicalCommand(store,data){return data._v2 is map&&data._v2.keys().hasOnly(['generation','commandId','sequence'])
+   &&command(store,data._v2.generation,data._v2.commandId,data._v2.sequence);}
+  match /lojas/{store} {
+   allow read: if owner(store);
+   // Existing onboarding/profile root contract; privileged roles are not derived here.
+   allow create,update: if owner(store)&&validMap(request.resource.data);
+   match /dados/{kind} {
+    allow read: if owner(store);
+    allow create,update: if owner(store)&&validMap(request.resource.data)
+      &&((kind=='operacao'&&legacy(store))||kind in ['configuracoes','mesas']);
+   }
+   match /v2_generations/{generation} {
+    allow read: if owner(store);
+    allow update: if owner(store)&&validHead(request.resource.data)
+     &&request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sequence','lastReceipt','fieldCounts','fieldRevisions','updatedAtServer'])
+     &&command(store,generation,request.resource.data.lastReceipt,request.resource.data.sequence);
+    match /operations/{id} {
+     allow read: if owner(store);
+     allow create: if owner(store)&&validReceipt(request.resource.data)&&command(store,generation,id,request.resource.data.sequence);
+    }
+    match /{kind}/{id} {
+     allow read: if owner(store)&&kind in ['produtos','clientes','vendas','compras','movimentosCaixa','sessoesCaixa','operadores','fornecedores','despesas','vouchers','legacy_fields'];
+     allow create,update: if owner(store)&&
+      ((kind in ['produtos','clientes','vendas','compras','movimentosCaixa','sessoesCaixa','operadores','fornecedores','despesas','vouchers']&&validEntity(request.resource.data,kind))
+       ||(kind=='legacy_fields'&&validValue(request.resource.data)))
+      &&command(store,generation,request.resource.data.commandId,request.resource.data.version)
+      &&((kind=='legacy_fields'&&getAfter(operation(store,generation,request.resource.data.commandId)).data.patches.hasAny([request.resource.data]))
+       ||(kind!='legacy_fields'&&recordedEntity(store,generation,id,request.resource.data)))
+      &&(!exists(/databases/$(database)/documents/lojas/$(store)/v2_generations/$(generation)/$(kind)/$(id))
+       ||(kind=='legacy_fields'&&request.resource.data.field==resource.data.field)
+       ||(kind=='vouchers'&&request.resource.data.data.codigo==resource.data.data.codigo)
+       ||(kind!='legacy_fields'&&kind!='vouchers'&&request.resource.data.data.id==resource.data.data.id));
+    }
+   }
+   match /financeiro_livro/{id} {
+    allow read: if owner(store);
+    allow create: if owner(store)&&validHistory(request.resource.data)&&(legacy(store)||historicalCommand(store,request.resource.data));
+    allow update: if owner(store)&&legacy(store)&&validHistory(request.resource.data);
+   }
+   match /estoque_auditoria/{product}/movimentos/{id} {
+    allow read: if owner(store);
+    allow create: if owner(store)&&validHistory(request.resource.data)&&(legacy(store)||historicalCommand(store,request.resource.data));
+    allow update: if owner(store)&&legacy(store)&&validHistory(request.resource.data);
+   }
+   match /produto_indices/{id} {
+    allow read: if owner(store);
+    allow create,update: if owner(store)&&validMap(request.resource.data);
+    allow delete: if owner(store)&&legacy(store);
+   }
+  }
+  match /solicitacoes_demo/{uid} {
+   allow read: if owner(uid);
+   allow create,update: if owner(uid)&&validMap(request.resource.data);
+  }
+ }
+}

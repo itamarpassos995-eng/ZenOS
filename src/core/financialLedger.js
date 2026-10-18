@@ -32,7 +32,7 @@ export function assinarLivroFinanceiro({ db, userId, onData, onError }) {
   return onSnapshot(collection(db, 'lojas', String(userId), COLECAO), (snap) => {
     const itens = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     itens.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
-    onData?.(itens, { fromCache: snap.metadata?.fromCache === true });
+    onData?.(itens, { fromCache: snap.metadata?.fromCache === true, hasPendingWrites: snap.metadata?.hasPendingWrites === true });
   }, (erro) => onError?.(erro));
 }
 
