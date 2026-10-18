@@ -340,6 +340,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
   const lidarDigitacaoPreco = (id, valorDigitado) => { setItensVenda(itensVenda.map(item => item.id === id ? { ...item, precoTexto: valorDigitado, precoPraticadoBRL: converterParaBRL(parseFloat(valorDigitado.replace(',', '.')) || 0, moeda) } : item)); };
 
   const carregarPrePedido = (pedido) => {
+    if(pedido?.origem==='commerce')return mostrarZen('warning','Atendimento protegido','Abra este pedido pela central de Pedidos Online para validar a trava de faturamento.');
     if(commerceOrigem)return mostrarZen('warning','Pedido em atendimento','Conclua o pedido online antes de resgatar outro documento.');
     setItensVenda(itensVendaComCustoAtual(pedido.itens));
     setClienteQuerFiscal(pedido.clienteQuerFiscal === true);
@@ -973,10 +974,10 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
             </div>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {historicoVendas.filter(v => v.estado === 'pendente').length === 0 ? (
+              {historicoVendas.filter(v => v.estado === 'pendente' && v.origem !== 'commerce').length === 0 ? (
                 <div style={{ textAlign: 'center', color: '#475569', padding: '40px', backgroundColor: '#020617', borderRadius: '12px', border: '1px solid #1e293b' }}>{tx('Nenhum pré-pedido a aguardar pagamento no caixa.','Ningún pre-pedido pendiente de pago en caja.','No pre-orders awaiting payment at checkout.')}</div>
               ) : (
-                historicoVendas.filter(v => v.estado === 'pendente').map(v => (
+                historicoVendas.filter(v => v.estado === 'pendente' && v.origem !== 'commerce').map(v => (
                   <div key={v.id} onClick={() => carregarPrePedido(v)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', backgroundColor: '#1e1b4b', border: '1px solid #4c1d95', borderRadius: '12px', cursor: 'pointer', transition: 'transform 0.2s', boxShadow: '0 4px 10px rgba(76,29,149,0.2)' }}>
                     <div>
                       <strong style={{ display: 'block', color: '#e2e8f0', fontSize: '15px' }}>{v.clienteNome}</strong>
