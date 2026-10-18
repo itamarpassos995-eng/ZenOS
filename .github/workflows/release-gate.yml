@@ -1,0 +1,70 @@
+name: ZenOS Release Protection
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zenos-release-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  business:
+    name: ZenOS Business and UI
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node scripts/release-check.mjs
+      - name: Production frontend build
+        run: npm run build
+
+  emulator:
+    name: ZenOS Local Firebase Integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Synthetic login, V2, credit, pre-orders and concurrent terminals
+        run: npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local "node scripts/release-check.mjs --emulator"
+
+  release:
+    # Stable unique name imported into Vercel Deployment Checks.
+    name: ZenOS Release Gate
+    if: always()
+    needs: [business, emulator]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - name: Report release status to Vercel
+        uses: vercel/repository-dispatch/actions/status@v1
+        with:
+          name: 'Vercel - zen-os: release'
+      - name: Refuse failed, skipped or cancelled prerequisites
+        env:
+          BUSINESS_RESULT: ${{ needs.business.result }}
+          EMULATOR_RESULT: ${{ needs.emulator.result }}
+        run: |
+          test "$BUSINESS_RESULT" = success
+          test "$EMULATOR_RESULT" = success
