@@ -1,3 +1,4 @@
+import {createHash,pbkdf2Sync} from 'node:crypto';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {initializeApp,deleteApp} from 'firebase/app';
@@ -20,14 +21,16 @@ async function client(name,credentials){
  await signInWithEmailAndPassword(auth,credentials.email,credentials.password);
  const db=getFirestore(app);connectFirestoreEmulator(db,'127.0.0.1',8080);
  const fns=getFunctions(app,'southamerica-east1');connectFunctionsEmulator(fns,'127.0.0.1',5001);
- return {db,uid:auth.currentUser.uid,api:async data=>(await httpsCallable(fns,'commercePedidosAdmin')(data)).data};
+ return {db,fns,uid:auth.currentUser.uid,api:async data=>(await httpsCallable(fns,'commercePedidosAdmin')({...data,...(credentials.sessaoZenOS?{sessaoZenOS:credentials.sessaoZenOS}:{})})).data};
 }
 try{
  for(const mode of ['legacy','v2']){
   const credentials={email:`pdv-${mode}-${crypto.randomUUID()}@example.test`,password:'EmulatorOnly!1248'};
   const user=await adminAuth(admin).createUser({...credentials,emailVerified:true});
   const a=await client('pdv-a-'+mode,credentials),b=await client('pdv-b-'+mode,credentials),root=`lojas/${user.uid}`;
-  await adb.doc(`commerce_operator_access/${user.uid}`).set({ativo:true,papel:'admin',lojaId:user.uid});
+  const salt='ab'.repeat(16),pin='839275';
+  await adb.doc(`${root}/commerce_private/operador-${createHash('sha256').update('caixa-1').digest('hex')}`).set({ativo:true,papel:'admin',versao:1,pinVersion:2,pinSalt:salt,pinHash:pbkdf2Sync(pin,Buffer.from(salt,'hex'),120000,32,'sha256').toString('hex')});
+  credentials.sessaoZenOS=(await httpsCallable(a.fns,'commerceSessaoZenOS')({operadorId:'caixa-1',pin})).data.sessaoZenOS;
   await adb.doc(`${root}/commerce_private/licenca`).set({status:'ativo',ativacaoConfirmadaServidor:true});
   const id=(mode==='legacy'?'ab':'cd').repeat(16),vendaId=`COMMERCE-${id}`;
   await adb.doc(`${root}/commerce_pedidos/${id}`).set({status:'recebido',cliente:{nome:'Teste'},itens:[{produtoId:'P1',quantidade:2,precoUnitarioCentavos:1250}]});
@@ -43,6 +46,11 @@ try{
   }
   const draft=await a.api({action:'prepararPDV',id});assert.equal(draft.vendaId,vendaId);
   assert.deepEqual((await adb.doc(`${root}/dados/operacao`).get()).data(),operation);
+  const otherCredentials={email:`other-${mode}-${crypto.randomUUID()}@example.test`,password:'EmulatorOnly!1248'};
+  const otherUser=await adminAuth(admin).createUser({...otherCredentials,emailVerified:true});
+  await adb.doc(`commerce_operator_access/${otherUser.uid}`).set({ativo:true,papel:'admin',lojaId:user.uid});
+  const other=await client('pdv-other-'+mode,otherCredentials);
+  await assert.rejects(other.api({action:'prepararPDV',id}),e=>/failed-precondition/.test(e.code));
   await assert.rejects(setDoc(doc(a.db,root,'commerce_faturamentos',id),{pedidoId:id,vendaId,criadoEm:draft.preparadoEm}));
   await assert.rejects(getDoc(doc(a.db,'lojas','other-shop','commerce_faturamentos',id)));
   await assert.rejects(a.api({action:'confirmarFaturamento',id}));
@@ -61,6 +69,7 @@ try{
   const actual=(await getOperationalSnapshot(a.db,user.uid)).data();
   assert.equal(actual.produtos[0].estoque,3);assert.equal(actual.historicoVendas.length,1);
   assert.equal((await adb.collection(`${root}/financeiro_livro`).get()).size,1);
+  assert.equal((await adb.collection(`${root}/estoque_auditoria/P1-S1/movimentos`).get()).size,1);
   assert.equal((await adb.doc(`${root}/commerce_faturamentos/${id}`).get()).data().vendaId,vendaId);
   // No deletion or overwrite of durable receipts, even by the owning shop.
   await assert.rejects(deleteDoc(doc(a.db,root,'commerce_faturamentos',id)));
@@ -72,6 +81,8 @@ try{
   if(mode==='legacy')await adb.doc(`${root}/dados/operacao`).update({historicoVendas:[],_syncMeta:{}});
   else await adb.doc(`${generationRoot}/vendas/${vendaId}`).update({deleted:true});
   await assert.rejects(a.api({action:'prepararPDV',id}));
+  assert.equal((await run(b)).error.code,'ZENOS_COMMERCE_ALREADY_BILLED');
+  assert.equal((await adb.collection(`${root}/financeiro_livro`).get()).size,1);
   console.log(`PASSOU: Commerce → PDV ${mode}: dois terminais, uma venda/baixa/entrada, trava permanente, recuperação e histórico protegido.`);
  }
 }finally{for(const app of apps)await deleteApp(app);}

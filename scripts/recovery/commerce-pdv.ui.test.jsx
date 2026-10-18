@@ -1,5 +1,5 @@
 import {test,expect,vi,beforeEach} from 'vitest';
-import {importarRascunhoCommerce} from '../../src/core/commercePDVDraft';
+import {importarRascunhoCommerce,reconciliarRascunhoCommerceFaturado} from '../../src/core/commercePDVDraft';
 import {lerRascunhoPDV,salvarRascunhoPDV} from '../../src/core/pdvDraft';
 import {lerTravaFaturamentoCommerce,gravarTravaFaturamentoCommerce} from '../../src/core/commerceSaleFence';
 const id='ab'.repeat(16),vendaId=`COMMERCE-${id}`;
@@ -26,6 +26,15 @@ test('trava preserva pedido mesmo com carrinho vazio; nova importação não apa
  const draft=importar();salvarRascunhoPDV('A','op',{...draft,itensVenda:[]});
  expect(lerRascunhoPDV('A','op').commerceOrigem.pedidoId).toBe(id);
  expect(importar().itensVenda).toHaveLength(0);
+});
+test('recuperação autoritativa encerra somente rascunho do mesmo pedido e loja',()=>{
+ importar();
+ const reconciliar=p=>reconciliarRascunhoCommerceFaturado({lojaId:'A',operadorId:'op',pedido:p});
+ expect(()=>reconciliar({...pedido,faturado:false})).toThrow(/não confirmado/);
+ expect(()=>reconciliar({...pedido,faturado:true,lojaId:'B'})).toThrow(/não confirmado/);
+ reconciliar({...pedido,faturado:true,pedidoId:'cd'.repeat(16),vendaId:`COMMERCE-${'cd'.repeat(16)}`});
+ expect(lerRascunhoPDV('A','op').commerceOrigem.pedidoId).toBe(id);
+ reconciliar({...pedido,faturado:true});expect(lerRascunhoPDV('A','op')).toBe(null);
 });
 test('trava só pode acompanhar a venda correspondente e bloqueia faturamento posterior',async()=>{
  const {initializeApp,deleteApp}=await import('firebase/app');const {getFirestore}=await import('firebase/firestore');

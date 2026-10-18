@@ -21,7 +21,7 @@ O código continua atrás da ponte de sessão desligada por padrão. Sem merge/m
 
 ## Testes e limites
 
-Validação local: builds com flag ligada/desligada; 109 testes Functions; 12 testes UI Commerce (incluindo PDV real com falha/retry, valores, estoque e guarda); regressões de negócio e 9 testes UI do gate de release. Testes de emulador adicionados ao CI: dois terminais concorrentes V1/V2, uma única venda/baixa/entrada, recuperação e rejeição de alteração/exclusão do recibo e criação sem venda. Resultado do CI deve ser registrado no PR; não confundir código de teste com execução aprovada.
+Validação local: builds com flag ligada/desligada; 109 testes Functions; 13 testes UI Commerce (incluindo PDV real com falha/retry, valores, estoque e guarda); regressões de negócio e 9 testes UI do gate de release. Testes de emulador adicionados ao CI: dois terminais concorrentes V1/V2, uma única venda/baixa/entrada, recuperação e rejeição de alteração/exclusão do recibo e criação sem venda. Resultado do CI deve ser registrado no PR; não confundir código de teste com execução aprovada.
 
 Ainda NÃO executados nesta etapa: jornada no navegador autenticado em homologação na nuvem, mobile/desktop e rolagem por mouse/toque/teclado, compartilhamento nativo/WhatsApp real, falha de rede real no navegador e liberação com plano de cliente. Não apresentar a integração como pronta para produção antes dessas provas.
 
