@@ -73,7 +73,7 @@ export function validarRascunhoCommerce(dados,lojaId=null){
   if(fotoCadastroStoragePath&&lojaId&&!caminhoCommerceValido(fotoCadastroStoragePath,lojaId,id,{origem:'cadastro'}))throw Error('Foto de cadastro pertence a outra loja ou produto.');
   regrasLimpas[id]={publicado:r.publicado===true,fonteEstoque:['vitrine','deposito','ambos'].includes(r.fonteEstoque)?r.fonteEstoque:'ambos',
    reservaMinima:inteiro(r.reservaMinima,0,1e9),limiteOnline:inteiro(r.limiteOnline,0,1e9,null),
-   precoOnlineBRL:moeda(r.precoOnlineBRL),categoriaPublica:texto(r.categoriaPublica,60),imagemPublica:url(r.imagemPublica),
+   precoOnlineBRL:moeda(r.precoOnlineBRL),precoAnteriorBRL:moeda(r.precoAnteriorBRL),descricaoWeb:texto(r.descricaoWeb,800),categoriaPublica:texto(r.categoriaPublica,60),imagemPublica:url(r.imagemPublica),
    usarFotoCadastro:r.usarFotoCadastro!==false,
    capaImagemId:fotoId(r.capaImagemId)||'cadastro',
    fotoCadastroStoragePath,galeriaImagens:galeria};
