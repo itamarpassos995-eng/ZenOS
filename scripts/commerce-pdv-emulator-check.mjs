@@ -6,6 +6,7 @@ import {getAuth,connectAuthEmulator,signInWithEmailAndPassword} from 'firebase/a
 import {getFirestore,connectFirestoreEmulator,doc,getDoc,setDoc,deleteDoc} from 'firebase/firestore';
 import {getFunctions,connectFunctionsEmulator,httpsCallable} from 'firebase/functions';
 import {persistV1BusinessOperationSafe} from '../src/core/productionSync.js';
+import {montarPrePedidoCommerce,idPrePedidoCommerce} from '../src/core/commercePrePedido.js';
 import {getOperationalSnapshot} from '../src/core/operationalRepository.js';
 const require=createRequire(new URL('../functions/package.json',import.meta.url));
 const {initializeApp:adminApp}=require('firebase-admin/app');
@@ -54,13 +55,35 @@ try{
   await assert.rejects(setDoc(doc(a.db,root,'commerce_faturamentos',id),{pedidoId:id,vendaId,criadoEm:draft.preparadoEm}));
   await assert.rejects(getDoc(doc(a.db,'lojas','other-shop','commerce_faturamentos',id)));
   await assert.rejects(a.api({action:'confirmarFaturamento',id}));
+  // A jornada real agora passa primeiro pelo pre-pedido operacional persistido.
+  // Dois terminais disputam a mesma identidade: no maximo um documento pendente.
+  const pre=montarPrePedidoCommerce({pedido:draft,produtos:[product],operadorId:'caixa-1',operadorNome:'Operador teste'});
+  assert.equal(pre.id,idPrePedidoCommerce(id));
+  const basePre=(await getOperationalSnapshot(a.db,user.uid)).data().historicoVendas;
+  await getOperationalSnapshot(b.db,user.uid);
+  const prepararPre=x=>persistV1BusinessOperationSafe({
+   db:x.db,userId:user.uid,
+   changes:[{field:'historicoVendas',baseValue:basePre,value:[pre,...basePre]}],
+   guards:[{type:'entity_absent',field:'historicoVendas',entityKey:'id',entityId:pre.id}],
+   financialEntries:[],stockEvents:[],operationKey:`commerce:prepedido:${id}`,
+  });
+  const preparacoes=await Promise.all([prepararPre(a),prepararPre(b)]);
+  assert.ok(preparacoes.some(r=>r.cloudOk),'Pre-pedido precisa ser confirmado na nuvem.');
+  const pending=(await getOperationalSnapshot(a.db,user.uid)).data().historicoVendas;
+  assert.equal(pending.filter(v=>v.id===pre.id).length,1,'Pre-pedido unico nos dois terminais.');
+  assert.equal(pending.find(v=>v.id===pre.id).estado,'pendente');
+  assert.equal((await adb.collection(`${root}/financeiro_livro`).get()).size,0);
+  assert.equal((await adb.collection(`${root}/estoque_auditoria/P1-S1/movimentos`).get()).size,0);
+  assert.equal(mode==='legacy'?(await adb.doc(`${root}/dados/operacao`).get()).data().produtos[0].estoque:
+   (await adb.doc(`${generationRoot}/produtos/P1`).get()).data().data.estoque,5);
   const sale={id:vendaId,estado:'concluida',tipoDocumento:'venda',origem:'commerce',commercePedidoId:id,createdAt:draft.preparadoEm,totalBRL:25};
   const changes=[{field:'produtos',baseValue:[product],value:[{...product,estoque:3,estoqueGalpao:3}]},
-   {field:'historicoVendas',baseValue:[],value:[sale]}];
-  const guards=[{type:'commerce_order_once',orderId:id,saleId:vendaId}];
+   {field:'historicoVendas',baseValue:pending,value:[sale],removeEntityIds:[pre.id]}];
+  const guards=[{type:'commerce_order_once',orderId:id,saleId:vendaId},
+   {type:'entity_field_equals',field:'historicoVendas',entityId:pre.id,entityKey:'id',property:'estado',expected:'pendente'}];
   const financialEntries=[{id:`VENDA-${vendaId}-DINHEIRO`,tipo:'venda',referenciaId:vendaId,valor:25,afetaCaixaFisico:true}];
   const stockEvents=[{id:`EST-${vendaId}`,produtoId:'P1',sku:'S1',tipo:'venda',detalhes:{deposito:2}}];
-  // Both terminals begin from the same confirmed base.
+  // Ambos os terminais iniciam da base confirmada contendo o mesmo pre-pedido.
   await Promise.all([getOperationalSnapshot(a.db,user.uid),getOperationalSnapshot(b.db,user.uid)]);
   const run=x=>persistV1BusinessOperationSafe({db:x.db,userId:user.uid,changes,guards,financialEntries,stockEvents,operationKey:`pdv:${vendaId}`});
   const results=await Promise.all([run(a),run(b)]);
@@ -68,6 +91,8 @@ try{
   assert.equal(results.find(r=>!r.cloudOk).error.code,'ZENOS_COMMERCE_ALREADY_BILLED');
   const actual=(await getOperationalSnapshot(a.db,user.uid)).data();
   assert.equal(actual.produtos[0].estoque,3);assert.equal(actual.historicoVendas.length,1);
+  assert.equal(actual.historicoVendas[0].id,vendaId);
+  assert.equal(actual.historicoVendas.some(v=>v.id===pre.id),false);
   assert.equal((await adb.collection(`${root}/financeiro_livro`).get()).size,1);
   assert.equal((await adb.collection(`${root}/estoque_auditoria/P1-S1/movimentos`).get()).size,1);
   assert.equal((await adb.doc(`${root}/commerce_faturamentos/${id}`).get()).data().vendaId,vendaId);
@@ -83,6 +108,6 @@ try{
   await assert.rejects(a.api({action:'prepararPDV',id}));
   assert.equal((await run(b)).error.code,'ZENOS_COMMERCE_ALREADY_BILLED');
   assert.equal((await adb.collection(`${root}/financeiro_livro`).get()).size,1);
-  console.log(`PASSOU: Commerce → PDV ${mode}: dois terminais, uma venda/baixa/entrada, trava permanente, recuperação e histórico protegido.`);
+  console.log(`PASSOU: Commerce → pré-pedido → PDV ${mode}: pre-pedido unico, dois terminais, uma venda/baixa/entrada, trava permanente, recuperação e histórico protegido.`);
  }
 }finally{for(const app of apps)await deleteApp(app);}
