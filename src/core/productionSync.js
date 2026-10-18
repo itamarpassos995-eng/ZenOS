@@ -1,3 +1,4 @@
+import {lerTravaFaturamentoCommerce,gravarTravaFaturamentoCommerce} from './commerceSaleFence.js';
 import {exchangeRateSnapshotsEqual} from './exchangeRateGuard.js';
 import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { peekV2Session } from './operationalRepository.js';
@@ -416,7 +417,7 @@ export const persistV1BusinessOperationSafe = async ({
   const valid = (changes || []).filter(c => c?.field);
   const financialWriteCount = (financialEntries || []).filter(x => Number(x?.valor) > 0).length;
   const stockWriteCount = (stockEvents || []).filter(x => x?.id && x?.produtoId != null).length;
-  const estimatedAtomicWrites = 1 + financialWriteCount + stockWriteCount;
+  const estimatedAtomicWrites = 1 + financialWriteCount + stockWriteCount + ((guards || []).some(g=>g?.type==='commerce_order_once') ? 1 : 0);
   if (estimatedAtomicWrites > 450) {
     const error = new Error(`Operação muito grande para confirmação atômica (${estimatedAtomicWrites} gravações). Divida em lotes menores.`);
     error.code = 'ZENOS_ATOMIC_WRITE_LIMIT';
@@ -455,6 +456,7 @@ export const persistV1BusinessOperationSafe = async ({
           failGuard('A cotação mudou em outro terminal. Confira o câmbio e refaça o fechamento.', 'ZENOS_CASH_FX_CHANGED');
         }
       }
+      const travaCommerce = await lerTravaFaturamentoCommerce(tx, db, userId, guards, valid);
       const existingSyncMeta = data?._syncMeta || {};
       const recentKeys = normalizeRecentOperationKeys(existingSyncMeta);
 
@@ -498,6 +500,7 @@ export const persistV1BusinessOperationSafe = async ({
       };
       syncMeta = appendOperationKey(syncMeta, operationKey);
       const estimatedBytes = assertV1DocumentSize(data, payload, syncMeta);
+      gravarTravaFaturamentoCommerce(tx, travaCommerce);
       tx.set(operationRef, { ...payload, _syncMeta: syncMeta }, { merge:true });
 
       const financeiroNormalizado = [];

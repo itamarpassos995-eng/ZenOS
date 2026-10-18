@@ -235,3 +235,5 @@ try{
  console.log('PASSOU: autorização individual, papel de operador negado, revogação imediata e autoautorização bloqueada.');
  console.log('PASSOU: lojas A/B isoladas, Store privado, Storage negado e callable com revisao.');
 }finally{for(const app of apps)await deleteApp(app);}
+
+await import('./commerce-pdv-emulator-check.mjs');

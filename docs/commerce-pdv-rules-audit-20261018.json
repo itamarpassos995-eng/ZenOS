@@ -1,0 +1,12 @@
+{
+  "score": 4,
+  "summary": "Auditoria estática da coleção commerce_faturamentos em regras exclusivas de emulador. Identidade por loja, campos limitados, pedido preparado e venda getAfter; atualização/exclusão negadas. Não certifica regras reais de produção ou o conjunto genérico operacional do emulador.",
+  "findings": [
+    {
+      "check": "Authority Source",
+      "severity": "minor",
+      "issue": "O login operacional atual compartilha UID da loja entre operadores. As regras identificam a loja; a autorização individual e a atribuição do atendimento dependem do callable com sessão privada. As regras do emulador não são modelo de publicação.",
+      "recommendation": "Validar regras reais e provisionamento/revogação de sessão antes de habilitar a ponte na nuvem. Preservar checks de pedido preparado, getAfter, isolamento, hasOnly e negação de update/delete. Não implantar o arquivo de emulador."
+    }
+  ]
+}

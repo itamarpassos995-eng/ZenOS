@@ -23,6 +23,9 @@ export function callableCommerceZenOS(nome){
  const auth=obterAuthCommerceZenOS();
  return async dados=>{
   if(!sessao||sessao.uid!==auth.currentUser?.uid||sessao.expiraEm<=Date.now())throw Error(erro||'Acesso à Loja Online ainda não confirmado para este operador.');
-  return httpsCallable(getFunctions(auth.app,'southamerica-east1'),nome)({...dados,sessaoZenOS:sessao.sessaoZenOS});
+  const turno=geracao,uid=auth.currentUser.uid;
+  const result=await httpsCallable(getFunctions(auth.app,'southamerica-east1'),nome)({...dados,sessaoZenOS:sessao.sessaoZenOS});
+  if(turno!==geracao||auth.currentUser?.uid!==uid)throw Error('Operador alterado durante o atendimento. Entre novamente na Loja Online.');
+  return result;
  };
 }
