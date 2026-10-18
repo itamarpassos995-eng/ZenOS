@@ -13,7 +13,7 @@ import { validarBackup } from '../core/backupCore';
 import { ZENOS_RUNTIME } from '../core/runtimeEnvironment';
 import { notifyPersistenceStatus } from '../core/persistenceSafety';
 
-export default function Configuracoes({ commitOperacaoNegocio, userId, operadorAtivo, perfilLojaGlobal, setPerfilLojaGlobal, produtos, setProdutos, clientes, setClientes, historicoVendas, setHistoricoVendas, caixaMovimentos, setCaixaMovimentos, despesas, setDespesas, tx, regrasDesconto, setRegrasDesconto, vendedores, setVendedores }) {
+export default function Configuracoes({ onAbrirLojaOnline=null, commitOperacaoNegocio, userId, operadorAtivo, perfilLojaGlobal, setPerfilLojaGlobal, produtos, setProdutos, clientes, setClientes, historicoVendas, setHistoricoVendas, caixaMovimentos, setCaixaMovimentos, despesas, setDespesas, tx, regrasDesconto, setRegrasDesconto, vendedores, setVendedores }) {
   const [modalResetAberto, setModalResetAberto] = useState(false);
   const [senhaAdmin, setSenhaAdmin] = useState('');
   const [etapaAviso, setEtapaAviso] = useState(1);
@@ -286,6 +286,11 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
         <span style={{ fontSize: '13px', color: '#64748b' }}>{tx('Gestão de equipa, rentabilidade e segurança','Gestión de equipo, rentabilidad y seguridad','Team, profitability and security management')}</span>
       </div>
 
+      {(Boolean(import.meta.env.VITE_ZENOS_COMMERCE_HML_FIREBASE_CONFIG)||import.meta.env.VITE_ZENOS_COMMERCE_PRODUCT_TAB==='true')&&typeof onAbrirLojaOnline==='function'&&
+       <section style={{background:'#0f172a',border:'1px solid #395368',borderRadius:16,padding:20,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
+         <div><strong style={{color:'#f4ca87',fontSize:16}}>🛍️ Layout da Loja Online</strong><p style={{color:'#94a3b8',fontSize:12,margin:'6px 0 0'}}>Banners, cores, identidade visual, link e publicação. Independente do cadastro de produtos.</p></div>
+         <button type="button" onClick={onAbrirLojaOnline} style={{background:'#d9a65b',border:'none',padding:'12px 18px',borderRadius:10,color:'#172a35',fontWeight:800,cursor:'pointer'}}>Personalizar loja online</button>
+       </section>}
       <div style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.2)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>

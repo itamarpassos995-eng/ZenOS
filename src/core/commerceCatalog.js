@@ -9,15 +9,19 @@ export function normalizarRegraPublicacao(regra = {}) {
   const reservaMinima = Number(regra.reservaMinima ?? 0);
   const limite = regra.limiteOnline == null || regra.limiteOnline === '' ? null : Number(regra.limiteOnline);
   const preco = regra.precoOnlineBRL == null || regra.precoOnlineBRL === '' ? null : Number(regra.precoOnlineBRL);
+  const precoAnterior = regra.precoAnteriorBRL == null || regra.precoAnteriorBRL === '' ? null : Number(regra.precoAnteriorBRL);
   if (!Number.isFinite(reservaMinima) || reservaMinima < 0) throw new Error('Reserva de estoque inválida.');
   if (limite !== null && (!Number.isFinite(limite) || limite < 0)) throw new Error('Limite de venda online inválido.');
   if (preco !== null && (!Number.isFinite(preco) || preco <= 0)) throw new Error('Preço online inválido.');
+  if (precoAnterior !== null && (!Number.isFinite(precoAnterior) || precoAnterior <= 0)) throw new Error('Preço anterior inválido.');
   return {
     publicado: regra.publicado === true,
     fonteEstoque: fonte,
     reservaMinima,
     limiteOnline: limite,
     precoOnlineBRL: preco === null ? null : arredondarMoeda(preco),
+    precoAnteriorBRL: precoAnterior===null?null:arredondarMoeda(precoAnterior),
+    descricaoWeb: String(regra.descricaoWeb||'').trim().slice(0,800),
     categoriaPublica: String(regra.categoriaPublica || '').trim().slice(0, 60),
     imagemPublica: urlImagemSegura(regra.imagemPublica),
     usarFotoCadastro: regra.usarFotoCadastro !== false,
@@ -91,7 +95,8 @@ export function projetarCatalogoPublico({ produtos = [], regras = {}, lojaAtivad
     return [{
       skuPublico,
       nome: String(prod.nome || '').trim().slice(0,120),
-      descricao: String(prod.descricaoPublica || '').slice(0,800),
+      descricao: String(config.descricaoWeb || prod.descricaoPublica || '').slice(0,800),
+      precoAnteriorBRL: config.precoAnteriorBRL>preco?config.precoAnteriorBRL:null,
       categoria: config.categoriaPublica || String(prod.grupo || 'Produtos').slice(0,60),
       precoBRL: arredondarMoeda(preco),
       imagemUrl,
