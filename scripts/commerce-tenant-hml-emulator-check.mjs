@@ -157,6 +157,14 @@ try{
   const responses=await Promise.all([lojaApi(envio),lojaApi(envio)]);const receipt=responses[0].data;
   assert.equal(receipt.id,responses[1].data.id);assert.equal(receipt.totalCentavos,1980);assert.equal(receipt.estoqueReservado,false);assert.match(receipt.whatsappUrl,/^https:\/\/wa.me\/5567999991234/);
   assert.equal((await adb.collection(`lojas/${a.uid}/commerce_pedidos`).get()).size,1);
+  const consulta={action:'consultarPedido',idPublico:published.idPublico,chaveEnvio:envio.chaveEnvio};
+  const recuperado=(await lojaApi(consulta)).data;
+  assert.equal(recuperado.encontrado,true);assert.equal(recuperado.pedido.id,receipt.id);
+  assert.ok(!JSON.stringify(recuperado).includes('Comprador Teste'));
+  assert.equal((await lojaApi({...consulta,chaveEnvio:crypto.randomUUID()})).data.encontrado,false);
+  // Outro comprador não recupera o envio, mesmo conhecendo a chave.
+  assert.equal((await httpsCallable(b.fns,'commerceLoja')(consulta)).data.encontrado,false);
+
   assert.equal((await opRef.get()).data().produtos[0].estoque,2);
   await forbid(getDoc(doc(buyer.db,'lojas',a.uid,'commerce_pedidos',receipt.id)));
   await forbid(setDoc(doc(a.db,'lojas',a.uid,'commerce_pedidos',receipt.id),{totalCentavos:1}));
@@ -170,6 +178,8 @@ try{
   await forbid(lojaApi({action:'catalogo',idPublico:published.idPublico}));
   await adb.doc(`lojas/${a.uid}/commerce_private/licenca`).update({bloqueado:false});
   await adminA({action:'despublicar'});
+  assert.equal((await lojaApi(consulta)).data.pedido.id,receipt.id); // confirmação continua recuperável
+
   await assert.rejects(lojaApi({action:'catalogo',idPublico:published.idPublico}),e=>/not-found/.test(e.code));
   assert.equal((await adminA({action:'publicar',expectedRevision:4,whatsapp:'5567999991234'})).data.idPublico,published.idPublico);
   console.log('HML_PUBLIC_ID='+published.idPublico);

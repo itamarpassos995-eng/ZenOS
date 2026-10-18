@@ -12,6 +12,10 @@ on:
       - 'src/commerce.css'
       - 'src/App.jsx'
       - 'scripts/commerce-preview-build.mjs'
+      - 'scripts/commerce-checkout-recovery-check.mjs'
+      - 'scripts/commerce-emulator-check.mjs'
+      - 'scripts/commerce-tenant-hml-emulator-check.mjs'
+      - 'scripts/recovery/commerce-checkout.ui.test.jsx'
       - '.github/workflows/commerce-product-editor-ci.yml'
   workflow_dispatch:
 jobs:
@@ -32,3 +36,30 @@ jobs:
         working-directory: functions
       - run: npm test
         working-directory: functions
+      - run: node --test scripts/commerce-checkout-recovery-check.mjs
+      - run: node node_modules/vitest/vitest.mjs run --config vitest.recovery.config.js scripts/recovery/commerce-checkout.ui.test.jsx
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm install --no-package-lock --ignore-scripts --no-audit --no-fund
+        working-directory: functions
+      - name: Two stores, media, order recovery and idempotency on local emulators only
+        env:
+          GCLOUD_PROJECT: demo-zenos-local
+          ZENOS_COMMERCE_MEDIA_ENABLED: 'true'
+          ZENOS_COMMERCE_HOMOLOGACAO: 'true'
+          ZENOS_COMMERCE_STORAGE_BUCKET: demo-zenos-local.appspot.com
+        run: node scripts/commerce-emulator-check.mjs
