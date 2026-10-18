@@ -23,6 +23,8 @@ export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuve
  // Trocar operador ou sair do módulo encerra a sessão administrativa em memória.
  useEffect(()=>()=>{void signOut(operatorAuth);},[operatorAuth,userId,operadorAtivo?.id]);
  const [whatsapp,setWhatsapp]=useState(''),[pedidos,setPedidos]=useState([]),[painelErro,setPainelErro]=useState(''),[painelBusy,setPainelBusy]=useState(false);
+ const [avisosNovos,setAvisosNovos]=useState(0);
+ const idsConhecidos=useRef(null),consultaEmCurso=useRef(false),lojaPedidos=useRef(null);
  const rev=useRef(0);
  const fn=useRef(null);
  const fnMedia=useRef(null);
@@ -42,7 +44,27 @@ export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuve
   return()=>{ativo=false;fn.current=null;fnMedia.current=null;};
  },[userId,nuvemSincronizada,operatorUid,operatorAuth]);
  const adminApi=async(action,extra={})=>(await httpsCallable(getFunctions(operatorAuth.app,'southamerica-east1'),'commercePedidosAdmin')({action,...extra})).data;
- const carregarPedidos=async()=>{setPainelBusy(true);setPainelErro('');try{setPedidos((await adminApi('listarPedidos')).pedidos);}catch(e){setPainelErro(erroAmigavel(e));}finally{setPainelBusy(false);}};
+ const carregarPedidos=async(manual=false)=>{
+  if(!data?.lojaId||!operatorUid||consultaEmCurso.current)return;
+  const lojaAtual=data.lojaId;consultaEmCurso.current=true;
+  if(manual){setPainelBusy(true);setAvisosNovos(0);}setPainelErro('');
+  try{
+   const lista=(await adminApi('listarPedidos')).pedidos;
+   if(lojaPedidos.current!==lojaAtual)return;
+   const ids=new Set(lista.map(p=>p.id));
+   if(idsConhecidos.current){const novos=lista.filter(p=>p.status==='recebido'&&!idsConhecidos.current.has(p.id)).length;if(novos)setAvisosNovos(n=>n+novos);}
+   idsConhecidos.current=ids;setPedidos(lista);
+  }catch(e){if(lojaPedidos.current===lojaAtual)setPainelErro(erroAmigavel(e));}
+  finally{consultaEmCurso.current=false;if(manual)setPainelBusy(false);}
+ };
+ // Consulta somente enquanto o módulo está aberto e a aba visível. A primeira leitura estabelece a linha de base.
+ useEffect(()=>{
+  if(!data?.lojaId||!operatorUid){lojaPedidos.current=null;idsConhecidos.current=null;setPedidos([]);setAvisosNovos(0);return;}
+  lojaPedidos.current=data.lojaId;idsConhecidos.current=null;setPedidos([]);setAvisosNovos(0);
+  void carregarPedidos();
+  const timer=setInterval(()=>{if(document.visibilityState==='visible')void carregarPedidos();},90000);
+  return()=>{clearInterval(timer);lojaPedidos.current=null;};
+ },[data?.lojaId,operatorUid]);
  // Upload acontece apenas na funcao de midia privada. Nenhum produto V1 e alterado.
  const blobBase64=blob=>new Promise((ok,fail)=>{const reader=new FileReader();reader.onerror=()=>fail(new Error('Falha ao ler imagem.'));
   reader.onload=()=>{const raw=String(reader.result||'');const base64=raw.split(',')[1];if(!base64)fail(new Error('Imagem inválida.'));else ok(base64);};reader.readAsDataURL(blob);});
@@ -111,15 +133,15 @@ export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuve
    <strong>Prévia privada:</strong> {erro} Nenhuma contratação ou publicação será feita.
   </div>}
   {data&&<section className="commerce-admin-panel" style={{padding:20,border:'1px solid #395368',borderRadius:12,color:'#edf4f8',display:'grid',gap:12}}>
-   <h3 style={{margin:0}}>Pedidos da loja online</h3>
+   <h3 style={{margin:0}}>Pedidos da loja online {avisosNovos>0&&<span role="status" style={{color:'#ffe19c',fontSize:12,marginLeft:8}}>{avisosNovos} novo(s) desde a última consulta</span>}</h3>
    <label>WhatsApp da loja com código do país<input type="tel" maxLength={25} placeholder="+55 ou +595..." value={whatsapp} onChange={e=>setWhatsapp(e.target.value)} style={{margin:8,padding:10,color:'#162D38'}}/></label>
    <small>Pedidos ficam aguardando confirmação. Nenhuma venda, cobrança ou baixa de estoque é feita automaticamente.</small>
-   <div style={{display:'flex',gap:10,flexWrap:'wrap'}}><button disabled={painelBusy} onClick={carregarPedidos}>Atualizar pedidos</button>
+   <div style={{display:'flex',gap:10,flexWrap:'wrap'}}><button disabled={painelBusy} onClick={()=>carregarPedidos(true)}>Atualizar pedidos</button>
     {data.idPublico&&<a href={'/loja/'+data.idPublico} target="_blank" rel="noopener noreferrer" style={{color:'#e9bc7a'}}>Abrir loja</a>}
     {data.lojaPublicada&&<button disabled={painelBusy} onClick={async()=>{if(!window.confirm('Retirar a loja do ar? Os pedidos serão preservados.'))return;setPainelBusy(true);try{await adminApi('despublicar');setData(prev=>({...prev,lojaPublicada:false}));}catch(e){setPainelErro(erroAmigavel(e));}finally{setPainelBusy(false);}}}>Retirar loja do ar</button>}
    </div>
    {painelErro&&<p role="alert">{painelErro}</p>}
-   {pedidos.map(p=><article key={p.id} style={{background:'#10212e',padding:12,borderRadius:9}}><b>{p.id.slice(0,10).toUpperCase()} — {p.cliente.nome}</b><p>{p.criadoEm} • {p.status} • R$ {(p.totalCentavos/100).toFixed(2)}</p><p>{p.itens.map(i=>i.quantidade+' × '+i.nome).join(' / ')}</p><p>{p.observacao}</p><a style={{color:'#e9bc7a'}} href={'https://wa.me/'+p.cliente.telefone} target="_blank" rel="noopener noreferrer">Atender pelo WhatsApp</a><div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:10}}>{['em_atendimento','encerrado','cancelado'].map(status=><button key={status} disabled={painelBusy||['encerrado','cancelado'].includes(p.status)} onClick={async()=>{setPainelBusy(true);try{await adminApi('atualizarStatus',{id:p.id,status});await carregarPedidos();}catch(e){setPainelErro(erroAmigavel(e));}finally{setPainelBusy(false);}}}>{status.replace('_',' ')}</button>)}</div></article>)}
+   {pedidos.map(p=><article key={p.id} style={{background:'#10212e',padding:12,borderRadius:9}}><b>{p.id.slice(0,10).toUpperCase()} — {p.cliente.nome}</b><p>{p.criadoEm} • {p.status} • R$ {(p.totalCentavos/100).toFixed(2)}</p><p>{p.itens.map(i=>i.quantidade+' × '+i.nome).join(' / ')}</p><p>{p.observacao}</p><a style={{color:'#e9bc7a'}} href={'https://wa.me/'+p.cliente.telefone} target="_blank" rel="noopener noreferrer">Atender pelo WhatsApp</a><div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:10}}>{['em_atendimento','encerrado','cancelado'].map(status=><button key={status} disabled={painelBusy||p.status===status||['encerrado','cancelado'].includes(p.status)} onClick={async()=>{setPainelBusy(true);try{await adminApi('atualizarStatus',{id:p.id,status});await carregarPedidos();}catch(e){setPainelErro(erroAmigavel(e));}finally{setPainelBusy(false);}}}>{status.replace('_',' ')}</button>)}</div></article>)}
    {!pedidos.length&&<small>Clique em atualizar para consultar os últimos 50 pedidos.</small>}
   </section>}
   <ZenCommerceStudio key={userId} produtos={produtos} aparenciaInicial={data?.aparencia}
