@@ -4,6 +4,7 @@ GCLOUD_PROJECT=demo-zenos-local ZENOS_COMMERCE_MEDIA_ENABLED=false firebase emul
  'node scripts/commerce-tenant-hml-emulator-check.mjs'
 */
 import assert from 'node:assert/strict';
+import {pbkdf2Sync} from 'node:crypto';
 import {createRequire} from 'node:module';
 const require=createRequire(new URL('../functions/package.json',import.meta.url));
 const {initializeApp:initAdmin}=require('firebase-admin/app');
@@ -76,6 +77,29 @@ try{
  await grant.update({papel:'admin',ativo:false});
  await forbid(fnA({action:'consultar'}));
  await grant.update({ativo:true});
+
+ // Integração sem segunda conta: a sessão password atual é a identidade da loja.
+ const pinSessao='839275',saltSessao='ab'.repeat(16),credencialRef=adb.doc(`lojas/${operatorA.uid}/commerce_operator_credentials/caixa-1`);
+ const credencial={ativo:true,papel:'admin',versao:1,pinVersion:2,pinSalt:saltSessao,pinHash:pbkdf2Sync(pinSessao,Buffer.from(saltSessao,'hex'),120000,32,'sha256').toString('hex')};
+ await adb.doc(`lojas/${operatorA.uid}`).set({tipo:'homologacao'});
+ await credencialRef.set(credencial);
+ const bridge=httpsCallable(operatorA.fns,'commerceSessaoZenOS');
+ await forbid(bridge({operadorId:'caixa-1',pin:'999999'}));
+ await forbid(httpsCallable(a.fns,'commerceSessaoZenOS')({operadorId:'caixa-1',pin:pinSessao}));
+ await forbid(getDoc(doc(operatorA.db,'lojas',operatorA.uid,'commerce_operator_credentials','caixa-1')));
+ await forbid(setDoc(doc(operatorA.db,'lojas',operatorA.uid,'commerce_operator_credentials','caixa-1'),{...credencial,papel:'admin'}));
+ const sessaoIntegrada=(await bridge({operadorId:'caixa-1',pin:pinSessao})).data;
+ assert.equal(sessaoIntegrada.lojaId,operatorA.uid);assert.equal(sessaoIntegrada.operadorId,'caixa-1');
+ const consultaIntegrada={action:'consultar',sessaoZenOS:sessaoIntegrada.sessaoZenOS};
+ assert.equal((await fnA(consultaIntegrada)).data.lojaId,operatorA.uid);
+ await forbid(fnB(consultaIntegrada));
+ await credencialRef.update({ativo:false});await forbid(fnA(consultaIntegrada));
+ await credencialRef.update({ativo:true,versao:2});await forbid(fnA(consultaIntegrada));
+ await credencialRef.update({versao:1});
+ const limiteRef=adb.doc(`lojas/${operatorA.uid}/commerce_private/acesso-${(await import('node:crypto')).createHash('sha256').update('caixa-1').digest('hex')}`);
+ await limiteRef.set({inicio:Date.now(),tentativas:5});
+ await assert.rejects(bridge({operadorId:'caixa-1',pin:pinSessao}),e=>/resource-exhausted/.test(e.code));
+ console.log('PASSOU: sessão ZenOS/PIN privado, isolamento, revogação, versão e bloqueio de tentativas.');
  const init=(await fnA({action:'consultar'})).data;
  assert.equal(init.publicacaoHabilitada,false);assert.equal(init.licenca.ativo,false);
  await assert.rejects(fnA({action:'consultar',lojaId:b.uid}),e=>/invalid-argument/.test(String(e.code)));
@@ -182,6 +206,24 @@ try{
 
   await assert.rejects(lojaApi({action:'catalogo',idPublico:published.idPublico}),e=>/not-found/.test(e.code));
   assert.equal((await adminA({action:'publicar',expectedRevision:4,whatsapp:'5567999991234'})).data.idPublico,published.idPublico);
+
+  // V1 fica congelada; preço/estoque do Commerce devem vir da geração V2.
+  const generation='ab'.repeat(12),checksum='fixture-checksum',root=`lojas/${a.uid}/v2_generations/${generation}`;
+  const certificate={sourceChecksum:checksum,productionReady:true,v1WritersFenced:true,finalReconciliationPassed:true,pdvIntegrationPassed:true,rollbackPrepared:true};
+  const control={mode:'v2',generation,sourceChecksum:checksum,certificate};
+  await adb.doc(root).set({schema:2,state:'ready',sourceChecksum:checksum,sequence:0,fieldManifest:{produtos:{kind:'array',collection:'produtos',count:1}},fieldCounts:{produtos:1}});
+  await adb.doc(root+'/produtos/P-1').set({legacyField:'produtos',data:{...operacao.produtos[0],preco1BRL:12.34,estoque:3},deleted:false});
+  await adb.doc(`lojas/${a.uid}/dados/storage_control`).set(control);
+  assert.equal((await lojaApi({action:'catalogo',idPublico:published.idPublico})).data.catalogo[0].precoCentavos,1234);
+  assert.equal((await adminA({action:'consultarLoja'})).data.produtos[0].estoque,3);
+  const pubV2=(await adb.doc(`lojas/${a.uid}/commerce_private/publicacao`).get()).data();
+  const pedidoV2=(await lojaApi({...envio,revision:pubV2.revision,chaveEnvio:crypto.randomUUID(),totalCentavos:2468})).data;
+  assert.equal(pedidoV2.totalCentavos,2468);
+  assert.equal((await opRef.get()).data().produtos[0].preco1BRL,9.9);
+  assert.equal((await adb.doc(root+'/produtos/P-1').get()).data().data.estoque,3);
+  await adb.doc(`lojas/${a.uid}/dados/storage_control`).set({...control,mode:'maintenance'});
+  await assert.rejects(lojaApi({action:'catalogo',idPublico:published.idPublico}),e=>/failed-precondition/.test(e.code));
+  console.log('PASSOU: Commerce leu preço/estoque V2 certificado, pedido canônico sem baixar estoque e manutenção bloqueada sem fallback V1.');
   console.log('HML_PUBLIC_ID='+published.idPublico);
   console.log('PASSOU: publicação licenciada, catálogo público allowlist, pedido canônico idempotente, WhatsApp, fila administrativa, suspensão, despublicação e dados operacionais preservados.');
   console.log('PASSOU: upload/miniatura privados, retry, persistência, foto cadastro, URLs com prazo e rejeição cruzada. IAM/expiração GCS real não simulados.');

@@ -7,3 +7,5 @@ export { commerceMidia } from './commerceMedia.js';
 
 export {commerceLoja,commercePedidosAdmin} from './commerceOrders.js';
 export {commerceHmlBootstrap} from './commerceHmlBootstrap.js';
+
+export {commerceSessaoZenOS} from './commerceZenOSSession.js';

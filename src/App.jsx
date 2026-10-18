@@ -1,3 +1,4 @@
+import {iniciarSessaoCommerceZenOS,limparSessaoCommerceZenOS,ponteCommerceZenOSHabilitada} from './core/commerceZenOSSession';
 import {getOperationalSnapshot,subscribeOperationalSnapshot,clearOperationalSession} from './core/operationalRepository.js';
 import TerminalLogin from './components/TerminalLogin';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
@@ -757,6 +758,7 @@ export default function App() {
     });
     if (!confirmou) return;
     clearOperationalSession(db, userId);
+    limparSessaoCommerceZenOS();
     await signOut(auth);
     // LIMPEZA ABSOLUTA DE MEMÓRIA NO LOGOUT
     setNuvemSincronizada(false);
@@ -777,12 +779,14 @@ export default function App() {
   };
 
   const trocarOperador = () => {
+    limparSessaoCommerceZenOS();
     setOperadorAtivo(null);
     setEcraAtual('hub');
     setMostrarPainelExecutivo(false);
   };
 
-  const processarLoginOperador = (operador) => {
+  const processarLoginOperador = (operador, pin) => {
+    if(ponteCommerceZenOSHabilitada)void iniciarSessaoCommerceZenOS(auth,operador.id,pin);
     setOperadorAtivo(operador);
     setEcraAtual('hub');
     setMostrarPainelExecutivo(false);

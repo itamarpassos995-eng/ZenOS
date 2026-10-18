@@ -1,3 +1,4 @@
+import {observarSessaoCommerceZenOS,obterAuthCommerceZenOS,callableCommerceZenOS,ponteCommerceZenOSHabilitada} from '../core/commerceZenOSSession';
 import React,{useEffect,useRef,useState} from 'react';
 import {getFunctions,httpsCallable} from 'firebase/functions';
 import {onAuthStateChanged,signOut} from 'firebase/auth';
@@ -15,13 +16,15 @@ const erroAmigavel=e=>{
 };
 
 /** O storefront público não é ativado por este componente. */
-export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuvemSincronizada=false,produtoFocoId=null}){
+export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuvemSincronizada=false,produtoFocoId=null,integrado=ponteCommerceZenOSHabilitada}){
  const [data,setData]=useState(null),[loading,setLoading]=useState(true),[erro,setErro]=useState('');
- const [operatorAuth]=useState(obterSessaoOperadorCommerce);
+ const [operatorAuth]=useState(()=>integrado?obterAuthCommerceZenOS():obterSessaoOperadorCommerce());
  const [operatorUid,setOperatorUid]=useState(null);
+ const [sessaoRevision,setSessaoRevision]=useState(0);
+ useEffect(()=>integrado?observarSessaoCommerceZenOS(()=>setSessaoRevision(n=>n+1)):undefined,[integrado]);
  useEffect(()=>onAuthStateChanged(operatorAuth,user=>setOperatorUid(user?.uid||null)),[operatorAuth]);
  // Trocar operador ou sair do módulo encerra a sessão administrativa em memória.
- useEffect(()=>()=>{void signOut(operatorAuth);},[operatorAuth,userId,operadorAtivo?.id]);
+ useEffect(()=>()=>{if(!integrado)void signOut(operatorAuth);},[operatorAuth,userId,operadorAtivo?.id]);
  const [whatsapp,setWhatsapp]=useState(''),[pedidos,setPedidos]=useState([]),[painelErro,setPainelErro]=useState(''),[painelBusy,setPainelBusy]=useState(false);
  const [avisosNovos,setAvisosNovos]=useState(0);
  const idsConhecidos=useRef(null),consultaEmCurso=useRef(false),lojaPedidos=useRef(null);
@@ -33,17 +36,17 @@ export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuve
   if(!userId||!nuvemSincronizada){setErro('Aguarde a sincronização da loja.');setLoading(false);return()=>{ativo=false;};}
   if(!operatorUid){setErro('Entre com sua conta individual autorizada para salvar e enviar fotos.');setLoading(false);return()=>{ativo=false;};}
   try{
-   const callable=httpsCallable(getFunctions(operatorAuth.app,'southamerica-east1'),'commerceStudio');
+   const callable=(integrado?callableCommerceZenOS('commerceStudio'):httpsCallable(getFunctions(operatorAuth.app,'southamerica-east1'),'commerceStudio'));
    fn.current=callable;
-   fnMedia.current=httpsCallable(getFunctions(operatorAuth.app,'southamerica-east1'),'commerceMidia');
+   fnMedia.current=(integrado?callableCommerceZenOS('commerceMidia'):httpsCallable(getFunctions(operatorAuth.app,'southamerica-east1'),'commerceMidia'));
    callable({action:'consultar'}).then(res=>{
     if(!ativo)return;
     const d=res.data||{};if(d.lojaId!==userId)throw new Error('A conta individual pertence a outra loja.');rev.current=d.revision||0;setData(d);setWhatsapp(d.whatsapp||'');
    }).catch(err=>{if(ativo)setErro(erroAmigavel(err));}).finally(()=>{if(ativo)setLoading(false);});
   }catch(e){if(ativo){setErro(erroAmigavel(e));setLoading(false);}}
   return()=>{ativo=false;fn.current=null;fnMedia.current=null;};
- },[userId,nuvemSincronizada,operatorUid,operatorAuth]);
- const adminApi=async(action,extra={})=>(await httpsCallable(getFunctions(operatorAuth.app,'southamerica-east1'),'commercePedidosAdmin')({action,...extra})).data;
+ },[userId,nuvemSincronizada,operatorUid,operatorAuth,sessaoRevision]);
+ const adminApi=async(action,extra={})=>(await (integrado?callableCommerceZenOS('commercePedidosAdmin'):httpsCallable(getFunctions(operatorAuth.app,'southamerica-east1'),'commercePedidosAdmin'))({action,...extra})).data;
  const carregarPedidos=async(manual=false)=>{
   if(!data?.lojaId||!operatorUid||consultaEmCurso.current)return;
   const lojaAtual=data.lojaId;consultaEmCurso.current=true;
@@ -125,11 +128,11 @@ export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuve
  };
  if(loading)return <div style={{padding:25,color:'#f8fafc'}}>Carregando Commerce Studio...</div>;
  return <div style={{display:'grid',gap:12}}>
-  <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
+  {!integrado&&<div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
    <button type="button" onClick={async()=>{try{setErro('');if(operatorUid)await signOut(operatorAuth);else await entrarOperadorCommerce();}catch(e){setErro(erroAmigavel(e));}}}>
     {operatorUid?'Encerrar acesso individual':'Entrar como administrador do Commerce'}
    </button>
-  </div>
+  </div>}
   {erro&&<div role="status" style={{padding:12,border:'1px solid #84672b',borderRadius:10,color:'#f3ce82',background:'#251f17'}}>
    <strong>Prévia privada:</strong> {erro} Nenhuma contratação ou publicação será feita.
   </div>}
