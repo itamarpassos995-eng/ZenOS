@@ -24,6 +24,7 @@ export default function ZenCommerceStudio({
   const [aviso,setAviso]=useState('');
   const [filtro,setFiltro]=useState('');
   const [carregando,setCarregando]=useState(false);
+  const [visualMobile,setVisualMobile]=useState(false);
   const plano=estadoPlanoCommerce(licenca);
   const catalogo=useMemo(()=>projetarCatalogoPublico({produtos,regras,lojaAtivada:true,modoPrevia:true}),[produtos,regras]);
   const banner=cfg.banners.find(b=>b.id===bannerId)||cfg.banners[0];
@@ -226,7 +227,14 @@ export default function ZenCommerceStudio({
           <div role="status" style={{fontSize:12,color:'#e3c491',minHeight:18}}>{aviso||(!catalogo.length?'Selecione produtos para habilitar a publicação.':!plano.ativo?'Prévia privada: ninguém compra ou paga nesta tela.':'')}</div>
         </div>
       </section>
-      <section style={{...tile,padding:0,display:produtoFocoId?'none':undefined,overflow:'hidden',background:cfg.corSuperficie,color:cfg.corTexto}}>
+      <section style={{...tile,padding:0,display:produtoFocoId?'none':undefined,overflow:'hidden',background:cfg.corSuperficie,color:cfg.corTexto,width:'100%',boxSizing:'border-box',maxWidth:visualMobile?400:undefined,justifySelf:visualMobile?'center':undefined}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,padding:12,background:'#e9eeec',color:'#173340'}}>
+          <strong style={{fontSize:12}}>Prévia ao vivo</strong>
+          <div style={{display:'flex',gap:5}}>
+            <button type="button" aria-pressed={!visualMobile} onClick={()=>setVisualMobile(false)} style={{padding:'6px 9px',fontSize:11,borderRadius:7,border:'1px solid #aebcc3',background:!visualMobile?'#173340':'transparent',color:!visualMobile?'white':'#173340',cursor:'pointer'}}>Computador</button>
+            <button type="button" aria-pressed={visualMobile} onClick={()=>setVisualMobile(true)} style={{padding:'6px 9px',fontSize:11,borderRadius:7,border:'1px solid #aebcc3',background:visualMobile?'#173340':'transparent',color:visualMobile?'white':'#173340',cursor:'pointer'}}>Celular</button>
+          </div>
+        </div>
         <div style={{padding:'8px 15px',textAlign:'center',background:cfg.corPrincipal,color:'#fff',fontSize:10}}>{cfg.textoTopo}</div>
         <div style={{padding:'19px 22px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,flexWrap:'wrap'}}>
           <b style={{fontSize:21,letterSpacing:-.8}}>{cfg.nomeLoja}</b><div style={{display:'flex',gap:16,fontSize:12}}><span>Categorias</span><span>Novidades</span><span>Carrinho ◇</span></div>
@@ -245,7 +253,7 @@ export default function ZenCommerceStudio({
         <div style={{display:'flex',justifyContent:'center',gap:7,marginTop:13}}>{publicado.map((b,i)=><button key={b.id} onClick={()=>setBannerId(b.id)} aria-label={'Prévia do banner '+(i+1)} style={{border:0,borderRadius:12,width:bannerId===b.id?26:7,height:7,background:bannerId===b.id?cfg.corPrincipal:'#c1c8cd',cursor:'pointer'}}/>)}</div>
         <div style={{padding:'26px 20px'}}>
           <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between',gap:10}}><div><small style={{color:'#8b9193',fontWeight:700}}>CURADORIA DA LOJA</small><h3 style={{fontSize:22,margin:'7px 0 20px'}}>Escolhidos para você</h3></div><span style={{fontSize:12,color:cfg.corPrincipal}}>Ver tudo →</span></div>
-          <div className="zen-commerce-card-grid" style={{display:'grid',gridTemplateColumns:`repeat(${cfg.layoutGrade}, minmax(0,1fr))`,gap:10}}>
+          <div className="zen-commerce-card-grid" style={{display:'grid',gridTemplateColumns:`repeat(${visualMobile?'2':cfg.layoutGrade}, minmax(0,1fr))`,gap:10}}>
             {catalogo.slice(0,8).map((p,i)=><div key={p.skuPublico||i} style={{minWidth:0,border:'1px solid #e4e3df',borderRadius:10,overflow:'hidden',background:'#fff'}}>
               <div style={{aspectRatio:'1',display:'grid',placeItems:'center',background:['#e6d7c8','#e9e8e1','#d3dfdb','#ece2e8'][i%4],fontSize:32}}>{p.imagemUrl?<img src={p.imagemUrl} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:['✦','◈','✳','◇'][i%4]}</div>
               <div style={{padding:9}}><div style={{fontSize:9,color:'#76818a'}}>{p.categoria}</div><div style={{fontSize:11,fontWeight:700,minHeight:30,margin:'5px 0'}}>{p.nome}</div><b style={{fontSize:12,color:cfg.corPrincipal}}>{moeda(p.precoBRL)}</b></div>
