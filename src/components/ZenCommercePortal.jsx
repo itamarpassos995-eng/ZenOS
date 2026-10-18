@@ -15,7 +15,7 @@ const erroAmigavel=e=>{
 };
 
 /** O storefront público não é ativado por este componente. */
-export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuvemSincronizada=false}){
+export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuvemSincronizada=false,produtoFocoId=null}){
  const [data,setData]=useState(null),[loading,setLoading]=useState(true),[erro,setErro]=useState('');
  const [operatorAuth]=useState(obterSessaoOperadorCommerce);
  const [operatorUid,setOperatorUid]=useState(null);
@@ -132,7 +132,7 @@ export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuve
   {erro&&<div role="status" style={{padding:12,border:'1px solid #84672b',borderRadius:10,color:'#f3ce82',background:'#251f17'}}>
    <strong>Prévia privada:</strong> {erro} Nenhuma contratação ou publicação será feita.
   </div>}
-  {data&&<section className="commerce-admin-panel" style={{padding:20,border:'1px solid #395368',borderRadius:12,color:'#edf4f8',display:'grid',gap:12}}>
+  {data&&!produtoFocoId&&<section className="commerce-admin-panel" style={{padding:20,border:'1px solid #395368',borderRadius:12,color:'#edf4f8',display:'grid',gap:12}}>
    <h3 style={{margin:0}}>Pedidos da loja online {avisosNovos>0&&<span role="status" style={{color:'#ffe19c',fontSize:12,marginLeft:8}}>{avisosNovos} novo(s) desde a última consulta</span>}</h3>
    <label>WhatsApp da loja com código do país<input type="tel" maxLength={25} placeholder="+55 ou +595..." value={whatsapp} onChange={e=>setWhatsapp(e.target.value)} style={{margin:8,padding:10,color:'#162D38'}}/></label>
    <small>Pedidos ficam aguardando confirmação. Nenhuma venda, cobrança ou baixa de estoque é feita automaticamente.</small>
@@ -144,7 +144,7 @@ export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuve
    {pedidos.map(p=><article key={p.id} style={{background:'#10212e',padding:12,borderRadius:9}}><b>{p.id.slice(0,10).toUpperCase()} — {p.cliente.nome}</b><p>{p.criadoEm} • {p.status} • R$ {(p.totalCentavos/100).toFixed(2)}</p><p>{p.itens.map(i=>i.quantidade+' × '+i.nome).join(' / ')}</p><p>{p.observacao}</p><a style={{color:'#e9bc7a'}} href={'https://wa.me/'+p.cliente.telefone} target="_blank" rel="noopener noreferrer">Atender pelo WhatsApp</a><div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:10}}>{['em_atendimento','encerrado','cancelado'].map(status=><button key={status} disabled={painelBusy||p.status===status||['encerrado','cancelado'].includes(p.status)} onClick={async()=>{setPainelBusy(true);try{await adminApi('atualizarStatus',{id:p.id,status});await carregarPedidos();}catch(e){setPainelErro(erroAmigavel(e));}finally{setPainelBusy(false);}}}>{status.replace('_',' ')}</button>)}</div></article>)}
    {!pedidos.length&&<small>Clique em atualizar para consultar os últimos 50 pedidos.</small>}
   </section>}
-  <ZenCommerceStudio key={userId} produtos={produtos} aparenciaInicial={data?.aparencia}
+  <ZenCommerceStudio key={String(userId)+'-'+String(produtoFocoId||'studio')} produtos={produtos} produtoFocoId={produtoFocoId} aparenciaInicial={data?.aparencia}
    regrasIniciais={data?.regras||{}} licenca={data?.licenca||{status:'nao_contratado'}}
    idPublico={data?.idPublico||''}
    onSalvarRascunho={data?save:null} onSolicitarAtivacao={data?proposal:null}
