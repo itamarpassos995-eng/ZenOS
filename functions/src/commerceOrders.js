@@ -64,7 +64,22 @@ export const commercePedidosAdmin=onCall(opts,async request=>{
 });
 export const commerceLoja=onCall(opts,async request=>{
  habilitado();const db=await obterAdminFirestore(),action=request.data?.action,id=request.data?.idPublico;
- if(!['catalogo','criarPedido'].includes(action))throw new HttpsError('invalid-argument','Ação inválida.');
+ if(!['catalogo','criarPedido','consultarPedido'].includes(action))throw new HttpsError('invalid-argument','Ação inválida.');
+ // Recuperação é privada por UID + chave. Não depende de preço/estoque ou
+ // publicação ainda ativa: um pedido já registrado deve continuar recuperável.
+ if(action==='consultarPedido'){
+  if(!request.auth?.uid)throw new HttpsError('unauthenticated','Identifique a sessão para consultar seu envio.');
+  if(!publicIdValido(id))throw new HttpsError('not-found','Loja indisponível.');
+  let key;try{key=chavePedidoCommerce(request.auth.uid,request.data.chaveEnvio);}catch(e){throw invalid(e);}
+  const directory=await db.doc(`commerce_public/${id}`).get();
+  if(!directory.exists)throw new HttpsError('not-found','Loja indisponível.');
+  const lojaId=directory.data().lojaId;
+  const snap=await db.doc(`lojas/${lojaId}/commerce_pedidos/${key}`).get();
+  if(!snap.exists)return {encontrado:false};
+  if(snap.data().clienteUid!==request.auth.uid||snap.data().idPublico!==id)throw new HttpsError('permission-denied','Envio não autorizado.');
+  const pub=await draftRef(db,lojaId,'publicacao').get();
+  return {encontrado:true,pedido:respostaPedidoCommerce(snap.data(),key,pub.data()?.whatsapp)};
+ }
  const {lojaId,publication,produtos}=await resolverPublicacao(db,id);
  if(action==='catalogo'){
   const regras=await hidratarUrlsPrivadas(publication.regras,lojaId);
