@@ -17,10 +17,13 @@ check('Fila exibe o nome persistido do pré-pedido', () => {
   assert.match(pdv, /\{v\.clienteNome\}/);
 });
 
-check('Fila lista todos os pendentes sem corte por quantidade', () => {
-  assert.match(pdv, /historicoVendas\.filter\(v => v\.estado === 'pendente'\)\.map\(v =>/);
-  const trecho = pdv.slice(pdv.indexOf("historicoVendas.filter(v => v.estado === 'pendente').map"), pdv.indexOf("historicoVendas.filter(v => v.estado === 'pendente').map") + 1000);
+check('Fila lista todos os pendentes do balcão, sem expor pedidos Commerce à venda comum', () => {
+  const filtro = "historicoVendas.filter(v => v.estado === 'pendente' && v.origem !== 'commerce')";
+  assert.match(pdv, /historicoVendas\.filter\(v => v\.estado === 'pendente' && v\.origem !== 'commerce'\)\.map\(v =>/);
+  const trecho = pdv.slice(pdv.indexOf(filtro + '.map'), pdv.indexOf(filtro + '.map') + 1000);
+  assert.ok(trecho.startsWith(filtro + '.map'), 'O filtro de fila protegida precisa existir');
   assert.doesNotMatch(trecho, /\.slice\s*\(/);
+  assert.match(pdv, /pedido\?\.origem==='commerce'\)return mostrarZen/);
 });
 
 check('Fila suporta rolagem para listas longas', () => {
