@@ -160,7 +160,7 @@ export default function ZenCommerceStudio({
             const regra=normalizarRegraPublicacao(regras[String(p.id)]||{});
             const fotos=montarGaleriaProduto({produto:p,regra,previa:true});
             return <div key={p.id} style={{padding:10,background:'#0b1924',border:'1px solid #263e4e',borderRadius:11,display:'grid',gap:8}}>
-              <label style={{display:'flex',justifyContent:'space-between',gap:8,fontSize:13,fontWeight:850}}><span style={{display:'flex',alignItems:'center',gap:9,minWidth:0}}>{fotos.capa?<img src={fotos.capa.miniaturaUrl} alt={p.nome||'Produto'} style={{width:55,height:55,borderRadius:8,objectFit:'cover',background:'#283745'}}/>:<span style={{width:55,height:55,borderRadius:8,background:'#283745',display:'grid',placeItems:'center'}}>📷</span>}{String(p.nome||p.sku||p.id).slice(0,65)}</span><input type="checkbox" checked={regra.publicado} onChange={e=>editarProduto(p.id,'publicado',e.target.checked)}/></label>
+              <label style={{display:'flex',justifyContent:'space-between',gap:8,fontSize:13,fontWeight:850}}><span style={{display:'flex',alignItems:'center',gap:9,minWidth:0}}>{fotos.capa?<img src={fotos.capa.miniaturaUrl} alt={p.nome||'Produto'} style={{width:55,height:55,borderRadius:8,objectFit:'cover',background:'#283745'}}/>:<span style={{width:55,height:55,borderRadius:8,background:'#283745',display:'grid',placeItems:'center'}}>📷</span>}{String(p.nome||p.sku||p.id).slice(0,65)}</span><input type="checkbox" aria-label="Mostrar produto na Loja Online" disabled={p.tipoItem==='servico'||p.usoUnicoEncomendado} checked={regra.publicado} onChange={e=>editarProduto(p.id,'publicado',e.target.checked)}/></label>
               <div style={{display:'grid',gap:8}}>
                  <label style={lbl}>Descrição exclusiva da loja online<textarea style={{...campo,minHeight:100,resize:'vertical',marginTop:5}} maxLength={800} value={regra.descricaoWeb||''} placeholder={String(p.descricaoPublica||p.descricao||'').slice(0,140)} onChange={e=>editarProduto(p.id,'descricaoWeb',e.target.value)}/></label>
                  <label style={lbl}>Categoria na loja<input style={{...campo,marginTop:5}} maxLength={60} value={regra.categoriaPublica||''} placeholder={p.grupo||'Produtos'} onChange={e=>editarProduto(p.id,'categoriaPublica',e.target.value)}/></label>
@@ -180,10 +180,10 @@ export default function ZenCommerceStudio({
                 <div style={{display:'flex',gap:7,flexWrap:'wrap'}}>
                   {fotos.imagens.map((img,i)=><div key={img.id} style={{display:'grid',gap:4,width:96,padding:5,border:regra.capaImagemId===img.id?'2px solid #e9b873':'1px solid #395368',borderRadius:9}}>
                     <img src={img.miniaturaUrl} alt={img.alt||p.nome} style={{width:82,height:82,objectFit:'cover',borderRadius:6}}/>
-                    <button type="button" onClick={()=>editarProduto(p.id,'capaImagemId',img.id)} style={{...tabStyle(false),fontSize:10,padding:5}}>{fotos.capa?.id===img.id?'★ Capa':'Definir capa'}</button>
+                    <button type="button" disabled={fotos.capa?.id===img.id} onClick={()=>editarProduto(p.id,'capaImagemId',img.id)} style={{...tabStyle(false),fontSize:10,padding:5}}>{fotos.capa?.id===img.id?'★ Capa':'Definir capa'}</button>
                     {img.id!=='cadastro'&&<div style={{display:'flex',gap:2}}>
                       <button type="button" aria-label="Mover foto para esquerda" onClick={()=>moverImagem(p,img.id,-1)} disabled={i===0} style={{...tabStyle(false),padding:5,flex:1}}>←</button>
-                      <button type="button" aria-label="Mover foto para direita" onClick={()=>moverImagem(p,img.id,1)} style={{...tabStyle(false),padding:5,flex:1}}>→</button>
+                      <button type="button" aria-label="Mover foto para direita" disabled={i===fotos.imagens.length-1} onClick={()=>moverImagem(p,img.id,1)} style={{...tabStyle(false),padding:5,flex:1}}>→</button>
                       <button type="button" aria-label="Remover foto adicional" onClick={()=>retirarImagem(p,img.id)} style={{...tabStyle(false),padding:5,color:'#ffb5b5',flex:1}}>×</button>
                     </div>}
                   </div>)}
