@@ -6,8 +6,20 @@ const moeda=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).
 const paths={bag:'M6 7h12l2 14H4L6 7Zm3 0V5a3 3 0 0 1 6 0v2',search:'m21 21-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z',arrow:'M4 12h16m-6-6 6 6-6 6',chat:'M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-2 2V11.5a9.5 9.5 0 0 1 19 0ZM7 10h8m-8 4h5',check:'m5 12 4 4L19 6',box:'m3 7 9-5 9 5v10l-9 5-9-5V7Zm0 0 9 5 9-5m-9 5v10',truck:'M2 5h12v12H2V5Zm12 5h4l4 4v3h-8M5 17a2 2 0 1 0 4 0m8 0a2 2 0 1 0 4 0',spark:'m12 2 2.5 7.5L22 12l-7.5 2.5L12 22l-2.5-7.5L2 12l7.5-2.5L12 2Z'};
 function Icon({name}){return <svg className="commerce-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]||paths.bag}/></svg>;}
 const slug=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-');
+// Somente SKU, quantidade e chave de envio. Nunca salva dados pessoais do comprador.
+const chaveSessao=id=>'zenos:commerce:carrinho:'+id;
+function recuperarSessao(id){
+ try {
+  const draft=JSON.parse(sessionStorage.getItem(chaveSessao(id))||'{}');
+  const carrinho=Object.fromEntries(Object.entries(draft.carrinho||{}).slice(0,50).filter(([sku,n])=>typeof sku==='string'&&sku.length<=100&&Number.isSafeInteger(n)&&n>0&&n<=1000));
+  const chave=/^[a-zA-Z0-9_-]{16,80}$/.test(draft.chave||'')?draft.chave:crypto.randomUUID();
+  return {carrinho,chave};
+ }catch{return {carrinho:{},chave:crypto.randomUUID()};}
+}
 export default function ZenCommerceStorefront({idPublico,lojaInicial=null}){
- const [loja,setLoja]=useState(lojaInicial),[erro,setErro]=useState(''),[busy,setBusy]=useState(false),[filtro,setFiltro]=useState(''),[categoria,setCategoria]=useState(''),[carrinho,setCarrinho]=useState({}),[detalhe,setDetalhe]=useState(null),[foto,setFoto]=useState(0),[banner,setBanner]=useState(0),[aberto,setAberto]=useState(false),[cliente,setCliente]=useState({nome:'',telefone:'',observacao:'',aceiteContato:false}),[recibo,setRecibo]=useState(null),[chave,setChave]=useState(()=>crypto.randomUUID());
+ const [sessaoInicial]=useState(()=>recuperarSessao(idPublico));
+ const [loja,setLoja]=useState(lojaInicial),[erro,setErro]=useState(''),[busy,setBusy]=useState(false),[filtro,setFiltro]=useState(''),[categoria,setCategoria]=useState(''),[carrinho,setCarrinho]=useState(sessaoInicial.carrinho),[detalhe,setDetalhe]=useState(null),[foto,setFoto]=useState(0),[banner,setBanner]=useState(0),[aberto,setAberto]=useState(false),[cliente,setCliente]=useState({nome:'',telefone:'',observacao:'',aceiteContato:false}),[recibo,setRecibo]=useState(null),[chave,setChave]=useState(sessaoInicial.chave);
+ useEffect(()=>{try{sessionStorage.setItem(chaveSessao(idPublico),JSON.stringify({carrinho,chave}));}catch{/* Sessão privada/bloqueada: mantém carrinho em memória. */}},[idPublico,carrinho,chave]);
  const carregar=async()=>{setErro('');try{setLoja(await chamarLojaCommerce({action:'catalogo',idPublico}));}catch(e){setErro(e.message||'Loja indisponível.');}};
  useEffect(()=>{if(lojaInicial)return;let ativo=true;chamarLojaCommerce({action:'catalogo',idPublico}).then(r=>{if(ativo)setLoja(r);}).catch(e=>{if(ativo)setErro(e.message||'Loja indisponível.');});return()=>{ativo=false;};},[idPublico,lojaInicial]);
  useEffect(()=>{if(!loja)return;const old=document.title;document.title=`${loja.aparencia.nomeLoja} | ZenOS Commerce`;return()=>{document.title=old;};},[loja?.aparencia?.nomeLoja]);
