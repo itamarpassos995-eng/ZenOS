@@ -122,7 +122,7 @@ export default function ZenCommerceStudio({
         <div style={{marginTop:5,color:'#edf4f8',overflowWrap:'anywhere',fontSize:13}}>{url}</div>
         <small style={{color:'#93abb9'}}>O ID é reservado pelo servidor e permanece estável mesmo quando a loja muda de nome.</small>
       </div>
-      <button disabled={!plano.ativo||!idPublico} onClick={()=>navigator.clipboard?.writeText(url)} style={tabStyle(plano.ativo)}>Copiar link</button>
+      <button disabled={!plano.ativo||!idPublico} onClick={async()=>{try{if(!navigator.clipboard?.writeText)throw new Error('Cópia indisponível');await navigator.clipboard.writeText(url);setAviso('Link da loja copiado.');}catch{setAviso('Cópia automática indisponível. Abra a loja e copie o endereço do navegador.');}}} style={tabStyle(plano.ativo)}>Copiar link</button>
     </div>
     <style>{'@media(max-width:1050px){.zen-commerce-layout{grid-template-columns:1fr!important}} @media(max-width:720px){.zen-commerce-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}}'}</style>
     <div className="zen-commerce-layout" style={{display:'grid',gridTemplateColumns:'minmax(295px, 0.9fr) minmax(300px, 1.3fr)',gap:16,alignItems:'start'}}>
@@ -214,12 +214,13 @@ export default function ZenCommerceStudio({
         </div>
         {cfg.exibirPesquisa&&<div style={{padding:'0 22px 18px'}}><div style={{padding:'11px 14px',border:'1px solid #dde1e2',borderRadius:40,fontSize:12,color:'#78858a'}}>Buscar produtos, marcas e categorias... ⌕</div></div>}
         <div style={{margin:'0 14px',minHeight:290,background:destaque?.corFundo||cfg.corPrincipal,color:'#fff',borderRadius:14,overflow:'hidden',position:'relative',display:'flex',alignItems:'center'}}>
-          {(destaque?.imagemDesktop||destaque?.imagemMobile)&&<img alt="" src={destaque.imagemDesktop||destaque.imagemMobile} style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',opacity:.48}}/>}
-          <div style={{position:'relative',padding:'28px 32px',maxWidth:440}}>
+          {(destaque?.imagemDesktop||destaque?.imagemMobile)&&<img alt="" src={destaque.imagemDesktop||destaque.imagemMobile} style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',opacity:1}}/>}
+          {(destaque?.imagemDesktop||destaque?.imagemMobile)&&<div aria-hidden="true" style={{position:'absolute',inset:0,background:'linear-gradient(90deg,rgba(7,17,24,.77),rgba(7,17,24,.25) 70%,transparent)'}}/>}
+           <div style={{position:'relative',padding:'28px 32px',maxWidth:440}}>
             <small style={{fontWeight:900,letterSpacing:'.16em',color:'#f8e7cf'}}>{destaque?.selo||'SELEÇÃO ESPECIAL'}</small>
             <h2 style={{fontSize:'clamp(23px,3vw,35px)',lineHeight:1.13,letterSpacing:-1,margin:'15px 0'}}>{destaque?.titulo||'Seus produtos, sua vitrine'}</h2>
             <p style={{fontSize:13,lineHeight:1.7,opacity:.88}}>{destaque?.subtitulo||cfg.slogan}</p>
-            <button type="button" style={{...barraBotao,background:cfg.corDestaque,marginTop:9}}>{destaque?.chamada||'Conhecer'}</button>
+            <span title="Ação disponível na loja publicada" style={{...barraBotao,display:'inline-block',background:cfg.corDestaque,marginTop:9,cursor:'default'}}>{destaque?.chamada||'Conhecer'}</span>
           </div>
         </div>
         <div style={{display:'flex',justifyContent:'center',gap:7,marginTop:13}}>{publicado.map((b,i)=><button key={b.id} onClick={()=>setBannerId(b.id)} aria-label={'Prévia do banner '+(i+1)} style={{border:0,borderRadius:12,width:bannerId===b.id?26:7,height:7,background:bannerId===b.id?cfg.corPrincipal:'#c1c8cd',cursor:'pointer'}}/>)}</div>
