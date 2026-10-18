@@ -45,7 +45,16 @@ try{
    await adb.doc(generationRoot).set({schema:2,state:'ready',sequence:0,sourceChecksum,fieldManifest:{produtos:{kind:'array',collection:'produtos',count:1},historicoVendas:{kind:'array',collection:'vendas',count:0}},fieldRevisions:{produtos:0,historicoVendas:0}});
    await adb.doc(`${generationRoot}/produtos/P1`).set({legacyField:'produtos',legacyIndex:0,version:0,deleted:false,data:product});
   }
+  // Sem venda confirmada, o painel jamais pode declarar o pedido concluido.
+  for(const status of ['encerrado','em_atendimento'])
+   await assert.rejects(a.api({action:'atualizarStatus',id,status}),e=>/invalid-argument/.test(e.code));
   const draft=await a.api({action:'prepararPDV',id});assert.equal(draft.vendaId,vendaId);
+  await assert.rejects(a.api({action:'atualizarStatus',id,status:'cancelado'}),e=>/failed-precondition/.test(e.code));
+  const cancelId='ef'.repeat(16);
+  await adb.doc(`${root}/commerce_pedidos/${cancelId}`).set({status:'recebido',cliente:{nome:'Cancelamento demo'},itens:[{produtoId:'P1',quantidade:1,precoUnitarioCentavos:1250}]});
+  assert.equal((await a.api({action:'atualizarStatus',id:cancelId,status:'cancelado'})).status,'cancelado');
+  assert.equal((await a.api({action:'atualizarStatus',id:cancelId,status:'cancelado'})).status,'cancelado');
+  await assert.rejects(a.api({action:'prepararPDV',id:cancelId}),e=>/failed-precondition/.test(e.code));
   assert.deepEqual((await adb.doc(`${root}/dados/operacao`).get()).data(),operation);
   const otherCredentials={email:`other-${mode}-${crypto.randomUUID()}@example.test`,password:'EmulatorOnly!1248'};
   const otherUser=await adminAuth(admin).createUser({...otherCredentials,emailVerified:true});
