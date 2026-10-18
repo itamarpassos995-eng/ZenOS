@@ -7,10 +7,11 @@ import { atualizarProdutoUnico, detectarConflitosIdentidadeProdutos, skuJaExiste
 import { reservarIdentidadeProduto, liberarIdentidadeProduto } from '../core/productRegistry';
 import { carregarHistoricoEstoqueProduto, criarEventoEstoque, obterPoliticaHistoricoEstoque, registrarEventosEstoque } from '../core/stockAudit';
 import ZenModal from './ZenModal';
+import ZenCommercePortal from './ZenCommercePortal';
 import { calcularPrecoPorCustoEMargem, calcularMargemPorCustoEPreco, validarMargemPrecoVenda, MAX_MARGEM_PRECO_PCT } from '../core/pricing';
 import { validarCredencialGerencial } from '../core/accessControl';
 
-export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos, moeda, fmt, t, tx, fornecedoresGlobais = [], userId, operadorAtivo, planoLoja = 'basico', historicoVendas = [], historicoCompras = [], patenteUsuario, regrasDesconto, vendedores = [] }) {
+export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos, moeda, fmt, t, tx, fornecedoresGlobais = [], userId, operadorAtivo, planoLoja = 'basico', nuvemSincronizada=false, historicoVendas = [], historicoCompras = [], patenteUsuario, regrasDesconto, vendedores = [] }) {
   const [gruposCadastrados, setGruposCadastrados] = useState(['Tintas Acrílicas', 'Colorimetria & Pigmentos', 'Massas e Complementos', 'Serviços Especializados', 'Acessórios & Ferramentas']);
   const [filtroGrupo, setFiltroGrupo] = useState('todos');
   const [buscaProdutoTexto, setBuscaProdutoTexto] = useState('');
@@ -20,6 +21,8 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
   
   const [modalProdutoAberto, setModalProdutoAberto] = useState(false);
   const [produtoEmEdicao, setProdutoEmEdicao] = useState(null);
+  const [abaCadastroProduto,setAbaCadastroProduto]=useState('cadastro');
+  const ecommerceDisponivel=Boolean(import.meta.env.VITE_ZENOS_COMMERCE_HML_FIREBASE_CONFIG)||import.meta.env.VITE_ZENOS_COMMERCE_PRODUCT_TAB==='true';
   const [secaoFiscalExpandida, setSecaoFiscalExpandida] = useState(false);
   const [paisRegulamentoFiscal, setPaisRegulamentoFiscal] = useState('BR');
   const [novoGrupoTexto, setNovoGrupoTexto] = useState('');
@@ -72,6 +75,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
   const atualizarMargemPorPreco = (custoStr, precoStr) => calcularMargemPorCustoEPreco(custoStr, precoStr);
 
   const abrirCadastroNovoProduto = () => {
+    setAbaCadastroProduto('cadastro');
     setProdutoEmEdicao(null);
     setSecaoFiscalExpandida(false);
     setCriandoNovoGrupo(false);
@@ -113,6 +117,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       estoqueGalpao: (prod.estoqueGalpao ?? 0).toString(),
       localizacao: prod.localizacao || ''
     });
+    setAbaCadastroProduto('cadastro');
     setModalProdutoAberto(true);
   };
 
@@ -483,6 +488,11 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
               <button onClick={() => setModalProdutoAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#64748b', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>✕</button>
             </div>
 
+            {ecommerceDisponivel&&<nav aria-label="Abas do cadastro" style={{display:'flex',gap:8,marginBottom:18,flexWrap:'wrap'}}>
+              <button type="button" aria-pressed={abaCadastroProduto==='cadastro'} onClick={()=>setAbaCadastroProduto('cadastro')} style={{padding:'10px 16px',borderRadius:10,border:'1px solid #334155',background:abaCadastroProduto==='cadastro'?'#0e7490':'#020617',color:'#fff',fontWeight:800,cursor:'pointer'}}>Cadastro e estoque</button>
+              <button type="button" aria-pressed={abaCadastroProduto==='loja-online'} onClick={()=>setAbaCadastroProduto('loja-online')} style={{padding:'10px 16px',borderRadius:10,border:'1px solid #334155',background:abaCadastroProduto==='loja-online'?'#0e7490':'#020617',color:'#fff',fontWeight:800,cursor:'pointer'}}>🛍️ Loja Online</button>
+            </nav>}
+            {abaCadastroProduto==='cadastro'?<>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '18px' }}>
               {[{ id: 'mercadoria', rotulo: tx('Mercadoria Revenda','Mercadería Reventa','Resale Goods'), icone: '📦' }, { id: 'materia_prima', rotulo: tx('Matéria-Prima','Materia Prima','Raw Material'), icone: '🧪' }, { id: 'kit', rotulo: tx('Kit/Combo','Kit/Combo','Kit/Combo'), icone: '🎁' }, { id: 'servico', rotulo: tx('Serviço','Servicio','Service'), icone: '🛠️' }].map(tipo => {
                 const ativo = formProduto.tipoItem === tipo.id;
@@ -664,6 +674,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
               <button onClick={() => setModalProdutoAberto(false)} style={{ flex: 1, backgroundColor: '#020617', border: '1px solid #1e293b', color: '#94a3b8', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}>{tx('Cancelar','Cancelar','Cancel')}</button>
               <button onClick={salvarProduto} style={{ flex: 2, background: 'linear-gradient(135deg, #0284c7, #0369a1)', border: 'none', color: '#ffffff', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 900, cursor: 'pointer' }}>{tx('Salvar Produto no Sistema','Guardar Producto en el Sistema','Save Product in System')}</button>
             </div>
+            </>:produtoEmEdicao?<ZenCommercePortal produtoFocoId={String(produtoEmEdicao.id)} userId={userId} operadorAtivo={operadorAtivo} produtos={[produtoEmEdicao]} nuvemSincronizada={nuvemSincronizada}/>:<div style={{padding:22,border:'1px solid #334155',borderRadius:12,color:'#cbd5e1'}}>Salve primeiro o novo produto no cadastro. Depois reabra a ficha para configurar sua loja online, sem alterar o estoque.</div>}
           </div>
         </div>
       )}
