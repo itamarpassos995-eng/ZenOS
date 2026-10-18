@@ -846,7 +846,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
         });
         if (!confirmado?.cloudOk) {
           let detalheFalha = confirmado?.error?.message || 'Verifique conexão/quota e tente novamente sem fechar esta tela.';
-          if (confirmado?.error?.code === 'V2_REUSE_ID' && typeof recarregarDadosPDV === 'function') {
+          if (['V2_REUSE_ID','ZENOS_ENTITY_DELETED_REMOTE'].includes(confirmado?.error?.code) && typeof recarregarDadosPDV === 'function') {
             try {
               await recarregarDadosPDV();
               detalheFalha = tx(
