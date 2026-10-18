@@ -63,12 +63,21 @@ export const commercePedidosAdmin=onCall(opts,async request=>{
   return {pedidos:snaps.docs.map(d=>({id:d.id,...d.data(),clienteUid:undefined,assinatura:undefined})).map(({clienteUid,assinatura,...d})=>d)};
  }
  if(action==='atualizarStatus'){
-  if(!/^[a-f0-9]{32}$/.test(request.data.id||'')||!['em_atendimento','encerrado','cancelado'].includes(request.data.status))throw new HttpsError('invalid-argument','Pedido ou status inválido.');
+  // Nunca aceitar "encerrado" nem "em_atendimento" de um botao:
+  // atendimento e faturamento sao transacoes do fluxo PDV.
+  if(!/^[a-f0-9]{32}$/.test(request.data.id||'')||request.data.status!=='cancelado')
+   throw new HttpsError('invalid-argument','Somente cancelamento de pedido novo pode ser solicitado manualmente.');
   const ref=db.doc(`lojas/${lojaId}/commerce_pedidos/${request.data.id}`);
-  await db.runTransaction(async tx=>{const snap=await tx.get(ref);if(!snap.exists)throw new HttpsError('not-found','Pedido não encontrado.');
-   if(snap.data().pdv||snap.data().vendaId)throw new HttpsError('failed-precondition','Pedido vinculado ao PDV. Conclua ou confira o atendimento antes de alterar o status.');
-   if(['encerrado','cancelado'].includes(snap.data().status)&&snap.data().status!==request.data.status)throw new HttpsError('failed-precondition','Pedido já encerrado.');
-   tx.update(ref,{status:request.data.status,atualizadoEm:new Date().toISOString(),alteradoPor:operadorUid});});return {status:request.data.status};
+  await db.runTransaction(async tx=>{
+   const [snap,recibo]=await Promise.all([tx.get(ref),tx.get(db.doc(`lojas/${lojaId}/commerce_faturamentos/${request.data.id}`))]);
+   if(!snap.exists)throw new HttpsError('not-found','Pedido não encontrado.');
+   const p=snap.data();
+   if(p.status==='cancelado'&&!p.pdv&&!p.vendaId&&!recibo.exists)return;
+   if(p.status!=='recebido'||p.pdv||p.vendaId||recibo.exists)
+    throw new HttpsError('failed-precondition','Pedido em atendimento ou já faturado. Não é possível cancelar sem conferência.');
+   tx.update(ref,{status:'cancelado',atualizadoEm:new Date().toISOString(),alteradoPor:operadorUid});
+  });
+  return {status:'cancelado'};
  }
  throw new HttpsError('invalid-argument','Ação inválida.');
 });
