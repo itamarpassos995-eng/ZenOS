@@ -1,4 +1,5 @@
 import {lerRascunhoPDV,salvarRascunhoPDV,apagarRascunhoPDV} from './pdvDraft.js';
+import {idPrePedidoCommerce} from './commercePrePedido.js';
 
 export function reconciliarRascunhoCommerceFaturado({lojaId,operadorId,pedido}) {
  if(pedido?.faturado!==true||pedido.lojaId!==lojaId||!/^[a-f0-9]{32}$/.test(pedido.pedidoId||'')||
@@ -28,7 +29,7 @@ export function importarRascunhoCommerce({lojaId,operadorId,pedido,produtos,conv
    qtd:String(item.quantidade),precoPraticadoBRL:preco,precoTexto:converterDeBRL(preco).toFixed(2)};
  });
  const draft={itensVenda,nomeClienteVulso:pedido.clienteNome,descontoTexto:'0',pagamentosLancados:[],
-  prePedidoEmAbertoId:null,modalFechamentoAberto:false,clienteQuerFiscal:false,
+  prePedidoEmAbertoId:idPrePedidoCommerce(pedido.pedidoId),modalFechamentoAberto:false,clienteQuerFiscal:false,
   commerceOrigem:{pedidoId:pedido.pedidoId,vendaId:pedido.vendaId,preparadoEm:pedido.preparadoEm},
   operacaoDocumento:{assinatura:null,id:pedido.vendaId,instante:pedido.preparadoEm}};
  if(!salvarRascunhoPDV(lojaId,operadorId,draft))throw Error('Não foi possível proteger o rascunho neste dispositivo.');
