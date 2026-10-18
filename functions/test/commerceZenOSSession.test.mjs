@@ -4,7 +4,7 @@ import {autorizarOperadorCommerce} from '../src/commerceAuthorization.js';
 import {conferirPinZenOS,validarIdentidadeZenOS,hashSessaoCommerce} from '../src/commerceZenOSSession.js';
 const salt='ab'.repeat(16),pin='839275',secret='cd'.repeat(32),auth={uid:'loja-A',token:{firebase:{sign_in_provider:'password'}}};
 const acesso={ativo:true,papel:'admin',versao:1,pinVersion:2,pinSalt:salt,pinHash:pbkdf2Sync(pin,Buffer.from(salt,'hex'),120000,32,'sha256').toString('hex')};
-function db(s={operadorId:'caixa-1',versao:1,expiraEm:Date.now()+10000},a=acesso){return {doc:path=>({get:async()=>({exists:true,data:()=>{if(path===`lojas/loja-A/commerce_operator_sessions/${hashSessaoCommerce(secret)}`)return s;if(path==='lojas/loja-A/commerce_operator_credentials/caixa-1')return a;return undefined;}})})};}
+function db(s={operadorId:'caixa-1',versao:1,expiraEm:Date.now()+10000},a=acesso){return {doc:path=>({get:async()=>({exists:true,data:()=>{if(path===`lojas/loja-A/commerce_private/sessao-${hashSessaoCommerce(secret)}`)return s;if(path===`lojas/loja-A/commerce_private/operador-${hashSessaoCommerce('caixa-1')}`)return a;return undefined;}})})};}
 test('PIN existente é conferido no servidor com credencial privada, nunca papel do cliente',()=>{
  assert.equal(conferirPinZenOS(acesso,pin),true);assert.equal(conferirPinZenOS(acesso,'839276'),false);assert.equal(conferirPinZenOS({...acesso,pinVersion:1},pin),false);assert.equal(conferirPinZenOS(acesso,{}),false);
  assert.throws(()=>validarIdentidadeZenOS({...auth,token:{firebase:{sign_in_provider:'anonymous'}}}));

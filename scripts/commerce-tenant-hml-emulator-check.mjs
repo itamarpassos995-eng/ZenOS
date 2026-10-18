@@ -4,7 +4,7 @@ GCLOUD_PROJECT=demo-zenos-local ZENOS_COMMERCE_MEDIA_ENABLED=false firebase emul
  'node scripts/commerce-tenant-hml-emulator-check.mjs'
 */
 import assert from 'node:assert/strict';
-import {pbkdf2Sync} from 'node:crypto';
+import {createHash,pbkdf2Sync} from 'node:crypto';
 import {createRequire} from 'node:module';
 const require=createRequire(new URL('../functions/package.json',import.meta.url));
 const {initializeApp:initAdmin}=require('firebase-admin/app');
@@ -79,15 +79,15 @@ try{
  await grant.update({ativo:true});
 
  // Integração sem segunda conta: a sessão password atual é a identidade da loja.
- const pinSessao='839275',saltSessao='ab'.repeat(16),credencialRef=adb.doc(`lojas/${operatorA.uid}/commerce_operator_credentials/caixa-1`);
+ const pinSessao='839275',saltSessao='ab'.repeat(16),credencialId='operador-'+createHash('sha256').update('caixa-1').digest('hex'),credencialRef=adb.doc(`lojas/${operatorA.uid}/commerce_private/${credencialId}`);
  const credencial={ativo:true,papel:'admin',versao:1,pinVersion:2,pinSalt:saltSessao,pinHash:pbkdf2Sync(pinSessao,Buffer.from(saltSessao,'hex'),120000,32,'sha256').toString('hex')};
  await adb.doc(`lojas/${operatorA.uid}`).set({tipo:'homologacao'});
  await credencialRef.set(credencial);
  const bridge=httpsCallable(operatorA.fns,'commerceSessaoZenOS');
  await forbid(bridge({operadorId:'caixa-1',pin:'999999'}));
  await assert.rejects(httpsCallable(a.fns,'commerceSessaoZenOS')({operadorId:'caixa-1',pin:pinSessao}),e=>e.code==='functions/unauthenticated');
- await forbid(getDoc(doc(operatorA.db,'lojas',operatorA.uid,'commerce_operator_credentials','caixa-1')));
- await forbid(setDoc(doc(operatorA.db,'lojas',operatorA.uid,'commerce_operator_credentials','caixa-1'),{...credencial,papel:'admin'}));
+ await forbid(getDoc(doc(operatorA.db,'lojas',operatorA.uid,'commerce_private',credencialId)));
+ await forbid(setDoc(doc(operatorA.db,'lojas',operatorA.uid,'commerce_private',credencialId),{...credencial,papel:'admin'}));
  const sessaoIntegrada=(await bridge({operadorId:'caixa-1',pin:pinSessao})).data;
  assert.equal(sessaoIntegrada.lojaId,operatorA.uid);assert.equal(sessaoIntegrada.operadorId,'caixa-1');
  const consultaIntegrada={action:'consultar',sessaoZenOS:sessaoIntegrada.sessaoZenOS};

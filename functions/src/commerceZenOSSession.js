@@ -4,7 +4,7 @@ import {obterAdminFirestore} from './firebaseAdmin.js';
 import {ambienteMidiaCommercePronto} from './commerceStorageSafetyCore.js';
 const idValido=v=>typeof v==='string'&&/^[a-zA-Z0-9._:-]{1,120}$/.test(v)&&!['.','..','__proto__'].includes(v);
 export const hashSessaoCommerce=value=>createHash('sha256').update(value).digest('hex');
-export const acessoZenOSRef=(db,loja,id)=>db.doc(`lojas/${loja}/commerce_operator_credentials/${id}`);
+export const acessoZenOSRef=(db,loja,id)=>db.doc(`lojas/${loja}/commerce_private/operador-${hashSessaoCommerce(id)}`);
 export function validarIdentidadeZenOS(auth){
  if(!idValido(auth?.uid)||!['password','google.com'].includes(auth?.token?.firebase?.sign_in_provider))throw new HttpsError('unauthenticated','Entre normalmente no ZenOS para acessar a loja online.');
 }
@@ -36,7 +36,7 @@ export const commerceSessaoZenOS=onCall({region:'southamerica-east1',timeoutSeco
   }
   const expiraEm=agora+8*3600000;
   tx.set(limiteRef,{inicio:agora,tentativas:0});
-  tx.create(db.doc(`lojas/${lojaId}/commerce_operator_sessions/${hashSessaoCommerce(segredo)}`),{operadorId,versao:acesso.versao,expiraEm,expiresAt:new Date(expiraEm)});
+  tx.create(db.doc(`lojas/${lojaId}/commerce_private/sessao-${hashSessaoCommerce(segredo)}`),{operadorId,versao:acesso.versao,expiraEm,expiresAt:new Date(expiraEm)});
   return {lojaId,operadorId,expiraEm};
  });
  if(resultado.negado)throw new HttpsError('permission-denied','PIN do operador não autorizado para a loja online.');
@@ -45,7 +45,7 @@ export const commerceSessaoZenOS=onCall({region:'southamerica-east1',timeoutSeco
 export async function autorizarSessaoZenOS(auth,db,segredo){
  validarIdentidadeZenOS(auth);
  if(!/^[a-f0-9]{64}$/.test(segredo||''))throw new HttpsError('permission-denied','Sessão da loja online indisponível. Entre novamente no ZenOS.');
- const sessao=await db.doc(`lojas/${auth.uid}/commerce_operator_sessions/${hashSessaoCommerce(segredo)}`).get();
+ const sessao=await db.doc(`lojas/${auth.uid}/commerce_private/sessao-${hashSessaoCommerce(segredo)}`).get();
  const s=sessao.data();
  if(!s||!idValido(s.operadorId)||!Number.isFinite(s.expiraEm)||s.expiraEm<=Date.now())throw new HttpsError('permission-denied','Sessão da loja online expirada. Entre novamente no ZenOS.');
  const a=await acessoZenOSRef(db,auth.uid,s.operadorId).get();validarAcessoZenOS(a.data());

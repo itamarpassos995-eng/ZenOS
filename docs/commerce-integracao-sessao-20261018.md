@@ -12,11 +12,11 @@ A conta individual antiga permanece exclusivamente compatível com as ferramenta
 
 ## Proteção indispensável na ativação do módulo
 
-O backend de ativação precisa provisionar `lojas/{lojaUid}/commerce_operator_credentials/{operadorId}` com `ativo`, `papel`, `versao`, `pinVersion:2`, `pinSalt`, `pinHash`. Não há endpoint de autoautorização, cópia automática de vendedores ou confiança no papel enviado pelo cliente. Esses documentos e `commerce_operator_sessions` devem ser deny-all para acesso direto do navegador. Alterações futuras de PIN/permissões devem atualizar versão/credencial pelo backend autorizado; isso ainda precisa ser integrado ao gerenciamento de operadores.
+O backend de ativação precisa provisionar `lojas/{lojaUid}/commerce_private/operador-{sha256(operadorId)}` com `ativo`, `papel`, `versao`, `pinVersion:2`, `pinSalt`, `pinHash`. Não há endpoint de autoautorização, cópia automática de vendedores ou confiança no papel enviado pelo cliente. Esses documentos e `commerce_private/sessao-{sha256(segredo)}` devem ser deny-all para acesso direto do navegador. Alterações futuras de PIN/permissões devem atualizar versão/credencial pelo backend autorizado; isso ainda precisa ser integrado ao gerenciamento de operadores.
 
 **Esse provisionamento é responsabilidade técnica do ZenOS na ativação; o lojista não deve administrar Firebase nem fazer cadastros externos.** Até completar a integração de ativação/gestão de credenciais privadas, a ponte deve permanecer desligada e não ser apresentada como operação final pronta.
 
-Sessões têm `expiresAt` para configuração de TTL antes de habilitar na nuvem. A expiração é conferida em cada chamada independentemente da limpeza. Não há configuração TTL ou permissão real alterada por este PR.
+Credenciais e sessões ficam no namespace `commerce_private` já protegido, sem novas coleções sujeitas à regra genérica do legado. Sessões têm `expiresAt` para configuração de TTL antes de habilitar na nuvem. A expiração é conferida em cada chamada independentemente da limpeza. Não há configuração TTL ou permissão real alterada por este PR.
 
 ## Aviso global de novos pedidos
 
