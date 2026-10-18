@@ -8,12 +8,18 @@ const outraVenda={id:'VENDA-RECENTE',estado:'concluida',totalBRL:25,itens:[]};
 const base=[original], remoto=[];
 const tombstone=new Map([[encodeV2Id(original.id),{deleted:true,data:original}]]);
 const merged=mergeV1FieldThreeWay({field:'historicoVendas',baseValue:base,localValue:[outraVenda,original],remoteValue:remoto});
-assert(merged.some(v=>v.id===original.id),'fixture deve reproduzir a ressurreição do merge antigo');
+assert(!merged.some(v=>v.id===original.id),'merge existente já respeita tombstone inalterado');
 const reconciliado=reconciliarExclusoesV2({
  field:'historicoVendas',baseValue:base,localValue:[outraVenda,original],mergedValue:merged,records:tombstone,
 });
-assert.deepEqual(reconciliado,[outraVenda],'remoção remota mantém venda nova e descarta somente referência sem edição');
-assert.equal(merged.length,2,'a função não modifica o payload original');
+assert.deepEqual(reconciliado,[outraVenda],'nova venda legítima não pode ser perdida');
+assert.equal(merged.length,1,'a função não altera o payload original');
+const editado={...original,estado:'concluida'};
+const ressurreicao=mergeV1FieldThreeWay({
+ field:'historicoVendas',baseValue:base,localValue:[outraVenda,editado],remoteValue:remoto,
+});
+assert(ressurreicao.some(v=>v.id===original.id),'edição remota stale reproduz o V2_REUSE_ID');
+
 assert.deepEqual(reconciliarExclusoesV2({field:'historicoVendas',baseValue:base,localValue:[original],mergedValue:[original],records:tombstone}),[]);
 assert.deepEqual(reconciliarExclusoesV2({field:'historicoVendas',baseValue:base,localValue:[outraVenda],mergedValue:[outraVenda],records:tombstone}),[outraVenda]);
 
