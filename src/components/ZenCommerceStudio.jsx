@@ -15,11 +15,11 @@ const moeda = n => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL
 
 export default function ZenCommerceStudio({
   produtos=[], aparenciaInicial=aparenciaPadrao, regrasIniciais={}, licenca={}, idPublico='',
-  urlBase='https://lojas.zenos.com.br', onSalvarRascunho=null, onSolicitarAtivacao=null, onPublicar=null, onUploadBannerImage=null, onUploadProductImage=null,
+  urlBase='https://lojas.zenos.com.br', produtoFocoId=null, onSalvarRascunho=null, onSolicitarAtivacao=null, onPublicar=null, onUploadBannerImage=null, onUploadProductImage=null,
 }) {
   const [cfg,setCfg]=useState(()=>normalizarAparencia(aparenciaInicial));
   const [regras,setRegras]=useState(regrasIniciais||{});
-  const [aba,setAba]=useState('aparencia');
+  const [aba,setAba]=useState(produtoFocoId?'produtos':'aparencia');
   const [bannerId,setBannerId]=useState(cfg.banners[0]?.id||'');
   const [aviso,setAviso]=useState('');
   const [filtro,setFiltro]=useState('');
@@ -110,8 +110,8 @@ export default function ZenCommerceStudio({
   return <div style={{background:'#081621',borderRadius:22,padding:18,color:'#f8fafc',fontFamily:'Inter,system-ui,sans-serif',display:'grid',gap:17}}>
     <div style={{display:'flex',gap:12,justifyContent:'space-between',alignItems:'center',flexWrap:'wrap'}}>
       <div><div style={{fontSize:11,fontWeight:900,letterSpacing:'.16em',color:'#d1ac76'}}>ZENOS COMMERCE • STUDIO</div>
-        <h2 style={{fontSize:24,margin:'6px 0'}}>Minha Loja Online</h2>
-        <p style={{fontSize:12,color:'#a2bac8',margin:0}}>Banners, identidade visual, catálogo seletivo e endereço exclusivo. Preview disponível antes de contratar.</p>
+        <h2 style={{fontSize:24,margin:'6px 0'}}>{produtoFocoId?'Loja Online · Configurar produto':'Minha Loja Online'}</h2>
+        <p style={{fontSize:12,color:'#a2bac8',margin:0}}>{produtoFocoId?'Edição exclusiva da vitrine: não altera cadastro, preço do PDV ou estoque.':'Banners, identidade visual, catálogo seletivo e endereço exclusivo. Preview disponível antes de contratar.'}</p>
       </div>
       <div style={{padding:'10px 15px',borderRadius:12,border:'1px solid #4c5764',background:plano.ativo?'#143d33':'#493b26',fontSize:12,fontWeight:850}}>
         {plano.ativo?'MÓDULO ATIVO':'MÓDULO OPCIONAL — NÃO CONTRATADO'}
@@ -125,10 +125,10 @@ export default function ZenCommerceStudio({
       <button disabled={!plano.ativo||!idPublico} onClick={async()=>{try{if(!navigator.clipboard?.writeText)throw new Error('Cópia indisponível');await navigator.clipboard.writeText(url);setAviso('Link da loja copiado.');}catch{setAviso('Cópia automática indisponível. Abra a loja e copie o endereço do navegador.');}}} style={tabStyle(plano.ativo)}>Copiar link</button>
     </div>
     <style>{'@media(max-width:1050px){.zen-commerce-layout{grid-template-columns:1fr!important}} @media(max-width:720px){.zen-commerce-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}}'}</style>
-    <div className="zen-commerce-layout" style={{display:'grid',gridTemplateColumns:'minmax(295px, 0.9fr) minmax(300px, 1.3fr)',gap:16,alignItems:'start'}}>
+    <div className="zen-commerce-layout" style={{display:'grid',gridTemplateColumns:produtoFocoId?'minmax(0,1fr)':'minmax(295px, 0.9fr) minmax(300px, 1.3fr)',gap:16,alignItems:'start'}}>
       <section style={{...tile,display:'grid',gap:15}}>
         <nav style={{display:'flex',gap:7,flexWrap:'wrap'}}>
-          {[["aparencia","Aparência"],["banners","Banners"],["produtos","Produtos"],["ativacao","Assinatura"]].map(([id,text])=><button key={id} type="button" style={tabStyle(aba===id)} onClick={()=>setAba(id)}>{text}</button>)}
+          {(produtoFocoId?[["produtos","Loja Online"]]:[["aparencia","Aparência"],["banners","Banners"],["produtos","Produtos"],["ativacao","Assinatura"]]).map(([id,text])=><button key={id} type="button" style={tabStyle(aba===id)} onClick={()=>setAba(id)}>{text}</button>)}
         </nav>
         {aba==='aparencia'&&<div style={{display:'grid',gap:12}}>
           {[["nomeLoja","Nome da loja"],["slogan","Slogan"],["textoTopo","Mensagem na faixa superior"],["etiquetaFrete","Mensagem de entrega/retirada"]].map(([key,title])=><label key={key} style={{display:'grid',gap:6}}><span style={lbl}>{title}</span><input style={campo} value={cfg[key]} maxLength={key==='nomeLoja'?65:120} onChange={e=>atualizar(key,e.target.value)}/></label>)}
@@ -155,16 +155,21 @@ export default function ZenCommerceStudio({
           <small style={{color:'#9db6c4'}}>Imagens externas HTTPS nesta prévia. Upload de arquivos e otimização de imagens dependerão de armazenamento contratado e autorizado.</small>
         </div>}
         {aba==='produtos'&&<div style={{display:'grid',gap:9}}>
-          <input style={campo} placeholder="Buscar produto no estoque..." value={filtro} onChange={e=>setFiltro(e.target.value)}/>
-          {produtos.filter(p=>(String(p.nome||'')+String(p.sku||'')).toLowerCase().includes(filtro.toLowerCase())).slice(0,50).map(p=>{
+          {!produtoFocoId&&<input style={campo} placeholder="Buscar produto no estoque..." value={filtro} onChange={e=>setFiltro(e.target.value)}/>}
+          {produtos.filter(p=>(!produtoFocoId||String(p.id)===String(produtoFocoId))&&(String(p.nome||'')+String(p.sku||'')).toLowerCase().includes(filtro.toLowerCase())).slice(0,50).map(p=>{
             const regra=normalizarRegraPublicacao(regras[String(p.id)]||{});
             const fotos=montarGaleriaProduto({produto:p,regra,previa:true});
             return <div key={p.id} style={{padding:10,background:'#0b1924',border:'1px solid #263e4e',borderRadius:11,display:'grid',gap:8}}>
               <label style={{display:'flex',justifyContent:'space-between',gap:8,fontSize:13,fontWeight:850}}><span style={{display:'flex',alignItems:'center',gap:9,minWidth:0}}>{fotos.capa?<img src={fotos.capa.miniaturaUrl} alt={p.nome||'Produto'} style={{width:55,height:55,borderRadius:8,objectFit:'cover',background:'#283745'}}/>:<span style={{width:55,height:55,borderRadius:8,background:'#283745',display:'grid',placeItems:'center'}}>📷</span>}{String(p.nome||p.sku||p.id).slice(0,65)}</span><input type="checkbox" checked={regra.publicado} onChange={e=>editarProduto(p.id,'publicado',e.target.checked)}/></label>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:7}}>
+              <div style={{display:'grid',gap:8}}>
+                 <label style={lbl}>Descrição exclusiva da loja online<textarea style={{...campo,minHeight:100,resize:'vertical',marginTop:5}} maxLength={800} value={regra.descricaoWeb||''} placeholder={String(p.descricaoPublica||p.descricao||'').slice(0,140)} onChange={e=>editarProduto(p.id,'descricaoWeb',e.target.value)}/></label>
+                 <label style={lbl}>Categoria na loja<input style={{...campo,marginTop:5}} maxLength={60} value={regra.categoriaPublica||''} placeholder={p.grupo||'Produtos'} onChange={e=>editarProduto(p.id,'categoriaPublica',e.target.value)}/></label>
+                </div>
+               <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:7}}>
                 <label style={lbl}>Origem de estoque<select value={regra.fonteEstoque} style={{...campo,marginTop:5}} onChange={e=>editarProduto(p.id,'fonteEstoque',e.target.value)}><option value="deposito">Depósito</option><option value="vitrine">Vitrine</option><option value="ambos">Ambos</option></select></label>
                 <label style={lbl}>Reserva para loja<input type="number" min="0" step="1" style={{...campo,marginTop:5}} value={regra.reservaMinima} onChange={e=>editarProduto(p.id,'reservaMinima',Math.max(0,Number(e.target.value)||0))}/></label>
                 <label style={lbl}>Preço online (R$)<input type="number" min="0.01" step="0.01" style={{...campo,marginTop:5}} placeholder="Padrão" value={regra.precoOnlineBRL??''} onChange={e=>editarProduto(p.id,'precoOnlineBRL',e.target.value===''?null:Math.max(.01,Number(e.target.value)||.01))}/></label>
+                <label style={lbl}>Preço anterior DE (R$, opcional)<input type="number" min="0.01" step="0.01" style={{...campo,marginTop:5}} placeholder="Sem promoção" value={regra.precoAnteriorBRL??''} onChange={e=>editarProduto(p.id,'precoAnteriorBRL',e.target.value===''?null:Math.max(.01,Number(e.target.value)||.01))}/></label>
                 <label style={lbl}>Limite online<input type="number" min="0" step="1" style={{...campo,marginTop:5}} placeholder="Sem limite" value={regra.limiteOnline??''} onChange={e=>editarProduto(p.id,'limiteOnline',e.target.value===''?null:Math.max(0,Number(e.target.value)||0))}/></label>
               </div>
               <div style={{display:'grid',gap:8,background:'#10212e',padding:10,borderRadius:9,border:'1px solid #304657'}}>
@@ -201,13 +206,13 @@ export default function ZenCommerceStudio({
         <div style={{borderTop:'1px solid #314450',paddingTop:13,display:'grid',gap:8}}>
           <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
             <button style={{...tabStyle(false),flex:1}} onClick={exportar}>Exportar rascunho</button>
-            <button disabled={typeof onSalvarRascunho!=='function'||carregando} style={{...barraBotao,flex:1}} onClick={()=>executar(onSalvarRascunho,'Rascunho privado salvo no ZenOS. A vitrine não foi publicada.')}>Salvar no ZenOS</button>
+            <button disabled={typeof onSalvarRascunho!=='function'||carregando} style={{...barraBotao,flex:1}} onClick={()=>executar(onSalvarRascunho,produtoFocoId?'Dados online salvos em rascunho privado. Publique a loja na central Commerce para torná-los visíveis.':'Rascunho privado salvo no ZenOS. A vitrine não foi publicada.')}>Salvar no ZenOS</button>
           </div>
-          <button disabled={!catalogo.length||!plano.ativo||typeof onPublicar!=='function'||carregando} style={{...barraBotao,background:plano.ativo?'#8edaaf':'#445160',color:plano.ativo?'#12271f':'#bdcbd2'}} onClick={()=>executar(onPublicar,'Publicação solicitada e encaminhada ao servidor para validação.')}>Publicar loja</button>
+          {!produtoFocoId&&<button disabled={!catalogo.length||!plano.ativo||typeof onPublicar!=='function'||carregando} style={{...barraBotao,background:plano.ativo?'#8edaaf':'#445160',color:plano.ativo?'#12271f':'#bdcbd2'}} onClick={()=>executar(onPublicar,'Publicação solicitada e encaminhada ao servidor para validação.')}>Publicar loja</button>}
           <div role="status" style={{fontSize:12,color:'#e3c491',minHeight:18}}>{aviso||(!catalogo.length?'Selecione produtos para habilitar a publicação.':!plano.ativo?'Prévia privada: ninguém compra ou paga nesta tela.':'')}</div>
         </div>
       </section>
-      <section style={{...tile,padding:0,overflow:'hidden',background:cfg.corSuperficie,color:cfg.corTexto}}>
+      <section style={{...tile,padding:0,display:produtoFocoId?'none':undefined,overflow:'hidden',background:cfg.corSuperficie,color:cfg.corTexto}}>
         <div style={{padding:'8px 15px',textAlign:'center',background:cfg.corPrincipal,color:'#fff',fontSize:10}}>{cfg.textoTopo}</div>
         <div style={{padding:'19px 22px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,flexWrap:'wrap'}}>
           <b style={{fontSize:21,letterSpacing:-.8}}>{cfg.nomeLoja}</b><div style={{display:'flex',gap:16,fontSize:12}}><span>Categorias</span><span>Novidades</span><span>Carrinho ◇</span></div>
