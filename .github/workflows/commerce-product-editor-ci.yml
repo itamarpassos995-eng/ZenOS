@@ -1,0 +1,34 @@
+name: Commerce Product Editor CI
+on:
+  pull_request:
+    paths:
+      - 'functions/src/commerce*.js'
+      - 'functions/test/commerce*.test.mjs'
+      - 'src/core/commerce*.js'
+      - 'src/components/ZenCommerce*.jsx'
+      - 'src/components/Produtos.jsx'
+      - 'src/components/Configuracoes.jsx'
+      - 'src/components/ZenCommerceStorefront.jsx'
+      - 'src/commerce.css'
+      - 'src/App.jsx'
+      - 'scripts/commerce-preview-build.mjs'
+      - '.github/workflows/commerce-product-editor-ci.yml'
+  workflow_dispatch:
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npm ci --ignore-scripts
+        working-directory: functions
+      - run: npm test
+        working-directory: functions
