@@ -8,6 +8,8 @@ on:
       - 'src/core/operationalV2.js'
       - 'src/core/v2TombstoneReconciliation.js'
       - 'scripts/v2-tombstone-check.mjs'
+      - 'src/core/pdvWriteIntent.js'
+      - 'scripts/pdv-write-intent-check.mjs'
       - 'scripts/recovery/v2_app_integration.mjs'
       - 'scripts/pdv-rascunho-check.mjs'
       - 'scripts/recovery/pdv-draft.ui.test.jsx'
@@ -31,6 +33,8 @@ jobs:
       # Em CI público executar apenas testes sem dependência de dados reais.
       - name: Regressão V2 de tombstones
         run: node scripts/v2-tombstone-check.mjs
+      - name: Escrita mínima de venda contra histórico obsoleto
+        run: node scripts/pdv-write-intent-check.mjs
       - name: Interface PDV e testes isolados de regressao
         run: npx vitest run --config vitest.recovery.config.js scripts/recovery/pdv-draft.ui.test.jsx scripts/recovery/clientes-receipt.ui.test.jsx scripts/recovery/clientes-quitado-status.ui.test.jsx scripts/recovery/exchange-rate.ui.test.jsx
       - name: Compilar aplicativo
