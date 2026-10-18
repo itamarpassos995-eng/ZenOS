@@ -1243,7 +1243,7 @@ export default function App() {
       id: 'administracao', titulo: tx('Administração', 'Administración', 'Administration'), icone: '⚙️', abertaInicial: false,
       itens: [
         ...(temPermissao('admin') ? [{ id:'config', tela:'configuracoes', icone:'⚙️', rotulo:tx('Configurações','Configuraciones','Settings'), onClick:()=>navegarPara('configuracoes') }] : []),
-        ...(temPermissao('admin') ? [{ id:'commerce', tela:'commerce', icone:'🛍️', rotulo:tx('Minha Loja Online (prévia)','Mi Tienda Online (vista previa)','My Online Store (preview)'), onClick:()=>navegarPara('commerce') }] : []),
+        ...(temPermissao('admin') ? [{ id:'commerce', tela:'commerce', icone:'🛍️', rotulo:tx('Loja Online','Tienda Online','Online Store'), onClick:()=>navegarPara('commerce') }] : []),
         ...(temPermissao('admin') ? [{ id:'importar', tela:'migracao', icone:'📥', rotulo:tx('Importar Dados','Importar Datos','Import Data'), onClick:()=>navegarPara('migracao') }] : []),
       ],
     },
