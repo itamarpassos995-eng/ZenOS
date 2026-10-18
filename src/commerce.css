@@ -78,6 +78,7 @@ html.commerce-document.commerce-dialog-open { overflow-y:hidden; }
 .commerce-product-details { padding:17px; }
 .commerce-product-details>small { color:#89938f; font-size:9px; letter-spacing:.06em; text-transform:uppercase; }
 .commerce-product-details h3 { min-height:40px; margin:6px 0 12px; font-size:13px; font-weight:650; line-height:1.6; overflow-wrap:anywhere; }
+.commerce-price-before { display:block; color:#777; font-size:12px; text-decoration:line-through; }
 .commerce-product-price { display:block; margin:5px 0 15px; font-size:18px; font-weight:750; letter-spacing:-.4px; }
 .commerce-product .commerce-btn { width:100%; }
 .commerce-empty { display:flex; align-items:center; justify-content:center; flex-direction:column; min-height:245px; padding:35px 20px; border:1px dashed #ced8d2; border-radius:15px; text-align:center; background:#ffffff70; }
