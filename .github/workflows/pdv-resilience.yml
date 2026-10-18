@@ -1,0 +1,41 @@
+name: PDV Resilience
+on:
+  pull_request:
+    paths:
+      - 'src/components/PDV.jsx'
+      - 'src/App.jsx'
+      - 'src/core/pdvDraft.js'
+      - 'src/core/operationalV2.js'
+      - 'src/core/v2TombstoneReconciliation.js'
+      - 'scripts/v2-tombstone-check.mjs'
+      - 'src/core/pdvWriteIntent.js'
+      - 'scripts/pdv-write-intent-check.mjs'
+      - 'scripts/recovery/v2_app_integration.mjs'
+      - 'scripts/pdv-rascunho-check.mjs'
+      - 'scripts/recovery/pdv-draft.ui.test.jsx'
+      - '.github/workflows/pdv-resilience.yml'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - name: Testar recuperacao do carrinho e protecao V2
+        run: node scripts/pdv-rascunho-check.mjs
+      # A suite integrada completa exige backup autorizado + emuladores loopback.
+      # Em CI público executar apenas testes sem dependência de dados reais.
+      - name: Regressão V2 de tombstones
+        run: node scripts/v2-tombstone-check.mjs
+      - name: Escrita mínima de venda contra histórico obsoleto
+        run: node scripts/pdv-write-intent-check.mjs
+      - name: Interface PDV e testes isolados de regressao
+        run: npx vitest run --config vitest.recovery.config.js scripts/recovery/pdv-draft.ui.test.jsx scripts/recovery/clientes-receipt.ui.test.jsx scripts/recovery/clientes-quitado-status.ui.test.jsx scripts/recovery/exchange-rate.ui.test.jsx
+      - name: Compilar aplicativo
+        run: npm run build

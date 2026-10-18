@@ -130,6 +130,52 @@ try{
   const r=await commit(0,{operationKey:'convert-pending',changes:[{...change(b,'historicoVendas',[{...pending,id:'EMULATOR-CONVERTED',estado:'concluida'},...b.historicoVendas.filter(v=>v.id!==pending.id)]),removeEntityIds:[pending.id]}],guards:[{type:'entity_field_equals',field:'historicoVendas',entityId:pending.id,property:'estado',expected:'pendente'}]});ok(r);
   const old=(await getDoc(doc(db,...root,'vendas',encodeV2Id(pending.id)))).data();assert.equal(old.deleted,true);assert.equal(stableV2Json(old.data),stableV2Json(pending));assert(!state(0).historicoVendas.some(v=>v.id===pending.id));
  });
+ await test('V2 ignores unchanged tombstone in stale sale history and preserves new sale',async()=>{
+  // Reproduces the V2_REUSE_ID incident: another terminal converted a pending
+  // order, while this terminal still holds the pre-conversion history in memory.
+  tick();const latest=state(0);
+  const removed=(await getDoc(doc(db,...root,'vendas',encodeV2Id('EMULATOR-CONVERTED')))).data();
+  assert(removed&&!removed.deleted);
+  // The tombstoned source is taken directly from the V2 records (kept for audit).
+  const pendingRecord=[...session(0).records.get('historicoVendas').values()]
+    .find(r=>r.deleted&&r.data?.estado==='pendente');
+  assert(pendingRecord,'A fixture must contain a converted/tombstoned pending order');
+  const pending=pendingRecord.data;
+  const oldBase=[pending,...latest.historicoVendas];
+  const novaVenda={id:'EMULATOR-STABLE-POST-TOMBSTONE',estado:'concluida',totalBRL:3,itens:[]};
+  const clean=await commit(0,{operationKey:'post-tombstone-stale-sale',
+    changes:[{field:'historicoVendas',baseValue:oldBase,value:[novaVenda,...oldBase]}]});
+  ok(clean);
+  assert(state(0).historicoVendas.some(v=>v.id===novaVenda.id));
+  assert(!state(0).historicoVendas.some(v=>v.id===pending.id));
+  const tombstone=(await getDoc(doc(db,...root,'vendas',encodeV2Id(pending.id)))).data();
+  assert.equal(tombstone.deleted,true);
+  const previousSequence=session(0).sequence;
+  const localEdit={...pending,estado:'concluida'};
+  const invalid=await commit(0,{operationKey:'do-not-revive-pending',
+    changes:[{field:'historicoVendas',baseValue:oldBase,value:[localEdit,...oldBase.filter(v=>v.id!==pending.id)]}]});
+  assert.equal(invalid.cloudOk,false);
+  assert.equal(invalid.error.code,'ZENOS_ENTITY_DELETED_REMOTE');
+  assert.equal(session(0).sequence,previousSequence);
+  assert.equal((await getDoc(doc(db,...root,'vendas',encodeV2Id(pending.id)))).data().deleted,true);
+ });
+ await test('New PDV sale never rewrites stale removed historic documents',async()=>{
+  tick();const remote=state(0);
+  const tombstoned=[...session(0).records.get('historicoVendas').values()]
+    .find(r=>r.deleted&&r.data?.estado==='pendente');
+  assert(tombstoned,'pre-order tombstone fixture required');
+  const staleBase=[tombstoned.data,...remote.historicoVendas];
+  const staleEdited={...tombstoned.data,estado:'concluida',clienteNome:'Outdated terminal'};
+  const newSale={id:'V2-PDV-REAL-WRITE-INTENT',estado:'concluida',totalBRL:110,itens:[]};
+  const result=await commit(0,{
+   operationKey:`pdv:${newSale.id}`,
+   changes:[{field:'historicoVendas',baseValue:staleBase,value:[newSale,staleEdited,...remote.historicoVendas]}],
+   guards:[{type:'cash_session_open',sessionId:cash.id}],
+  });ok(result);
+  assert(state(0).historicoVendas.some(v=>v.id===newSale.id));
+  assert(!state(0).historicoVendas.some(v=>v.id===tombstoned.data.id));
+  assert.equal((await getDoc(doc(db,...root,'vendas',encodeV2Id(tombstoned.data.id)))).data().deleted,true);
+ });
  await test('Expense, cash movement and canonical finance share a single atomic commit',async()=>{
   tick();const b=state(0);ok(await commit(0,{operationKey:'expense-test',changes:[change(b,'despesas',[{id:'EMULATOR-EXPENSE',valor:1},...b.despesas]),change(b,'caixaMovimentos',[{id:'EMULATOR-MOV',valor:1,sessaoId:cash.id,tipo:'sangria'},...b.caixaMovimentos])],guards:[{type:'cash_session_open',sessionId:cash.id}],financialEntries:[{id:'expense-ledger',tipo:'despesa',referenciaId:'EMULATOR-EXPENSE',valor:1,direcao:'saida',createdAt:'2026-10-17T00:00:00.000Z'}]}));
   assert((await getDoc(doc(db,'lojas',userId,'financeiro_livro','expense-ledger'))).exists());

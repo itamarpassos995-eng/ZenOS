@@ -285,6 +285,29 @@ export default function App() {
   };
 
 
+  // Reconsulta autoritativa após conflito V2. Não fecha o PDV nem altera o carrinho.
+  // O merge/revisão existente mantém a proteção contra escritas concorrentes.
+  const recarregarDadosPDV = async () => {
+    if (!userId) throw new Error('Loja não autenticada.');
+    const snap = await getOperationalSnapshot(db, userId);
+    if (!snap.exists()) throw new Error('Dados da loja indisponíveis.');
+    const dados = snap.data() || {};
+    const revisions = dados?._syncMeta?.fieldRevisions || {};
+    const atualizar = (field, setter, sufixo, normalizar = v => v) => {
+      if (!Array.isArray(dados[field])) throw new Error(`Dados incompletos da loja: ${field}.`);
+      aplicarCampoRemoto({
+        field, value: normalizar(dados[field]), setter,
+        revision: revisions[field] === undefined ? null : Number(revisions[field]) || 0,
+        localStorageKey: `zenos_${userId}_${sufixo}`,
+      });
+    };
+    atualizar('produtos', setProdutos, 'produtos', lista => lista.map((v, i) => normalizarProduto(v, i)));
+    atualizar('clientes', setClientes, 'clientes', lista => lista.map((v, i) => normalizarCliente(v, i)));
+    atualizar('historicoVendas', setHistoricoVendas, 'historico_vendas');
+    atualizar('vouchers', setVouchers, 'vouchers');
+    atualizar('sessoesCaixa', setSessoesCaixa, 'sessoes_caixa');
+  };
+
   const commitVendaCritica = async ({ changes = [], financialEntries = [], stockEvents = [], guards = [], operationKey = null } = {}) => {
     if (!nuvemSincronizada || !userId) {
       return { ok:false, cloudOk:false, error:new Error('Nuvem não confirmada. Venda/pré-pedido não foi finalizado.'), values:{}, revisions:{} };
@@ -1689,7 +1712,7 @@ export default function App() {
           </div>
  )}
 
-        {ecraAtual === 'pdv' && <PDV perfilLoja={perfilLoja} taxasCambio={taxasCambio} registrarFinanceiro={registrarFinanceiro} commitOperacaoCritica={commitOperacaoCritica} commitVendaCritica={commitVendaCritica} vouchers={vouchers} setVouchers={setVouchers} userId={userId} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} patenteUsuario={patenteUsuario} idioma={idioma} regrasDesconto={regrasDesconto} vendedores={vendedores} operadorAtivo={operadorAtivo} sessaoAtiva={sessaoAtiva} />}
+        {ecraAtual === 'pdv' && <PDV perfilLoja={perfilLoja} taxasCambio={taxasCambio} registrarFinanceiro={registrarFinanceiro} commitOperacaoCritica={commitOperacaoCritica} commitVendaCritica={commitVendaCritica} recarregarDadosPDV={recarregarDadosPDV} vouchers={vouchers} setVouchers={setVouchers} userId={userId} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} patenteUsuario={patenteUsuario} idioma={idioma} regrasDesconto={regrasDesconto} vendedores={vendedores} operadorAtivo={operadorAtivo} sessaoAtiva={sessaoAtiva} />}
         {ecraAtual === 'compras' && <PDVCompras commitOperacaoNegocio={commitVendaCritica} registrarFinanceiro={registrarFinanceiro} saldoSessaoFisicoBRL={saldoSessaoFisicoBRL} userId={userId} produtos={produtos} setProdutos={setProdutos} fornecedores={fornecedores} setFornecedores={setFornecedores} despesas={despesas} setDespesas={setDespesas} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoCompras={historicoCompras} setHistoricoCompras={setHistoricoCompras} operadorAtivo={operadorAtivo} />}
         {ecraAtual === 'fornecedores' && <Fornecedores commitOperacaoNegocio={commitVendaCritica} fornecedores={fornecedores} setFornecedores={setFornecedores} moeda={moeda} tx={tx} />}
         {ecraAtual === 'mesas' && <Mesas commitOperacaoNegocio={commitVendaCritica} userId={userId} produtos={produtos} fmt={fmt} tx={tx} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} moeda={moeda} idioma={idioma} operadorAtivo={operadorAtivo} />}

@@ -4,6 +4,8 @@ import {peekV2Session} from './operationalRepository.js';
 import {V2_COLLECTIONS,V2_VALUES,entityIdV2,encodeV2Id,cleanV2Value,hashV2,stableV2Json,v2ControlPath,v2Error} from './operationalV2Schema.js';
 import {businessOperationChecks as checks,recordSyncMetric} from './productionSync.js';
 import {mergeV1FieldThreeWay,syncValuesEqual,cloneSyncValue} from './syncMerge.js';
+import {reconciliarExclusoesV2} from './v2TombstoneReconciliation.js';
+import {projetarHistoricoNovaVendaPDV} from './pdvWriteIntent.js';
 import {criarLancamentoFinanceiro} from './financialLedgerCore.js';
 import {notifyPersistenceStatus} from './persistenceSafety.js';
 const bytes=v=>new TextEncoder().encode(stableV2Json(v)).length;
@@ -22,7 +24,14 @@ export async function persistV2BusinessOperationSafe({db,userId,changes=[],finan
  try{
   if(!session||session.failed)throw session?.failed||v2Error('V2_SESSION','Recarregue os dados da loja.');
   if(session.control.mode!=='v2')throw v2Error('V2_READ_ONLY','Loja em manutenção; gravações bloqueadas.');
-  const valid=changes.filter(c=>c?.field);
+  // PDV normal gera somente um documento comercial. A lista histórica da tela
+  // não pode voltar como intenção de escrita (risco de tombstone stale).
+  const valid=changes.filter(c=>c?.field).map(c=>({
+   ...c,
+   value:projetarHistoricoNovaVendaPDV({
+    field:c.field,value:c.value,baseValue:c.baseValue,operationKey,
+   }),
+  }));
   if(!valid.length||new Set(valid.map(c=>c.field)).size!==valid.length)throw v2Error('V2_CHANGES','Alterações vazias ou campos repetidos.');
   for(const c of valid){
    if(!V2_COLLECTIONS[c.field]&&!V2_VALUES.includes(c.field))throw v2Error('V2_UNKNOWN_FIELD',`Campo não integrado: ${c.field}.`);
@@ -75,6 +84,8 @@ export async function persistV2BusinessOperationSafe({db,userId,changes=[],finan
      for(const c of valid){
       let merged=mergeV1FieldThreeWay({field:c.field,baseValue:c.baseValue,localValue:c.value,remoteValue:remote[c.field]});
       merged=checks.applyGuardedEntityRemovals({field:c.field,mergedValue:merged,removeEntityIds:c.removeEntityIds,guards});
+      // Descarte somente refs tombstoned inalteradas; mudanças locais reais devem bloquear a venda.
+      merged=reconciliarExclusoesV2({field:c.field,baseValue:c.baseValue,localValue:c.value,mergedValue:merged,records:pinnedRecords.get(c.field)});
       checks.assertMergedFieldInvariants({field:c.field,mergedValue:merged,baseValue:c.baseValue,localValue:c.value});
       revisions[c.field]=(Number(revisions[c.field])||0)+1;confirmedValues[c.field]=cloneSyncValue(merged);
       if(V2_COLLECTIONS[c.field]){
