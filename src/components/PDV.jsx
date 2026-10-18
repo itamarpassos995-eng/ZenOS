@@ -838,6 +838,21 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
         }
         if (commerceOrigem) guards.push({type:'commerce_order_once',orderId:commerceOrigem.pedidoId,saleId:commerceOrigem.vendaId});
         if (prePedidoEmAbertoId) {
+          if (commerceOrigem) {
+            const originais = (historicoVendas || []).filter(v =>
+              v?.id === prePedidoEmAbertoId && v?.origem === 'commerce' &&
+              v?.commercePedidoId === commerceOrigem.pedidoId &&
+              v?.commerceVendaId === commerceOrigem.vendaId &&
+              v?.estado === 'pendente');
+            if (originais.length !== 1) {
+              throw new Error('O pré-pedido online não está disponível para conferência. Atualize a fila; nenhum faturamento foi realizado.');
+            }
+            guards.push({
+              type:'entity_unchanged', field:'historicoVendas', entityKey:'id',
+              entityId:prePedidoEmAbertoId, expected:originais[0],
+              message:'Este pré-pedido online foi alterado em outro terminal. Atualize e confira antes de faturar.',
+            });
+          }
           guards.push({
             type:'entity_field_equals',
             field:'historicoVendas',
