@@ -19,6 +19,7 @@ on:
       - 'firebase.commerce.operational-rules-test.json'
       - 'firebase.commerce.operational-preview.json'
       - 'scripts/commerce-operational-hml-preview.mjs'
+      - 'scripts/commerce-operational-hml-seed-deploy.mjs'
       - 'scripts/commerce-operational-rules-emulator-check.mjs'
       - 'vite.config.js'
       - 'scripts/commerce-cloud-hml-*.mjs'
@@ -59,6 +60,8 @@ jobs:
         run: node scripts/commerce-cloud-hml-safety-check.mjs
       - name: Isolated preview configuration preflight (offline)
         run: node scripts/commerce-operational-hml-preview.mjs --check
+      - name: Operational HML seed deploy preflight (offline; no deploy)
+        run: node scripts/commerce-operational-hml-seed-deploy.mjs --check
       - name: Compile operational HML preview from fake SDK only (no cloud)
         env:
           VITE_ZENOS_COMMERCE_HML_FIREBASE_CONFIG: '{"projectId":"zenos-commerce-homologacao","authDomain":"zenos-commerce-homologacao.firebaseapp.com","storageBucket":"zenos-commerce-homologacao.firebasestorage.app","appId":"1:000000000000:web:demo","apiKey":"demo-no-credentials"}'
