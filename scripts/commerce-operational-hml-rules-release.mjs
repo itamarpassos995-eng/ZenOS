@@ -31,6 +31,12 @@ if(JSON.stringify(Object.keys(config).sort())!==JSON.stringify(['firestore'])||
    config.firestore.rules!=='firestore.commerce.operational-hml.rules'||
    config.firestore.database!=='(default)')
  throw Error('Configuração não é exclusiva de Firestore rules do banco default.');
+const rollbackFile=JSON.parse(file('firebase.commerce.operational-rules-rollback.json'));
+if(JSON.stringify(Object.keys(rollbackFile).sort())!==JSON.stringify(['firestore'])||
+   JSON.stringify(Object.keys(rollbackFile.firestore).sort())!==JSON.stringify(['database','rules'])||
+   rollbackFile.firestore.rules!=='firestore.commerce.cloud-hml.rules'||
+   rollbackFile.firestore.database!=='(default)')
+ throw Error('Configuração de rollback insegura ou fora de Firestore-only.');
 const currentBaseline=file('firestore.commerce.cloud-hml.rules');
 if(!/allow read, write: if false;/.test(currentBaseline))
  throw Error('Baseline original do projeto HML inválida.');
