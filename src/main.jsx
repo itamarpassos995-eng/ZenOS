@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 const App=React.lazy(()=>import('./App.jsx'));
 import ZenCommerceStorefront from './components/ZenCommerceStorefront.jsx'
 import ZenCommerceHomologacao from './components/ZenCommerceHomologacao.jsx'
+import ZenCommerceOperationalHmlGate from './components/ZenCommerceOperationalHmlGate.jsx'
 import EnvironmentBanner from './components/EnvironmentBanner.jsx'
 import './index.css'
 import './commerce.css'
@@ -24,7 +25,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       ? <main role="alert" style={{padding:32,maxWidth:720,margin:'auto'}}>Homologação Commerce indisponível: configuração isolada ausente. Nenhum dado operacional foi acessado.</main>
       : commercePublico
       ? <ZenCommerceStorefront idPublico={window.location.pathname.split('/')[2]} />
-      : commerceHml?<ZenCommerceHomologacao/>:<App />}
+      : commerceHml?<ZenCommerceHomologacao/>:commerceOperationalHml?<ZenCommerceOperationalHmlGate><App /></ZenCommerceOperationalHmlGate>:<App />}
     </React.Suspense>
   </React.StrictMode>,
 )
