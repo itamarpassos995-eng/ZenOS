@@ -16,6 +16,7 @@ import { calcularCmvVenda } from '../core/salesFinancials';
 import { validarComposicaoPagamento } from '../core/paymentValidation';
 import { interpretarValorMonetario } from '../core/cashMoneyInput';
 import { lerRascunhoPDV, salvarRascunhoPDV, apagarRascunhoPDV } from '../core/pdvDraft';
+import { consultarResultadoVendaServidor } from '../core/saleOutcomeReadOnly';
 
 export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro, commitOperacaoCritica, commitVendaCritica, recarregarDadosPDV, vouchers = [], setVouchers, userId, produtos, setProdutos, clientes, setClientes, moeda, fmt, t, tx, converterDeBRL, converterParaBRL, historicoVendas, setHistoricoVendas, patenteUsuario, idioma, regrasDesconto, vendedores = [], operadorAtivo, sessaoAtiva }) {
   const [rascunhoInicial] = useState(() => lerRascunhoPDV(userId, operadorAtivo?.id));
@@ -845,6 +846,10 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
           operationKey: `pdv:${vendaId}`,
         });
         if (!confirmado?.cloudOk) {
+          // Consulta apenas o servidor pelo MESMO ID, nunca refaz cobrança ou venda.
+          const resultadoServidor = tipoFinalizacao === 'venda'
+            ? await consultarResultadoVendaServidor({db,userId,operationKey:`pdv:${vendaId}`})
+            : {status:'unknown'};
           let detalheFalha = confirmado?.error?.message || 'Verifique conexão/quota e tente novamente sem fechar esta tela.';
           if (['V2_REUSE_ID','ZENOS_ENTITY_DELETED_REMOTE'].includes(confirmado?.error?.code) && typeof recarregarDadosPDV === 'function') {
             try {
@@ -862,7 +867,13 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
           setModalZen({
             variante:'danger',
             titulo: tipoFinalizacao === 'venda' ? tx('Venda não concluída','Venta no concluida','Sale not completed') : tx('Documento não salvo','Documento no guardado','Document not saved'),
-            mensagem:tx('A nuvem não confirmou esta operação. Nada foi finalizado no PDV.','La nube no confirmó esta operación. Nada fue finalizado en el TPV.','The cloud did not confirm this operation. Nothing was finalized in the POS.'),
+            mensagem: resultadoServidor.status === 'committed'
+              ? tx('Registro identificado no servidor. Não repita a cobrança. Confira a venda no histórico e reconcilie o caixa antes de continuar.',
+                   'Registro identificado en el servidor. No repita el cobro. Revise el historial y la caja.',
+                   'Sale found on server. Do not charge again. Check sales history and reconcile the register.')
+              : tx('Resultado ainda não confirmado. Preserve o carrinho. NÃO cobre nem registre novamente antes de consultar histórico e caixa com a conexão restaurada.',
+                   'Resultado aún no confirmado. Conserve el carrito. NO cobre ni registre de nuevo antes de revisar historial y caja.',
+                   'Outcome not yet confirmed. Keep the cart. DO NOT charge or register again until sales history and register are checked.'),
             detalhes: detalheFalha,
             apenasConfirmar:true,
           });
