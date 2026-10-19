@@ -3,7 +3,7 @@ import {lerProdutosCommerce,consultarProdutosCommerce} from './commerceOperation
 import {onCall,HttpsError} from 'firebase-functions/v2/https';
 import {randomBytes} from 'node:crypto';
 import {obterAdminFirestore} from './firebaseAdmin.js';
-import {autorizarOperadorCommerce} from './commerceAuthorization.js';
+import {autorizarOperadorCommerce,executandoHmlCommerce,CONTRATO_HML_ISOLAMENTO} from './commerceAuthorization.js';
 import {validarRascunhoCommerce,resumoLicencaCommerce} from './commerceStudioCore.js';
 import {ambienteMidiaCommercePronto} from './commerceStorageSafetyCore.js';
 import {hidratarUrlsPrivadas,validarReferenciasNoStorage,processarBannersPrivados} from './commerceStudio.js';
@@ -29,10 +29,11 @@ export const commercePedidosAdmin=onCall(opts,async request=>{
  habilitado();const db=await obterAdminFirestore();const {lojaId,operadorUid}=await autorizarOperadorCommerce(request.auth,db,request.data?.sessaoZenOS);
  if(request.data?.lojaId!==undefined)throw new HttpsError('invalid-argument','Loja definida pelo servidor.');
  const pubRef=draftRef(db,lojaId,'publicacao'),action=request.data?.action;
- if(['prepararPDV','confirmarFaturamento'].includes(action))return atenderPedidoPDV(db,{lojaId,operadorUid,id:request.data.id,confirmar:action==='confirmarFaturamento'});
+ const responder=dados=>executandoHmlCommerce()?{...dados,lojaId,contratoHml:CONTRATO_HML_ISOLAMENTO}:dados;
+ if(['prepararPDV','confirmarFaturamento'].includes(action))return responder(await atenderPedidoPDV(db,{lojaId,operadorUid,id:request.data.id,confirmar:action==='confirmarFaturamento'}));
  if(action==='consultarLoja'){
   const shop=await db.doc(`lojas/${lojaId}`).get();if(!shop.exists)throw new HttpsError('not-found','Loja de homologação não configurada.');
-  return {lojaId,produtos:await consultarProdutosCommerce(db,lojaId)};
+  return responder({lojaId,produtos:await consultarProdutosCommerce(db,lojaId)});
  }
  if(action==='publicar'){
   const [draft,license,shop]=await Promise.all([draftRef(db,lojaId,'rascunho').get(),draftRef(db,lojaId,'licenca').get(),db.doc(`lojas/${lojaId}`).get()]);
@@ -41,7 +42,7 @@ export const commercePedidosAdmin=onCall(opts,async request=>{
   let limpo,whatsapp;try{limpo=validarRascunhoCommerce(draft.data(),lojaId);whatsapp=telefoneCommerce(request.data.whatsapp);}catch(e){throw invalid(e);}
   await validarReferenciasNoStorage(limpo.regras,lojaId);
   await processarBannersPrivados(limpo.aparencia,lojaId);
-  return db.runTransaction(async tx=>{
+  return responder(await db.runTransaction(async tx=>{
    const [current,latestDraft,latestLicense]=await Promise.all([tx.get(pubRef),tx.get(draftRef(db,lojaId,'rascunho')),tx.get(draftRef(db,lojaId,'licenca'))]);
    exigirLicenca(latestLicense);if(latestDraft.data()?.revision!==draft.data().revision)throw new HttpsError('aborted','Rascunho alterado durante a publicação.');
    const produtos=await lerProdutosCommerce(db,lojaId,tx,{ids:Object.keys(limpo.regras).filter(id=>limpo.regras[id].publicado)});
@@ -51,16 +52,16 @@ export const commercePedidosAdmin=onCall(opts,async request=>{
    const revision=(current.data()?.revision||0)+1;
    tx.set(directory,{lojaId});tx.set(pubRef,{...limpo,idPublico,whatsapp,revision,ativo:true,publicadoEm:new Date().toISOString(),por:operadorUid});
    return {idPublico,revision,ativo:true};
-  });
+  }));
  }
- if(action==='despublicar'){await pubRef.set({ativo:false,alteradoEm:new Date().toISOString(),por:operadorUid},{merge:true});return {ativo:false};}
+ if(action==='despublicar'){await pubRef.set({ativo:false,alteradoEm:new Date().toISOString(),por:operadorUid},{merge:true});return responder({ativo:false});}
  if(action==='resumoPedidos'){
   const total=await db.collection(`lojas/${lojaId}/commerce_pedidos`).where('status','==','recebido').count().get();
-  return {novos:total.data().count};
+  return responder({novos:total.data().count});
  }
  if(action==='listarPedidos'){
   const snaps=await db.collection(`lojas/${lojaId}/commerce_pedidos`).orderBy('criadoEm','desc').limit(50).get();
-  return {pedidos:snaps.docs.map(d=>({id:d.id,...d.data(),clienteUid:undefined,assinatura:undefined})).map(({clienteUid,assinatura,...d})=>d)};
+  return responder({pedidos:snaps.docs.map(d=>({id:d.id,...d.data(),clienteUid:undefined,assinatura:undefined})).map(({clienteUid,assinatura,...d})=>d)});
  }
  if(action==='atualizarStatus'){
   // Nunca aceitar "encerrado" nem "em_atendimento" de um botao:
@@ -77,7 +78,7 @@ export const commercePedidosAdmin=onCall(opts,async request=>{
     throw new HttpsError('failed-precondition','Pedido em atendimento ou já faturado. Não é possível cancelar sem conferência.');
    tx.update(ref,{status:'cancelado',atualizadoEm:new Date().toISOString(),alteradoPor:operadorUid});
   });
-  return {status:'cancelado'};
+  return responder({status:'cancelado'});
  }
  throw new HttpsError('invalid-argument','Ação inválida.');
 });
