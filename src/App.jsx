@@ -1239,9 +1239,11 @@ export default function App() {
     if (!fechamentoConfirmado?.cloudOk) {
       return avisarAppZen({
         variante:'danger',
-        titulo:tx('Caixa não fechado','Caja no cerrada','Register not closed'),
-        mensagem:tx('A nuvem não confirmou o fechamento. O turno continua aberto.','La nube no confirmó el cierre. El turno sigue abierto.','The cloud did not confirm closing. The shift remains open.'),
-        detalhes:[fechamentoConfirmado?.error?.message || tx('Tente novamente sem encerrar a tela.','Intente nuevamente sin cerrar la pantalla.','Try again without closing the screen.')],
+        titulo:tx('Confirmação do caixa pendente','Confirmación de caja pendiente','Register confirmation pending'),
+        mensagem:tx('Não foi possível confirmar o estado do fechamento no servidor. Confira a situação do turno e o extrato após restaurar a conexão. Não repita o fechamento antes de verificar.',
+          'No se pudo confirmar el estado del cierre en el servidor. Revise el turno y el extracto después de restaurar la conexión. No repita el cierre sin verificar.',
+          'Could not verify the register closing on the server. Check shift status and ledger after reconnecting. Do not repeat closing without verification.'),
+        detalhes:[fechamentoConfirmado?.error?.message || tx('Estado desconhecido; preserve os dados e confira o servidor.','Estado desconocido; conserve los datos y consulte el servidor.','Outcome unknown; preserve records and check the server.')],
       });
     }
     setSessoesCaixa(fechamentoConfirmado.values?.sessoesCaixa || sessoesAtualizadas);
