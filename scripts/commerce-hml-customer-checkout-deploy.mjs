@@ -27,7 +27,7 @@ const source=read('functions/src/commerceOrders.js'),core=read('functions/src/co
  auth=read('src/core/commercePublicApi.js');
 for(const [nome,codigo,fragmentos] of [
  ['servidor',source,['autorizarOperadorCommerce(request.auth,db,request.data?.sessaoZenOS)',
-  'if(action===\'listarClientesOnline\')','lojas/${lojaId}/commerce_clientes/',
+  'if(action===\'listarClientesOnline\')',"['catalogo','criarPedido','consultarPedido'].includes(action)",'lojas/${lojaId}/commerce_clientes/',
   'tx.create(ref,data)','cadastroSolicitado','marketingAutorizado:false',
   'CONTRATO_HML_ISOLAMENTO']],
  ['validacao',core,['aceitePromocoes&&!criarCadastro','criarCadastro:input.criarCadastro===true']],
