@@ -19,11 +19,9 @@ export function prepararCadastroOnline({pedido,pedidoId,anterior,agora}){
   throw new Error('Dados de cadastro inconsistentes.');
  const verificado=anterior?.titularidadeVerificada===true;
  if(verificado){
-  // Pessoa sem confirmação por OTP não pode trocar titular, permissões ou telefone.
-  return {
-   primeiroPedido:anterior.primeiroPedido||pedidoId,ultimoPedido:pedidoId,
-   atualizadoEm:agora,ultimoCadastroSolicitadoEm:agora
-  };
+  // Identidade anônima não pode NEM associar pedido ao perfil verificado.
+  // O pedido segue preservado na fila, sem mutação no cadastro do titular.
+  return null;
  }
  return {
   nome:pedido.cliente.nome,telefone:pedido.cliente.telefone,origem:'commerce',
