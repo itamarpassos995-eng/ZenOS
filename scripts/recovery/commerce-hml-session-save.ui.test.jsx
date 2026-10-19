@@ -43,6 +43,8 @@ test('HML com sessão validada salva com revisão do servidor e sem publicar',as
  });
  render(<Portal integrado userId="loja-HML" operadorAtivo={{id:'admin'}} nuvemSincronizada produtos={[]}/>);
  expect(await screen.findByText('Studio desbloqueado')).toBeTruthy();
+ // O editor agora fica na aba Personalizar, montado mas oculto durante o atendimento.
+ fireEvent.click(screen.getByRole('button',{name:'Personalizar loja'}));
  fireEvent.click(screen.getByRole('button',{name:'Salvar rascunho simulado'}));
  await waitFor(()=>expect(mocks.lastSave?.revision).toBe(1));
  expect(mocks.calls).toHaveBeenCalledWith({
