@@ -52,7 +52,7 @@ export const assinaturaPedidoCommerce=input=>createHash('sha256').update(JSON.st
 export function respostaPedidoCommerce(pedido,id,whatsapp){
  const total=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(pedido.totalCentavos/100);
  const mensagem=`Olá! Enviei o pedido ${id.slice(0,10).toUpperCase()} pela loja online.\n`+pedido.itens.map(p=>`${p.quantidade} × ${p.nome}`).join('\n')+`\nProdutos: ${total}. Aguardo confirmação de disponibilidade, entrega e pagamento.`;
- return {id,status:pedido.status,totalCentavos:pedido.totalCentavos,moeda:'BRL',estoqueReservado:false,whatsappUrl:`https://wa.me/${telefoneCommerce(whatsapp)}?text=${encodeURIComponent(mensagem)}`};
+ return {id,status:pedido.status,totalCentavos:pedido.totalCentavos,moeda:'BRL',estoqueReservado:false,cadastroRecebido:pedido.cadastroSolicitado===true,whatsappUrl:`https://wa.me/${telefoneCommerce(whatsapp)}?text=${encodeURIComponent(mensagem)}`};
 }
 
 export function validarCatalogoPublicavel(produtos,regras){
