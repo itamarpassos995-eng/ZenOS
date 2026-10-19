@@ -24,14 +24,14 @@ if(existsSync(envPath)){
   throw Error('Arquivo de ambiente existente diverge do destino seguro. Revise sem sobrescrever.');
 }
 if(process.argv.includes('--check')){
- console.log('PASSOU: destino exclusivo '+project+'; cinco funções Commerce, Auth Google/anônimo e regras de nuvem deny-all; Hosting isolado; sem funções fiscais.');
+ console.log('PASSOU: destino exclusivo '+project+'; seis funções Commerce (incluindo sessão integrada), Auth Google/anônimo e regras de nuvem deny-all; Hosting isolado; sem funções fiscais.');
  process.exit(0);
 }
 if(!existsSync(envPath))writeFileSync(envPath,Object.entries(vars).map(([k,v])=>`${k}=${v}`).join('\n')+'\n',{flag:'wx',mode:0o600});
 const bannerFix=process.argv.includes('--banner-fix');
 const uiFix=process.argv.includes('--ui-fix');
 console.log(bannerFix?'Atualizando mídia, rascunho, publicação, catálogo e interface dos banners na homologação.':uiFix?'Atualizando somente a publicação Commerce e a interface da homologação.':'Implantando Commerce, Auth Google/anônimo e regras deny-all exclusivamente em '+project+'.');
-const targets=bannerFix?'functions:fiscal:commerceStudio,functions:fiscal:commerceMidia,functions:fiscal:commerceLoja,functions:fiscal:commercePedidosAdmin':uiFix?'functions:fiscal:commercePedidosAdmin':'auth,firestore:rules,storage,functions:fiscal:commerceStudio,functions:fiscal:commerceMidia,functions:fiscal:commerceLoja,functions:fiscal:commercePedidosAdmin,functions:fiscal:commerceHmlBootstrap';
+const targets=bannerFix?'functions:fiscal:commerceStudio,functions:fiscal:commerceMidia,functions:fiscal:commerceLoja,functions:fiscal:commercePedidosAdmin':uiFix?'functions:fiscal:commercePedidosAdmin':'auth,firestore:rules,storage,functions:fiscal:commerceStudio,functions:fiscal:commerceMidia,functions:fiscal:commerceLoja,functions:fiscal:commercePedidosAdmin,functions:fiscal:commerceHmlBootstrap,functions:fiscal:commerceSessaoZenOS';
 const args=['-y','firebase-tools@15.34.0','deploy','--project',project,'--account','itamarbenit@gmail.com','--config','firebase.commerce.cloud-hml.json','--only',targets];
 // cmd.exe precisa resolver npx.cmd; todos os argumentos são constantes, sem entrada do usuário.
 const result=process.platform==='win32'
