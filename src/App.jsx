@@ -345,15 +345,13 @@ export default function App() {
       // O estado visual não pode permanecer "Salvando" indefinidamente quando
       // o Firestore não devolve confirmação. Isto NÃO cancela a transação.
       const travado = estados.some(x => x.status === 'SALVANDO' && Date.now() - x.at >= 30_000);
-      if (travado) {
-        setErroSincronizacao('Confirmação da nuvem demorando. Mantenha os pré-pedidos e não repita vendas ou cobranças antes de verificar no servidor.');
-        setStatusSincronizacao('PENDENTE');
-        return;
-      }
       if (estados.some(x => x.status === 'ERRO')) {
         const ultimoErro = [...syncCamposRef.current.values()].reverse().find(x => x.status === 'ERRO' && x.error);
         setErroSincronizacao(ultimoErro?.error || 'Existe uma falha de sincronização pendente.');
         setStatusSincronizacao('ERRO');
+      } else if (travado) {
+        setErroSincronizacao('Confirmação da nuvem demorando. Preserve os pré-pedidos e confira o servidor antes de repetir operações.');
+        setStatusSincronizacao('PENDENTE');
       } else if (estados.some(x => x.status === 'PENDENTE')) {
         setErroSincronizacao(''); setStatusSincronizacao('PENDENTE');
       } else if (estados.some(x => x.status === 'SALVANDO')) {
