@@ -1,7 +1,8 @@
 import {atenderPedidoPDV} from './commercePDV.js';
 import {lerProdutosCommerce,consultarProdutosCommerce} from './commerceOperationalRead.js';
 import {onCall,HttpsError} from 'firebase-functions/v2/https';
-import {randomBytes,createHash} from 'node:crypto';
+import {randomBytes} from 'node:crypto';
+import {idClienteOnline,prepararCadastroOnline} from './commerceCustomersCore.js';
 import {obterAdminFirestore} from './firebaseAdmin.js';
 import {autorizarOperadorCommerce,executandoHmlCommerce,CONTRATO_HML_ISOLAMENTO} from './commerceAuthorization.js';
 import {validarRascunhoCommerce,resumoLicencaCommerce} from './commerceStudioCore.js';
@@ -140,22 +141,16 @@ export const commerceLoja=onCall(opts,async request=>{
   // Cadastro opcional fica na base privada da MESMA loja e não modifica
   // cadastro financeiro, limites, fiado, caixa ou histórico da operação.
   if(pedido.cadastroSolicitado){
-   const hash=createHash('sha256').update(request.auth.uid+'|'+pedido.cliente.telefone).digest('hex');
-   const clienteRef=db.doc(`lojas/${lojaId}/commerce_clientes/${hash}`);
+   // O mesmo número verificado em visitas distintas compartilha UMA ficha por loja.
+   // Uma compra anônima não pode alterar perfil ou consentimento confirmados.
+   const clienteId=idClienteOnline(lojaId,pedido.cliente.telefone);
+   const clienteRef=db.doc(`lojas/${lojaId}/commerce_clientes/${clienteId}`);
    const anterior=await tx.get(clienteRef);
-   const agora=new Date().toISOString();
-   tx.set(clienteRef,{
-    nome:pedido.cliente.nome,telefone:pedido.cliente.telefone,origem:'commerce',
-    primeiroPedido:anterior.exists?anterior.data().primeiroPedido:key,
-    ultimoPedido:key,criadoEm:anterior.exists?anterior.data().criadoEm:agora,
-    atualizadoEm:agora,
-    cadastroSolicitado:true,
-    marketingStatus:pedido.aceitePromocoes?'pendente_verificacao':'nao_autorizado',
-    marketingAutorizado:false,
-    consentimentoEm:pedido.aceitePromocoes?agora:null,
-    consentimentoVersao:'commerce-optin-v1',
-    titularidadeVerificada:false
+   const dados=prepararCadastroOnline({
+    pedido,pedidoId:key,anterior:anterior.exists?anterior.data():null,
+    agora:new Date().toISOString()
    });
+   tx.set(clienteRef,dados,{merge:true});
   }
   tx.create(ref,data);tx.set(quota,{total:(q.data()?.total||0)+1});tx.set(userQuota,{total:(u.data()?.total||0)+1});
   return respostaPedidoCommerce(data,key,pub.data().whatsapp);
