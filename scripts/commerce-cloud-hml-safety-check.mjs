@@ -53,6 +53,9 @@ try {
  assert.match(firebaseJs,/ZENOS_RUNTIME\.isCloudCommerceHml\s*\?\s*obterOpcoesFirebaseCommerce\(\)/);
  assert.match(firebaseJs,/ZENOS_RUNTIME\.isHomologacao && !ZENOS_RUNTIME\.isCloudCommerceHml/);
  assert.match(entry,/commerceOperationalHml\?<ZenCommerceOperationalHmlGate><App \/><\/ZenCommerceOperationalHmlGate>/);
+ assert.match(entry,/React\.lazy\(\(\)=>import\('\.\/components\/ZenCommerceOperationalHmlGate\.jsx'\)\)/);
+ assert.doesNotMatch(entry,/^import ZenCommerceOperationalHmlGate from/m);
+
  const rules=read('firestore.commerce.operational-hml.rules');
  assert.match(rules,/request\.auth\.uid == lojaId/);
  assert.match(rules,/homologacao_operacional/);
