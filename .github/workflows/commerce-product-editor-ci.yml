@@ -17,6 +17,8 @@ on:
       - 'src/components/ZenCommerceOperationalHmlGate.jsx'
       - 'firestore.commerce.operational-hml.rules'
       - 'firebase.commerce.operational-rules-test.json'
+      - 'firebase.commerce.operational-rules-release.json'
+      - 'scripts/commerce-operational-hml-rules-release.mjs'
       - 'firebase.commerce.operational-preview.json'
       - 'scripts/commerce-operational-hml-preview.mjs'
       - 'scripts/commerce-operational-hml-seed-deploy.mjs'
@@ -63,6 +65,8 @@ jobs:
         run: node scripts/commerce-operational-hml-preview.mjs --check
       - name: Operational HML seed deploy preflight (offline; no deploy)
         run: node scripts/commerce-operational-hml-seed-deploy.mjs --check
+      - name: Operational HML Firestore rules-only release preflight (no network)
+        run: node scripts/commerce-operational-hml-rules-release.mjs --check
       - name: Seed environment must reject divergent HML flags
         run: |
           set -eu
