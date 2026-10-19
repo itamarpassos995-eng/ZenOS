@@ -1,4 +1,6 @@
 import React,{useEffect,useState} from 'react';
+import {ZENOS_RUNTIME} from '../core/runtimeEnvironment';
+import {conferirRespostaHml} from '../core/commerceHmlTenantBoundary';
 import {callableCommerceZenOS,estadoSessaoCommerceZenOS,observarSessaoCommerceZenOS} from '../core/commerceZenOSSession';
 
 // Montado no shell do ZenOS: continua ativo ao navegar entre módulos.
@@ -14,6 +16,7 @@ export default function ZenCommerceOrderNotice({userId,operadorId,onAbrir}){
    if(emCurso||document.visibilityState==='hidden')return;
    emCurso=true;
    try{const r=(await callableCommerceZenOS('commercePedidosAdmin')({action:'resumoPedidos'})).data;
+    if(ZENOS_RUNTIME.isCloudCommerceHml)conferirRespostaHml(r,userId);
     if(!Number.isSafeInteger(r.novos)||r.novos<0)throw Error('Contagem inválida.');
     if(ativo){setTotal(r.novos);setErro(false);}
    }catch{if(ativo)setErro(true);}finally{emCurso=false;}
