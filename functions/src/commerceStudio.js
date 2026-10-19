@@ -1,4 +1,4 @@
-import { autorizarOperadorCommerce } from './commerceAuthorization.js';
+import { autorizarOperadorCommerce,executandoHmlCommerce,CONTRATO_HML_ISOLAMENTO } from './commerceAuthorization.js';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { obterAdminFirestore } from './firebaseAdmin.js';
 import { validarRascunhoCommerce, resumoLicencaCommerce, validarRevisao, construirInteresseCommerce, configInicialCommerce } from './commerceStudioCore.js';
@@ -62,7 +62,7 @@ export const commerceStudio = onCall({region:'southamerica-east1',timeoutSeconds
  if(!lojaSnap.exists)throw new HttpsError('permission-denied','Loja não autorizada.');
  if(action==='consultar'){
   const [d,l,p,pub]=await Promise.all([rascunho.get(),licenca.get(),interesse.get(),db.doc(`lojas/${lojaId}/commerce_private/publicacao`).get()]);
-  return {lojaId,revision:d.data()?.revision||0,aparencia:await processarBannersPrivados(d.data()?.aparencia||configInicialCommerce,lojaId,{hidratar:true}),
+  return {lojaId,...(executandoHmlCommerce()?{contratoHml:CONTRATO_HML_ISOLAMENTO}:{}),revision:d.data()?.revision||0,aparencia:await processarBannersPrivados(d.data()?.aparencia||configInicialCommerce,lojaId,{hidratar:true}),
    regras:await hidratarUrlsPrivadas(d.data()?.regras||{},lojaId),licenca:resumoLicencaCommerce(l.data()),interesse:p.data()?.status||'nao_solicitado',
    // Link ainda não disponível: endereço depende de domínio e diretório publicados pelo servidor.
    idPublico:pub.data()?.idPublico||null,whatsapp:pub.data()?.whatsapp||'',lojaPublicada:pub.data()?.ativo===true,
@@ -95,6 +95,6 @@ export const commerceStudio = onCall({region:'southamerica-east1',timeoutSeconds
   if(!validarRevisao(expectedRevision,revision))throw new HttpsError('aborted','Rascunho modificado em outro dispositivo. Atualize antes de salvar.');
   const next=revision+1;
   tx.set(rascunho,{...normalizado,revision:next,status:'rascunho_privado',atualizadoEm:new Date().toISOString(),alteradoPor:operadorUid});
-  return {revision:next,status:'rascunho_privado',publicado:false};
+  return {revision:next,status:'rascunho_privado',publicado:false,...(executandoHmlCommerce()?{contratoHml:CONTRATO_HML_ISOLAMENTO,lojaId}:{})};
  });
 });
