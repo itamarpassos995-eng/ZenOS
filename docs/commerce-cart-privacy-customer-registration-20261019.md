@@ -40,7 +40,7 @@
 ## Acabamento e endurecimento antes da homologação (19/10)
 - Checkout: cartão de cadastro com opção desmarcada, explicação sobre identidade do contato e consentimento para promoções separado e também desmarcado. Responsivo e com alvos de toque ampliados.
 - A chave interna de contato é estável por loja + telefone internacional validado; trocar de celular/navegador não gera uma segunda ficha para o mesmo número na mesma loja. Não vincular à identidade anônima, que é intencionalmente apagada ao atualizar.
-- Todos os registros novos permanecem **não verificados**. Em caso de perfil previamente verificado, um pedido com telefone informado não pode alterar nome, telefone ou permissão de marketing; só atualiza referências de pedidos.
+- Todos os registros novos permanecem **não verificados**. Em caso de perfil previamente verificado, um pedido com telefone informado sem verificar titularidade **não altera nenhum campo nem associa o pedido ao cadastro verificado**. O pedido é mantido separadamente na fila para conferência.
 - Acesso rápido **Clientes online** dentro da central de pedidos, mantendo leitura protegida pela função administrativa. Ao trocar de loja/operador, resultados pendentes são descartados antes de renderização.
 - Nada é gravado nas coleções financeiras V1/V2 ou no módulo Clientes & Fiado; não implementar campanhas automáticas.
 - O gate de implantação `commerce-hml-customer-checkout-deploy.mjs --check` passa a verificar também o helper de proteção de cadastro.
