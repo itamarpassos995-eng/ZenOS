@@ -2,7 +2,7 @@
  * Publicação INDIVIDUAL da callable de seed fictícia na homologação.
  * Não publica regras, Auth, Storage nem Hosting. Padrão: verificar e sair.
  */
-import {readFileSync} from 'node:fs';
+import {readFileSync,writeFileSync,existsSync} from 'node:fs';
 import {resolve,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {spawnSync} from 'node:child_process';
@@ -27,8 +27,38 @@ if(!file('functions/src/index.js').includes("export {commerceHmlOperationalSeed}
    !file('functions/src/commerceHmlOperationalSeed.js').includes('authorizedOperationalHml(process.env,request.auth)')||
    !file('functions/src/commerceHmlOperationalCore.js').includes("env.GCLOUD_PROJECT==='zenos-commerce-homologacao'"))
  throw Error('Function seed não contém as verificações obrigatórias. Bloqueado.');
+// Sem estas três flags, a callable compilada ficaria indisponível mesmo após
+// um deploy bem-sucedido. Jamais substituir um arquivo de ambiente preexistente.
+const envFile=resolve(root,'functions/.env.'+project);
+const envEsperado={
+ ZENOS_COMMERCE_MEDIA_ENABLED:'true',
+ ZENOS_COMMERCE_HOMOLOGACAO:'true',
+ ZENOS_COMMERCE_STORAGE_BUCKET:'zenos-commerce-homologacao.firebasestorage.app',
+};
+function conferirEnvAtual(content){
+ const rows=content.split(/\r?\n/).map(line=>line.trim()).filter(line=>line&&!line.startsWith('#'));
+ const entries=rows.map(line=>{
+  const idx=line.indexOf('=');
+  if(idx<1)throw Error('Variável de ambiente HML malformada.');
+  const key=line.slice(0,idx).trim();
+  const val=line.slice(idx+1).trim().replace(/^['"]|['"]$/g,'');
+  return [key,val];
+ });
+ if(new Set(entries.map(([k])=>k)).size!==entries.length||
+    entries.length!==Object.keys(envEsperado).length||
+    entries.some(([key,value])=>envEsperado[key]!==value))
+  throw Error('Ambiente existente diverge da homologação autorizada. Não substituir nem publicar.');
+ return true;
+}
+if(existsSync(envFile))conferirEnvAtual(readFileSync(envFile,'utf8'));
+else if(args[0]==='--deploy-seed'){
+ // Apenas configuração pública de ambiente, em arquivo ignorado pelo Git.
+ // flag wx impede sobrescrita até se outro processo criar o arquivo agora.
+ writeFileSync(envFile,Object.entries(envEsperado).map(([k,v])=>k+'='+v).join('\\n')+'\\n',{flag:'wx',mode:0o600});
+ conferirEnvAtual(readFileSync(envFile,'utf8'));
+}
 const target='functions:fiscal:commerceHmlOperationalSeed';
-console.log('PASSOU: callable '+target+' restrita a '+project+'; sem edição de regras, Storage, Auth ou Hosting.');
+console.log('PASSOU: callable '+target+' restrita a '+project+'; ambiente seguro '+(existsSync(envFile)?'conferido':'será criado somente no deploy')+'; sem edição de regras, Storage, Auth ou Hosting.');
 if(args[0]==='--check')process.exit(0);
 const argv=['-y','firebase-tools@15.34.0','deploy','--project',project,'--account',account,
  '--config','firebase.commerce.cloud-hml.json','--only',target,'--non-interactive'];
