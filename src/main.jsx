@@ -3,7 +3,8 @@ import ReactDOM from 'react-dom/client'
 const App=React.lazy(()=>import('./App.jsx'));
 import ZenCommerceStorefront from './components/ZenCommerceStorefront.jsx'
 import ZenCommerceHomologacao from './components/ZenCommerceHomologacao.jsx'
-import ZenCommerceOperationalHmlGate from './components/ZenCommerceOperationalHmlGate.jsx'
+// Nunca importar o Firebase operacional durante vitrine pública ou Studio HML.
+const ZenCommerceOperationalHmlGate=React.lazy(()=>import('./components/ZenCommerceOperationalHmlGate.jsx'))
 import EnvironmentBanner from './components/EnvironmentBanner.jsx'
 import './index.css'
 import './commerce.css'
