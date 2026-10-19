@@ -1,0 +1,6 @@
+{
+  "firestore": {
+    "rules": "firestore.commerce.operational-hml.rules",
+    "database": "(default)"
+  }
+}
