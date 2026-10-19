@@ -1,0 +1,23 @@
+name: P0 Sale Outcome Readonly
+on:
+  pull_request:
+    paths:
+      - 'src/core/saleOutcomeReadOnly.js'
+      - 'src/components/PDV.jsx'
+      - 'scripts/recovery/sale-outcome-readonly.test.mjs'
+      - '.github/workflows/p0-sale-outcome-readonly.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test scripts/recovery/sale-outcome-readonly.test.mjs
+      - run: npm run build
