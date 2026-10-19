@@ -7,6 +7,7 @@ import {obterSessaoOperadorCommerce,entrarOperadorCommerce} from '../core/commer
 import ZenCommerceStudio from './ZenCommerceStudio';
 import {prepararFotoProduto,fotoCadastroParaPrevia} from '../core/commerceImages';
 import {ZENOS_RUNTIME} from '../core/runtimeEnvironment';
+import {conferirRespostaHml} from '../core/commerceHmlTenantBoundary';
 
 const erroAmigavel=e=>{
  const code=String(e?.code||'');
@@ -43,12 +44,16 @@ export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuve
    fnMedia.current=(integrado?callableCommerceZenOS('commerceMidia'):httpsCallable(getFunctions(operatorAuth.app,'southamerica-east1'),'commerceMidia'));
    callable({action:'consultar'}).then(res=>{
     if(!ativo)return;
-    const d=res.data||{};if(d.lojaId!==userId)throw new Error('A conta individual pertence a outra loja.');rev.current=d.revision||0;setData(d);setWhatsapp(d.whatsapp||'');
+    const d=res.data||{};if(ZENOS_RUNTIME.isCloudCommerceHml)conferirRespostaHml(d,userId);else if(d.lojaId!==userId)throw new Error('A conta individual pertence a outra loja.');rev.current=d.revision||0;setData(d);setWhatsapp(d.whatsapp||'');
    }).catch(err=>{if(ativo)setErro(erroAmigavel(err));}).finally(()=>{if(ativo)setLoading(false);});
   }catch(e){if(ativo){setErro(erroAmigavel(e));setLoading(false);}}
   return()=>{ativo=false;fn.current=null;fnMedia.current=null;};
  },[userId,nuvemSincronizada,operatorUid,operatorAuth,sessaoRevision]);
- const adminApi=async(action,extra={})=>(await (integrado?callableCommerceZenOS('commercePedidosAdmin'):httpsCallable(getFunctions(operatorAuth.app,'southamerica-east1'),'commercePedidosAdmin'))({action,...extra})).data;
+ const adminApi=async(action,extra={})=>{
+  const data=(await (integrado?callableCommerceZenOS('commercePedidosAdmin'):httpsCallable(getFunctions(operatorAuth.app,'southamerica-east1'),'commercePedidosAdmin'))({action,...extra})).data;
+  if(ZENOS_RUNTIME.isCloudCommerceHml)conferirRespostaHml(data,userId);
+  return data;
+ };
  const abrirPedidoPDV=async id=>{
   if(painelBusy)return;setPainelBusy(true);setPainelErro('');
   try {
@@ -121,6 +126,7 @@ export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuve
     }catch(e){pendentes.push(String(produto.nome||id).slice(0,45));}
    }
    const res=await fn.current({action:'salvarRascunho',expectedRevision:rev.current,rascunho:{aparencia,regras:revisadas}});
+   if(ZENOS_RUNTIME.isCloudCommerceHml)conferirRespostaHml(res?.data,userId);
    if(!Number.isSafeInteger(res?.data?.revision)||res.data.revision<=rev.current||
       res.data.status!=='rascunho_privado'||res.data.publicado!==false)
     throw new Error('O servidor não confirmou o salvamento do rascunho. Não atualize a página ainda.');
