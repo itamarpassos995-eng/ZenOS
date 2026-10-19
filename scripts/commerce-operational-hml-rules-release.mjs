@@ -2,10 +2,12 @@
  * HML operational Firestore rules release (do not use on ZenOS production).
  * --check: offline guards, no cloud calls or writes
  * --verify: GET remote current rules, no writes
- * --publish: mandatory remote baseline backup/check, rules-only deployment,
+ * --rollback: restored deny-all baseline only if verified backup exists and\n *             remote currently matches this controlled operational ruleset\n * --publish: mandatory remote baseline backup/check, rules-only deployment,
  *            then verify published rules.
  */
-import {readFileSync} from 'node:fs';
+import {readFileSync,existsSync,readdirSync} from 'node:fs';
+import {homedir} from 'node:os';
+import {join} from 'node:path';
 import {resolve,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {spawnSync} from 'node:child_process';
@@ -16,8 +18,8 @@ const account='itamarbenit@gmail.com';
 const cfg='firebase.commerce.operational-rules-release.json';
 const target='firestore:rules';
 const args=process.argv.slice(2);
-if(args.length!==1||!['--check','--verify','--publish'].includes(args[0]))
- throw Error('Use --check, --verify ou --publish. Destino fixo: homologação exclusivamente.');
+if(args.length!==1||!['--check','--verify','--publish','--rollback'].includes(args[0]))
+ throw Error('Use --check, --verify, --publish ou --rollback. Destino fixo: homologação exclusivamente.');
 const action=args[0];
 for(const key of ['GCLOUD_PROJECT','GCP_PROJECT','GOOGLE_CLOUD_PROJECT','FIREBASE_PROJECT_ID'])
  if(process.env[key] && process.env[key]!==project)
@@ -91,6 +93,36 @@ if(action==='--verify'){
  if(normalize(actual.content)!==normalize(rules))
   throw Error('NÃO APROVADO: regras operacionais ainda não estão publicadas ou divergem.');
  console.log('PASSOU: regras operacionais HML confirmadas no Firebase remoto.');
+ process.exit(0);
+}
+if(action==='--rollback'){
+ const rollbackConfig=JSON.parse(file('firebase.commerce.operational-rules-rollback.json'));
+ if(JSON.stringify(Object.keys(rollbackConfig).sort())!==JSON.stringify(['firestore'])||
+    rollbackConfig.firestore?.rules!=='firestore.commerce.cloud-hml.rules'||
+    rollbackConfig.firestore?.database!=='(default)')
+  throw Error('Rollback não é exclusivamente Firestore deny-all.');
+ const savedDir=join(homedir(),'.zenos-commerce-hml-rules-backups');
+ if(!existsSync(savedDir))throw Error('Backup remoto anterior inexistente. Rollback automático bloqueado.');
+ const proved=readdirSync(savedDir).filter(name=>/\.json$/.test(name)).some(name=>{
+  try{
+   const data=JSON.parse(readFileSync(join(savedDir,name),'utf8'));
+   return data.project===project && data.ruleset?.source?.files?.length===1
+    && normalize(data.ruleset.source.files[0].content)===normalize(currentBaseline)
+    && data.release?.rulesetName===data.ruleset?.name;
+  }catch{return false;}
+ });
+ if(!proved)throw Error('Não há backup local de regras deny-all previamente lidas da HML.');
+ const before=await remote();
+ if(normalize(before.content)!==normalize(rules))
+  throw Error('Ruleset remoto mudou: rollback automático recusado sem auditoria.');
+ console.log('Restaurando somente baseline deny-all de Firestore HML; nenhum dado será excluído.');
+ cli('deploy','--project',project,'--account',account,
+  '--config','firebase.commerce.operational-rules-rollback.json',
+  '--only',target,'--non-interactive');
+ const after=await remote();
+ if(normalize(after.content)!==normalize(currentBaseline))
+  throw Error('Rollback não confirmado na nuvem. Mantenha a homologação suspensa.');
+ console.log('PASSOU: regras de homologação restauradas para deny-all, dados preservados.');
  process.exit(0);
 }
 // Save remote immutable snapshot and refuse any divergence, BEFORE deploying.
