@@ -24,6 +24,12 @@ export function prepararRedefinicaoPinsHml({loja,uid,operacao,acessos,pinAdmin,p
       !Number.isSafeInteger(o?.versao)||o.versao<1||
       o.pinVersion!==2||typeof o.pinHash!=='string'||!o.pinSalt))
   throw new Error('Registros de acesso privados divergentes. Redefinição bloqueada.');
+ for(let i=0;i<IDS.length;i++){
+  const o=operacao.vendedores.find(v=>v.id===IDS[i]);
+  if(!o||o.pinHash!==acessos[i].pinHash||o.pinSalt!==acessos[i].pinSalt||
+     o.pinVersion!==acessos[i].pinVersion)
+   throw new Error('Credenciais de operador fora de sincronia. Redefinição bloqueada.');
+ }
  const cred=[hashCredencialHml(pinAdmin),hashCredencialHml(pinSegundo)];
  const vendedores=operacao.vendedores.map(op=>{
   const idx=IDS.indexOf(op.id);
