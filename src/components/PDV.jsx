@@ -845,7 +845,18 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
           operationKey: `pdv:${vendaId}`,
         });
         if (!confirmado?.cloudOk) {
-          let detalheFalha = confirmado?.error?.message || 'Verifique conexão/quota e tente novamente sem fechar esta tela.';
+          const codigoFalha = String(confirmado?.error?.code || '').toLowerCase();
+          const mensagemFalha = String(confirmado?.error?.message || '');
+          const confirmacaoIncerta = ['unavailable', 'deadline-exceeded', 'aborted', 'unknown', 'internal']
+            .some(code => codigoFalha === code || codigoFalha === 'firestore/' + code)
+            || /failed to get documents? from server|could not reach cloud firestore backend|network (request|error|connection) failed/i.test(mensagemFalha);
+          let detalheFalha = confirmacaoIncerta
+            ? tx('Falha temporária ao consultar a nuvem. O resultado da operação ainda é desconhecido.',
+                'Falla temporal al consultar la nube. El resultado de la operación aún se desconoce.',
+                'Temporary cloud connection failure. The operation outcome is not yet known.')
+            : (mensagemFalha || tx('Verifique a conexão e procure suporte antes de repetir esta operação.',
+                'Revise la conexión y contacte soporte antes de repetir esta operación.',
+                'Check your connection and contact support before retrying this operation.'));
           if (['V2_REUSE_ID','ZENOS_ENTITY_DELETED_REMOTE'].includes(confirmado?.error?.code) && typeof recarregarDadosPDV === 'function') {
             try {
               await recarregarDadosPDV();
@@ -861,8 +872,16 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
           }
           setModalZen({
             variante:'danger',
-            titulo: tipoFinalizacao === 'venda' ? tx('Venda não concluída','Venta no concluida','Sale not completed') : tx('Documento não salvo','Documento no guardado','Document not saved'),
-            mensagem:tx('A nuvem não confirmou esta operação. Nada foi finalizado no PDV.','La nube no confirmó esta operación. Nada fue finalizado en el TPV.','The cloud did not confirm this operation. Nothing was finalized in the POS.'),
+            titulo: confirmacaoIncerta
+              ? tx('Confirmação pendente','Confirmación pendiente','Confirmation pending')
+              : (tipoFinalizacao === 'venda' ? tx('Venda não confirmada','Venta no confirmada','Sale not confirmed') : tx('Documento não confirmado','Documento no confirmado','Document not confirmed')),
+            mensagem: confirmacaoIncerta
+              ? tx('Não foi possível verificar se a nuvem registrou esta operação. Mantenha o carrinho aberto e confira o histórico/caixa com a conexão restabelecida. NÃO registre ou cobre novamente antes de confirmar, para evitar duplicidade.',
+                   'No fue posible verificar si la nube registró esta operación. Mantenga el carrito abierto y consulte el historial/caja al recuperar la conexión. NO vuelva a registrar ni cobrar antes de verificar.',
+                   'Could not verify whether the cloud recorded this operation. Keep the cart open and check the sales history/register after reconnecting. DO NOT charge or submit again before checking.')
+              : tx('A operação não recebeu confirmação da nuvem. Seu carrinho foi preservado. Verifique o motivo antes de realizar uma nova tentativa.',
+                   'La operación no recibió confirmación de la nube. Su carrito se conservó. Revise el motivo antes de reintentar.',
+                   'The operation was not confirmed by the cloud. Your cart was preserved. Check the cause before retrying.'),
             detalhes: detalheFalha,
             apenasConfirmar:true,
           });
