@@ -67,3 +67,24 @@
 @media(max-width:950px){.zen-pdv-online{grid-template-columns:1fr!important}.zen-online-order-card-head{flex-wrap:wrap}.zen-online-order-totals{justify-items:start;text-align:left;display:flex;align-items:center;flex-wrap:wrap}}
 @media(max-width:600px){.zen-online-panel{padding:14px!important}.zen-online-order-card-head{padding:15px}.zen-online-order-items{padding:12px 15px}.zen-online-order-actions{padding:12px 15px;display:grid;grid-template-columns:1fr 1fr}.zen-online-btn--primary{grid-column:1/-1}.zen-online-notice{padding:12px}.zen-online-notice-actions{width:100%}.zen-online-notice-actions button{flex:1}.zen-pdv-online-head{padding:15px}}
 @media(prefers-reduced-motion:reduce){.zen-online-btn,.zen-online-notice-actions button{transition:none}}
+
+
+/* Notificações como acesso rápido, sem mural e sem interromper o PDV. */
+.zen-online-notice{position:relative;padding:9px 13px;margin-bottom:11px;border-radius:12px;box-shadow:none;gap:9px}
+.zen-online-notice-symbol{width:32px;height:32px;border-radius:9px;font-size:17px}
+.zen-online-notice-content strong{font-size:12px}
+.zen-online-notice-content small{font-size:10px;margin-top:2px}
+.zen-online-notice-actions button{min-height:35px;padding:7px 11px;font-size:11px;border-radius:8px}
+.zen-online-notice-popover{position:absolute;top:calc(100% + 7px);right:0;z-index:100;width:min(390px,calc(100vw - 40px));max-height:min(70vh,490px);overflow:auto;background:#0d2332;border:1px solid #457174;border-radius:15px;padding:13px;box-shadow:0 23px 55px #0008;color:#eaf8fc}
+.zen-online-notice-popover-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 3px 12px;border-bottom:1px solid #274758}
+.zen-online-notice-popover-head strong{font-size:13px}
+.zen-online-notice-popover-head button{background:#234253;color:#e7fafa;border:1px solid #466474;width:30px;height:30px;border-radius:50%;font-size:20px}
+.zen-online-notice-popover p{font-size:12px;color:#b6d0d8;line-height:1.55;margin:13px 3px}
+.zen-online-notice-mini-list{display:grid}
+.zen-online-notice-mini{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 5px;border-bottom:1px solid #234357}
+.zen-online-notice-mini span:first-child{display:grid;gap:5px;min-width:0}
+.zen-online-notice-mini strong{font-size:12px;color:#e5fafa}
+.zen-online-notice-mini small{font-size:11px;color:#a1bac6;overflow-wrap:anywhere}
+.zen-online-notice-mini span:last-child{font-size:10px;color:#bdf0d6;background:#214335;border-radius:50px;padding:5px 8px;white-space:nowrap}
+.zen-online-notice-all{width:100%;text-align:center;background:#145d63;color:#e7fffa;min-height:40px;margin-top:12px;border:1px solid #388b82;border-radius:10px;font-size:12px;font-weight:820}
+@media(max-width:600px){.zen-online-notice-popover{left:0;right:0;width:100%}.zen-online-notice-content small{display:none}.zen-online-notice-actions{width:auto;gap:5px}.zen-online-notice-actions button{padding:7px 9px}}
