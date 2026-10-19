@@ -8,7 +8,9 @@ test('busca usa documentos do servidor e nunca cria produtos ou manipula índice
  assert.match(lookup,/getOperationalSnapshot/);
  assert.doesNotMatch(lookup,/getDocFromCache|setDoc|deleteDoc|updateDoc|runTransaction/);
  assert.match(lookup,/status:'orphan_index'/);
- assert.match(lookup,/matches\.length===1/);
+ assert.match(lookup,/indexed\.length===1/);
+ assert.match(lookup,/nameMatches\.length===1/);
+ assert.match(lookup,/ambiguous_name/);
 });
 test('busca do produto existente revela inativos e restaura filtro',()=>{
  assert.match(products,/localizarProdutoExistenteServidor/);
