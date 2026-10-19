@@ -4,6 +4,7 @@
  * --check            Sem rede, sem credenciais, sem gravação.
  * --build            Compila apenas com SDK do Firebase HML.
  * --publish-preview  Publica SOMENTE um canal temporário no Hosting HML.
+ * --publish-short-preview Atualiza SOMENTE o canal HML curto já testado (op-hml-19).
  *
  * NÃO publica firestore:rules, Storage, Functions, Auth ou Hosting live.
  */
@@ -22,8 +23,8 @@ const publicDir='dist-commerce-operational-hml';
 const channel='operacional-interno-20261019';
 const args=process.argv.slice(2);
 const action=args[0];
-if(args.length!==1||!['--check','--build','--publish-preview'].includes(action))
- throw Error('Ação inválida. Opções: --check, --build e --publish-preview.');
+if(args.length!==1||!['--check','--build','--publish-preview','--publish-short-preview'].includes(action))
+ throw Error('Ação inválida. Opções: --check, --build, --publish-preview e --publish-short-preview.');
 for(const name of ['GCLOUD_PROJECT','GCP_PROJECT','GOOGLE_CLOUD_PROJECT','FIREBASE_PROJECT_ID']){
  const v=process.env[name];
  if(v&&v!==project)throw Error('Projeto inseguro identificado em '+name+'. Operação bloqueada.');
@@ -89,6 +90,7 @@ if(!existsSync(resolve(root,publicDir,'index.html'))||
 console.log('PASSOU: build operacional com SDK do projeto isolado. Artefato: '+publicDir);
 if(action==='--build')process.exit(0);
 console.log('Iniciando canal de prévia por 7 dias. O canal live NÃO será atualizado.');
-cli('hosting:channel:deploy',channel,'--project',project,'--account',account,
+const previewChannel=action==='--publish-short-preview'?'op-hml-19':channel;
+cli('hosting:channel:deploy',previewChannel,'--project',project,'--account',account,
     '--config',configName,'--expires','7d','--non-interactive');
 console.log('Prévia HML criada. URL exata está na saída do Firebase CLI; verifique domínio e acesso Google.');

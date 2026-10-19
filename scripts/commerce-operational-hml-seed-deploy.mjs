@@ -25,8 +25,12 @@ if(config.functions?.codebase!=='fiscal'||config.functions?.source!=='functions'
  throw Error('Configuração cloud HML inesperada.');
 if(!file('functions/src/index.js').includes("export {commerceHmlOperationalSeed} from './commerceHmlOperationalSeed.js';")||
    !file('functions/src/commerceHmlOperationalSeed.js').includes('authorizedOperationalHml(process.env,request.auth)')||
+   !file('functions/src/commerceHmlOperationalSeed.js').includes("request.data.action==='redefinirPins'")||
+   !file('functions/src/commerceHmlOperationalSeed.js').includes('autenticacaoRecenteHml(request.auth)')||
+   !file('functions/src/commerceHmlOperationalSeed.js').includes('tx.update(op,{vendedores:dados.vendedores})')||
+   !file('functions/src/commerceHmlPinRecoveryCore.js').includes("loja.tipo!=='homologacao_operacional'")||
    !file('functions/src/commerceHmlOperationalCore.js').includes("env.GCLOUD_PROJECT==='zenos-commerce-homologacao'"))
- throw Error('Function seed não contém as verificações obrigatórias. Bloqueado.');
+ throw Error('Function seed ou recuperação de PIN não contém as verificações obrigatórias. Bloqueado.');
 // Sem estas três flags, a callable compilada ficaria indisponível mesmo após
 // um deploy bem-sucedido. Jamais substituir um arquivo de ambiente preexistente.
 const envFile=resolve(root,'functions/.env.'+project);
