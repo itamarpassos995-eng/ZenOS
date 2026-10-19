@@ -16,6 +16,12 @@ import { calcularCmvVenda } from '../core/salesFinancials';
 import { validarComposicaoPagamento } from '../core/paymentValidation';
 import { interpretarValorMonetario } from '../core/cashMoneyInput';
 import { lerRascunhoPDV, salvarRascunhoPDV, apagarRascunhoPDV } from '../core/pdvDraft';
+const resultadoCadastroIndeterminado = erro => {
+  const code = String(erro?.code || '').toLowerCase().replace(/^firestore\\//,'');
+  const message = String(erro?.message || '').toLowerCase();
+  return ['unavailable','deadline-exceeded','aborted','unknown','internal'].includes(code)
+    || /failed to get documents? from server|could not reach cloud firestore backend|network (request|error|connection) failed/.test(message);
+};
 
 export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro, commitOperacaoCritica, commitVendaCritica, recarregarDadosPDV, vouchers = [], setVouchers, userId, produtos, setProdutos, clientes, setClientes, moeda, fmt, t, tx, converterDeBRL, converterParaBRL, historicoVendas, setHistoricoVendas, patenteUsuario, idioma, regrasDesconto, vendedores = [], operadorAtivo, sessaoAtiva }) {
   const [rascunhoInicial] = useState(() => lerRascunhoPDV(userId, operadorAtivo?.id));
@@ -284,10 +290,14 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
       setModalProdutoPDVAberto(false);
     } catch (erro) {
       console.error('[ZenOS][ATT10.2] Cadastro rápido de produto não confirmado:', erro);
-      try {
-        if (produtoEmEdicaoPDV) await reservarIdentidadeProduto({ db, userId, produto:produtoEmEdicaoPDV, produtoAnterior:dadosFinais });
-        else await liberarIdentidadeProduto({ db, userId, produto:dadosFinais });
-      } catch (rollbackErro) { console.error('[ZenOS][ATT10.2] Falha ao restaurar índice do produto rápido:', rollbackErro); }
+      if (!resultadoCadastroIndeterminado(erro)) {
+        try {
+          if (produtoEmEdicaoPDV) await reservarIdentidadeProduto({ db, userId, produto:produtoEmEdicaoPDV, produtoAnterior:dadosFinais });
+          else await liberarIdentidadeProduto({ db, userId, produto:dadosFinais });
+        } catch (rollbackErro) { console.error('[ZenOS][ATT10.2] Falha ao restaurar índice do produto rápido:', rollbackErro); }
+      } else {
+        console.warn('[ZenOS] Cadastro com confirmação desconhecida: índice preservado para reconciliação pelo servidor.');
+      }
       mostrarZen('danger',tx('Produto não salvo','Producto no guardado','Product not saved'),tx('A nuvem não confirmou o cadastro rápido. Nenhuma alteração foi considerada concluída.','La nube no confirmó el registro rápido. Ningún cambio fue considerado concluido.','The cloud did not confirm quick registration. No change was considered complete.'),[erro?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
     }
   };
