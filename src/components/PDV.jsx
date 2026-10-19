@@ -16,6 +16,7 @@ import { calcularCmvVenda } from '../core/salesFinancials';
 import { validarComposicaoPagamento } from '../core/paymentValidation';
 import { interpretarValorMonetario } from '../core/cashMoneyInput';
 import { lerRascunhoPDV, salvarRascunhoPDV, apagarRascunhoPDV } from '../core/pdvDraft';
+import { getOperationalSnapshot } from '../core/operationalRepository';
 
 export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro, commitOperacaoCritica, commitVendaCritica, recarregarDadosPDV, vouchers = [], setVouchers, userId, produtos, setProdutos, clientes, setClientes, moeda, fmt, t, tx, converterDeBRL, converterParaBRL, historicoVendas, setHistoricoVendas, patenteUsuario, idioma, regrasDesconto, vendedores = [], operadorAtivo, sessaoAtiva }) {
   const [rascunhoInicial] = useState(() => lerRascunhoPDV(userId, operadorAtivo?.id));
@@ -845,6 +846,27 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
           operationKey: `pdv:${vendaId}`,
         });
         if (!confirmado?.cloudOk) {
+          // Um ACK perdido não equivale a pré-pedido rejeitado: consultar
+          // o histórico autoritativo por ID sem reenviar transações.
+          if (tipoFinalizacao === 'pre_pedido') {
+            try {
+              const snap = await getOperationalSnapshot(db, userId);
+              const remoto = snap.exists() ? snap.data() : null;
+              const pedidos = Array.isArray(remoto?.historicoVendas) ? remoto.historicoVendas : [];
+              const confirmadoNoServidor = pedidos.find(v =>
+                String(v?.id ?? '') === String(vendaId) && v?.estado === 'pendente');
+              if (confirmadoNoServidor) {
+                setHistoricoVendas(pedidos);
+                apagarRascunhoPDV(userId, operadorAtivo?.id);
+                setVendaConcluidaObj(confirmadoNoServidor);
+                setVendaSucesso(true);
+                setModalFechamentoAberto(true);
+                return;
+              }
+            } catch (reconcileError) {
+              console.warn('[ZenOS] Pré-pedido sem confirmação autoritativa:', reconcileError?.code || 'unavailable');
+            }
+          }
           let detalheFalha = confirmado?.error?.message || 'Verifique conexão/quota e tente novamente sem fechar esta tela.';
           if (['V2_REUSE_ID','ZENOS_ENTITY_DELETED_REMOTE'].includes(confirmado?.error?.code) && typeof recarregarDadosPDV === 'function') {
             try {
