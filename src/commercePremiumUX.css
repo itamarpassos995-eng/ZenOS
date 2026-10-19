@@ -1,0 +1,69 @@
+/* ZenOS Commerce Premium — somente apresentação; transações permanecem no PDV. */
+.zen-online-notice{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;padding:15px 19px;margin:0 0 17px;border:1px solid rgba(38,189,147,.33);border-radius:16px;background:linear-gradient(110deg,#0f2b29,#102335);color:#e7f8f3;box-shadow:0 8px 22px rgba(0,0,0,.12)}
+.zen-online-notice-content{display:flex;align-items:center;gap:13px;min-width:0}
+.zen-online-notice-symbol{width:42px;height:42px;flex:none;border-radius:12px;display:grid;place-items:center;background:#155a51;color:#baf7de;font-size:21px}
+.zen-online-notice-content strong{font-size:15px;letter-spacing:-.2px;display:block}
+.zen-online-notice-content small{display:block;color:#91b7b5;font-size:11px;margin-top:3px}
+.zen-online-notice-actions{display:flex;align-items:center;flex-wrap:wrap;gap:9px}
+.zen-online-notice-actions button{border-radius:10px;border:1px solid #3f786f;color:#d9fff0;background:#183e3d;min-height:40px;padding:9px 16px;font-weight:800;font-size:12px;cursor:pointer;transition:background .15s,transform .15s}
+.zen-online-notice-actions button:hover:not(:disabled){background:#286358;transform:translateY(-1px)}
+.zen-online-notice-actions button:focus-visible,.zen-online-btn:focus-visible,.zen-online-admin-actions button:focus-visible{outline:3px solid #d6ad61;outline-offset:2px}
+.zen-online-notice .zen-online-count{border-radius:30px;padding:4px 10px;background:#12af7b;color:#082f24;font-weight:900}
+.zen-online-panel{border:1px solid #304a5a!important;border-radius:20px!important;padding:clamp(16px,2vw,24px)!important;background:linear-gradient(145deg,#0c2130,#0a1727)!important;color:#e9f4fc;scroll-margin-top:18px}
+.zen-online-panel-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.zen-online-panel-head h3{font-size:19px;letter-spacing:-.45px;margin:3px 0 0}
+.zen-online-overline{font-size:10px;color:#91c6b7;letter-spacing:.13em;font-weight:900}
+.zen-online-panel-head .zen-online-total{border:1px solid #32635b;border-radius:22px;padding:7px 12px;color:#b5f2d6;background:#14362f;font-size:11px;font-weight:800}
+.zen-online-panel-help{color:#a6bbcb;font-size:12px;line-height:1.55}
+.zen-online-panel-contact{display:flex;align-items:center;flex-wrap:wrap;gap:10px;font-size:12px;color:#bed1db}
+.zen-online-panel-contact input{border-radius:9px;border:1px solid #375367;background:#eef3f3;color:#183446;padding:10px;max-width:235px;min-height:41px;font-weight:700}
+.zen-online-admin-actions{display:flex;flex-wrap:wrap;gap:9px}
+.zen-online-admin-actions button,.zen-online-admin-actions a{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:9px 14px;text-decoration:none;border-radius:10px;border:1px solid #3a596b;color:#dbeefa;background:#102e40;font-weight:800;font-size:12px;cursor:pointer}
+.zen-online-admin-actions button:hover:not(:disabled),.zen-online-admin-actions a:hover{background:#1c455a}
+.zen-online-admin-actions .zen-online-unpublish{border-color:#66564d;color:#e8d0be;background:#30261f}
+.zen-online-order-list{display:grid;gap:14px}
+.zen-online-order-card{border:1px solid #284459;border-radius:16px;overflow:hidden;background:#0a1a2b;box-shadow:0 4px 18px #0002}
+.zen-online-order-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:18px 20px 13px}
+.zen-online-order-identity{min-width:0;flex:1}
+.zen-online-order-identity h4{margin:6px 0;font-size:15px;color:#f4f9fc;line-height:1.35;overflow-wrap:anywhere;font-weight:850}
+.zen-online-order-date{font-size:11px;color:#9bb6c5}
+.zen-online-order-totals{display:grid;justify-items:end;gap:7px;text-align:right;flex:none}
+.zen-online-order-totals strong{color:#7deac4;font-size:20px;letter-spacing:-.5px}
+.zen-online-order-totals small{font-size:11px;color:#9cb6c4}
+.zen-online-status{font-size:10px;font-weight:900;letter-spacing:.03em;padding:5px 10px;border:1px solid #3a6280;border-radius:30px;color:#afddff;background:#133149;white-space:nowrap}
+.zen-online-status--recebido{background:#234335;border-color:#357f5d;color:#a8f1c9}
+.zen-online-status--em_atendimento{background:#3d301d;border-color:#9d7834;color:#ffe09a}
+.zen-online-status--encerrado{background:#173c4c;border-color:#3f92a5;color:#9ce5f5}
+.zen-online-status--cancelado{background:#412733;border-color:#97546b;color:#ffc5d0}
+.zen-online-order-items{display:grid;gap:7px;padding:13px 20px;background:#102639;border-top:1px solid #233e53;border-bottom:1px solid #233e53}
+.zen-online-order-line{display:flex;gap:11px;align-items:baseline;font-size:13px;color:#d7e7ef;overflow-wrap:anywhere}
+.zen-online-order-qty{flex:none;font-variant-numeric:tabular-nums;font-weight:900;color:#8bd9bd}
+.zen-online-order-remarks{padding:11px 20px;color:#b6cbd6;font-size:12px}
+.zen-online-order-remarks b{color:#e5f2fa;font-size:11px}
+.zen-online-order-remarks p{margin:5px 0;overflow-wrap:anywhere;white-space:pre-wrap}
+.zen-online-order-actions{padding:14px 20px 18px;display:flex;gap:9px;flex-wrap:wrap}
+.zen-online-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:43px;border-radius:10px;border:1px solid transparent;padding:11px 15px;text-decoration:none;font:800 12px/1.2 inherit;cursor:pointer;transition:transform .15s,filter .15s;white-space:normal}
+.zen-online-btn:hover:not(:disabled){transform:translateY(-1px);filter:brightness(1.1)}
+.zen-online-btn:disabled{opacity:.48;cursor:not-allowed}
+.zen-online-btn--primary{background:linear-gradient(125deg,#0dad97,#087fa4);color:#fff;border-color:#28baad;box-shadow:0 5px 18px #07877b33}
+.zen-online-btn--secondary{background:#182f3d;color:#d4f6e9;border-color:#315f5c}
+.zen-online-btn--danger{background:#321e28;color:#ffc2ca;border-color:#844254}
+.zen-online-empty{padding:22px;border-radius:12px;border:1px dashed #39566b;color:#9eb8c7;text-align:center;font-size:13px}
+/* Atendimentos originados no Commerce: hierarquia premium sem interferir nos outros PDVs. */
+.zen-pdv-online{align-items:start;gap:18px!important;max-width:1450px;margin-inline:auto}
+.zen-pdv-online-head{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;padding:20px 23px;border-radius:17px;border:1px solid #236a72;background:linear-gradient(125deg,#0e323c,#111c34);color:#e9f8ff;box-shadow:0 14px 34px #01091625}
+.zen-pdv-online-head h2{font-size:clamp(18px,2vw,24px);font-weight:850;margin:5px 0}
+.zen-pdv-online-head p{font-size:12px;color:#bdd2df;max-width:740px;line-height:1.6;margin:0}
+.zen-pdv-online-head strong{background:#195c4a;color:#baffdb;border:1px solid #298a6d;border-radius:30px;padding:8px 13px;font-size:11px;white-space:nowrap}
+.zen-pdv-online .zen-pdv-items,.zen-pdv-online .zen-pdv-summary{border:1px solid #304761!important;border-radius:17px!important;box-shadow:0 9px 25px #0002}
+.zen-pdv-online .zen-pdv-items{min-height:260px!important}
+.zen-pdv-online .zen-pdv-section-title{color:#d9ecf4!important;letter-spacing:.035em!important;font-size:12px!important}
+.zen-pdv-online .zen-pdv-line{border-bottom:1px solid #213750!important;padding:16px!important}
+.zen-pdv-online .zen-pdv-line strong{font-size:14px}
+.zen-pdv-online .zen-pdv-mini-action{display:inline-flex;align-items:center;border:1px solid #2b5668;border-radius:7px;background:#092736;color:#8ad7f1;min-height:26px;padding:3px 8px;font-size:11px;font-weight:800;cursor:pointer}
+.zen-pdv-online .zen-pdv-mini-action--delete{color:#f9a1b2;border-color:#6c364e;background:#2c1826}
+.zen-pdv-online .zen-pdv-summary-value{font-size:clamp(25px,3vw,34px)!important}
+.zen-pdv-online .zen-pdv-customer-row{border-radius:14px;padding:14px;border:1px solid #2c4055;background:#0a1c2d}
+@media(max-width:950px){.zen-pdv-online{grid-template-columns:1fr!important}.zen-online-order-card-head{flex-wrap:wrap}.zen-online-order-totals{justify-items:start;text-align:left;display:flex;align-items:center;flex-wrap:wrap}}
+@media(max-width:600px){.zen-online-panel{padding:14px!important}.zen-online-order-card-head{padding:15px}.zen-online-order-items{padding:12px 15px}.zen-online-order-actions{padding:12px 15px;display:grid;grid-template-columns:1fr 1fr}.zen-online-btn--primary{grid-column:1/-1}.zen-online-notice{padding:12px}.zen-online-notice-actions{width:100%}.zen-online-notice-actions button{flex:1}.zen-pdv-online-head{padding:15px}}
+@media(prefers-reduced-motion:reduce){.zen-online-btn,.zen-online-notice-actions button{transition:none}}
