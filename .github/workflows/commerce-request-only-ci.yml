@@ -1,0 +1,45 @@
+name: Commerce Request-Only Safety
+on:
+  pull_request:
+    paths:
+      - 'src/App.jsx'
+      - 'src/components/CommerceSolicitacao.jsx'
+      - 'src/components/CommerceSolicitacao.css'
+      - 'functions/src/index.js'
+      - 'functions/src/commerceSolicitacaoCliente.js'
+      - 'functions/src/commerceInteresseCore.js'
+      - 'functions/test/commerceInteresseCore.test.mjs'
+      - 'scripts/recovery/commerce-request.ui.test.jsx'
+      - 'scripts/commerce-request-release-audit.mjs'
+      - '.github/workflows/commerce-request-only-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Packages for callable syntax
+        run: npm install --prefix functions --package-lock=false --ignore-scripts --no-audit --no-fund
+      - name: Package isolation and V1 V2 regression guards
+        run: |
+          git fetch --no-tags origin main
+          node scripts/commerce-request-release-audit.mjs
+      - name: Pure request and auth tests
+        run: node --test functions/test/commerceInteresseCore.test.mjs
+      - name: Frontend request tests
+        run: npx vitest run --config vitest.recovery.config.js scripts/recovery/commerce-request.ui.test.jsx
+      - name: Static syntax and production build
+        run: |
+          node --check functions/src/commerceInteresseCore.js
+          node --check functions/src/commerceSolicitacaoCliente.js
+          npm run build

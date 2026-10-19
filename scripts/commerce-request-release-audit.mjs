@@ -1,0 +1,44 @@
+#!/usr/bin/env node
+import {execFileSync} from 'node:child_process';
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const run=(args)=>execFileSync('git',args,{encoding:'utf8'}).trim();
+let changed;
+try{changed=run(['diff','--name-only','origin/main...HEAD']).split('\n').filter(Boolean);}catch(e){console.error('GATE_FAIL: não foi possível comparar com origin/main.');process.exit(2);}
+const allowed=new Set([
+  'src/App.jsx','src/components/CommerceSolicitacao.jsx','src/components/CommerceSolicitacao.css',
+  'functions/src/index.js','functions/src/commerceInteresseCore.js',
+  'functions/src/commerceSolicitacaoCliente.js','functions/test/commerceInteresseCore.test.mjs',
+  'scripts/recovery/commerce-request.ui.test.jsx',
+  'scripts/commerce-request-release-audit.mjs',
+  '.github/workflows/commerce-request-only-ci.yml',
+  'docs/commerce-request-only-release-20261019.md',
+  '.github/workflows/deploy-fiscal-functions.yml',
+]);
+assert.ok(changed.every(p=>allowed.has(p)),'GATE_FAIL: alteração fora do pacote de solicitação: '+changed.filter(x=>!allowed.has(x)).join(', '));
+const read=path=>fs.readFileSync(path,'utf8');
+const mainIdx=run(['show','origin/main:functions/src/index.js']).trim();
+const current=read('functions/src/index.js').trim();
+assert.equal(current,mainIdx+"\nexport { commerceSolicitacaoCliente } from './commerceSolicitacaoCliente.js';",
+ 'GATE_FAIL: alterações inesperadas na entrada das funções fiscais');
+const appBefore=run(['show','origin/main:src/App.jsx']);
+const appAfter=read('src/App.jsx');
+for(const marker of [
+ "persistV1OperationFieldSafe","persistV1BusinessOperationSafe","onSnapshot","commitVendaCritica",
+ "commitOperacaoCritica","ecraAtual === 'pdv'","ecraAtual === 'fiscal'",
+]){
+ assert.ok(appBefore.includes(marker)&&appAfter.includes(marker),'GATE_FAIL: operação protegida ausente: '+marker);
+}
+const forbiddenFiles=['src/firebase.js','src/core/productionSync.js','src/core/operationalRepository.js',
+ 'src/components/PDV.jsx','src/components/Clientes.jsx','src/components/Fiscal.jsx',
+ 'functions/src/fiscalSolicitacaoCliente.js','functions/src/fiscalAdministracao.js','functions/src/firebaseAdmin.js',
+ 'firestore.emulator.rules','firebase.json'];
+assert.ok(forbiddenFiles.every(p=>!changed.includes(p)),'GATE_FAIL: arquivo operacional ou Firebase alterado.');
+const svc=read('functions/src/commerceSolicitacaoCliente.js');
+assert.ok(svc.includes("if(criar)tx.create(ref,doc)")&&svc.includes("action==='consultar'")&&svc.includes("resolverLoja")===false);
+const request=read('functions/src/commerceInteresseCore.js');
+assert.ok(request.includes("habilitado:false")&&request.includes("WRONG_TENANT")&&!request.includes("tx.update"));
+const portal=read('src/components/CommerceSolicitacao.jsx');
+assert.ok(portal.includes("Solicitar ativação")&&portal.includes("commerceSolicitacaoCliente"));
+console.log('COMMERCE_REQUEST_ONLY_GATE_OK: módulos V1/V2, PDV, fiscal, regras, Auth e caixas intactos.');
+console.log('NOT_DEPLOYED: função e interface exigem deploy controlado em duas etapas.');
