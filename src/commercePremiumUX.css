@@ -42,7 +42,7 @@
 .zen-online-order-remarks b{color:#e5f2fa;font-size:11px}
 .zen-online-order-remarks p{margin:5px 0;overflow-wrap:anywhere;white-space:pre-wrap}
 .zen-online-order-actions{padding:14px 20px 18px;display:flex;gap:9px;flex-wrap:wrap}
-.zen-online-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:43px;border-radius:10px;border:1px solid transparent;padding:11px 15px;text-decoration:none;font:800 12px/1.2 inherit;cursor:pointer;transition:transform .15s,filter .15s;white-space:normal}
+.zen-online-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:43px;border-radius:10px;border:1px solid transparent;padding:11px 15px;text-decoration:none;font-family:inherit;font-size:12px;line-height:1.2;font-weight:800;cursor:pointer;transition:transform .15s,filter .15s;white-space:normal}
 .zen-online-btn:hover:not(:disabled){transform:translateY(-1px);filter:brightness(1.1)}
 .zen-online-btn:disabled{opacity:.48;cursor:not-allowed}
 .zen-online-btn--primary{background:linear-gradient(125deg,#0dad97,#087fa4);color:#fff;border-color:#28baad;box-shadow:0 5px 18px #07877b33}
