@@ -40,10 +40,7 @@ test('checkout anônimo não substitui nome, consentimento nem número verificad
   marketingStatus:'ativo',consentimentoEm:'2026-01-01T00:00:00.000Z',primeiroPedido:p1};
  const alteracao=prepararCadastroOnline({pedido:{...pedido,cliente:{nome:'Invasor',telefone:pedido.cliente.telefone}},
   pedidoId:p2,anterior,agora});
- assert.deepEqual(alteracao,{primeiroPedido:p1,ultimoPedido:p2,
-  atualizadoEm:agora,ultimoCadastroSolicitadoEm:agora});
- assert.ok(!Object.hasOwn(alteracao,'marketingAutorizado'));
- assert.ok(!Object.hasOwn(alteracao,'nome'));
+ assert.equal(alteracao,null,'pedido anônimo não pode alterar nem relacionar pedidos ao cadastro verificado');
 });
 test('sem opt-in de cadastro não pode gerar ficha',()=>{
  assert.throws(()=>prepararCadastroOnline({pedido:{...pedido,cadastroSolicitado:false},
@@ -55,7 +52,7 @@ test('navegador não persiste carrinho nem recibo; o servidor mantém idempotên
  const api=readFileSync(new URL('../../src/core/commercePublicApi.js',import.meta.url),'utf8');
  assert.match(pub,/idClienteOnline\(lojaId,pedido\.cliente\.telefone\)/);
  assert.match(pub,/prepararCadastroOnline\(\{/);
- assert.match(pub,/tx\.set\(clienteRef,dados,\{merge:true\}\)/);
+ assert.match(pub,/if\(dados\)tx\.set\(clienteRef,dados,\{merge:true\}\)/);
  assert.match(pub,/tx\.create\(ref,data\)/);
  assert.match(pub,/if\(action==='listarClientesOnline'\)/);
  assert.match(pub,/autorizarOperadorCommerce\(request\.auth,db,request\.data\?\.sessaoZenOS\)/);
