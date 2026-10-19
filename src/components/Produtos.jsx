@@ -5,6 +5,7 @@ import { db } from '../firebase';
 import { transferirEstoqueEntreLocais } from '../core/inventory';
 import { atualizarProdutoUnico, detectarConflitosIdentidadeProdutos, skuJaExiste } from '../core/productIdentity';
 import { reservarIdentidadeProduto, liberarIdentidadeProduto } from '../core/productRegistry';
+import { localizarProdutoExistenteServidor } from '../core/productServerLookup';
 import { carregarHistoricoEstoqueProduto, criarEventoEstoque, obterPoliticaHistoricoEstoque, registrarEventosEstoque } from '../core/stockAudit';
 import ZenModal from './ZenModal';
 import { calcularPrecoPorCustoEMargem, calcularMargemPorCustoEPreco, validarMargemPrecoVenda, MAX_MARGEM_PRECO_PCT } from '../core/pricing';
@@ -185,6 +186,26 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
     try {
       await reservarIdentidadeProduto({ db, userId, produto: dadosFinais, produtoAnterior: produtoEmEdicao });
     } catch (erro) {
+      if(erro?.code === 'ZENOS_PRODUTO_DUPLICADO'){
+        const localizado=await localizarProdutoExistenteServidor({db,userId,produto:dadosFinais});
+        if(localizado.status==='found'){
+          setProdutos(localizado.catalog);
+          setFiltroGrupo('todos');
+          setMostrarInativos(true);
+          setBuscaProdutoTexto(String(localizado.produto.sku||localizado.produto.nome||''));
+          setModalProdutoAberto(false);
+          return mostrarZen('info',tx('Produto localizado no servidor','Producto localizado en servidor','Product found on server'),
+            tx('O cadastro existente foi recuperado da nuvem e a busca foi atualizada. Confira estoque, situação e preços; não crie outro produto.',
+               'Se recuperó el registro existente y se actualizó la búsqueda. Revise existencias y precios; no cree otro producto.',
+               'Existing catalog record refreshed from server. Check stock and prices; do not create a duplicate.'));
+        }
+        if(localizado.status==='orphan_index'||localizado.status==='conflict'){
+          return mostrarZen('warning',tx('Cadastro exige reconciliação','Registro requiere conciliación','Catalog requires reconciliation'),
+            tx('Existe uma identidade reservada sem correspondência única no catálogo confirmado. Nenhum dado foi apagado. Acione o suporte para conferir os registros antes de cadastrar novamente.',
+               'Hay una identidad reservada sin coincidencia única. Ningún dato fue borrado. Contacte soporte antes de registrar de nuevo.',
+               'Reserved identity without a unique catalog match. No data was removed. Contact support before retrying.'));
+        }
+      }
       return mostrarZen('danger', erro?.code === 'ZENOS_PRODUTO_DUPLICADO' ? tx('Produto duplicado','Producto duplicado','Duplicate product') : tx('Cadastro não concluído','Registro no concluido','Registration not completed'), erro.message || 'Não foi possível reservar a identidade do produto.');
     }
 

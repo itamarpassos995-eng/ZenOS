@@ -1,0 +1,23 @@
+name: P0 Product Server Lookup
+on:
+  pull_request:
+    paths:
+      - 'src/core/productServerLookup.js'
+      - 'src/components/Produtos.jsx'
+      - 'scripts/recovery/product-server-lookup.test.mjs'
+      - '.github/workflows/p0-product-server-lookup.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test scripts/recovery/product-server-lookup.test.mjs
+      - run: npm run build
