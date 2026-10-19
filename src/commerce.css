@@ -144,3 +144,38 @@ html.commerce-document.commerce-dialog-open { overflow-y:hidden; }
 }
 @media(max-width:350px) { .commerce-public-grid { grid-template-columns:1fr; }.commerce-brand small { display:none; } }
 @media(prefers-reduced-motion:reduce) { html.commerce-document { scroll-behavior:auto; }.commerce-product { transition:none; } }
+
+/* Cadastro opcional premium, sem senha, sem persistência e sem opt-in automático. */
+.commerce-customer-register{display:grid;gap:13px;margin:17px 0 16px;padding:17px;border:1px solid #d5e3df;border-radius:16px;background:linear-gradient(145deg,#f6faf7,#edf3f0);box-shadow:0 5px 20px #173d3020;color:#173a43}
+.commerce-customer-register-head{display:flex;align-items:center;gap:12px}
+.commerce-customer-register-icon{display:grid;place-items:center;flex:none;width:43px;height:43px;border-radius:12px;background:#123d45;color:#b8f4da;font-size:22px}
+.commerce-customer-register-head strong{display:block;font-size:14px;color:#102e39;line-height:1.4}
+.commerce-customer-register-head small,.commerce-customer-register-choice small{display:block;font-size:11px;line-height:1.55;font-weight:400;color:#597074;margin-top:3px}
+.commerce-customer-register-choice{display:flex!important;align-items:flex-start!important;gap:12px!important;min-height:56px;padding:13px;border-radius:12px;border:1px solid #d2e2dc;background:#fff;cursor:pointer}
+.commerce-customer-register-choice input[type="checkbox"]{width:20px!important;height:20px!important;min-height:20px!important;flex:none;accent-color:#147e69;cursor:pointer;margin:0!important}
+.commerce-customer-register-choice span{flex:1;min-width:0}
+.commerce-customer-register-choice strong{display:block;font-size:12px;color:#163d40;line-height:1.4}
+.commerce-customer-register-choice:focus-within{outline:2px solid #147e69;outline-offset:2px}
+.commerce-customer-register-extra{display:grid;gap:7px;padding-left:10px;border-left:3px solid #4eaf96}
+.commerce-customer-register-extra p{font-size:11px;line-height:1.55;color:#526a6c;margin:2px 0 0}
+@media(max-width:640px){.commerce-customer-register{padding:12px}.commerce-customer-register-choice{padding:12px}.commerce-customer-register-head strong{font-size:13px}}
+
+.commerce-customer-register-admin{margin-top:22px;border:1px solid #32505e;background:#112b38;border-radius:14px;padding:15px}
+.commerce-customer-register-admin summary{font-weight:850;color:#cde7ea;cursor:pointer;outline-offset:5px}
+.commerce-customer-register-admin-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(225px,1fr));gap:12px;margin-top:12px}
+.commerce-customer-register-admin-item{border:1px solid #315263;background:#0b1e2e;padding:13px;border-radius:10px;display:grid;gap:5px}
+.commerce-customer-register-admin-item strong{font-size:13px;color:#f4fafb}
+.commerce-customer-register-admin-item span{font-size:12px;color:#d0e6e9}
+.commerce-customer-register-admin-item small{font-size:11px;color:#e9ca90}
+
+.commerce-customer-success{border:1px solid #b5dcc9;background:#ebf6ef;color:#235140;padding:12px;border-radius:10px;font-size:12px;line-height:1.5}
+
+/* Uma consulta de checkout rejeitada não pode prender o visitante num formulário desabilitado. */
+.commerce-recovery{display:flex;flex-direction:column;align-items:stretch;gap:13px;padding:20px;border:1px solid #ead5b7;border-radius:14px;background:#fffaf2;color:#193c47}
+.commerce-recovery h3{font-size:18px;line-height:1.25;margin:0}
+.commerce-recovery p{font-size:13px;line-height:1.6;margin:0}
+.commerce-recovery small{font-size:11px;color:#697b81;line-height:1.5}
+.commerce-recovery .commerce-btn{width:100%;min-height:46px;text-align:center}
+.commerce-recovery-discard{appearance:none;align-self:center;border:0;background:transparent;text-decoration:underline;text-underline-offset:3px;color:#79513e;font:inherit;font-size:12px;font-weight:750;cursor:pointer;padding:9px}
+.commerce-recovery-discard:focus-visible{outline:3px solid #346e93;outline-offset:2px;border-radius:6px}
+.commerce-recovery-discard:disabled{opacity:.5;cursor:not-allowed}

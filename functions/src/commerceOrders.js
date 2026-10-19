@@ -2,6 +2,7 @@ import {atenderPedidoPDV} from './commercePDV.js';
 import {lerProdutosCommerce,consultarProdutosCommerce} from './commerceOperationalRead.js';
 import {onCall,HttpsError} from 'firebase-functions/v2/https';
 import {randomBytes} from 'node:crypto';
+import {idClienteOnline,prepararCadastroOnline} from './commerceCustomersCore.js';
 import {obterAdminFirestore} from './firebaseAdmin.js';
 import {autorizarOperadorCommerce,executandoHmlCommerce,CONTRATO_HML_ISOLAMENTO} from './commerceAuthorization.js';
 import {validarRascunhoCommerce,resumoLicencaCommerce} from './commerceStudioCore.js';
@@ -58,6 +59,18 @@ export const commercePedidosAdmin=onCall(opts,async request=>{
  if(action==='resumoPedidos'){
   const total=await db.collection(`lojas/${lojaId}/commerce_pedidos`).where('status','==','recebido').count().get();
   return responder({novos:total.data().count});
+ }
+ if(action==='listarClientesOnline'){
+  // Autorização canônica pela sessão do lojista no começo da callable.
+  // Não faz merge destrutivo com clientes financeiros V1/V2.
+  const snap=await db.collection(`lojas/${lojaId}/commerce_clientes`).orderBy('atualizadoEm','desc').limit(50).get();
+  return responder({clientes:snap.docs.map(doc=>{
+   const r=doc.data();
+   return {id:doc.id,nome:r.nome,telefone:r.telefone,
+    primeiroPedido:r.primeiroPedido,ultimoPedido:r.ultimoPedido,
+    atualizadoEm:r.atualizadoEm,cadastroOrigem:'commerce',
+    marketingStatus:r.marketingStatus};
+  })});
  }
  if(action==='listarPedidos'){
   const snaps=await db.collection(`lojas/${lojaId}/commerce_pedidos`).orderBy('criadoEm','desc').limit(50).get();
@@ -125,6 +138,20 @@ export const commerceLoja=onCall(opts,async request=>{
   // O preço exibido deve coincidir com o canônico atual; alteração exige nova confirmação do cliente.
   if(request.data.totalCentavos!==pedido.totalCentavos)throw new HttpsError('aborted','Preço alterado. Atualize o catálogo e confira o novo total.');
   const data={...pedido,clienteUid:request.auth.uid,assinatura,criadoEm:new Date().toISOString(),idPublico:id};
+  // Cadastro opcional fica na base privada da MESMA loja e não modifica
+  // cadastro financeiro, limites, fiado, caixa ou histórico da operação.
+  if(pedido.cadastroSolicitado){
+   // O mesmo número verificado em visitas distintas compartilha UMA ficha por loja.
+   // Uma compra anônima não pode alterar perfil ou consentimento confirmados.
+   const clienteId=idClienteOnline(lojaId,pedido.cliente.telefone);
+   const clienteRef=db.doc(`lojas/${lojaId}/commerce_clientes/${clienteId}`);
+   const anterior=await tx.get(clienteRef);
+   const dados=prepararCadastroOnline({
+    pedido,pedidoId:key,anterior:anterior.exists?anterior.data():null,
+    agora:new Date().toISOString()
+   });
+   if(dados)tx.set(clienteRef,dados,{merge:true}); // Pedido anônimo nunca modifica ficha confirmada.
+  }
   tx.create(ref,data);tx.set(quota,{total:(q.data()?.total||0)+1});tx.set(userQuota,{total:(u.data()?.total||0)+1});
   return respostaPedidoCommerce(data,key,pub.data().whatsapp);
  });
