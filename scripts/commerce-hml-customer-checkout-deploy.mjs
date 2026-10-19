@@ -1,6 +1,7 @@
 /**
  * Entrega isolada de cadastro opcional/checkout sem estado persistido.
  * --check: somente leitura e validações locais (CI).
+ * --verify-remote: prova a compatibilidade do backend HML com a consulta do pedido (sem autenticação ou escrita).
  * --deploy-commerce: SOMENTE Functions públicas + administrativas no Firebase HML.
  * Não publica main, Hosting live, Firestore, Auth, Storage ou outros serviços.
  */
@@ -11,7 +12,7 @@ import {spawnSync} from 'node:child_process';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const project='zenos-commerce-homologacao',account='itamarbenit@gmail.com';
 const [action,...rest]=process.argv.slice(2);
-if(!['--check','--deploy-commerce'].includes(action)||rest.length)throw Error('Use --check ou --deploy-commerce.');
+if(!['--check','--deploy-commerce','--verify-remote'].includes(action)||rest.length)throw Error('Use --check, --deploy-commerce ou --verify-remote.');
 for(const variable of ['GCLOUD_PROJECT','GCP_PROJECT','GOOGLE_CLOUD_PROJECT','FIREBASE_PROJECT_ID'])
  if(process.env[variable]&&process.env[variable]!==project)
   throw Error('Projeto atual nao e a homologacao. Operacao recusada.');
@@ -36,6 +37,24 @@ for(const [nome,codigo,fragmentos] of [
  ['credencial',auth,['inMemoryPersistence','signOut(auth)']]
 ])for(const fragment of fragmentos)
  if(!codigo.includes(fragment))throw Error('Contrato de '+nome+' incompleto: '+fragment);
+if(action==='--verify-remote'){
+ // O endpoint em HML deve reconhecer consultarPedido ANTES de autenticar.
+ // Sem UID, chave de usuário ou dados reais: a resposta esperada é UNAUTHENTICATED.
+ // Backend antigo retornava INVALID_ARGUMENT (Ação inválida) e prendia a interface.
+ const endpoint='https://southamerica-east1-'+project+'.cloudfunctions.net/commerceLoja';
+ let response;
+ try{response=await fetch(endpoint,{
+  method:'POST',headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({data:{action:'consultarPedido',idPublico:'zc-abcdefghjkmnpq',chaveEnvio:'probe-exclusiva-sem-auth'}}),
+  signal:AbortSignal.timeout(15000)
+ });}catch(e){throw Error('Não foi possível consultar a Function HML: '+String(e?.message||e));}
+ let result;try{result=await response.json();}catch{throw Error('Resposta do checkout HML não é JSON. Deploy bloqueado.');}
+ const status=String(result?.error?.status||'');
+ if(status!=='UNAUTHENTICATED'||response.status!==401)
+  throw Error('A Function HML não comprovou contrato de consulta: HTTP '+response.status+', status '+(status||'ausente')+'. Não publicar frontend.');
+ console.log('PASSOU: commerceLoja da HML reconhece consultarPedido (HTTP 401 esperado sem autenticação).');
+ process.exit(0);
+}
 if(action==='--deploy-commerce'){
  const path=resolve(root,'functions/.env.'+project);
  if(!existsSync(path))throw Error('Arquivo de configuracao da HML ausente. Publicacao recusada.');
