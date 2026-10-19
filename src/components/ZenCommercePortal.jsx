@@ -35,6 +35,7 @@ export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuve
  const [clientesOnline,setClientesOnline]=useState([]),[erroClientesOnline,setErroClientesOnline]=useState(''),[loadingClientesOnline,setLoadingClientesOnline]=useState(false);
  const idsConhecidos=useRef(null),consultaEmCurso=useRef(false),lojaPedidos=useRef(null);
  const painelPedidosRef=useRef(null);
+ const clientesOnlineRef=useRef(null),clientesConsultaGeracao=useRef(0);
  const rev=useRef(0);
  const fn=useRef(null);
  const fnMedia=useRef(null);
@@ -83,12 +84,23 @@ export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuve
  };
  // Consulta somente enquanto o módulo está aberto e a aba visível. A primeira leitura estabelece a linha de base.
  useEffect(()=>{
-  if(!data?.lojaId||!operatorUid){lojaPedidos.current=null;idsConhecidos.current=null;setPedidos([]);setAvisosNovos(0);setClientesOnline([]);return;}
-  lojaPedidos.current=data.lojaId;idsConhecidos.current=null;setPedidos([]);setAvisosNovos(0);setClientesOnline([]);
+  if(!data?.lojaId||!operatorUid){lojaPedidos.current=null;idsConhecidos.current=null;setPedidos([]);setAvisosNovos(0);clientesConsultaGeracao.current++;setClientesOnline([]);setErroClientesOnline('');setLoadingClientesOnline(false);return;}
+  lojaPedidos.current=data.lojaId;idsConhecidos.current=null;setPedidos([]);setAvisosNovos(0);clientesConsultaGeracao.current++;setClientesOnline([]);setErroClientesOnline('');setLoadingClientesOnline(false);
   void carregarPedidos();
   const timer=setInterval(()=>{if(document.visibilityState==='visible')void carregarPedidos();},90000);
-  return()=>{clearInterval(timer);lojaPedidos.current=null;};
- },[data?.lojaId,operatorUid]);
+  return()=>{clearInterval(timer);lojaPedidos.current=null;clientesConsultaGeracao.current++;};
+ },[data?.lojaId,operatorUid,sessaoRevision,operadorAtivo?.id]);
+ const carregarClientesOnline=async()=>{
+  if(!data?.lojaId||!operatorUid||loadingClientesOnline)return;
+  const geracao=clientesConsultaGeracao.current;
+  setLoadingClientesOnline(true);setErroClientesOnline('');
+  try{
+   const r=await adminApi('listarClientesOnline');
+   if(geracao!==clientesConsultaGeracao.current)return;
+   setClientesOnline(Array.isArray(r.clientes)?r.clientes:[]);
+  }catch(e){if(geracao===clientesConsultaGeracao.current)setErroClientesOnline(erroAmigavel(e));}
+  finally{if(geracao===clientesConsultaGeracao.current)setLoadingClientesOnline(false);}
+ };
  // Upload acontece apenas na funcao de midia privada. Nenhum produto V1 e alterado.
  const blobBase64=blob=>new Promise((ok,fail)=>{const reader=new FileReader();reader.onerror=()=>fail(new Error('Falha ao ler imagem.'));
   reader.onload=()=>{const raw=String(reader.result||'');const base64=raw.split(',')[1];if(!base64)fail(new Error('Imagem inválida.'));else ok(base64);};reader.readAsDataURL(blob);});
@@ -190,6 +202,10 @@ export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuve
    <p className="zen-online-panel-help">Os pedidos aguardam conferência de disponibilidade, entrega e pagamento. Nenhuma venda, cobrança ou baixa de estoque é feita automaticamente.</p>
    <div className="zen-online-admin-actions">
     <button type="button" disabled={painelBusy} onClick={()=>carregarPedidos(true)}>↻ Atualizar pedidos</button>
+     <button type="button" disabled={painelBusy||loadingClientesOnline} onClick={()=>{
+      if(clientesOnlineRef.current){clientesOnlineRef.current.open=true;clientesOnlineRef.current.scrollIntoView({behavior:'smooth',block:'start'});}
+      void carregarClientesOnline();
+     }}>◉ Clientes online</button>
     {data.idPublico&&<a href={'/loja/'+data.idPublico} target="_blank" rel="noopener noreferrer">↗ Abrir loja</a>}
     {data.lojaPublicada&&<button type="button" className="zen-online-unpublish" disabled={painelBusy} onClick={async()=>{
      if(!window.confirm('Retirar a loja do ar? Os pedidos serão preservados.'))return;
@@ -210,16 +226,12 @@ export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuve
      finally{setPainelBusy(false);}
     }}/>)}</div>
    {!pedidos.length&&<p className="zen-online-empty">Nenhum pedido na fila. Use “Atualizar pedidos” para consultar as últimas 50 solicitações.</p>}
-   <details className="commerce-customer-register-admin">
+   <details ref={clientesOnlineRef} className="commerce-customer-register-admin">
     <summary>Clientes cadastrados pela loja online</summary>
     <p className="zen-online-panel-help">Cadastros voluntários separados do caixa e do fiado. A autorização promocional fica pendente até a confirmação da titularidade do WhatsApp; nenhuma mensagem é enviada automaticamente.</p>
-    <button type="button" disabled={loadingClientesOnline||painelBusy} className="zen-online-btn zen-online-btn--secondary" onClick={async()=>{
-     setLoadingClientesOnline(true);setErroClientesOnline('');
-     try{const r=await adminApi('listarClientesOnline');setClientesOnline(Array.isArray(r.clientes)?r.clientes:[]);}
-     catch(e){setErroClientesOnline(erroAmigavel(e));}
-     finally{setLoadingClientesOnline(false);}
-    }}>{loadingClientesOnline?'Consultando…':'Consultar clientes cadastrados'}</button>
+    <button type="button" disabled={loadingClientesOnline||painelBusy} className="zen-online-btn zen-online-btn--secondary" onClick={carregarClientesOnline}>{loadingClientesOnline?'Consultando…':'Consultar clientes cadastrados'}</button>
     {erroClientesOnline&&<p role="alert">{erroClientesOnline}</p>}
+    <p className="zen-online-panel-help" role="status">{loadingClientesOnline?'Buscando clientes da loja…':clientesOnline.length>0?`${clientesOnline.length} cadastro(s) encontrados. Os contatos ainda não estão liberados para campanhas.`:'Os cadastros serão exibidos aqui depois da consulta.'}</p>
     <div className="commerce-customer-register-admin-list">
      {clientesOnline.map(c=><article key={c.id} className="commerce-customer-register-admin-item">
       <strong>{c.nome}</strong><span>{c.telefone}</span>
