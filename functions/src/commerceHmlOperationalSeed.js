@@ -1,12 +1,13 @@
 import {onCall,HttpsError} from 'firebase-functions/v2/https';
 import {obterAdminFirestore} from './firebaseAdmin.js';
 import {authorizedOperationalHml,documentosOperacionaisFicticios,operatorHmlPath} from './commerceHmlOperationalCore.js';
+import {autenticacaoRecenteHml,prepararRedefinicaoPinsHml} from './commerceHmlPinRecoveryCore.js';
 
 // APENAS projeto isolado e proprietário Google verificado; nunca criar loja real.
 export const commerceHmlOperationalSeed=onCall({region:'southamerica-east1',timeoutSeconds:30,memory:'256MiB',maxInstances:1},async request=>{
  if(!authorizedOperationalHml(process.env,request.auth))
   throw new HttpsError('permission-denied','Somente o proprietário da homologação isolada pode preparar o PDV fictício.');
- if(!['consultar','preparar'].includes(request.data?.action))
+ if(!['consultar','preparar','redefinirPins'].includes(request.data?.action))
   throw new HttpsError('invalid-argument','Ação de homologação desconhecida.');
  const db=await obterAdminFirestore(),uid=request.auth.uid,root=`lojas/${uid}`;
  const shop=db.doc(root),op=db.doc(root+'/dados/operacao'),
@@ -19,6 +20,31 @@ export const commerceHmlOperationalSeed=onCall({region:'southamerica-east1',time
      !o.exists||!l.exists||!a.exists||!b.exists)
    throw new HttpsError('failed-precondition','A homologação contém registros parciais ou divergentes. Não corrigir automaticamente.');
   return {preparada:true,lojaId:uid};
+ }
+ if(request.data.action==='redefinirPins'){
+  if(Object.keys(request.data).sort().join(',')!=='action,pinAdmin,pinSegundo')
+   throw new HttpsError('invalid-argument','Parâmetros adicionais não permitidos.');
+  if(!autenticacaoRecenteHml(request.auth))
+   throw new HttpsError('unauthenticated','Entre novamente com Google antes de redefinir os PINs.');
+  return db.runTransaction(async tx=>{
+   const [s,o,l,a,b]=await Promise.all([tx.get(shop),tx.get(op),tx.get(license),tx.get(acl[0]),tx.get(acl[1])]);
+   if(!s.exists||!o.exists||!l.exists||!a.exists||!b.exists||
+      l.data().homologacao!==true||l.data().planoId!=='homologacao_sem_cobranca')
+    throw new HttpsError('failed-precondition','Loja fictícia incompleta. Nenhum dado foi alterado.');
+   let dados;
+   try{
+    dados=prepararRedefinicaoPinsHml({
+     loja:s.data(),uid,operacao:o.data(),acessos:[a.data(),b.data()],
+     pinAdmin:request.data.pinAdmin,pinSegundo:request.data.pinSegundo
+    });
+   }catch(e){throw new HttpsError('failed-precondition',e.message);}
+   // Atualizar APENAS o campo vendedores; não tocar produtos, vendas, estoque
+   // ou caixa. Ambas as credenciais privadas são alteradas atomicamente.
+   tx.update(op,{vendedores:dados.vendedores});
+   tx.update(acl[0],dados.privado[0]);
+   tx.update(acl[1],dados.privado[1]);
+   return {redefinidos:true,operadores:2};
+  });
  }
  if(Object.keys(request.data).sort().join(',')!=='action,pinAdmin,pinSegundo')
   throw new HttpsError('invalid-argument','Parâmetros adicionais não permitidos.');
