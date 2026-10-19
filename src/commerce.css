@@ -158,3 +158,13 @@ html.commerce-document.commerce-dialog-open { overflow-y:hidden; }
 .commerce-customer-register-admin-item small{font-size:11px;color:#e9ca90}
 
 .commerce-customer-success{border:1px solid #b5dcc9;background:#ebf6ef;color:#235140;padding:12px;border-radius:10px;font-size:12px;line-height:1.5}
+
+/* Uma consulta de checkout rejeitada não pode prender o visitante num formulário desabilitado. */
+.commerce-recovery{display:flex;flex-direction:column;align-items:stretch;gap:13px;padding:20px;border:1px solid #ead5b7;border-radius:14px;background:#fffaf2;color:#193c47}
+.commerce-recovery h3{font-size:18px;line-height:1.25;margin:0}
+.commerce-recovery p{font-size:13px;line-height:1.6;margin:0}
+.commerce-recovery small{font-size:11px;color:#697b81;line-height:1.5}
+.commerce-recovery .commerce-btn{width:100%;min-height:46px;text-align:center}
+.commerce-recovery-discard{appearance:none;align-self:center;border:0;background:transparent;text-decoration:underline;text-underline-offset:3px;color:#79513e;font:inherit;font-size:12px;font-weight:750;cursor:pointer;padding:9px}
+.commerce-recovery-discard:focus-visible{outline:3px solid #346e93;outline-offset:2px;border-radius:6px}
+.commerce-recovery-discard:disabled{opacity:.5;cursor:not-allowed}
