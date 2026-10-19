@@ -35,3 +35,16 @@
 - Correção no novo checkout: após F5 a página nasce vazia; nenhuma consulta automática é feita. Durante falha ambígua na aba ainda aberta, tela de recuperação substitui formulário desabilitado; botões permitem consultar, falar com a loja ou sair e limpar a tentativa após aviso explícito. Encerrar não mexe no pedido remoto.
 - Ordem de publicação: atualizar commerceLoja e commercePedidosAdmin SOMENTE na HML; executar node scripts/commerce-hml-customer-checkout-deploy.mjs --verify-remote; a chamada sem autenticação deve retornar HTTP 401 UNAUTHENTICATED, comprovando que consultarPedido foi reconhecida (nunca 400 'Ação inválida'). Somente depois publicar o Hosting de prévia.
 - No site anterior não executar novas compras repetidas sem primeiro conferir se o pedido foi registrado no ZenOS.
+
+
+## Acabamento e endurecimento antes da homologação (19/10)
+- Checkout: cartão de cadastro com opção desmarcada, explicação sobre identidade do contato e consentimento para promoções separado e também desmarcado. Responsivo e com alvos de toque ampliados.
+- A chave interna de contato é estável por loja + telefone internacional validado; trocar de celular/navegador não gera uma segunda ficha para o mesmo número na mesma loja. Não vincular à identidade anônima, que é intencionalmente apagada ao atualizar.
+- Todos os registros novos permanecem **não verificados**. Em caso de perfil previamente verificado, um pedido com telefone informado não pode alterar nome, telefone ou permissão de marketing; só atualiza referências de pedidos.
+- Acesso rápido **Clientes online** dentro da central de pedidos, mantendo leitura protegida pela função administrativa. Ao trocar de loja/operador, resultados pendentes são descartados antes de renderização.
+- Nada é gravado nas coleções financeiras V1/V2 ou no módulo Clientes & Fiado; não implementar campanhas automáticas.
+- O gate de implantação `commerce-hml-customer-checkout-deploy.mjs --check` passa a verificar também o helper de proteção de cadastro.
+
+## Gate de publicação
+Sem sucesso do CI Commerce (inclusive emuladores com duas lojas), proteção geral V1/V2 e teste com cliente fictício, **não publicar nenhuma função nem novo checkout**.
+Após teste aprovado, atualizar exclusivamente as funções `commerceLoja` e `commercePedidosAdmin` no Firebase isolado, verificar resposta remota de `consultarPedido`, atualizar apenas o canal temporário `op-hml-19` e homologar em celular e computador. Loja oficial intacta.
