@@ -38,7 +38,8 @@ test('falha de rede mantém carrinho só nesta página, recupera confirmação s
  preparar();
  fireEvent.click(screen.getByRole('button',{name:/Confirmar pedido e continuar/}));
  await screen.findByRole('button',{name:'Verificar se meu pedido foi recebido'});
- expect(screen.getByLabelText('Seu nome').matches(':disabled')).toBe(true);
+ expect(screen.queryByLabelText('Seu nome')).toBeNull();
+ expect(screen.getByRole('button',{name:'Encerrar tentativa e limpar carrinho'})).toBeTruthy();
  expect(sessionStorage.getItem(legacyKey)).toBeNull();
  fireEvent.click(screen.getByRole('button',{name:'Verificar se meu pedido foi recebido'}));
  await screen.findByText('Seu pedido foi recebido');
@@ -66,4 +67,29 @@ test('cadastro e promoções são opções separadas e nenhum checkbox começa s
  await screen.findByText('Seu pedido foi recebido');
  const call=chamarLojaCommerce.mock.calls.find(([x])=>x.action==='criarPedido')[0];
  expect(call.pedido.criarCadastro).toBe(true);expect(call.pedido.aceitePromocoes).toBe(true);
+});
+
+test('API antiga retorna 400 na consulta; exibe atendimento e saida confirmada, sem segunda requisicao',async()=>{
+ chamarLojaCommerce.mockImplementation(async d=>{
+  if(d.action==='criarPedido')throw Error('rede');
+  if(d.action==='consultarPedido')throw Error('Ação inválida. [400]');
+  throw Error('inesperado');
+ });
+ const confirm=vi.spyOn(window,'confirm').mockReturnValue(false);
+ render(<Store idPublico={id} lojaInicial={loja}/>);
+ preparar();
+ fireEvent.click(screen.getByRole('button',{name:/Confirmar pedido e continuar/}));
+ await screen.findByRole('button',{name:'Verificar se meu pedido foi recebido'});
+ fireEvent.click(screen.getByRole('button',{name:'Verificar se meu pedido foi recebido'}));
+ await screen.findByText(/O serviço de consulta está indisponível/);
+ expect(screen.getByRole('link',{name:'Falar com a loja para conferir'}).getAttribute('href')).toBe('https://wa.me/5511000000000');
+ expect(screen.queryByLabelText('Seu nome')).toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'Encerrar tentativa e limpar carrinho'}));
+ expect(screen.getByRole('heading',{name:'Precisamos confirmar seu pedido'})).toBeTruthy();
+ confirm.mockReturnValue(true);
+ fireEvent.click(screen.getByRole('button',{name:'Encerrar tentativa e limpar carrinho'}));
+ expect(screen.getByRole('button',{name:/Abrir carrinho com 0 itens/})).toBeTruthy();
+ expect(sessionStorage.getItem(legacyKey)).toBeNull();
+ expect(chamarLojaCommerce.mock.calls.filter(([d])=>d.action==='criarPedido')).toHaveLength(1);
+ confirm.mockRestore();
 });
