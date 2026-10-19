@@ -36,9 +36,9 @@ test('HML não oferece editor se callable consultar não autorizou a sessão',as
 });
 test('HML com sessão validada salva com revisão do servidor e sem publicar',async()=>{
  mocks.calls.mockImplementation(async data=>{
-  if(data.action==='consultar')return {data:{lojaId:'loja-HML',revision:0,regras:{},licenca:{status:'ativo',ativacaoConfirmadaServidor:true}}};
-  if(data.action==='listarPedidos')return {data:{pedidos:[]}};
-  if(data.action==='salvarRascunho')return {data:{revision:1,status:'rascunho_privado',publicado:false}};
+  if(data.action==='consultar')return {data:{lojaId:'loja-HML',contratoHml:'zenos-commerce-tenant-20261019-v1',revision:0,regras:{},licenca:{status:'ativo',ativacaoConfirmadaServidor:true}}};
+  if(data.action==='listarPedidos')return {data:{lojaId:'loja-HML',contratoHml:'zenos-commerce-tenant-20261019-v1',pedidos:[]}};
+  if(data.action==='salvarRascunho')return {data:{lojaId:'loja-HML',contratoHml:'zenos-commerce-tenant-20261019-v1',revision:1,status:'rascunho_privado',publicado:false}};
   throw Error('Ação inesperada: '+data.action);
  });
  render(<Portal integrado userId="loja-HML" operadorAtivo={{id:'admin'}} nuvemSincronizada produtos={[]}/>);
@@ -51,4 +51,19 @@ test('HML com sessão validada salva com revisão do servidor e sem publicar',as
  });
  expect(mocks.lastSave.publicado).toBe(false);
  expect(mocks.signOut).not.toHaveBeenCalled();
+});
+
+test('HML não mostra dados quando serviço legado responde loja incompatível',async()=>{
+ mocks.calls.mockImplementation(async data=>({data:{lojaId:'OUTRA_LOJA',revision:0,regras:{'x':{publicado:true}},licenca:{status:'ativo'}}}));
+ render(<Portal integrado userId="loja-HML" operadorAtivo={{id:'admin'}} nuvemSincronizada produtos={[]}/>);
+ const alert=await screen.findByRole('alert');
+ expect(alert.textContent).toContain('identidade de loja divergente');
+ expect(screen.queryByText('Studio desbloqueado')).toBeNull();
+});
+test('HML não aceita backend desatualizado mesmo que devolva o UID correto',async()=>{
+ mocks.calls.mockImplementation(async data=>({data:{lojaId:'loja-HML',revision:0,regras:{}}}));
+ render(<Portal integrado userId="loja-HML" operadorAtivo={{id:'admin'}} nuvemSincronizada produtos={[]}/>);
+ const alert=await screen.findByRole('alert');
+ expect(alert.textContent).toContain('versão de servidor incompatível');
+ expect(screen.queryByRole('button',{name:'Salvar rascunho simulado'})).toBeNull();
 });
