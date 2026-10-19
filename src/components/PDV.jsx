@@ -951,8 +951,8 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
   };
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px', width: '100%', boxSizing: 'border-box' }}>
-      {commerceOrigem && <p style={{gridColumn:'1 / -1',color:'#34d399'}}>Pedido online {commerceOrigem.pedidoId.slice(0,10).toUpperCase()} — confira itens, valores e pagamento antes de concluir.</p>}
+    <div className={commerceOrigem ? 'zen-pdv zen-pdv-online' : 'zen-pdv'} style={{ display: 'grid', gridTemplateColumns: commerceOrigem ? 'minmax(0,1.3fr) minmax(310px,1fr)' : 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px', width: '100%', boxSizing: 'border-box' }}>
+      {commerceOrigem && <section className="zen-pdv-online-head" aria-label="Atendimento originado da loja online"><div><div className="zen-online-overline">ZENOS COMMERCE · ATENDIMENTO VINCULADO</div><h2>Pedido online #{String(commerceOrigem.pedidoId||'').slice(0,10).toUpperCase()}</h2><p>Confira o cliente, as quantidades, os preços e o pagamento antes de concluir. Nenhuma venda é gerada ao abrir ou recuperar este atendimento.</p></div><strong>● Aguardando conferência</strong></section>}
       {avisoRascunhoRecuperado && !vendaSucesso && (
         <div role="status" style={{gridColumn:'1 / -1',border:'1px solid #38bdf8',background:'#082f49',borderRadius:12,
           padding:'12px 16px',display:'flex',gap:12,alignItems:'center',justifyContent:'space-between',color:'#e0f2fe',flexWrap:'wrap'}}>
@@ -1058,7 +1058,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
       {/* COLUNA ESQUERDA: CLIENTE, BUSCA E LISTA DE ITENS */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
         
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div className="zen-pdv-customer-row" style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ position: 'relative', flex: 1, minWidth: '220px' }}>
             <div style={{ position: 'absolute', top: '14px', left: '16px', fontSize: '18px' }}>👤</div>
             <input 
@@ -1112,19 +1112,19 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
           </div>
         </div>
 
-        <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', display: 'flex', flexDirection: 'column', minHeight: '300px' }}>
+        <div className="zen-pdv-items" style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', display: 'flex', flexDirection: 'column', minHeight: '300px' }}>
           <div style={{ padding: '16px 20px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', letterSpacing: '1px', textTransform: 'uppercase' }}>{t('itensLancados')} ({itensVenda.length})</span>
+            <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', letterSpacing: '1px', textTransform: 'uppercase' }} className="zen-pdv-section-title">{tx('Itens lançados','Artículos añadidos','Added items')} ({itensVenda.length})</span>
           </div>
           <div style={{ padding: '8px', flex: 1, overflowY: 'auto', maxHeight: '400px' }}>
             {itensVenda.length === 0 ? <div style={{ padding: '60px 20px', textAlign: 'center', color: '#475569', fontSize: '14px' }}>{t('nenhumItem')}</div> : itensVenda.map(item => (
-              <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderBottom: '1px solid #1e293b', gap: '8px', flexWrap: 'wrap' }}>
+              <div key={item.id} className="zen-pdv-line" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderBottom: '1px solid #1e293b', gap: '8px', flexWrap: 'wrap' }}>
                 <div style={{ flex: '1 1 180px' }}>
                   <div style={{ fontWeight: 700, color: '#f8fafc', fontSize: '14px' }}>{item.nome} {ehEncomendaUsoUnico(item) && <span style={{ color: '#fbbf24', fontSize: '10px' }}>(⭐ {tx('Encomenda', 'Especial', 'Order')})</span>}</div>
                   <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '4px' }}>
                     <span style={{ fontSize: '10px', color: '#64748b', fontFamily: 'monospace' }}>SKU: {item.sku}</span>
-                    <span onClick={() => abrirEdicaoProdutoPDV(item)} style={{ fontSize: '11px', color: '#38bdf8', cursor: 'pointer', fontWeight: 600 }}>{tx('Editar', 'Editar', 'Edit')}</span>
-                    <span onClick={() => removerItem(item.id)} style={{ fontSize: '11px', color: '#f43f5e', cursor: 'pointer', fontWeight: 600 }}>{tx('Remover', 'Eliminar', 'Remove')}</span>
+                    <button type="button" onClick={() => abrirEdicaoProdutoPDV(item)} className="zen-pdv-mini-action">{tx('Editar', 'Editar', 'Edit')}</button>
+                    <button type="button" onClick={() => removerItem(item.id)} className="zen-pdv-mini-action zen-pdv-mini-action--delete">{tx('Remover', 'Eliminar', 'Remove')}</button>
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: 'auto' }}>
@@ -1140,21 +1140,21 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
         
-        <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
-          <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', letterSpacing: '1px', textTransform: 'uppercase' }}>{t('resumoVenda')}</span>
+        <div className="zen-pdv-summary" style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+          <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', letterSpacing: '1px', textTransform: 'uppercase' }}>{tx('Resumo da venda','Resumen de la venta','Sale summary')}</span>
           <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#cbd5e1', cursor: 'pointer', minHeight: '44px' }}>
             <input type="checkbox" checked={clienteQuerFiscal} disabled={processandoTransacao || vendaSucesso} onChange={(e) => setClienteQuerFiscal(e.target.checked)} style={{ width: '18px', height: '18px', flexShrink: 0, accentColor: '#38bdf8' }} />
             <span>{tx('Cliente quer nota fiscal / factura legal', 'Cliente solicita factura legal / nota fiscal', 'Customer requests a fiscal document')}<small style={{ display: 'block', color: '#64748b', marginTop: '3px' }}>{tx('Somente registra a solicitação. Não emite documento.', 'Solo registra la solicitud. No emite documentos.', 'Records the request only. Does not issue a document.')}</small></span>
           </label>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#cbd5e1' }}><span>{t('subtotal')}</span><span style={{ fontWeight: 700, color: '#fff' }}>{fmt(subtotalBrutoBRL)}</span></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#cbd5e1' }}><span>{tx('Subtotal','Subtotal','Subtotal')}</span><span style={{ fontWeight: 700, color: '#fff' }}>{fmt(subtotalBrutoBRL)}</span></div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px', color: '#cbd5e1' }}>
-            <span>{t('descontoGlobal')}</span>
+            <span>{tx('Desconto','Descuento','Discount')}</span>
             <input type="text" value={descontoTexto} onChange={(e) => setDescontoTexto(e.target.value)} onFocus={(e) => e.target.select()} style={{ width: '75px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', padding: '6px 8px', color: '#fbbf24', fontWeight: 800, fontSize: '14px', textAlign: 'right', outline: 'none' }} />
           </div>
           <div style={{ height: '1px', backgroundColor: '#1e293b', margin: '4px 0' }}></div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '14px', fontWeight: 700, color: '#94a3b8' }}>{t('totalPagar')}</span>
-            <span style={{ fontSize: '28px', fontWeight: 900, color: '#34d399', letterSpacing: '-1px' }}>{fmt(totalFinalBRL)}</span>
+            <span style={{ fontSize: '14px', fontWeight: 700, color: '#94a3b8' }}>{tx('Total a pagar','Total a pagar','Total due')}</span>
+            <span className="zen-pdv-summary-value" style={{ fontSize: '28px', fontWeight: 900, color: '#34d399', letterSpacing: '-1px' }}>{fmt(totalFinalBRL)}</span>
           </div>
         </div>
 
