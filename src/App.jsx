@@ -29,6 +29,8 @@ import Configuracoes from './components/Configuracoes';
 import GestaoCaixas from './components/GestaoCaixas';
 import Fiscal from './components/Fiscal';
 import FiscalErrorBoundary from './components/FiscalErrorBoundary';
+// Lazy para não carregar a interface opcional durante vendas e fechamento de caixa.
+const CommerceSolicitacao = React.lazy(() => import('./components/CommerceSolicitacao'));
 import ZenModal from './components/ZenModal';
 import { normalizarPerfilLoja, lerPerfilLojaLocal, salvarPerfilLojaLocal, limparPerfilLojaLocal } from './core/storeProfile';
 import { assinarLivroFinanceiro, registrarLancamentoFinanceiro } from './core/financialLedger';
@@ -1344,6 +1346,7 @@ export default function App() {
     {
       id: 'administracao', titulo: tx('Administração', 'Administración', 'Administration'), icone: '⚙️', abertaInicial: false,
       itens: [
+        ...(temPermissao('admin') ? [{ id:'commerce-solicitar', tela:'commerce-solicitar', icone:'🛍️', rotulo:tx('Minha Loja Online','Mi Tienda Online','My Online Store'), onClick:()=>navegarPara('commerce-solicitar') }] : []),
         ...(temPermissao('admin') ? [{ id:'config', tela:'configuracoes', icone:'⚙️', rotulo:tx('Configurações','Configuraciones','Settings'), onClick:()=>navegarPara('configuracoes') }] : []),
         ...(temPermissao('admin') ? [{ id:'importar', tela:'migracao', icone:'📥', rotulo:tx('Importar Dados','Importar Datos','Import Data'), onClick:()=>navegarPara('migracao') }] : []),
       ],
@@ -1722,6 +1725,7 @@ export default function App() {
         {ecraAtual === 'dashboardMobile' && <DashboardMobile historicoVendas={historicoVendas} despesas={despesas} clientes={clientes} produtos={produtos} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} regrasDesconto={regrasDesconto} />}
         {ecraAtual === 'clientes' && <Clientes commitOperacaoNegocio={commitVendaCritica} livroFinanceiro={livroFinanceiro} historicoVendas={historicoVendas} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} operadorAtivo={operadorAtivo} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} />}
         {ecraAtual === 'vendas' && <Vendas commitOperacaoNegocio={commitVendaCritica} taxasCambio={taxasCambio} sessoesCaixa={sessoesCaixa} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} saldoSessaoFisicoBRL={saldoSessaoFisicoBRL} perfilLoja={perfilLoja} vouchers={vouchers} setVouchers={setVouchers} userId={userId} operadorAtivo={operadorAtivo} historicoVendas={historicoVisivelParaOperador} setHistoricoVendas={setHistoricoVendas} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} fmt={fmt} t={t} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterDeBRL={converterDeBRL} />}
+        {ecraAtual === 'commerce-solicitar' && temPermissao('admin') && <React.Suspense fallback={<div role="status" style={{padding:20,color:'#bdd5df'}}>{tx('Preparando Minha Loja Online…','Preparando Mi Tienda Online…','Preparing My Online Store…')}</div>}><CommerceSolicitacao key={String(userId)+':'+String(operadorAtivo?.id)} lojaId={userId} tx={tx}/></React.Suspense>}
         {ecraAtual === 'fiscal' && <FiscalErrorBoundary resetKey={`${userId || ''}:${perfilLoja?.pais || ''}:${resultadoFilaFiscal.erro || ''}`} onVoltar={() => navegarPara('hub')} tx={tx}><Fiscal lojaId={userId} perfilLoja={perfilLoja} filaFiscal={resultadoFilaFiscal.fila} erroFila={resultadoFilaFiscal.erro} clientes={clientes} ambiente="homologacao" onVerVenda={() => navegarPara('vendas')} tx={tx} idioma={idioma} /></FiscalErrorBoundary>}
         {ecraAtual === 'migracao' && <Migracao commitOperacaoNegocio={commitVendaCritica} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} t={t} tx={tx} />}
         {ecraAtual === 'configuracoes' && <Configuracoes commitOperacaoNegocio={commitVendaCritica} userId={userId} operadorAtivo={operadorAtivo} perfilLojaGlobal={perfilLoja} setPerfilLojaGlobal={setPerfilLoja} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} despesas={despesas} setDespesas={setDespesas} moeda={moeda} fmt={fmt} tx={tx} regrasDesconto={regrasDesconto} setRegrasDesconto={setRegrasDesconto} vendedores={vendedores} setVendedores={(novosVendedores) => { setVendedores(novosVendedores); persistirCampoSeguro({ field: 'vendedores', value:novosVendedores, setter:setVendedores, localStorageKey:`zenos_${userId}_vendedores` }); }} />}
