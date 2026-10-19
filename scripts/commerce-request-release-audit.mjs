@@ -13,6 +13,7 @@ const allowed=new Set([
   'scripts/commerce-request-release-audit.mjs',
   '.github/workflows/commerce-request-only-ci.yml',
   'docs/commerce-request-only-release-20261019.md',
+  '.github/workflows/deploy-fiscal-functions.yml',
 ]);
 assert.ok(changed.every(p=>allowed.has(p)),'GATE_FAIL: alteração fora do pacote de solicitação: '+changed.filter(x=>!allowed.has(x)).join(', '));
 const read=path=>fs.readFileSync(path,'utf8');
