@@ -13,6 +13,17 @@
 3. Confirmar que `firebase.commerce.operational-preview.json` contém **somente Hosting**, com `public=dist-commerce-operational-hml`; jamais usar `firebase.json` sem `--config`.
 4. Os scripts só possuem destinos constantes, sem parâmetros para substituir projeto/conta, e recusam `GCLOUD_PROJECT`/variantes divergentes.
 
+## Gate remoto obrigatório — backup read-only antes de qualquer regra
+No Cloud Shell autenticado com a conta autorizada **somente para o Firebase HML**, execute:
+```sh
+node scripts/commerce-operational-hml-remote-audit.mjs --check
+node scripts/commerce-operational-hml-remote-audit.mjs --audit
+```
+- O segundo comando usa `gcloud auth print-access-token` apenas em memória e chama a API Firebase Rules via GET. **Não** cria/atualiza releases, rulesets, Functions ou Hosting.
+- Preserva cópia com permissões `0600` no diretório privado `~/.zenos-commerce-hml-rules-backups/`, com ID remoto e hash de integridade. Nunca comitar essa cópia no GitHub nem colá-la em chat.
+- Se não houver permissão, configuração de conta ou baseline remoto esperado (`firestore.commerce.cloud-hml.rules`), interromper sem publicar. Divergência exige análise; não instalar regras alternativas automaticamente.
+- A aprovação desse backup não elimina a necessidade de gate específico antes de substituir o ruleset cloud.
+
 ## Etapa A — publicação da interface em um canal de PRÉVIA (não altera live)
 O operador autorizado com Firebase CLI autenticado executa no mesmo checkout aprovado:
 ```sh
