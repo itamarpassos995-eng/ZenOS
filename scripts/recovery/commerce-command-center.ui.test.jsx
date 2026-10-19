@@ -88,3 +88,15 @@ test('filtros puros jamais ocultam cancelados do histórico',()=>{
  expect(filtrarPedidosCommerce(pedidos,'historico').map(x=>x.status)).toEqual(['cancelado','encerrado']);
  expect(filtrarPedidosCommerce(pedidos,'historico','CANCEL0987')).toHaveLength(1);
 });
+
+test('filtro de período reduz apenas pedidos carregados e pode ser limpo',()=>{
+ render(<ZenCommerceCommandCenter {...props} editor={<div>Editor</div>}/>);
+ fireEvent.click(within(screen.getByRole('navigation',{name:'Áreas da loja online'})).getByRole('button',{name:/Pedidos/}));
+ fireEvent.click(screen.getByRole('button',{name:/Histórico 2/}));
+ fireEvent.change(screen.getByLabelText('De'),{target:{value:'2026-10-19'}});
+ expect(screen.getByText('Cliente antigo')).toBeTruthy();
+ fireEvent.change(screen.getByLabelText('Até'),{target:{value:'2026-10-18'}});
+ expect(within(screen.getByRole('heading',{name:'Histórico'}).closest('.zcc-pane')).queryByText('Cliente antigo')).toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'Limpar período'}));
+ expect(within(screen.getByRole('heading',{name:'Histórico'}).closest('.zcc-pane')).getByText('Cliente antigo')).toBeTruthy();
+});
