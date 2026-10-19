@@ -18,6 +18,7 @@ on:
       - 'firestore.commerce.operational-hml.rules'
       - 'firebase.commerce.operational-rules-test.json'
       - 'firebase.commerce.operational-rules-release.json'
+      - 'firebase.commerce.operational-rules-rollback.json'
       - 'scripts/commerce-operational-hml-rules-release.mjs'
       - 'firebase.commerce.operational-preview.json'
       - 'scripts/commerce-operational-hml-preview.mjs'
