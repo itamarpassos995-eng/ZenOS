@@ -6,7 +6,7 @@ if(preview){
  const response=await fetch('https://zenos-commerce-homologacao.web.app/__/firebase/init.json',{signal:AbortSignal.timeout(15000)});
  if(!response.ok)throw Error('Não foi possível preparar o SDK público da homologação para a prévia.');
  const cfg=await response.json();
- if(cfg.projectId!=='zenos-commerce-homologacao'||cfg.storageBucket!=='zenos-commerce-homologacao.firebasestorage.app'||!cfg.appId||!cfg.apiKey)throw Error('Prévia recusou configuração fora da homologação.');
+ if(cfg.projectId!=='zenos-commerce-homologacao'||cfg.storageBucket!=='zenos-commerce-homologacao.firebasestorage.app'||cfg.authDomain!=='zenos-commerce-homologacao.firebaseapp.com'||!cfg.appId||!cfg.apiKey)throw Error('Prévia recusou configuração fora da homologação.');
  env.VITE_ZENOS_COMMERCE_HML_FIREBASE_CONFIG=JSON.stringify(cfg);
  console.log('Prévia Commerce: somente Firebase isolado de homologação. Nenhuma credencial privada.');
 }

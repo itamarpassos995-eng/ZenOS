@@ -11,6 +11,12 @@ on:
       - 'src/components/ZenCommerceStorefront.jsx'
       - 'src/commerce.css'
       - 'src/App.jsx'
+      - 'src/main.jsx'
+      - 'vite.config.js'
+      - 'scripts/commerce-cloud-hml-*.mjs'
+      - 'firebase.commerce.cloud-hml.json'
+      - 'firestore.commerce.cloud-hml.rules'
+      - 'storage.commerce.cloud-hml.rules'
       - 'scripts/commerce-preview-build.mjs'
       - 'scripts/commerce-checkout-recovery-check.mjs'
       - 'scripts/commerce-emulator-check.mjs'
@@ -41,6 +47,8 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm run build
+      - name: Proof of isolated Commerce cloud build (no credentials/network)
+        run: node scripts/commerce-cloud-hml-safety-check.mjs
       - run: npm install --no-package-lock --ignore-scripts --no-audit --no-fund
         working-directory: functions
       - run: npm test

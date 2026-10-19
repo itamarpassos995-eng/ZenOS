@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { createHash, pbkdf2Sync } from 'node:crypto'
 
@@ -55,9 +55,31 @@ function zenosHomologacaoPinBridge() {
   }
 }
 
-export default defineConfig(({ mode }) => ({
-  plugins: [
-    react(),
-    mode === 'homologacao' ? zenosHomologacaoPinBridge() : null,
-  ].filter(Boolean),
-}))
+// Falhar ANTES de compilar: um build Commerce sem SDK exclusivo poderia
+// gerar uma rota de demonstração apontando ao Firebase operacional.
+function validarBuildCommerceIsolado(mode) {
+  if (mode !== 'commerce-hml') return
+  const env = loadEnv(mode, process.cwd(), 'VITE_')
+  if (env.VITE_ZENOS_COMMERCE_OPERATOR_BRIDGE === 'true') {
+    throw new Error('Build Commerce isolado não pode ativar a ponte operacional.')
+  }
+  let cfg
+  try { cfg = JSON.parse(env.VITE_ZENOS_COMMERCE_HML_FIREBASE_CONFIG || '') }
+  catch { throw new Error('Build Commerce bloqueado: configuração do SDK da homologação ausente/inválida.') }
+  if (cfg?.projectId !== 'zenos-commerce-homologacao' ||
+      cfg?.storageBucket !== 'zenos-commerce-homologacao.firebasestorage.app' ||
+      cfg?.authDomain !== 'zenos-commerce-homologacao.firebaseapp.com' ||
+      !cfg?.apiKey || !cfg?.appId) {
+    throw new Error('Build Commerce bloqueado: SDK não corresponde ao projeto de homologação.')
+  }
+}
+
+export default defineConfig(({ mode }) => {
+  validarBuildCommerceIsolado(mode)
+  return {
+    plugins: [
+      react(),
+      mode === 'homologacao' ? zenosHomologacaoPinBridge() : null,
+    ].filter(Boolean),
+  }
+})

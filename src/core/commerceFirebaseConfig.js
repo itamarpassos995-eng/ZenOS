@@ -5,7 +5,7 @@ const raw=import.meta.env.VITE_ZENOS_COMMERCE_HML_FIREBASE_CONFIG;
 let configured=null;
 if(raw){
  configured=JSON.parse(raw);
- if(configured.projectId!=='zenos-commerce-homologacao'||configured.storageBucket!=='zenos-commerce-homologacao.firebasestorage.app'||!configured.apiKey||!configured.appId)
+ if(configured.projectId!=='zenos-commerce-homologacao'||configured.storageBucket!=='zenos-commerce-homologacao.firebasestorage.app'||configured.authDomain!=='zenos-commerce-homologacao.firebaseapp.com'||!configured.apiKey||!configured.appId)
   throw new Error('Configuração Commerce de homologação inválida.');
 }
 export function obterOpcoesFirebaseCommerce(){
