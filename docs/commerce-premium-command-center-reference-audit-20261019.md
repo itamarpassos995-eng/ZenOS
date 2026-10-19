@@ -11,7 +11,7 @@
 4. **SMB — Design** — editor e prévia ao lado facilitam entendimento instantâneo. O ZenCommerceStudio já permite prévia e foi preservado *montado* na aba Personalizar; rascunho não salvo não é apagado por troca de seção.
 5. **SMB — Vendas** — recursos com alternâncias aparentes e confirmação de estados. No ZenOS, preferimos manter operações de faturamento no PDV existente, não criar novos toggles falsamente operacionais nem reimplementar checkout financeiro.
 6. **SMB — Frete** — agrupamento por finalidade e regiões de entrega. Gestão de atendimento/configuração fica separada da fila; regras de frete não foram implementadas ou alteradas neste PR.
-7. **SMB — Notificações** — contador sempre visível e lista breve em sobreposição, com acesso direto à fila. ZenOS já tem aviso global; preservado, com abertura da nova aba Pedidos em vez da lista longa. A lista em popover é melhoria adicional dependente de avaliação posterior, sem impactar a fila.
+7. **SMB — Notificações** — contador sempre visível e lista breve em sobreposição, com acesso direto à fila. ZenOS já tem aviso global; preservado, com abertura da nova aba Pedidos em vez da lista longa. Implementamos agora um popover com até cinco pedidos ativos e ação **Ver fila completa**, mantendo o aviso global e o callback original de navegação. Cancelados não são exibidos no popover.
 
 ## Nova arquitetura
 
@@ -38,3 +38,8 @@
 - Inspeção desktop e mobile com dados fictícios;
 - Validação de aviso global + pré-pedido existente + rascunho não salvo + status de cancelados;
 - Somente canal temporário HML, sem main, sem alterar funções nem regras e sem produção.
+
+## Evidência da suíte automatizada
+- Novo componente testado em visão geral, cancelados no histórico, filtro de data, navegação externa, clientes, painel de detalhes e preservação do rascunho de edição.
+- Popover de notificações testa ausência de cancelados e acesso à fila pela ação global.
+- A validação automatizada confirma arquitetura e regressões, mas não substitui homologação visual real em computador e celular.
