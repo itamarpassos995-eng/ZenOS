@@ -206,7 +206,7 @@ export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuve
    <strong>Prévia privada:</strong> {erro} Nenhuma contratação ou publicação será feita.
   </div>}
   {data?<div id="zen-pedidos-online" ref={painelPedidosRef} tabIndex={-1}>
-   <ZenCommerceCommandCenter
+   <ZenCommerceCommandCenter key={String(data.lojaId)+'-'+String(operadorAtivo?.id||operatorUid)}
     pedidos={pedidos} clientesOnline={clientesOnline} clientesCarregando={loadingClientesOnline}
     erroClientes={erroClientesOnline} painelErro={painelErro} painelBusy={painelBusy}
     lojaPublicada={Boolean(data.lojaPublicada)} idPublico={data.idPublico||''}
