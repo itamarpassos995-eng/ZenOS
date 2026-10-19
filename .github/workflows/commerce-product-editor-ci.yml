@@ -105,7 +105,7 @@ jobs:
           java-version: '21'
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Install emulator-only rules harness (not persisted in app manifest)
-        run: npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund @firebase/rules-unit-testing@6.0.0
+        run: npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund @firebase/rules-unit-testing@5.0.2
       - name: Verify strict Firestore HML rules on synthetic data only
         env:
           GCLOUD_PROJECT: demo-zenos-local
