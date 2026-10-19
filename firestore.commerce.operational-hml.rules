@@ -19,8 +19,11 @@ service cloud.firestore {
    allow read: if donoOperacionalHml(lojaId);
    allow create, update, delete: if false; // apenas bootstrap Admin SDK
    match /dados/{docId} {
-    allow read, write: if donoOperacionalHml(lojaId)
+    allow read: if donoOperacionalHml(lojaId)
       && docId in ['operacao', 'storage_control', 'configuracoes'];
+    // HML operacional é V1; cliente não pode ativar V2 nem trocar gerações.
+    allow write: if donoOperacionalHml(lojaId)
+      && docId in ['operacao', 'configuracoes'];
    }
    match /financeiro_livro/{entryId} {
     allow read, write: if donoOperacionalHml(lojaId);

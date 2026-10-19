@@ -65,6 +65,8 @@ try{
  await assertFails(setDoc(target,{produtos:[]}));
  await assertFails(setDoc(root,{status:'ativo'}));
  await assertFails(deleteDoc(root));
+ await assertFails(setDoc(doc(owner,...path(ownerId,'dados','storage_control')),{mode:'v2',generation:'forjada'}));
+ await assertFails(updateDoc(doc(owner,...path(ownerId,'dados','storage_control')),{mode:'v2'}));
  await assertFails(getDoc(secret));
  await assertFails(setDoc(secret,{ativo:true}));
  await assertFails(getDoc(publicOrder));
