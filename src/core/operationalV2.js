@@ -1,5 +1,6 @@
 import {exchangeRateSnapshotsEqual} from './exchangeRateGuard.js';
 import {doc,getDocFromServer,runTransaction,serverTimestamp} from 'firebase/firestore';
+import {authoritativeFirestoreRead} from './authoritativeFirestoreRead.js';
 import {peekV2Session} from './operationalRepository.js';
 import {V2_COLLECTIONS,V2_VALUES,entityIdV2,encodeV2Id,cleanV2Value,hashV2,stableV2Json,v2ControlPath,v2Error} from './operationalV2Schema.js';
 import {businessOperationChecks as checks,recordSyncMetric} from './productionSync.js';
@@ -8,6 +9,7 @@ import {reconciliarExclusoesV2} from './v2TombstoneReconciliation.js';
 import {projetarHistoricoNovaVendaPDV} from './pdvWriteIntent.js';
 import {criarLancamentoFinanceiro} from './financialLedgerCore.js';
 import {notifyPersistenceStatus} from './persistenceSafety.js';
+const readAuthoritativeDoc=ref=>authoritativeFirestoreRead(()=>getDocFromServer(ref));
 const bytes=v=>new TextEncoder().encode(stableV2Json(v)).length;
 const sanitize=value=>String(value??'sem-id').replaceAll('/','_');
 const indexed=(field,list)=>{
@@ -131,7 +133,7 @@ export async function persistV2BusinessOperationSafe({db,userId,changes=[],finan
     // conflict. Retry only with evidence of a newer head in this same route.
     let changed=e.code==='V2_RETRY_SEQUENCE';
     if(e.code==='permission-denied'){
-     const [latest,route]=await Promise.all([getDocFromServer(doc(db,...session.root)),getDocFromServer(doc(db,...v2ControlPath(userId)))]);
+     const [latest,route]=await Promise.all([readAuthoritativeDoc(doc(db,...session.root)),readAuthoritativeDoc(doc(db,...v2ControlPath(userId)))]);
      changed=Number(latest.data()?.sequence||0)>sequence&&stableV2Json(route.data())===stableV2Json(session.control);
     }
     if(!changed||attempt===4)throw e;
