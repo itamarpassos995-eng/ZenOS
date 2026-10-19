@@ -39,6 +39,7 @@ export default function ZenCommerceCommandCenter({
  const [aba,setAba]=useState('visao');
  const [filtro,setFiltro]=useState('ativos');
  const [busca,setBusca]=useState('');
+ const [dataInicio,setDataInicio]=useState(''),[dataFim,setDataFim]=useState('');
  const [buscaCliente,setBuscaCliente]=useState('');
  const [pedidoSelecionado,setPedidoSelecionado]=useState('');
  const [clienteSelecionado,setClienteSelecionado]=useState('');
@@ -47,17 +48,23 @@ export default function ZenCommerceCommandCenter({
  useEffect(()=>{if(produtoFocoId){setAba('personalizar');}},[produtoFocoId]);
  const resumo=useMemo(()=>resumoPedidosCommerce(pedidos),[pedidos]);
  const ativos=useMemo(()=>filtrarPedidosCommerce(pedidos,'ativos'),[pedidos]);
- const pedidosFiltrados=useMemo(()=>filtrarPedidosCommerce(pedidos,filtro,busca),[pedidos,filtro,busca]);
+ const pedidosFiltrados=useMemo(()=>filtrarPedidosCommerce(pedidos,filtro,busca).filter(p=>{
+  if(!dataInicio&&!dataFim)return true;
+  const t=Date.parse(p.criadoEm);if(!Number.isFinite(t))return false;
+  if(dataInicio&&t<new Date(dataInicio+'T00:00:00').getTime())return false;
+  if(dataFim&&t>new Date(dataFim+'T23:59:59.999').getTime())return false;
+  return true;
+ }),[pedidos,filtro,busca,dataInicio,dataFim]);
  const pedidosPagina=useMemo(()=>pedidosFiltrados.slice((pagina-1)*PER_PAGE,pagina*PER_PAGE),[pedidosFiltrados,pagina]);
  const selecionado=pedidos.find(p=>p.id===pedidoSelecionado);
  const clientesFiltrados=useMemo(()=>clientesOnline.filter(c=>[c.nome,c.telefone].some(v=>txt(v).includes(txt(buscaCliente).trim()))),[clientesOnline,buscaCliente]);
  const cliente=clientesOnline.find(c=>c.id===clienteSelecionado);
  const ir=(destino,proximoFiltro)=>{
   setAba(destino);if(proximoFiltro)setFiltro(proximoFiltro);
-  setPedidoSelecionado('');setClienteSelecionado('');setPagina(1);setBusca('');
+  setPedidoSelecionado('');setClienteSelecionado('');setPagina(1);setBusca('');setDataInicio('');setDataFim('');
   if(destino==='clientes')onConsultarClientes();
  };
- useEffect(()=>{setPagina(1);setPedidoSelecionado('');},[busca,filtro]);
+ useEffect(()=>{setPagina(1);setPedidoSelecionado('');},[busca,filtro,dataInicio,dataFim]);
  useEffect(()=>{if(selecionado&&aba!=='pedidos')setPedidoSelecionado('');},[aba]);
  const guia=[
   ['visao','Visão geral'],['pedidos','Pedidos'],['clientes','Clientes'],['personalizar','Personalizar loja'],['configuracoes','Configurações']
@@ -108,7 +115,12 @@ export default function ZenCommerceCommandCenter({
     {[['ativos','Ativos',resumo.novos+resumo.atendimento],['recebido','Novos',resumo.novos],['em_atendimento','Em atendimento',resumo.atendimento],['historico','Histórico',resumo.concluidos+resumo.cancelados]].map(([id,nome,n])=><button type="button" key={id} aria-pressed={filtro===id} onClick={()=>setFiltro(id)}>{nome} <span>{n}</span></button>)}
    </div>
    {['historico','encerrado','cancelado'].includes(filtro)&&<div className="zcc-history-filters"><button type="button" aria-pressed={filtro==='historico'} onClick={()=>setFiltro('historico')}>Todos do histórico</button><button type="button" aria-pressed={filtro==='encerrado'} onClick={()=>setFiltro('encerrado')}>Concluídos</button><button type="button" aria-pressed={filtro==='cancelado'} onClick={()=>setFiltro('cancelado')}>Cancelados</button></div>}
-   <label className="zcc-search">Buscar pedido, cliente ou telefone<input type="search" value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Ex.: nome do cliente, número do pedido…" /></label>
+   <div className="zcc-search-row">
+    <label className="zcc-search">Buscar pedido, cliente ou telefone<input type="search" value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Ex.: nome do cliente, número do pedido…" /></label>
+    <label className="zcc-date-field">De<input type="date" value={dataInicio} onChange={e=>setDataInicio(e.target.value)} /></label>
+    <label className="zcc-date-field">Até<input type="date" value={dataFim} min={dataInicio||undefined} onChange={e=>setDataFim(e.target.value)} /></label>
+    {(dataInicio||dataFim)&&<button className="zcc-clear-dates" type="button" onClick={()=>{setDataInicio('');setDataFim('');}}>Limpar período</button>}
+   </div>
    <div className={'zcc-workspace '+(selecionado?'zcc-workspace--detail':'')}>
     <div className="zcc-pane zcc-list-pane"><div className="zcc-pane-title"><h4>{filtro==='ativos'?'Fila de atendimento':filtro==='historico'?'Histórico':filtro==='recebido'?'Novos pedidos':filtro==='em_atendimento'?'Em atendimento':filtro==='cancelado'?'Cancelados':'Concluídos'}</h4><span>{pedidosFiltrados.length} nesta consulta</span></div>
      <div className="zcc-list">{pedidosPagina.map(p=><button type="button" key={p.id} className={'zcc-order-row '+(pedidoSelecionado===p.id?'zcc-order-row--selected':'')} onClick={()=>setPedidoSelecionado(p.id)} aria-label={'Ver detalhes do pedido '+ID(p.id)}>
@@ -125,7 +137,7 @@ export default function ZenCommerceCommandCenter({
      <ZenCommerceOrderCard pedido={selecionado} ocupado={painelBusy} onAbrirPDV={onAtenderPedido} onCancelar={onCancelarPedido}/>
     </aside>}
    </div>
-   <p className="zcc-data-note">Consulta limitada aos 50 pedidos mais recentes pelo serviço atual. Pedidos cancelados continuam registrados e disponíveis no histórico, sem modificar estoque nem caixa.</p>
+   <p className="zcc-data-note">Pesquisa, filtros e período aplicados aos 50 pedidos mais recentes carregados pelo serviço atual. Pedidos cancelados continuam registrados e disponíveis no histórico, sem modificar estoque nem caixa.</p>
   </div>
   <div hidden={aba!=='clientes'} className="zcc-screen">
    <div className="zcc-section-head"><div><span className="zcc-eyebrow">RELACIONAMENTO</span><h3>Clientes da Loja Online</h3><p>Cadastros voluntários, independentes do módulo financeiro Clientes & Fiado.</p></div><button type="button" className="zcc-outline" disabled={clientesCarregando} onClick={onConsultarClientes}>{clientesCarregando?'Buscando…':'↻ Atualizar clientes'}</button></div>
