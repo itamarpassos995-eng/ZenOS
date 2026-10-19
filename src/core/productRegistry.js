@@ -15,10 +15,14 @@ export async function reservarIdentidadeProduto({db,userId,produto,produtoAnteri
   const novas=chavesUnicidadeProduto(produto);
   const antigas=new Set(chavesUnicidadeProduto(produtoAnterior||{}));
   const refsNovas=novas.map(chave=>({chave,ref:doc(db,'lojas',userId,'produto_indices',chave)}));
+  const refsAntigas=[...antigas].filter(chave=>!novas.includes(chave))
+    .map(chave=>({chave,ref:doc(db,'lojas',userId,'produto_indices',chave)}));
   await runTransaction(db, async tx=>{
-    // Firestore exige TODAS as leituras antes da primeira escrita.
+    // Firestore exige TODAS as leituras antes da primeira escrita, inclusive índices antigos.
     const leituras=[];
     for(const item of refsNovas){ leituras.push({item,snap:await tx.get(item.ref)}); }
+    const leiturasAntigas=[];
+    for(const item of refsAntigas){ leiturasAntigas.push({item,snap:await tx.get(item.ref)}); }
 
     for(const {item,snap} of leituras){
       if(!snap.exists()) continue;
@@ -35,11 +39,10 @@ export async function reservarIdentidadeProduto({db,userId,produto,produtoAnteri
     for(const {ref} of refsNovas){
       tx.set(ref,{produtoId:produto.id,sku:produto.sku||'',nome:produto.nome||'',ativo:true,updatedAt:agora,updatedAtServer:serverTimestamp()},{merge:true});
     }
-    for(const chave of antigas){
-      if(!novas.includes(chave)){
-        const ref=doc(db,'lojas',userId,'produto_indices',chave);
-        tx.set(ref,{ativo:false,liberadoEm:agora,updatedAtServer:serverTimestamp()},{merge:true});
-      }
+    for(const {item,snap} of leiturasAntigas){
+      // A edição não pode liberar índice que já passou a pertencer a outro produto.
+      if(!snap.exists() || String(snap.data()?.produtoId||'')!==String(produtoAnterior?.id||produto.id)) continue;
+      tx.set(item.ref,{ativo:false,liberadoEm:agora,updatedAtServer:serverTimestamp()},{merge:true});
     }
   });
 }
