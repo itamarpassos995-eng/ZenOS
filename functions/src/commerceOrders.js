@@ -150,7 +150,7 @@ export const commerceLoja=onCall(opts,async request=>{
     pedido,pedidoId:key,anterior:anterior.exists?anterior.data():null,
     agora:new Date().toISOString()
    });
-   tx.set(clienteRef,dados,{merge:true});
+   if(dados)tx.set(clienteRef,dados,{merge:true}); // Pedido anônimo nunca modifica ficha confirmada.
   }
   tx.create(ref,data);tx.set(quota,{total:(q.data()?.total||0)+1});tx.set(userQuota,{total:(u.data()?.total||0)+1});
   return respostaPedidoCommerce(data,key,pub.data().whatsapp);
