@@ -121,6 +121,9 @@ export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuve
     }catch(e){pendentes.push(String(produto.nome||id).slice(0,45));}
    }
    const res=await fn.current({action:'salvarRascunho',expectedRevision:rev.current,rascunho:{aparencia,regras:revisadas}});
+   if(!Number.isSafeInteger(res?.data?.revision)||res.data.revision<=rev.current||
+      res.data.status!=='rascunho_privado'||res.data.publicado!==false)
+    throw new Error('O servidor não confirmou o salvamento do rascunho. Não atualize a página ainda.');
    rev.current=res.data.revision;
    setData(prev=>prev?{...prev,revision:res.data.revision,regras:revisadas,aparencia}:prev);
    return {...res.data,regras:revisadas,aviso:pendentes.length?`Foto original ainda pendente de sincronização em ${pendentes.length} produto(s). A loja segue privada.`:''};
