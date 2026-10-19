@@ -16,7 +16,7 @@ test('pedido novo: hierarquia de status, total, itens e ações premium acessív
  render(<ZenCommerceOrderCard pedido={novo} onAbrirPDV={onAbrirPDV} onCancelar={onCancelar}/>);
  expect(screen.getByText('Cliente fictício')).toBeTruthy();
  expect(screen.getByText('Novo')).toBeTruthy();
- expect(screen.getByText('R$ 211,50')).toBeTruthy();
+ expect(screen.getByText(/R\$\s*211,50/)).toBeTruthy();
  expect(screen.getByText('5×')).toBeTruthy();
  expect(screen.getByText('4×')).toBeTruthy();
  expect(screen.getByText('Retirar amanhã')).toBeTruthy();
@@ -41,8 +41,8 @@ test('pedido em atendimento não pode ser cancelado e pedido concluído não pod
  expect(screen.queryByRole('button',{name:'Cancelar pedido'})).toBeNull();
 });
 test('navegação de pedidos funciona com incremento de intenção sem trocar rota; refoca Studio existente',()=>{
- const app=readFileSync(new URL('../../src/App.jsx',import.meta.url),'utf8');
- const portal=readFileSync(new URL('../../src/components/ZenCommercePortal.jsx',import.meta.url),'utf8');
+ const app=readFileSync('src/App.jsx','utf8');
+ const portal=readFileSync('src/components/ZenCommercePortal.jsx','utf8');
  expect(app).toContain('setFocoPedidosOnline(n=>n+1)');
  expect(app).toContain('onAbrir={abrirCentralPedidosOnline}');
  expect(app).toContain('focoPedidosOnline={focoPedidosOnline}');
@@ -51,9 +51,9 @@ test('navegação de pedidos funciona com incremento de intenção sem trocar ro
  expect(portal).toContain('id="zen-pedidos-online"');
 });
 test('padronização visual não corta embalagens e não altera fluxo financeiro',()=>{
- const publicCss=readFileSync(new URL('../../src/commerce.css',import.meta.url),'utf8');
- const studio=readFileSync(new URL('../../src/components/ZenCommerceStudio.jsx',import.meta.url),'utf8');
- const pdv=readFileSync(new URL('../../src/components/PDV.jsx',import.meta.url),'utf8');
+ const publicCss=readFileSync('src/commerce.css','utf8');
+ const studio=readFileSync('src/components/ZenCommerceStudio.jsx','utf8');
+ const pdv=readFileSync('src/components/PDV.jsx','utf8');
  expect(publicCss).toContain('.commerce-product-image img { display:block;');
  expect(publicCss).toContain('object-fit:contain; object-position:center;');
  expect(studio).toContain("objectFit:'contain',objectPosition:'center'");
