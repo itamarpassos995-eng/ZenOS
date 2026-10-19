@@ -6,6 +6,7 @@ import {onAuthStateChanged,signOut} from 'firebase/auth';
 import {obterSessaoOperadorCommerce,entrarOperadorCommerce} from '../core/commerceOperatorAuth';
 import ZenCommerceStudio from './ZenCommerceStudio';
 import ZenCommerceOrderCard from './ZenCommerceOrderCard';
+import '../commercePremiumUX.css';
 import {prepararFotoProduto,fotoCadastroParaPrevia} from '../core/commerceImages';
 import {ZENOS_RUNTIME} from '../core/runtimeEnvironment';
 import {conferirRespostaHml} from '../core/commerceHmlTenantBoundary';
