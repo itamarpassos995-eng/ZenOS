@@ -4,6 +4,7 @@ import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
 import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
 import { getAnalytics } from "firebase/analytics";
 import { ZENOS_RUNTIME } from './core/runtimeEnvironment';
+import { obterOpcoesFirebaseCommerce } from './core/commerceFirebaseConfig';
 
 const productionFirebaseConfig = {
   apiKey: "AIzaSyA3vwT5sqlnynxZBgWsU_sIECqjbz3BpUo",
@@ -26,15 +27,25 @@ const homologationFirebaseConfig = {
   appId: "1:000000000000:web:zenoslocal"
 };
 
-const firebaseConfig = ZENOS_RUNTIME.isHomologacao
-  ? homologationFirebaseConfig
-  : productionFirebaseConfig;
+// No modo operacional HML, NUNCA usar a configuração do ambiente produtivo
+// nem conectores locais: apenas o SDK público do projeto de teste verificado.
+const firebaseConfig = ZENOS_RUNTIME.isCloudCommerceHml
+  ? obterOpcoesFirebaseCommerce()
+  : ZENOS_RUNTIME.isHomologacao
+    ? homologationFirebaseConfig
+    : productionFirebaseConfig;
+if (ZENOS_RUNTIME.isCloudCommerceHml &&
+    (firebaseConfig.projectId !== 'zenos-commerce-homologacao' ||
+     firebaseConfig.storageBucket !== 'zenos-commerce-homologacao.firebasestorage.app' ||
+     firebaseConfig.authDomain !== 'zenos-commerce-homologacao.firebaseapp.com')) {
+  throw new Error('Firebase operacional HML divergente: acesso bloqueado antes de autenticar.');
+}
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-if (ZENOS_RUNTIME.isHomologacao) {
+if (ZENOS_RUNTIME.isHomologacao && !ZENOS_RUNTIME.isCloudCommerceHml) {
   connectAuthEmulator(
     auth,
     `http://${ZENOS_RUNTIME.authEmulatorHost}:${ZENOS_RUNTIME.authEmulatorPort}`,
@@ -51,7 +62,7 @@ if (ZENOS_RUNTIME.isHomologacao) {
     `Auth ${ZENOS_RUNTIME.authEmulatorHost}:${ZENOS_RUNTIME.authEmulatorPort} — ` +
     `Firestore ${ZENOS_RUNTIME.firestoreEmulatorHost}:${ZENOS_RUNTIME.firestoreEmulatorPort}`
   );
-} else {
+} else if (ZENOS_RUNTIME.isProduction) {
   try {
     getAnalytics(app);
   } catch (error) {
