@@ -1,3 +1,10 @@
+const resultadoCadastroIndeterminado = erro => {
+  const code = String(erro?.code || '').toLowerCase().replace(/^firestore\\//,'');
+  const message = String(erro?.message || '').toLowerCase();
+  return ['unavailable','deadline-exceeded','aborted','unknown','internal'].includes(code)
+    || /failed to get documents? from server|could not reach cloud firestore backend|network (request|error|connection) failed/.test(message);
+};
+
 import { ehEncomendaUsoUnico } from '../core/orderItems';
 import React, { useState, useRef } from 'react';
 import { normalizarProduto } from '../data';
@@ -209,10 +216,10 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
           if (produtoEmEdicao) await reservarIdentidadeProduto({ db, userId, produto:produtoEmEdicao, produtoAnterior:dadosFinais });
           else await liberarIdentidadeProduto({ db, userId, produto:dadosFinais });
         } catch (rollbackErro) {
+          console.error('[ZenOS][ATT10.2] Falha ao restaurar índice do produto:', rollbackErro);
+        }
       } else {
         console.warn('[ZenOS] Cadastro com confirmação desconhecida: índice preservado para reconciliação pelo servidor.');
-      }
-        console.error('[ZenOS][ATT10.2] Falha ao restaurar índice do produto:', rollbackErro);
       }
       return mostrarZen('danger', tx('Produto não salvo','Producto no guardado','Product not saved'), tx('A nuvem não confirmou o cadastro. Nenhum produto foi considerado salvo.','La nube no confirmó el registro. Ningún producto fue considerado guardado.','The cloud did not confirm the registration. No product was considered saved.'), [erro?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
     }
@@ -430,12 +437,6 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
                                 <button title={tx('Transferir do depósito para a vitrine','Transferir de depósito a exhibición','Transfer from warehouse to display')} onClick={() => idsComConflito.has(String(prod.id)) ? mostrarZen('danger', 'Conflito de identidade', 'Movimentação bloqueada porque este produto possui ID duplicado no catálogo.') : abrirMovimentoRapido(prod, 'deposito', -1)} style={{ width: '20px', height: '20px', borderRadius: '4px', backgroundColor: '#020617', border: '1px solid #334155', color: '#fb7185', fontWeight: 900, cursor: 'pointer' }}>-</button>
                                 <span style={{ fontWeight: 900, fontSize: '14px', minWidth: '30px', textAlign: 'center', color: '#a855f7' }}>{prod.estoqueGalpao ?? 0}</span>
                                 <button title={tx('Transferir da vitrine para o depósito','Transferir de exhibición a depósito','Transfer from display to warehouse')} onClick={() => idsComConflito.has(String(prod.id)) ? mostrarZen('danger', 'Conflito de identidade', 'Movimentação bloqueada porque este produto possui ID duplicado no catálogo.') : abrirMovimentoRapido(prod, 'deposito', 1)} style={{ width: '20px', height: '20px', borderRadius: '4px', backgroundColor: '#020617', border: '1px solid #334155', color: '#34d399', fontWeight: 900, cursor: 'pointer' }}>+</button>
-const resultadoCadastroIndeterminado = erro => {
-  const code = String(erro?.code || '').toLowerCase().replace(/^firestore\\//,'');
-  const message = String(erro?.message || '').toLowerCase();
-  return ['unavailable','deadline-exceeded','aborted','unknown','internal'].includes(code)
-    || /failed to get documents? from server|could not reach cloud firestore backend|network (request|error|connection) failed/.test(message);
-};
                               </div>
                             </div>
                           </div>
