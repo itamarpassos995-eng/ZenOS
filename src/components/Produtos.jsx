@@ -1,3 +1,10 @@
+const resultadoCadastroIndeterminado = erro => {
+  const code = String(erro?.code || '').toLowerCase().replace('firestore/','');
+  const message = String(erro?.message || '').toLowerCase();
+  return ['unavailable','deadline-exceeded','aborted','unknown','internal'].includes(code)
+    || /failed to get documents? from server|could not reach cloud firestore backend|network (request|error|connection) failed/.test(message);
+};
+
 import { ehEncomendaUsoUnico } from '../core/orderItems';
 import React, { useState, useRef } from 'react';
 import { normalizarProduto } from '../data';
@@ -204,11 +211,15 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       setModalProdutoAberto(false);
     } catch (erro) {
       console.error('[ZenOS][ATT10.2] Produto não confirmado:', erro);
-      try {
-        if (produtoEmEdicao) await reservarIdentidadeProduto({ db, userId, produto:produtoEmEdicao, produtoAnterior:dadosFinais });
-        else await liberarIdentidadeProduto({ db, userId, produto:dadosFinais });
-      } catch (rollbackErro) {
-        console.error('[ZenOS][ATT10.2] Falha ao restaurar índice do produto:', rollbackErro);
+      if (!resultadoCadastroIndeterminado(erro)) {
+        try {
+          if (produtoEmEdicao) await reservarIdentidadeProduto({ db, userId, produto:produtoEmEdicao, produtoAnterior:dadosFinais });
+          else await liberarIdentidadeProduto({ db, userId, produto:dadosFinais });
+        } catch (rollbackErro) {
+          console.error('[ZenOS][ATT10.2] Falha ao restaurar índice do produto:', rollbackErro);
+        }
+      } else {
+        console.warn('[ZenOS] Cadastro com confirmação desconhecida: índice preservado para reconciliação pelo servidor.');
       }
       return mostrarZen('danger', tx('Produto não salvo','Producto no guardado','Product not saved'), tx('A nuvem não confirmou o cadastro. Nenhum produto foi considerado salvo.','La nube no confirmó el registro. Ningún producto fue considerado guardado.','The cloud did not confirm the registration. No product was considered saved.'), [erro?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
     }
