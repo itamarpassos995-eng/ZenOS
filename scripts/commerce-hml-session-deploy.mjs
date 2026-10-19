@@ -31,7 +31,7 @@ if(!idx.includes("export {commerceSessaoZenOS} from './commerceZenOSSession.js';
  !session.includes('validarAcessoZenOS(acesso)')||
  !session.includes('conferirPinZenOS(acesso,request.data.pin)')||
  !session.includes('tx.create(db.doc(')||
- !session.includes('timingSafeEqual(hash,Buffer.from(acesso.pinHash')))
+ !session.includes('timingSafeEqual(hash,Buffer.from(acesso.pinHash'))
  throw Error('Validações canônicas da callable de sessão não confirmadas.');
 const envPath=resolve(root,'functions/.env.'+project);
 if(!existsSync(envPath)&&args[0]==='--deploy-session')
