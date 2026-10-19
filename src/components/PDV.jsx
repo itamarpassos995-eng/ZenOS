@@ -866,7 +866,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
           }
           setModalZen({
             variante:'danger',
-            titulo: tipoFinalizacao === 'venda' ? tx('Venda não concluída','Venta no concluida','Sale not completed') : tx('Documento não salvo','Documento no guardado','Document not saved'),
+            titulo: tipoFinalizacao === 'venda' ? tx('Confirmação da venda pendente','Confirmación de venta pendiente','Sale confirmation pending') : tx('Documento não confirmado','Documento no confirmado','Document not confirmed'),
             mensagem: resultadoServidor.status === 'committed'
               ? tx('Registro identificado no servidor. Não repita a cobrança. Confira a venda no histórico e reconcilie o caixa antes de continuar.',
                    'Registro identificado en el servidor. No repita el cobro. Revise el historial y la caja.',
