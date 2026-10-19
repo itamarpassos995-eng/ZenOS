@@ -23,14 +23,16 @@ if(config.functions?.source!=='functions'||config.functions?.codebase!=='fiscal'
    config.hosting?.public!=='dist-commerce-hml')
  throw Error('Configuracao de funcoes isoladas mudou; nenhuma publicacao.');
 const source=read('functions/src/commerceOrders.js'),core=read('functions/src/commerceOrdersCore.js'),
+ clienteCore=read('functions/src/commerceCustomersCore.js'),
  storefront=read('src/components/ZenCommerceStorefront.jsx'),admin=read('src/components/ZenCommercePortal.jsx'),
  auth=read('src/core/commercePublicApi.js');
 for(const [nome,codigo,fragmentos] of [
  ['servidor',source,['autorizarOperadorCommerce(request.auth,db,request.data?.sessaoZenOS)',
   'if(action===\'listarClientesOnline\')',"['catalogo','criarPedido','consultarPedido'].includes(action)",'lojas/${lojaId}/commerce_clientes/',
-  'tx.create(ref,data)','cadastroSolicitado','marketingAutorizado:false',
+  'tx.create(ref,data)','cadastroSolicitado','prepararCadastroOnline',
   'CONTRATO_HML_ISOLAMENTO']],
  ['validacao',core,['aceitePromocoes&&!criarCadastro','criarCadastro:input.criarCadastro===true']],
+ ['crm',clienteCore,['idClienteOnline','titularidadeVerificada===true','marketingAutorizado:false','marketingStatus:']],
  ['vitrine',storefront,['setCarrinho({});setCliente(novoCliente());setRecibo(r);',
   'sessionStorage.removeItem(chaveSessao(idPublico))','criarCadastro','aceitePromocoes']],
  ['painel',admin,['listarClientesOnline','conferirRespostaHml(data,userId)']],
