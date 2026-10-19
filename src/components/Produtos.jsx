@@ -1,5 +1,5 @@
 const resultadoCadastroIndeterminado = erro => {
-  const code = String(erro?.code || '').toLowerCase().replace(/^firestore\\//,'');
+  const code = String(erro?.code || '').toLowerCase().replace('firestore/','');
   const message = String(erro?.message || '').toLowerCase();
   return ['unavailable','deadline-exceeded','aborted','unknown','internal'].includes(code)
     || /failed to get documents? from server|could not reach cloud firestore backend|network (request|error|connection) failed/.test(message);
