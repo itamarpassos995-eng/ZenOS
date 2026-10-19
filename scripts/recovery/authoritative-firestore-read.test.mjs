@@ -29,7 +29,7 @@ test('quota e regras estruturais não geram tempestade de consultas',async()=>{
 });
 test('mensagem literal do Firestore traduzida pelo navegador permite recuperação segura',()=>{
  assert.equal(isTransientFirestoreReadError(new Error('Failed to get documents from server. However, these documents may exist in the local cache.')),true);
- assert.equal(isTransientFirestoreReadError(new Error('permission denied: failed to get documents from server')),true);
+ assert.equal(isTransientFirestoreReadError(new Error('permission denied: failed to get documents from server')),false);
  assert.equal(isTransientFirestoreReadError({code:'permission-denied',message:'Failed to get documents from server'}),false);
  assert.equal(isTransientFirestoreReadError({code:'internal',message:'corrupt document size'}),false);
 });
