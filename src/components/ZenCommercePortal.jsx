@@ -6,6 +6,7 @@ import {onAuthStateChanged,signOut} from 'firebase/auth';
 import {obterSessaoOperadorCommerce,entrarOperadorCommerce} from '../core/commerceOperatorAuth';
 import ZenCommerceStudio from './ZenCommerceStudio';
 import {prepararFotoProduto,fotoCadastroParaPrevia} from '../core/commerceImages';
+import {ZENOS_RUNTIME} from '../core/runtimeEnvironment';
 
 const erroAmigavel=e=>{
  const code=String(e?.code||'');
@@ -137,7 +138,17 @@ export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuve
   try{return (await fn.current({action:'solicitarProposta',confirmacaoContato:true})).data;}
   catch(e){throw new Error(erroAmigavel(e));}
  };
- if(loading)return <div style={{padding:25,color:'#f8fafc'}}>Carregando Commerce Studio...</div>;
+ if(loading)return <div role="status" style={{padding:25,color:'#f8fafc'}}>Verificando sessão e rascunho do Commerce no servidor...</div>;
+ // Na homologação cloud, uma prévia que carrega produtos locais não é prova
+ // de autorização para gravar. Sem consulta remota válida, não abrir editor.
+ if(ZENOS_RUNTIME.isCloudCommerceHml && !data)return (
+  <section role="alert" style={{padding:20,border:'1px solid #e0a84e',borderRadius:12,background:'#17212f',color:'#fff',display:'grid',gap:10}}>
+   <strong>Loja Online ainda não conectada para salvar</strong>
+   <p style={{margin:0}}>{erro||'A sessão administrativa do Commerce não foi confirmada no servidor.'}</p>
+   <p style={{margin:0,color:'#d1dce5'}}>Se você acabou de entrar no ZenOS, faça novamente o acesso ao terminal com seu PIN de teste e abra Minha Loja Online. Nenhuma configuração foi publicada ou salva sem confirmação.</p>
+   <small style={{color:'#f1bd73'}}>O estoque e a loja fictícia estão preservados. Não refaça a criação de operadores nem altere regras do Firebase.</small>
+  </section>
+ );
  return <div style={{display:'grid',gap:12}}>
   {!integrado&&<div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
    <button type="button" onClick={async()=>{try{setErro('');if(operatorUid)await signOut(operatorAuth);else await entrarOperadorCommerce();}catch(e){setErro(erroAmigavel(e));}}}>
