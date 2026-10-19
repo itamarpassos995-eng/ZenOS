@@ -30,7 +30,7 @@ test('visão geral mostra somente ações imediatas, sem lista de cancelados',()
 });
 test('central mostra apenas ativos por padrão e permite recuperar cancelados pelo histórico',()=>{
  render(<ZenCommerceCommandCenter {...props} editor={<div>Editor</div>}/>);
- fireEvent.click(screen.getByRole('button',{name:/^Pedidos 1$/}));
+ fireEvent.click(within(screen.getByRole('navigation',{name:'Áreas da loja online'})).getByRole('button',{name:/Pedidos/}));
  const lista=screen.getByRole('heading',{name:'Fila de atendimento'}).closest('.zcc-pane');
  expect(within(lista).getByText('Maria Silva')).toBeTruthy();
  expect(within(lista).getByText('Pedro Oliveira')).toBeTruthy();
@@ -38,15 +38,16 @@ test('central mostra apenas ativos por padrão e permite recuperar cancelados pe
  fireEvent.click(screen.getByRole('button',{name:/Histórico 2/}));
  expect(screen.getByText('Cliente antigo')).toBeTruthy();
  expect(screen.getByText('Cliente concluído')).toBeTruthy();
- expect(screen.queryByText('Maria Silva')).toBeNull();
+ const historico=screen.getByRole('heading',{name:'Histórico'}).closest('.zcc-pane');
+ expect(within(historico).queryByText('Maria Silva')).toBeNull();
  fireEvent.click(screen.getByRole('button',{name:'Cancelados'}));
  expect(screen.getByText('Cliente antigo')).toBeTruthy();
- expect(screen.queryByText('Cliente concluído')).toBeNull();
+ expect(within(screen.getByRole('heading',{name:'Cancelados'}).closest('.zcc-pane')).queryByText('Cliente concluído')).toBeNull();
 });
 test('detalhe sob demanda não dispara nenhum faturamento; ação usa o callback existente',()=>{
  const pdv=vi.fn();
  render(<ZenCommerceCommandCenter {...props} onAtenderPedido={pdv} editor={<div>Editor</div>}/>);
- fireEvent.click(screen.getByRole('button',{name:/^Pedidos 1$/}));
+ fireEvent.click(within(screen.getByRole('navigation',{name:'Áreas da loja online'})).getByRole('button',{name:/Pedidos/}));
  expect(pdv).not.toHaveBeenCalled();
  fireEvent.click(screen.getByRole('button',{name:'Ver detalhes do pedido NOVO123456'}));
  expect(screen.getByLabelText('Detalhes do pedido selecionado')).toBeTruthy();
@@ -80,7 +81,7 @@ test('avisos externos abrem a fila sem perder o pedido registrado',()=>{
  const v=render(<ZenCommerceCommandCenter {...props} focoPedidosOnline={0} editor={<div>Editor</div>}/>);
  v.rerender(<ZenCommerceCommandCenter {...props} focoPedidosOnline={1} editor={<div>Editor</div>}/>);
  expect(screen.getByRole('heading',{name:'Central de pedidos'})).toBeTruthy();
- expect(screen.getByText('Maria Silva')).toBeTruthy();
+ expect(within(screen.getByRole('heading',{name:'Fila de atendimento'}).closest('.zcc-pane')).getByText('Maria Silva')).toBeTruthy();
 });
 test('filtros puros jamais ocultam cancelados do histórico',()=>{
  expect(filtrarPedidosCommerce(pedidos,'ativos').map(x=>x.status)).toEqual(['recebido','em_atendimento']);
