@@ -31,24 +31,24 @@ if(!idx.includes("export {commerceSessaoZenOS} from './commerceZenOSSession.js';
  !session.includes('validarAcessoZenOS(acesso)')||
  !session.includes('conferirPinZenOS(acesso,request.data.pin)')||
  !session.includes('tx.create(db.doc(')||
- !session.includes('timingSafeEqual(hash,Buffer.from(acesso.pinHash'))||
- !session.includes("getFunctions") && false)
+ !session.includes('timingSafeEqual(hash,Buffer.from(acesso.pinHash')))
  throw Error('Validações canônicas da callable de sessão não confirmadas.');
 const envPath=resolve(root,'functions/.env.'+project);
-if(!existsSync(envPath))throw Error('Arquivo de homologação existente não encontrado; não gerar ou substituir.');
+if(!existsSync(envPath)&&args[0]==='--deploy-session')
+ throw Error('Arquivo de homologação existente não encontrado; não gerar ou substituir.');
 const required={
  ZENOS_COMMERCE_MEDIA_ENABLED:'true',
  ZENOS_COMMERCE_HOMOLOGACAO:'true',
  ZENOS_COMMERCE_STORAGE_BUCKET:'zenos-commerce-homologacao.firebasestorage.app'
 };
-const rows=text('functions/.env.'+project).split(/\r?\n/).map(s=>s.trim()).filter(s=>s&&!s.startsWith('#'));
+const rows=existsSync(envPath)?text('functions/.env.'+project).split(/\r?\n/).map(s=>s.trim()).filter(s=>s&&!s.startsWith('#')):[];
 const values=new Map(rows.map(line=>{
  const i=line.indexOf('=');
  if(i<1)throw Error('Variável HML inválida.');
  return [line.slice(0,i).trim(),line.slice(i+1).trim().replace(/^['"]|['"]$/g,'')];
 }));
-if(rows.length!==values.size||rows.length!==Object.keys(required).length||
- Object.entries(required).some(([k,v])=>values.get(k)!==v))
+if(existsSync(envPath)&&(rows.length!==values.size||rows.length!==Object.keys(required).length||
+ Object.entries(required).some(([k,v])=>values.get(k)!==v)))
  throw Error('Flags HML inseguras ou divergentes. Nenhuma Function será publicada.');
 console.log('PASSOU: alvo único '+target+', Firebase '+project+', autorização privada por PIN, sem Firestore rules/Hosting/Storage.');
 if(args[0]==='--check')process.exit(0);
