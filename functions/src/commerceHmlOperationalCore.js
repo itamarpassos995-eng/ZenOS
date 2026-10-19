@@ -26,7 +26,6 @@ export function documentosOperacionaisFicticios(uid,pinAdmin,pinSegundo){
   {id:'admin',nome:'Operador teste A',cargo:'Gerência',patente:'gerencia',permissoes:{admin:true},pinTrocaObrigatoria:false,...hashCredencialHml(pinAdmin)},
   {id:'caixa-2',nome:'Operador teste B',cargo:'Gerência',patente:'gerencia',permissoes:{admin:true},pinTrocaObrigatoria:false,...hashCredencialHml(pinSegundo)},
  ];
- const {pinHash:___,pinSalt:__,pinVersion:_,...unused}=operadores[0];void unused;
  return {
   shop:{status:'ativo',tipo:'homologacao_operacional',plano:'basico',homologacaoProprietarioUid:uid,
    criadoEm:new Date().toISOString(),testeSomente:true},
