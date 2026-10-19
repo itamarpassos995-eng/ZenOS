@@ -54,7 +54,7 @@ if(existsSync(envFile))conferirEnvAtual(readFileSync(envFile,'utf8'));
 else if(args[0]==='--deploy-seed'){
  // Apenas configuração pública de ambiente, em arquivo ignorado pelo Git.
  // flag wx impede sobrescrita até se outro processo criar o arquivo agora.
- writeFileSync(envFile,Object.entries(envEsperado).map(([k,v])=>k+'='+v).join('\\n')+'\\n',{flag:'wx',mode:0o600});
+ writeFileSync(envFile,Object.entries(envEsperado).map(([k,v])=>k+'='+v).join('\n')+'\n',{flag:'wx',mode:0o600});
  conferirEnvAtual(readFileSync(envFile,'utf8'));
 }
 const target='functions:fiscal:commerceHmlOperationalSeed';
