@@ -32,6 +32,7 @@ export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuve
  useEffect(()=>()=>{if(!integrado)void signOut(operatorAuth);},[operatorAuth,userId,operadorAtivo?.id]);
  const [whatsapp,setWhatsapp]=useState(''),[pedidos,setPedidos]=useState([]),[painelErro,setPainelErro]=useState(''),[painelBusy,setPainelBusy]=useState(false);
  const [avisosNovos,setAvisosNovos]=useState(0);
+ const [clientesOnline,setClientesOnline]=useState([]),[erroClientesOnline,setErroClientesOnline]=useState(''),[loadingClientesOnline,setLoadingClientesOnline]=useState(false);
  const idsConhecidos=useRef(null),consultaEmCurso=useRef(false),lojaPedidos=useRef(null);
  const painelPedidosRef=useRef(null);
  const rev=useRef(0);
@@ -82,8 +83,8 @@ export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuve
  };
  // Consulta somente enquanto o módulo está aberto e a aba visível. A primeira leitura estabelece a linha de base.
  useEffect(()=>{
-  if(!data?.lojaId||!operatorUid){lojaPedidos.current=null;idsConhecidos.current=null;setPedidos([]);setAvisosNovos(0);return;}
-  lojaPedidos.current=data.lojaId;idsConhecidos.current=null;setPedidos([]);setAvisosNovos(0);
+  if(!data?.lojaId||!operatorUid){lojaPedidos.current=null;idsConhecidos.current=null;setPedidos([]);setAvisosNovos(0);setClientesOnline([]);return;}
+  lojaPedidos.current=data.lojaId;idsConhecidos.current=null;setPedidos([]);setAvisosNovos(0);setClientesOnline([]);
   void carregarPedidos();
   const timer=setInterval(()=>{if(document.visibilityState==='visible')void carregarPedidos();},90000);
   return()=>{clearInterval(timer);lojaPedidos.current=null;};
@@ -209,6 +210,23 @@ export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuve
      finally{setPainelBusy(false);}
     }}/>)}</div>
    {!pedidos.length&&<p className="zen-online-empty">Nenhum pedido na fila. Use “Atualizar pedidos” para consultar as últimas 50 solicitações.</p>}
+   <details className="commerce-customer-register-admin">
+    <summary>Clientes cadastrados pela loja online</summary>
+    <p className="zen-online-panel-help">Cadastros voluntários separados do caixa e do fiado. A autorização promocional fica pendente até a confirmação da titularidade do WhatsApp; nenhuma mensagem é enviada automaticamente.</p>
+    <button type="button" disabled={loadingClientesOnline||painelBusy} className="zen-online-btn zen-online-btn--secondary" onClick={async()=>{
+     setLoadingClientesOnline(true);setErroClientesOnline('');
+     try{const r=await adminApi('listarClientesOnline');setClientesOnline(Array.isArray(r.clientes)?r.clientes:[]);}
+     catch(e){setErroClientesOnline(erroAmigavel(e));}
+     finally{setLoadingClientesOnline(false);}
+    }}>{loadingClientesOnline?'Consultando…':'Consultar clientes cadastrados'}</button>
+    {erroClientesOnline&&<p role="alert">{erroClientesOnline}</p>}
+    <div className="commerce-customer-register-admin-list">
+     {clientesOnline.map(c=><article key={c.id} className="commerce-customer-register-admin-item">
+      <strong>{c.nome}</strong><span>{c.telefone}</span>
+      <small>{c.marketingStatus==='pendente_verificacao'?'Solicitou promoções — titularidade pendente':'Não autorizou promoções'}</small>
+     </article>)}
+    </div>
+   </details>
   </section>}
   <ZenCommerceStudio key={String(userId)+'-'+String(produtoFocoId||'studio')} produtos={produtos} produtoFocoId={produtoFocoId} aparenciaInicial={data?.aparencia}
    regrasIniciais={data?.regras||{}} licenca={data?.licenca||{status:'nao_contratado'}}
