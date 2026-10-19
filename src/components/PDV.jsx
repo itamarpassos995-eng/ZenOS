@@ -884,7 +884,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
           setModalZen({
             variante:'danger',
             titulo: tipoFinalizacao === 'venda' ? tx('Venda não concluída','Venta no concluida','Sale not completed') : tx('Documento não salvo','Documento no guardado','Document not saved'),
-            mensagem:tx('A nuvem não confirmou esta operação. Nada foi finalizado no PDV.','La nube no confirmó esta operación. Nada fue finalizado en el TPV.','The cloud did not confirm this operation. Nothing was finalized in the POS.'),
+            mensagem:tx('A confirmação não foi obtida. O resultado pode estar pendente no servidor. Preserve o carrinho e verifique o histórico antes de repetir qualquer operação.','No se obtuvo confirmación. El resultado podría estar pendiente en el servidor. Conserve el carrito y consulte el historial antes de reintentar.','Confirmation was not obtained. The result may be pending on the server. Keep the cart and check history before trying again.'),
             detalhes: detalheFalha,
             apenasConfirmar:true,
           });
