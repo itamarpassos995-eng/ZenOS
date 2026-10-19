@@ -16,6 +16,8 @@ on:
       - 'src/core/runtimeEnvironment.js'
       - 'src/components/ZenCommerceOperationalHmlGate.jsx'
       - 'firestore.commerce.operational-hml.rules'
+      - 'firebase.commerce.operational-rules-test.json'
+      - 'scripts/commerce-operational-rules-emulator-check.mjs'
       - 'vite.config.js'
       - 'scripts/commerce-cloud-hml-*.mjs'
       - 'firebase.commerce.cloud-hml.json'
@@ -84,3 +86,28 @@ jobs:
           ZENOS_COMMERCE_HOMOLOGACAO: 'true'
           ZENOS_COMMERCE_STORAGE_BUCKET: demo-zenos-local.appspot.com
         run: node scripts/commerce-emulator-check.mjs
+
+  rules-operational-hml:
+    name: Firestore Operational HML Rules (isolated emulator)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install emulator-only rules harness (not persisted in app manifest)
+        run: npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund @firebase/rules-unit-testing@6.0.0
+      - name: Verify strict Firestore HML rules on synthetic data only
+        env:
+          GCLOUD_PROJECT: demo-zenos-local
+          FIREBASE_CLI_EXPERIMENTS: webframeworks
+        run: npx --yes firebase-tools@15.34.0 emulators:exec --project demo-zenos-local --config firebase.commerce.operational-rules-test.json --only firestore 'node scripts/commerce-operational-rules-emulator-check.mjs'
