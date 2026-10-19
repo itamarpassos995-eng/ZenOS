@@ -9,3 +9,6 @@ export {commerceLoja,commercePedidosAdmin} from './commerceOrders.js';
 export {commerceHmlBootstrap} from './commerceHmlBootstrap.js';
 
 export {commerceSessaoZenOS} from './commerceZenOSSession.js';
+
+// Somente homologação isolada, bloqueada por projeto e identidade Google verificada.
+export {commerceHmlOperationalSeed} from './commerceHmlOperationalSeed.js';

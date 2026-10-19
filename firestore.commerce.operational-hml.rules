@@ -1,0 +1,59 @@
+rules_version = '2';
+service cloud.firestore {
+ match /databases/{database}/documents {
+  // ATENÇÃO: EXCLUSIVO do projeto zenos-commerce-homologacao.
+  // Nunca usar no Firebase de produção; deploy manual bloqueado pelo processo de homologação.
+  function donoOperacionalHml(lojaId) {
+   let raiz = /databases/$(database)/documents/lojas/$(lojaId);
+   return request.auth != null
+     && request.auth.uid == lojaId
+     && request.auth.token.email_verified == true
+     && request.auth.token.email == 'itamarbenit@gmail.com'
+     && request.auth.token.firebase.sign_in_provider == 'google.com'
+     && exists(raiz)
+     && get(raiz).data.tipo == 'homologacao_operacional'
+     && get(raiz).data.homologacaoProprietarioUid == lojaId
+     && get(raiz).data.testeSomente == true;
+  }
+  match /lojas/{lojaId} {
+   allow read: if donoOperacionalHml(lojaId);
+   allow create, update, delete: if false; // apenas bootstrap Admin SDK
+   match /dados/{docId} {
+    allow read, write: if donoOperacionalHml(lojaId)
+      && docId in ['operacao', 'storage_control', 'configuracoes'];
+   }
+   match /financeiro_livro/{entryId} {
+    allow read, write: if donoOperacionalHml(lojaId);
+   }
+   match /estoque_auditoria/{auditId}/movimentos/{eventId} {
+    allow read, write: if donoOperacionalHml(lojaId);
+   }
+   match /commerce_faturamentos/{pedidoId} {
+    allow read: if donoOperacionalHml(lojaId);
+    // Recibo definitivo vinculado a pedido em atendimento e venda confirmada.
+    function comprovanteVenda() {
+     let p = get(/databases/$(database)/documents/lojas/$(lojaId)/commerce_pedidos/$(pedidoId)).data;
+     let after = getAfter(/databases/$(database)/documents/lojas/$(lojaId)/dados/operacao).data;
+     let v = after.historicoVendas[0];
+     return p.status == 'em_atendimento'
+       && p.pdv.vendaId == 'COMMERCE-' + pedidoId
+       && v.id == 'COMMERCE-' + pedidoId && v.estado == 'concluida'
+       && v.origem == 'commerce' && v.commercePedidoId == pedidoId
+       && v.tipoDocumento == 'venda';
+    }
+    allow create: if donoOperacionalHml(lojaId)
+      && pedidoId.matches('^[a-f0-9]{32}$')
+      && request.resource.data.keys().hasOnly(['pedidoId','vendaId','criadoEm'])
+      && request.resource.data.pedidoId == pedidoId
+      && request.resource.data.vendaId == 'COMMERCE-' + pedidoId
+      && request.resource.data.criadoEm is string
+      && request.resource.data.criadoEm.size() <= 40
+      && comprovanteVenda();
+    allow update,delete: if false;
+   }
+   // commerce_private, commerce_pedidos, commerce_quotas, V2 etc NÃO são acessíveis
+   // por cliente. As Functions operam por Admin SDK e verificam autorização própria.
+  }
+  match /{other=**} {allow read, write: if false;}
+ }
+}
