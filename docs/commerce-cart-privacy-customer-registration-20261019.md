@@ -28,3 +28,10 @@
 - Com autorização, deploy isolado de duas Functions HML: node scripts/commerce-hml-customer-checkout-deploy.mjs --deploy-commerce
 - Preparar SDK HML e publicar somente canal op-hml-19 via commerce-operational-hml-preview.mjs --publish-short-preview.
 - Sem merge em main, sem publicação em zenos.app.br, sem mexer no Firebase de produção.
+
+## Incidente reproduzido em 19/10: janela travada após F5
+- Evidência: modal 'Seu carrinho' com subtotal, campos desabilitados, aviso 'A confirmação deste envio precisa ser verificada' e erro 'Ação inválida. [400]'.
+- Causa confirmada no frontend anterior: sessionStorage recuperava pendente=true e reabria checkout automaticamente. Consulta do envio foi rejeitada com 400 pela função HML. A rejeição sugere incompatibilidade de contrato com a versão do servidor; não é prova de pedido inexistente.
+- Correção no novo checkout: após F5 a página nasce vazia; nenhuma consulta automática é feita. Durante falha ambígua na aba ainda aberta, tela de recuperação substitui formulário desabilitado; botões permitem consultar, falar com a loja ou sair e limpar a tentativa após aviso explícito. Encerrar não mexe no pedido remoto.
+- Ordem de publicação: atualizar commerceLoja e commercePedidosAdmin SOMENTE na HML; executar node scripts/commerce-hml-customer-checkout-deploy.mjs --verify-remote; a chamada sem autenticação deve retornar HTTP 401 UNAUTHENTICATED, comprovando que consultarPedido foi reconhecida (nunca 400 'Ação inválida'). Somente depois publicar o Hosting de prévia.
+- No site anterior não executar novas compras repetidas sem primeiro conferir se o pedido foi registrado no ZenOS.
