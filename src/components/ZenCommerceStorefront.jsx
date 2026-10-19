@@ -95,11 +95,23 @@ export default function ZenCommerceStorefront({idPublico,lojaInicial=null}){
     {itens.map(p=><div key={p.skuPublico} className="commerce-cart-row"><div><strong>{p.nome}</strong><small>{moeda(p.precoCentavos)} por unidade</small></div><div className="commerce-quantity"><button type="button" disabled={busy||pendente} onClick={()=>alterar(p.skuPublico,-1)} aria-label={'Diminuir '+p.nome}>−</button><span>{p.quantidade}</span><button type="button" disabled={busy||pendente||p.quantidade>=p.quantidadeMaxima} onClick={()=>alterar(p.skuPublico,1)} aria-label={'Aumentar '+p.nome}>+</button></div></div>)}
     <div className="commerce-order-summary"><span>Subtotal dos produtos</span><strong>{moeda(total)}</strong></div><p>Este é um pedido de atendimento, não uma compra paga. A loja confirmará disponibilidade, frete e pagamento. Nenhum pagamento é feito nesta página e o estoque não será reservado.</p>
     <fieldset className="commerce-form" disabled={busy||pendente}><label>Seu nome<input className="commerce-field" required autoComplete="off" minLength={2} maxLength={100} value={cliente.nome} onChange={e=>setCliente({...cliente,nome:e.target.value})}/></label><label>WhatsApp com código do país<input className="commerce-field" required type="tel" autoComplete="off" maxLength={25} placeholder="+55 ou +595..." value={cliente.telefone} onChange={e=>setCliente({...cliente,telefone:e.target.value})}/></label><label>Quer deixar alguma observação?<textarea className="commerce-field" maxLength={500} placeholder="Preferências de entrega, retirada ou dúvidas sobre o pedido" value={cliente.observacao} onChange={e=>setCliente({...cliente,observacao:e.target.value})}/></label><label className="commerce-consent"><input required type="checkbox" checked={cliente.aceiteContato} onChange={e=>setCliente({...cliente,aceiteContato:e.target.checked})}/>Autorizo esta loja a usar meu nome, telefone e os dados deste pedido para atendê-lo.</label>
-     <div className="commerce-customer-register">
-      <label className="commerce-consent"><input type="checkbox" checked={cliente.criarCadastro===true} onChange={e=>setCliente({...cliente,criarCadastro:e.target.checked,aceitePromocoes:e.target.checked?cliente.aceitePromocoes:false})}/>Quero criar meu cadastro de cliente nesta loja, usando nome e WhatsApp deste pedido.</label>
-      {cliente.criarCadastro&&<label className="commerce-consent"><input type="checkbox" checked={cliente.aceitePromocoes===true} onChange={e=>setCliente({...cliente,aceitePromocoes:e.target.checked})}/>Gostaria de receber novidades e promoções desta loja pelo WhatsApp. Minha autorização é opcional e pode ser retirada a qualquer momento.</label>}
-      <small>O cadastro é separado do pedido. Seu contato não é automaticamente autorizado para anúncios; a loja deverá confirmar a titularidade antes de enviar promoções.</small>
-     </div>
+     <section className="commerce-customer-register" aria-label="Cadastro opcional do cliente">
+      <div className="commerce-customer-register-head">
+       <span className="commerce-customer-register-icon" aria-hidden="true">✦</span>
+       <div><strong>Faça parte desta loja</strong><small>Cadastro opcional para facilitar seus próximos atendimentos. Não precisa criar senha.</small></div>
+      </div>
+      <label className="commerce-customer-register-choice">
+       <input type="checkbox" checked={cliente.criarCadastro===true} onChange={e=>setCliente({...cliente,criarCadastro:e.target.checked,aceitePromocoes:e.target.checked?cliente.aceitePromocoes:false})}/>
+       <span><strong>Quero criar meu cadastro de cliente nesta loja</strong><small>Usar meu nome e WhatsApp para identificar meus pedidos futuros nesta loja.</small></span>
+      </label>
+      {cliente.criarCadastro&&<div className="commerce-customer-register-extra">
+       <label className="commerce-customer-register-choice">
+        <input type="checkbox" checked={cliente.aceitePromocoes===true} onChange={e=>setCliente({...cliente,aceitePromocoes:e.target.checked})}/>
+        <span><strong>Gostaria de receber novidades e promoções</strong><small>Autorizo esta loja a me enviar ofertas pelo WhatsApp, após confirmar que o número é meu. Posso retirar essa autorização posteriormente.</small></span>
+       </label>
+       <p>As ofertas não serão enviadas agora. Antes de qualquer divulgação, a loja deverá confirmar o contato e oferecer descadastro.</p>
+      </div>}
+     </section>
      <button className="commerce-btn" disabled={total<=0}><Icon name="check"/>{busy?'Salvando seu pedido…':'Confirmar pedido e continuar pelo WhatsApp'}</button></fieldset>
    </form>}
    
