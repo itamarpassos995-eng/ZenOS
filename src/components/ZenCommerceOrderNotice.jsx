@@ -1,4 +1,5 @@
 import React,{useEffect,useState} from 'react';
+import '../commercePremiumUX.css';
 import {ZENOS_RUNTIME} from '../core/runtimeEnvironment';
 import {conferirRespostaHml} from '../core/commerceHmlTenantBoundary';
 import {callableCommerceZenOS,estadoSessaoCommerceZenOS,observarSessaoCommerceZenOS} from '../core/commerceZenOSSession';
@@ -25,9 +26,17 @@ export default function ZenCommerceOrderNotice({userId,operadorId,onAbrir}){
   return()=>{ativo=false;clearInterval(timer);document.removeEventListener('visibilitychange',consultar);};
  },[userId,operadorId,revision,pronto,tentativa]);
  if(!pronto)return null;
- return <aside aria-label="Pedidos da Loja Online" style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center',padding:'10px 14px',marginBottom:14,border:'1px solid #51644b',borderRadius:12,background:'#12251f',color:'#e3f4e7'}}>
-  <span role="status">{erro?'Não foi possível atualizar os pedidos online.':total===null?'Consultando pedidos online…':total?`${total} novo(s) pedido(s) online`:'Nenhum novo pedido online'}</span>
-  <button type="button" onClick={onAbrir} style={{padding:'8px 12px',borderRadius:8,cursor:'pointer'}}>Abrir pedidos</button>
-  {erro&&<button type="button" onClick={()=>setTentativa(n=>n+1)}>Tentar atualizar</button>}
+ return <aside aria-label="Pedidos da Loja Online" className="zen-online-notice">
+  <div className="zen-online-notice-content">
+   <span className="zen-online-notice-symbol" aria-hidden="true">▣</span>
+   <div>
+    <strong role="status">{erro?'Atualização dos pedidos indisponível':total===null?'Consultando pedidos online…':total>0?<><span className="zen-online-count">{total}</span> {total===1?'novo pedido online':'novos pedidos online'}</>:'Pedidos online em dia'}</strong>
+    <small>{erro?'A fila pode ser aberta para conferência.':'Acompanhe e atenda direto no ZenOS, sem sair do sistema.'}</small>
+   </div>
+  </div>
+  <div className="zen-online-notice-actions">
+   <button type="button" onClick={onAbrir}>Ver pedidos →</button>
+   {erro&&<button type="button" onClick={()=>setTentativa(n=>n+1)}>Tentar atualizar</button>}
+  </div>
  </aside>;
 }
