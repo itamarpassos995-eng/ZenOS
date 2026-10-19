@@ -28,6 +28,10 @@ if(process.argv.includes('--check')){
  process.exit(0);
 }
 if(!existsSync(envPath))writeFileSync(envPath,Object.entries(vars).map(([k,v])=>`${k}=${v}`).join('\n')+'\n',{flag:'wx',mode:0o600});
+// Falha fechada: validar SDK e build antes de iniciar qualquer mutação na nuvem.
+const frontend=spawnSync(process.execPath,['scripts/commerce-cloud-hml-frontend.mjs'],{cwd:root,stdio:'inherit'});if(frontend.status!==0)process.exit(frontend.status??1);
+const build=spawnSync(process.execPath,['node_modules/vite/bin/vite.js','build','--mode','commerce-hml','--outDir','dist-commerce-hml'],{cwd:root,stdio:'inherit'});if(build.status!==0)process.exit(build.status??1);
+
 const bannerFix=process.argv.includes('--banner-fix');
 const uiFix=process.argv.includes('--ui-fix');
 console.log(bannerFix?'Atualizando mídia, rascunho, publicação, catálogo e interface dos banners na homologação.':uiFix?'Atualizando somente a publicação Commerce e a interface da homologação.':'Implantando Commerce, Auth Google/anônimo e regras deny-all exclusivamente em '+project+'.');
@@ -39,8 +43,6 @@ const result=process.platform==='win32'
  :spawnSync('npx',args,{cwd:root,stdio:'inherit'});
 if(result.error){console.error(result.error.message);process.exit(1);}
 if(result.status!==0)process.exit(result.status??1);
-const frontend=spawnSync(process.execPath,['scripts/commerce-cloud-hml-frontend.mjs'],{cwd:root,stdio:'inherit'});if(frontend.status!==0)process.exit(frontend.status??1);
-const build=spawnSync(process.execPath,['node_modules/vite/bin/vite.js','build','--mode','commerce-hml','--outDir','dist-commerce-hml'],{cwd:root,stdio:'inherit'});if(build.status!==0)process.exit(build.status??1);
 const hostingArgs=['-y','firebase-tools@15.34.0','deploy','--project',project,'--account','itamarbenit@gmail.com','--config','firebase.commerce.cloud-hml.json','--only','hosting'];
 const hosting=process.platform==='win32'?spawnSync('cmd.exe',['/d','/s','/c','npx.cmd '+hostingArgs.join(' ')],{cwd:root,stdio:'inherit'}):spawnSync('npx',hostingArgs,{cwd:root,stdio:'inherit'});
 if(hosting.status===0)console.log('Homologação: https://zenos-commerce-homologacao.web.app/commerce-homologacao');
