@@ -51,8 +51,8 @@ jobs:
             assert.match(index, new RegExp('export\\s+\\{\\s*'+fn+'\\s*\\}'));
           }
           const exports = [...index.matchAll(/export\s+\{\s*(\w+)\s*\}/g)].map(m => m[1]).sort();
-          assert.deepEqual(exports, ['fiscalAdministracao','fiscalBackendStatus','fiscalSolicitacaoCliente']);
-          console.log('Escopo aprovado: somente codebase fiscal; sem deploy de rules.');
+          assert.deepEqual(exports, ['commerceSolicitacaoCliente','fiscalAdministracao','fiscalBackendStatus','fiscalSolicitacaoCliente']);
+          console.log('Escopo aprovado: apenas 3 funções fiscais; Commerce é independente e não será reimplantado.');
           NODE
 
       - name: Validar testes das Functions
@@ -89,7 +89,7 @@ jobs:
         run: |
           npx --yes firebase-tools@15.30.2 deploy \
             --project zenos-ac6b2 \
-            --only "functions:fiscal" \
+            --only "functions:fiscal:fiscalSolicitacaoCliente,functions:fiscal:fiscalAdministracao,functions:fiscal:fiscalBackendStatus" \
             --non-interactive
 
       - name: Conferir funções publicadas
