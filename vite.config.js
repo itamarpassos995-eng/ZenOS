@@ -58,10 +58,13 @@ function zenosHomologacaoPinBridge() {
 // Falhar ANTES de compilar: um build Commerce sem SDK exclusivo poderia
 // gerar uma rota de demonstração apontando ao Firebase operacional.
 function validarBuildCommerceIsolado(mode) {
-  if (mode !== 'commerce-hml') return
+  if (!['commerce-hml','commerce-operational-hml'].includes(mode)) return
   const env = loadEnv(mode, process.cwd(), 'VITE_')
-  if (env.VITE_ZENOS_COMMERCE_OPERATOR_BRIDGE === 'true') {
+  if (mode === 'commerce-hml' && env.VITE_ZENOS_COMMERCE_OPERATOR_BRIDGE === 'true') {
     throw new Error('Build Commerce isolado não pode ativar a ponte operacional.')
+  }
+  if (mode === 'commerce-operational-hml' && env.VITE_ZENOS_COMMERCE_OPERATOR_BRIDGE !== 'true') {
+    throw new Error('Build Commerce operacional HML exige ponte de operador explicitamente habilitada.')
   }
   let cfg
   try { cfg = JSON.parse(env.VITE_ZENOS_COMMERCE_HML_FIREBASE_CONFIG || '') }
