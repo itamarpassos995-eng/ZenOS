@@ -24,6 +24,8 @@ on:
       - 'scripts/commerce-operational-hml-preview.mjs'
       - 'scripts/commerce-operational-hml-seed-deploy.mjs'
       - 'scripts/commerce-hml-session-deploy.mjs'
+      - 'scripts/commerce-hml-tenant-boundary-deploy.mjs'
+      - 'src/core/commerceHmlTenantBoundary.js'
       - 'scripts/commerce-operational-hml-remote-audit.mjs'
       - 'scripts/commerce-operational-rules-emulator-check.mjs'
       - 'vite.config.js'
@@ -69,6 +71,8 @@ jobs:
         run: node scripts/commerce-operational-hml-seed-deploy.mjs --check
       - name: Commerce integrated session deploy preflight (offline; no deploy)
         run: node scripts/commerce-hml-session-deploy.mjs --check
+      - name: Commerce HML tenant-boundary deploy preflight (offline; no deploy)
+        run: node scripts/commerce-hml-tenant-boundary-deploy.mjs --check
       - name: Operational HML Firestore rules-only release preflight (no network)
         run: node scripts/commerce-operational-hml-rules-release.mjs --check
       - name: Seed environment must reject divergent HML flags
