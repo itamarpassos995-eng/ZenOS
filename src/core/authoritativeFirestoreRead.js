@@ -11,6 +11,7 @@ export const isTransientFirestoreReadError = error => {
   // Não capturar "permission denied", limites financeiros ou documento ausente.
   if (code && code !== 'unknown' && code !== 'internal') return false;
   const message = String(error?.message || '').toLowerCase();
+  if (/permission.denied|insufficient permissions|unauthenticated|quota exceeded|resource exhausted|failed precondition/.test(message)) return false;
   return /failed to get documents? from server|could not reach cloud firestore backend|network (request|error|connection) failed|networkerror when attempting to fetch resource/.test(message);
 };
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
