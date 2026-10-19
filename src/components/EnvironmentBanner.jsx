@@ -28,7 +28,9 @@ export default function EnvironmentBanner() {
         boxShadow: '0 2px 12px rgba(0,0,0,0.35)',
       }}
     >
-      🧪 MODO TESTE / HOMOLOGAÇÃO — Firebase local — DADOS DE PRODUÇÃO NÃO SÃO USADOS NESTE AMBIENTE
+      {ZENOS_RUNTIME.isCloudCommerceHml
+        ? '🧪 HOMOLOGAÇÃO OPERACIONAL INTERNA — Firebase isolado — DADOS FICTÍCIOS'
+        : '🧪 MODO TESTE / HOMOLOGAÇÃO — Firebase local — DADOS DE PRODUÇÃO NÃO SÃO USADOS NESTE AMBIENTE'}
     </div>
   );
 }
