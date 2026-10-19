@@ -1,7 +1,11 @@
 import {doc,collection,getDocFromServer,getDocsFromServer,onSnapshot,query,orderBy,documentId,limit,startAfter,where} from 'firebase/firestore';
+import {authoritativeFirestoreRead} from './authoritativeFirestoreRead.js';
 import {resolveV2ReadMode} from './v2ReadMode.js';
 import {V2_COLLECTIONS,encodeV2Id,entityIdV2,v2ControlPath,v2RootPath,v2Error,stableV2Json,hashV2} from './operationalV2Schema.js';
 
+// Cache local é apenas visual; bootstrap, paginação e reconciliação exigem o servidor.
+const readAuthoritativeDoc=ref=>authoritativeFirestoreRead(()=>getDocFromServer(ref));
+const readAuthoritativeDocs=ref=>authoritativeFirestoreRead(()=>getDocsFromServer(ref));
 const sessions=new WeakMap();
 const sessionMap=db=>{if(!sessions.has(db))sessions.set(db,new Map());return sessions.get(db);};
 export const getShadowReadStatus=(db,userId)=>sessionMap(db).get(String(userId))?.shadowStatus||null;
@@ -14,7 +18,7 @@ export class V2Session {
   this.root=v2RootPath(userId,control.generation);this.records=new Map();this.values={};this.sequence=0;this.revisions={};this.listeners=new Set();this.tailStop=null;this.failed=null;}
  async paged(path,consume){let cursor=null,count=0;
   do{const q=query(collection(this.db,...path),orderBy(documentId()),...(cursor?[startAfter(cursor)]:[]),limit(PAGE));
-   const page=await getDocsFromServer(q);count+=page.size;this.reads=(this.reads||0)+page.size;
+   const page=await readAuthoritativeDocs(q);count+=page.size;this.reads=(this.reads||0)+page.size;
    if(this.reads>MAX_DOCUMENTS)throw v2Error('V2_READ_BUDGET','Leitura inicial excedeu o limite de documentos.');
    page.docs.forEach(consume);cursor=page.size===PAGE?page.docs.at(-1):null;
   }while(cursor);
@@ -38,13 +42,13 @@ export class V2Session {
  }
  async catchUp(){let pages=0;
   while(true){if(++pages>100)throw v2Error('V2_TAIL_BUDGET','Sincronização exige recarga controlada.');
-   const page=await getDocsFromServer(query(collection(this.db,...this.root,'operations'),where('sequence','>',this.sequence),orderBy('sequence'),limit(100)));
+   const page=await readAuthoritativeDocs(query(collection(this.db,...this.root,'operations'),where('sequence','>',this.sequence),orderBy('sequence'),limit(100)));
    page.docs.forEach(d=>this.apply(d.data()));
    if(page.size<100)break;
   }
  }
  async load(){
-  const head=await getDocFromServer(doc(this.db,...this.root));
+  const head=await readAuthoritativeDoc(doc(this.db,...this.root));
   if(!head.exists()||head.data().schema!==2||head.data().state!=='ready')throw v2Error('V2_NOT_READY','Cópia V2 ainda não foi certificada.');
   if(head.data().sourceChecksum!==this.control.sourceChecksum)throw v2Error('V2_SOURCE_MISMATCH','Origem da cópia não corresponde à ativação.');
   this.sequence=Number(head.data().sequence||0);this.revisions={...(head.data().fieldRevisions||{})};this.reads=0;
@@ -67,7 +71,7 @@ export class V2Session {
    this.values[value.field]=value.value;
   });
   await this.catchUp();
-  const end=await getDocFromServer(doc(this.db,...this.root));
+  const end=await readAuthoritativeDoc(doc(this.db,...this.root));
   if(Number(end.data()?.sequence||0)!==this.sequence)await this.catchUp();
   if(Number(end.data()?.sequence||0)===this.sequence){
    const counts=end.data().fieldCounts||Object.fromEntries(Object.entries(manifest).filter(([,m])=>m.kind==='array').map(([f,m])=>[f,m.count]));
@@ -97,7 +101,7 @@ export class V2Session {
 export async function getOperationalSnapshot(db,userId){
  const entry=await initializeRoute(db,userId);
  if(entry.session){if(entry.session.failed)throw entry.session.failed;await entry.session.catchUp();return asSnapshot(entry.session.materialize());}
- const snap=await getDocFromServer(doc(db,'lojas',String(userId),'dados','operacao'));
+ const snap=await readAuthoritativeDoc(doc(db,'lojas',String(userId),'dados','operacao'));
  if(entry.route.shadow)await compareShadow(entry,snap);
  return snap;
 }
@@ -105,7 +109,7 @@ async function initializeRoute(db,userId){
  const map=sessionMap(db),key=String(userId);let entry=map.get(key);
  if(!entry){entry={session:null,promise:null};map.set(key,entry);
   entry.promise=(async()=>{
-   const controlSnap=await getDocFromServer(doc(db,...v2ControlPath(userId)));const control=controlSnap.exists()?controlSnap.data():null;
+   const controlSnap=await readAuthoritativeDoc(doc(db,...v2ControlPath(userId)));const control=controlSnap.exists()?controlSnap.data():null;
    const route=resolveV2ReadMode(control);entry.control=control;entry.route=route;
    if(route.shadow)entry.shadowSession=await new V2Session(db,userId,control).load();
    if(route.primary==='v2')entry.session=await new V2Session(db,userId,control).load();
