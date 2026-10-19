@@ -6,12 +6,12 @@ import Notice from '../../src/components/ZenCommerceOrderNotice';
 afterEach(()=>{cleanup();vi.clearAllMocks();});
 test('aviso global consulta contador autorizado e abre central pelo callback real do shell',async()=>{
  const abrir=vi.fn();render(<Notice userId="A" operadorId="1" onAbrir={abrir}/>);
- await screen.findByText('3 novo(s) pedido(s) online');expect(mocks.api).toHaveBeenCalledWith({action:'resumoPedidos'});
- fireEvent.click(screen.getByRole('button',{name:'Abrir pedidos'}));expect(abrir).toHaveBeenCalledTimes(1);
+ await screen.findByText('3');expect(screen.getByText(/novos pedidos online/)).toBeTruthy();expect(mocks.api).toHaveBeenCalledWith({action:'resumoPedidos'});
+ fireEvent.click(screen.getByRole('button',{name:/Ver pedidos/}));expect(abrir).toHaveBeenCalledTimes(1);
 });
 test('erro não confirma ausência de pedidos e oferece nova consulta',async()=>{
  mocks.api.mockRejectedValueOnce(Error('offline'));
  render(<Notice userId="A" operadorId="1" onAbrir={()=>{}}/>);
- await screen.findByText('Não foi possível atualizar os pedidos online.');expect(screen.queryByText('Nenhum novo pedido online')).toBe(null);
- fireEvent.click(screen.getByRole('button',{name:'Tentar atualizar'}));await screen.findByText('3 novo(s) pedido(s) online');
+ await screen.findByText('Atualização dos pedidos indisponível');expect(screen.queryByText('Nenhum novo pedido online')).toBe(null);
+ fireEvent.click(screen.getByRole('button',{name:'Tentar atualizar'}));await screen.findByText('3');
 });

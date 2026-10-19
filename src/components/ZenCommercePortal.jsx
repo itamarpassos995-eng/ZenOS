@@ -5,6 +5,8 @@ import {getFunctions,httpsCallable} from 'firebase/functions';
 import {onAuthStateChanged,signOut} from 'firebase/auth';
 import {obterSessaoOperadorCommerce,entrarOperadorCommerce} from '../core/commerceOperatorAuth';
 import ZenCommerceStudio from './ZenCommerceStudio';
+import ZenCommerceOrderCard from './ZenCommerceOrderCard';
+import '../commercePremiumUX.css';
 import {prepararFotoProduto,fotoCadastroParaPrevia} from '../core/commerceImages';
 import {ZENOS_RUNTIME} from '../core/runtimeEnvironment';
 import {conferirRespostaHml} from '../core/commerceHmlTenantBoundary';
@@ -19,7 +21,7 @@ const erroAmigavel=e=>{
 };
 
 /** O storefront público não é ativado por este componente. */
-export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuvemSincronizada=false,produtoFocoId=null,onAbrirPedidoPDV=null,integrado=ponteCommerceZenOSHabilitada}){
+export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuvemSincronizada=false,produtoFocoId=null,focoPedidosOnline=0,onAbrirPedidoPDV=null,integrado=ponteCommerceZenOSHabilitada}){
  const [data,setData]=useState(null),[loading,setLoading]=useState(true),[erro,setErro]=useState('');
  const [operatorAuth]=useState(()=>integrado?obterAuthCommerceZenOS():obterSessaoOperadorCommerce());
  const [operatorUid,setOperatorUid]=useState(null);
@@ -31,6 +33,7 @@ export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuve
  const [whatsapp,setWhatsapp]=useState(''),[pedidos,setPedidos]=useState([]),[painelErro,setPainelErro]=useState(''),[painelBusy,setPainelBusy]=useState(false);
  const [avisosNovos,setAvisosNovos]=useState(0);
  const idsConhecidos=useRef(null),consultaEmCurso=useRef(false),lojaPedidos=useRef(null);
+ const painelPedidosRef=useRef(null);
  const rev=useRef(0);
  const fn=useRef(null);
  const fnMedia=useRef(null);
@@ -147,6 +150,14 @@ export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuve
   try{return (await fn.current({action:'solicitarProposta',confirmacaoContato:true})).data;}
   catch(e){throw new Error(erroAmigavel(e));}
  };
+ // Mesmo com a Loja Online aberta, o aviso leva ao início da central de pedidos.
+ useEffect(()=>{
+  if(!focoPedidosOnline||!data?.lojaId||produtoFocoId)return;
+  const node=painelPedidosRef.current;
+  if(!node)return;
+  node.scrollIntoView({behavior:'smooth',block:'start'});
+  node.focus({preventScroll:true});
+ },[focoPedidosOnline,data?.lojaId,produtoFocoId]);
  if(loading)return <div role="status" style={{padding:25,color:'#f8fafc'}}>Verificando sessão e rascunho do Commerce no servidor...</div>;
  // Na homologação cloud, uma prévia que carrega produtos locais não é prova
  // de autorização para gravar. Sem consulta remota válida, não abrir editor.
@@ -167,17 +178,37 @@ export default function ZenCommercePortal({produtos=[],userId,operadorAtivo,nuve
   {erro&&<div role="status" style={{padding:12,border:'1px solid #84672b',borderRadius:10,color:'#f3ce82',background:'#251f17'}}>
    <strong>Prévia privada:</strong> {erro} Nenhuma contratação ou publicação será feita.
   </div>}
-  {data&&!produtoFocoId&&<section className="commerce-admin-panel" style={{padding:20,border:'1px solid #395368',borderRadius:12,color:'#edf4f8',display:'grid',gap:12}}>
-   <h3 style={{margin:0}}>Pedidos da loja online {avisosNovos>0&&<span role="status" style={{color:'#ffe19c',fontSize:12,marginLeft:8}}>{avisosNovos} novo(s) desde a última consulta</span>}</h3>
-   <label>WhatsApp da loja com código do país<input type="tel" maxLength={25} placeholder="+55 ou +595..." value={whatsapp} onChange={e=>setWhatsapp(e.target.value)} style={{margin:8,padding:10,color:'#162D38'}}/></label>
-   <small>Pedidos ficam aguardando confirmação. Nenhuma venda, cobrança ou baixa de estoque é feita automaticamente.</small>
-   <div style={{display:'flex',gap:10,flexWrap:'wrap'}}><button disabled={painelBusy} onClick={()=>carregarPedidos(true)}>Atualizar pedidos</button>
-    {data.idPublico&&<a href={'/loja/'+data.idPublico} target="_blank" rel="noopener noreferrer" style={{color:'#e9bc7a'}}>Abrir loja</a>}
-    {data.lojaPublicada&&<button disabled={painelBusy} onClick={async()=>{if(!window.confirm('Retirar a loja do ar? Os pedidos serão preservados.'))return;setPainelBusy(true);try{await adminApi('despublicar');setData(prev=>({...prev,lojaPublicada:false}));}catch(e){setPainelErro(erroAmigavel(e));}finally{setPainelBusy(false);}}}>Retirar loja do ar</button>}
+  {data&&!produtoFocoId&&<section id="zen-pedidos-online" ref={painelPedidosRef} tabIndex={-1} className="commerce-admin-panel zen-online-panel">
+   <div className="zen-online-panel-head">
+    <div><div className="zen-online-overline">CENTRAL DE ATENDIMENTO</div><h3>Pedidos da loja online</h3></div>
+    <span role="status" className="zen-online-total">{pedidos.filter(p=>p.status==='recebido').length} novo(s) {avisosNovos>0&&`• +${avisosNovos} desde a última consulta`}</span>
+   </div>
+   <label className="zen-online-panel-contact">WhatsApp da loja com código do país
+    <input type="tel" maxLength={25} placeholder="+55 ou +595..." value={whatsapp} onChange={e=>setWhatsapp(e.target.value)}/>
+   </label>
+   <p className="zen-online-panel-help">Os pedidos aguardam conferência de disponibilidade, entrega e pagamento. Nenhuma venda, cobrança ou baixa de estoque é feita automaticamente.</p>
+   <div className="zen-online-admin-actions">
+    <button type="button" disabled={painelBusy} onClick={()=>carregarPedidos(true)}>↻ Atualizar pedidos</button>
+    {data.idPublico&&<a href={'/loja/'+data.idPublico} target="_blank" rel="noopener noreferrer">↗ Abrir loja</a>}
+    {data.lojaPublicada&&<button type="button" className="zen-online-unpublish" disabled={painelBusy} onClick={async()=>{
+     if(!window.confirm('Retirar a loja do ar? Os pedidos serão preservados.'))return;
+     setPainelBusy(true);
+     try{await adminApi('despublicar');setData(prev=>({...prev,lojaPublicada:false}));}
+     catch(e){setPainelErro(erroAmigavel(e));}
+     finally{setPainelBusy(false);}
+    }}>Retirar loja do ar</button>}
    </div>
    {painelErro&&<p role="alert">{painelErro}</p>}
-   {pedidos.map(p=><article key={p.id} style={{background:'#10212e',padding:12,borderRadius:9}}><b>{p.id.slice(0,10).toUpperCase()} — {p.cliente.nome}</b><p>{p.criadoEm} • {({recebido:'Novo',em_atendimento:'Em atendimento',encerrado:'Concluído',cancelado:'Cancelado'})[p.status]||'Em conferência'} • R$ {(p.totalCentavos/100).toFixed(2)}</p><p>{p.itens.map(i=>i.quantidade+' × '+i.nome).join(' / ')}</p><p>{p.observacao}</p><a style={{color:'#e9bc7a'}} href={'https://wa.me/'+p.cliente.telefone} target="_blank" rel="noopener noreferrer">Atender pelo WhatsApp</a><div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:10}}>{integrado&&onAbrirPedidoPDV&&p.status!=='cancelado'&&<button disabled={painelBusy} onClick={()=>abrirPedidoPDV(p.id)}>{p.vendaId?'Conferir faturamento':'Abrir no PDV'}</button>}{p.status==='recebido'&&!p.pdv&&!p.vendaId&&<button type="button" disabled={painelBusy} onClick={async()=>{if(!window.confirm('Cancelar este pedido ainda não atendido? Esta ação não movimenta estoque nem caixa.'))return;setPainelBusy(true);try{await adminApi('atualizarStatus',{id:p.id,status:'cancelado'});await carregarPedidos();}catch(e){setPainelErro(erroAmigavel(e));}finally{setPainelBusy(false);}}}>Cancelar pedido</button>}</div></article>)}
-   {!pedidos.length&&<small>Clique em atualizar para consultar os últimos 50 pedidos.</small>}
+   <div className="zen-online-order-list">{pedidos.map(p=><ZenCommerceOrderCard key={p.id} pedido={p} ocupado={painelBusy}
+    onAbrirPDV={integrado&&onAbrirPedidoPDV?abrirPedidoPDV:null}
+    onCancelar={async pedido=>{
+     if(!window.confirm('Cancelar este pedido ainda não atendido? Esta ação não movimenta estoque nem caixa.'))return;
+     setPainelBusy(true);
+     try{await adminApi('atualizarStatus',{id:pedido.id,status:'cancelado'});await carregarPedidos();}
+     catch(e){setPainelErro(erroAmigavel(e));}
+     finally{setPainelBusy(false);}
+    }}/>)}</div>
+   {!pedidos.length&&<p className="zen-online-empty">Nenhum pedido na fila. Use “Atualizar pedidos” para consultar as últimas 50 solicitações.</p>}
   </section>}
   <ZenCommerceStudio key={String(userId)+'-'+String(produtoFocoId||'studio')} produtos={produtos} produtoFocoId={produtoFocoId} aparenciaInicial={data?.aparencia}
    regrasIniciais={data?.regras||{}} licenca={data?.licenca||{status:'nao_contratado'}}

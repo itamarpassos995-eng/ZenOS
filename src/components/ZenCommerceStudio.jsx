@@ -193,7 +193,7 @@ export default function ZenCommerceStudio({
                 {fotos.pendenteSincronizacao&&<div style={{fontSize:11,color:'#ffcf99'}}>Na prévia esta foto já aparece. Antes de publicar, a imagem Base64 será sincronizada com armazenamento otimizado por loja; não será incorporada à página pública como Base64.</div>}
                 <div style={{display:'flex',gap:7,flexWrap:'wrap'}}>
                   {fotos.imagens.map((img,i)=><div key={img.id} style={{display:'grid',gap:4,width:96,padding:5,border:regra.capaImagemId===img.id?'2px solid #e9b873':'1px solid #395368',borderRadius:9}}>
-                    <img src={img.miniaturaUrl} alt={img.alt||p.nome} style={{width:82,height:82,objectFit:'cover',borderRadius:6}}/>
+                    <img src={img.miniaturaUrl} alt={img.alt||p.nome} style={{width:82,height:82,objectFit:'contain',background:'#f3f5f2',padding:4,borderRadius:6}}/>
                     <button type="button" disabled={fotos.capa?.id===img.id} onClick={()=>editarProduto(p.id,'capaImagemId',img.id)} style={{...tabStyle(false),fontSize:10,padding:5}}>{fotos.capa?.id===img.id?'★ Capa':'Definir capa'}</button>
                     {img.id!=='cadastro'&&<div style={{display:'flex',gap:2}}>
                       <button type="button" aria-label="Mover foto para esquerda" onClick={()=>moverImagem(p,img.id,-1)} disabled={i===0} style={{...tabStyle(false),padding:5,flex:1}}>←</button>
@@ -255,7 +255,7 @@ export default function ZenCommerceStudio({
           <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between',gap:10}}><div><small style={{color:'#8b9193',fontWeight:700}}>CURADORIA DA LOJA</small><h3 style={{fontSize:22,margin:'7px 0 20px'}}>Escolhidos para você</h3></div><span style={{fontSize:12,color:cfg.corPrincipal}}>Ver tudo →</span></div>
           <div className="zen-commerce-card-grid" style={{display:'grid',gridTemplateColumns:`repeat(${visualMobile?'2':cfg.layoutGrade}, minmax(0,1fr))`,gap:10}}>
             {catalogo.slice(0,8).map((p,i)=><div key={p.skuPublico||i} style={{minWidth:0,border:'1px solid #e4e3df',borderRadius:10,overflow:'hidden',background:'#fff'}}>
-              <div style={{aspectRatio:'1',display:'grid',placeItems:'center',background:['#e6d7c8','#e9e8e1','#d3dfdb','#ece2e8'][i%4],fontSize:32}}>{p.imagemUrl?<img src={p.imagemUrl} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:['✦','◈','✳','◇'][i%4]}</div>
+              <div style={{aspectRatio:'1',display:'grid',placeItems:'center',background:['#e6d7c8','#e9e8e1','#d3dfdb','#ece2e8'][i%4],fontSize:32}}>{p.imagemUrl?<img src={p.imagemUrl} alt="" style={{width:'86%',height:'86%',objectFit:'contain',objectPosition:'center'}}/>:['✦','◈','✳','◇'][i%4]}</div>
               <div style={{padding:9}}><div style={{fontSize:9,color:'#76818a'}}>{p.categoria}</div><div style={{fontSize:11,fontWeight:700,minHeight:30,margin:'5px 0'}}>{p.nome}</div><b style={{fontSize:12,color:cfg.corPrincipal}}>{moeda(p.precoBRL)}</b></div>
             </div>)}
           </div>

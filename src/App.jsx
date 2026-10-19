@@ -113,6 +113,7 @@ function PublicHomeRedirect() {
 export default function App() {
   const [usuarioAutenticado, setUsuarioAutenticado] = useState(null);
   const [versaoAberturaPDV,setVersaoAberturaPDV] = useState(0);
+  const [focoPedidosOnline,setFocoPedidosOnline] = useState(0);
   const [userId, setUserId] = useState(null);
   const [statusLoja, setStatusLoja] = useState(null);
   const [planoLoja, setPlanoLoja] = useState('basico');
@@ -1307,6 +1308,12 @@ export default function App() {
     setMenuNavAberto(false);
   };
 
+  const abrirCentralPedidosOnline = () => {
+    // Mesmo dentro do Studio, uma nova intenção deve mover o foco à fila.
+    navegarPara('commerce');
+    setFocoPedidosOnline(n=>n+1);
+  };
+
   const focarMeuTurno = () => {
     navegarPara('hub');
     setTimeout(() => document.getElementById('zen-meu-turno')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60);
@@ -1657,7 +1664,7 @@ export default function App() {
           />
 
           <main className="zen-main no-print">
-          {ponteCommerceZenOSHabilitada&&temPermissao('admin')&&<ZenCommerceOrderNotice userId={userId} operadorId={operadorAtivo?.id} onAbrir={()=>navegarPara('commerce')}/>}
+          {ponteCommerceZenOSHabilitada&&temPermissao('admin')&&<ZenCommerceOrderNotice userId={userId} operadorId={operadorAtivo?.id} onAbrir={abrirCentralPedidosOnline}/>}
         
  {ecraAtual === 'hub' && (
           <div className="zen-dashboard-home">
@@ -1724,7 +1731,7 @@ export default function App() {
           </div>
  )}
 
-        {ecraAtual === 'commerce' && temPermissao('admin') && <ZenCommercePortal userId={userId} operadorAtivo={operadorAtivo} produtos={produtos} nuvemSincronizada={nuvemSincronizada} onAbrirPedidoPDV={ponteCommerceZenOSHabilitada && temPermissao('pdv') ? async pedido=>{if(pedido.faturado){reconciliarRascunhoCommerceFaturado({lojaId:userId,operadorId:operadorAtivo?.id,pedido});await recarregarDadosPDV();return;}const existente=recuperarPrePedidoCommerce(historicoVendas,pedido.pedidoId);
+        {ecraAtual === 'commerce' && temPermissao('admin') && <ZenCommercePortal userId={userId} operadorAtivo={operadorAtivo} focoPedidosOnline={focoPedidosOnline} produtos={produtos} nuvemSincronizada={nuvemSincronizada} onAbrirPedidoPDV={ponteCommerceZenOSHabilitada && temPermissao('pdv') ? async pedido=>{if(pedido.faturado){reconciliarRascunhoCommerceFaturado({lojaId:userId,operadorId:operadorAtivo?.id,pedido});await recarregarDadosPDV();return;}const existente=recuperarPrePedidoCommerce(historicoVendas,pedido.pedidoId);
 if(!existente){
  const pre=montarPrePedidoCommerce({pedido,produtos,operadorId:operadorAtivo?.id,operadorNome:operadorAtivo?.nome});
  const resultado=await commitVendaCritica({
