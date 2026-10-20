@@ -294,7 +294,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
       }else{
         console.warn('[ZenOS] Confirmação do produto desconhecida; índice original preservado para reconciliação.');
       }
-      mostrarZen('danger',tx('Cadastro não confirmado','Registro sin confirmar','Registration unconfirmed'),tx('A nuvem não confirmou o cadastro rápido. Nenhuma alteração foi considerada concluída.','La nube no confirmó el registro rápido. Ningún cambio fue considerado concluido.','The cloud did not confirm quick registration. No change was considered complete.'),[erro?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
+      mostrarZen('danger',tx('Cadastro não confirmado','Registro sin confirmar','Registration unconfirmed'),tx('Não foi possível confirmar o cadastro rápido. Ele pode existir no servidor; procure o produto original antes de repetir.','No se pudo confirmar el registro rápido. Puede existir en el servidor; compruebe antes de repetir.','Quick registration was not confirmed. It may exist on the server; check the original product before retrying.'),[erro?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
     }
   };
 
