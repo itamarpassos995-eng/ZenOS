@@ -23,7 +23,7 @@ test('excluir despesa manual exige confirmação, escreve uma vez e avisa sucess
  expect(screen.getByText(/Excluir registro/)).toBeTruthy();
  expect(commit).not.toHaveBeenCalled();
  const excluir=screen.getAllByRole('button',{name:'Excluir'});
- fireEvent.click(excluir[excluir.length-1]);
+ fireEvent.click(excluir[0]);
  await waitFor(()=>expect(commit).toHaveBeenCalledTimes(1));
  expect(commit.mock.calls[0][0].changes[0]).toMatchObject({field:'despesas',value:[]});
  await waitFor(()=>expect(setDespesas).toHaveBeenCalledWith([]));
@@ -43,7 +43,7 @@ test('falha da nuvem não remove despesa manual',async()=>{
  const {setDespesas}=montar([expense],commit);
  fireEvent.click(screen.getByRole('button',{name:'Excluir'}));
  const btn=screen.getAllByRole('button',{name:'Excluir'});
- fireEvent.click(btn[btn.length-1]);
+ fireEvent.click(btn[0]);
  await waitFor(()=>expect(screen.getByText(/Exclusão sem confirmação/)).toBeTruthy());
  expect(setDespesas).not.toHaveBeenCalled();
 });
