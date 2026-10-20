@@ -1,0 +1,58 @@
+name: P0 Firestore Read Resilience
+on:
+  pull_request:
+    paths:
+      - 'src/core/authoritativeFirestoreRead.js'
+      - 'src/core/operationalRepository.js'
+      - 'src/core/operationalV2.js'
+      - 'scripts/recovery/authoritative-firestore-read.test.mjs'
+      - '.github/workflows/p0-firestore-read-resilience.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Simular erro temporário, falha contínua, permissão e quotas
+        run: node --test scripts/recovery/authoritative-firestore-read.test.mjs
+      - name: Não aceitar cache como verdade para writes
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import assert from 'node:assert/strict';
+          for(const p of ['src/core/operationalRepository.js','src/core/operationalV2.js']){
+            const s=fs.readFileSync(p,'utf8');
+            assert(s.includes("authoritativeFirestoreRead"));
+            assert(!s.includes('getDocsFromCache('));
+            assert(!s.includes('getDocFromCache('));
+          }
+          console.log('P0_OK: dados locais não substituem confirmação do Firestore.');
+          NODE
+      - name: Verificar backend de vendas e documento V1 intactos
+        run: |
+          git fetch --no-tags origin main
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import {execFileSync} from 'node:child_process';
+          const allowed=new Set([
+            'src/core/authoritativeFirestoreRead.js',
+            'src/core/operationalRepository.js',
+            'src/core/operationalV2.js',
+            'scripts/recovery/authoritative-firestore-read.test.mjs',
+            '.github/workflows/p0-firestore-read-resilience.yml',
+            'docs/P0_FIRESTORE_DATA_INTEGRITY_20261019.md',
+          ]);
+          const diff=execFileSync('git',['diff','--name-only','origin/main...HEAD'],{encoding:'utf8'}).trim().split('\n').filter(Boolean);
+          assert(diff.every(p=>allowed.has(p)),'Fora do escopo: '+diff.filter(p=>!allowed.has(p)));
+          console.log('ALLOWLIST_OK');
+          NODE
+      - run: npm run build
