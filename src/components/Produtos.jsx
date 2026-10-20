@@ -6,6 +6,7 @@ import { transferirEstoqueEntreLocais } from '../core/inventory';
 import { atualizarProdutoUnico, detectarConflitosIdentidadeProdutos, skuJaExiste } from '../core/productIdentity';
 import { reservarIdentidadeProduto, liberarIdentidadeProduto } from '../core/productRegistry';
 import { localizarProdutoExistenteServidor } from '../core/productServerLookup';
+import {auditarIndicesProdutosServidor} from '../core/productIndexAudit';
 import { carregarHistoricoEstoqueProduto, criarEventoEstoque, obterPoliticaHistoricoEstoque, registrarEventosEstoque } from '../core/stockAudit';
 import ZenModal from './ZenModal';
 import { calcularPrecoPorCustoEMargem, calcularMargemPorCustoEPreco, validarMargemPrecoVenda, MAX_MARGEM_PRECO_PCT } from '../core/pricing';
@@ -36,7 +37,26 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
   const [filtroHistoricoInicio, setFiltroHistoricoInicio] = useState('');
   const [filtroHistoricoFim, setFiltroHistoricoFim] = useState('');
   const [modalZen, setModalZen] = useState(null);
+  const [auditandoIndices, setAuditandoIndices] = useState(false);
   const mostrarZen = (variante, titulo, mensagem, detalhes = []) => setModalZen({ variante, titulo, mensagem, detalhes, apenasConfirmar: true });
+
+  const auditarCadastrosOriginais = async () => {
+    if(patenteUsuario!=='gerencia'||auditandoIndices)return;
+    setAuditandoIndices(true);
+    try{
+      const r=await auditarIndicesProdutosServidor({db,userId});
+      if(r.status!=='complete')
+        return mostrarZen('warning','Auditoria inconclusiva','Não foi possível verificar todos os índices do servidor. Nenhuma alteração foi efetuada.',[`Documentos consultados: ${r.readCount||0}`,`Motivo: ${r.reason||r.status}`]);
+      const listar=(array,tipo)=>array.slice(0,20).map(x=>`${tipo} — ID ${x.produtoId}, nome: ${x.nomes.join(' / ')||'(sem nome)'}, SKU: ${x.skus.join(' / ')||'(sem SKU)'}`);
+      const detalhes=[...listar(r.ausentes,'Índice sem cadastro'),...listar(r.inativos,'Inativo'),...listar(r.duplicados,'ID duplicado')];
+      mostrarZen(r.ausentes.length||r.duplicados.length?'warning':'info',
+        'Auditoria de produtos concluída',
+        `Catálogo no servidor: ${r.catalogCount}. Índices lidos: ${r.readCount}. Identidades sem cadastro: ${r.ausentes.length}. Inativos: ${r.inativos.length}. IDs duplicados: ${r.duplicados.length}. Nenhum produto ou estoque foi modificado.`,
+        detalhes.length?detalhes:['Nenhuma inconsistência de índice encontrada; investigar filtros e histórico de cadastros.']);
+    }catch(error){
+      mostrarZen('danger','Auditoria indisponível','Não foi possível consultar o catálogo autoritativo. Nenhum dado foi alterado.',[error?.message||String(error)]);
+    }finally{setAuditandoIndices(false);}
+  };
 
   // --- MELHORIA: Autocomplete Inteligente (PRODUTOS + BANCO GLOBAL) ---
   const todosOsFornecedores = [
@@ -371,7 +391,8 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div><h2 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>{t ? t('catalogoTitulo') : 'Catálogo'}</h2><span style={{ fontSize: '13px', color: '#64748b' }}>{t ? t('catalogoSub') : 'Gerenciamento'}</span></div>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <label style={{display:'flex',alignItems:'center',gap:6,color:'#94a3b8',fontSize:11,fontWeight:800}}><input type="checkbox" checked={mostrarInativos} onChange={e=>setMostrarInativos(e.target.checked)}/> {tx('Mostrar inativos','Mostrar inactivos','Show inactive')}</label><button onClick={abrirCadastroNovoProduto} style={{ background: 'linear-gradient(135deg, #0284c7, #0369a1)', border: '1px solid #38bdf8', color: '#ffffff', padding: '12px 24px', borderRadius: '12px', fontSize: '13px', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 15px rgba(2, 132, 199, 0.3)' }}>{t ? t('novoProdutoBtn') : '+ Novo Produto'}</button>
+          <label style={{display:'flex',alignItems:'center',gap:6,color:'#94a3b8',fontSize:11,fontWeight:800}}><input type="checkbox" checked={mostrarInativos} onChange={e=>setMostrarInativos(e.target.checked)}/> {tx('Mostrar inativos','Mostrar inactivos','Show inactive')}</label>{patenteUsuario==='gerencia' && <button type="button" disabled={auditandoIndices} onClick={auditarCadastrosOriginais} title="Auditoria sob demanda: pode consultar até 2501 documentos, não modifica cadastros" style={{background:'#0f172a',border:'1px solid #38bdf8',color:'#e0f2fe',borderRadius:12,padding:'10px 12px',fontWeight:800,cursor:'pointer'}}>{auditandoIndices?'Conferindo índices...':'Conferir cadastros ocultos'}</button>}
+          <button onClick={abrirCadastroNovoProduto} style={{ background: 'linear-gradient(135deg, #0284c7, #0369a1)', border: '1px solid #38bdf8', color: '#ffffff', padding: '12px 24px', borderRadius: '12px', fontSize: '13px', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 15px rgba(2, 132, 199, 0.3)' }}>{t ? t('novoProdutoBtn') : '+ Novo Produto'}</button>
         </div>
       </div>
 
