@@ -1,5 +1,5 @@
 import {peekV2Session} from './operationalRepository.js';
-import { doc, runTransaction, deleteDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { notifyPersistenceStatus } from './persistenceSafety';
 
 const norm = (v='') => String(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
@@ -15,10 +15,14 @@ export async function reservarIdentidadeProduto({db,userId,produto,produtoAnteri
   const novas=chavesUnicidadeProduto(produto);
   const antigas=new Set(chavesUnicidadeProduto(produtoAnterior||{}));
   const refsNovas=novas.map(chave=>({chave,ref:doc(db,'lojas',userId,'produto_indices',chave)}));
+  const refsAntigas=[...antigas].filter(chave=>!novas.includes(chave))
+    .map(chave=>({chave,ref:doc(db,'lojas',userId,'produto_indices',chave)}));
   await runTransaction(db, async tx=>{
-    // Firestore exige TODAS as leituras antes da primeira escrita.
+    // Firestore exige TODAS as leituras antes da primeira escrita, inclusive índices antigos.
     const leituras=[];
     for(const item of refsNovas){ leituras.push({item,snap:await tx.get(item.ref)}); }
+    const leiturasAntigas=[];
+    for(const item of refsAntigas){ leiturasAntigas.push({item,snap:await tx.get(item.ref)}); }
 
     for(const {item,snap} of leituras){
       if(!snap.exists()) continue;
@@ -35,23 +39,34 @@ export async function reservarIdentidadeProduto({db,userId,produto,produtoAnteri
     for(const {ref} of refsNovas){
       tx.set(ref,{produtoId:produto.id,sku:produto.sku||'',nome:produto.nome||'',ativo:true,updatedAt:agora,updatedAtServer:serverTimestamp()},{merge:true});
     }
-    for(const chave of antigas){
-      if(!novas.includes(chave)){
-        const ref=doc(db,'lojas',userId,'produto_indices',chave);
-        tx.set(ref,{ativo:false,liberadoEm:agora,updatedAtServer:serverTimestamp()},{merge:true});
-      }
+    for(const {item,snap} of leiturasAntigas){
+      // A edição não pode liberar índice que já passou a pertencer a outro produto.
+      if(!snap.exists() || String(snap.data()?.produtoId||'')!==String(produtoAnterior?.id||produto.id)) continue;
+      tx.set(item.ref,{ativo:false,liberadoEm:agora,updatedAtServer:serverTimestamp()},{merge:true});
     }
   });
 }
 export async function liberarIdentidadeProduto({db,userId,produto}){
-  if(!db||!userId||!produto) return;
+  if(!db||!userId||!produto?.id) return;
   notifyPersistenceStatus({status:'SALVANDO',field:'produto_indices'});
   try {
-    for(const chave of chavesUnicidadeProduto(produto)){
-      const ref=doc(db,'lojas',userId,'produto_indices',chave);
-      if(peekV2Session(db,userId))await setDoc(ref,{ativo:false,liberadoEm:new Date().toISOString(),updatedAtServer:serverTimestamp()},{merge:true});
-      else await deleteDoc(ref);
-    }
+    const refs=chavesUnicidadeProduto(produto)
+      .map(chave=>doc(db,'lojas',userId,'produto_indices',chave));
+    // A liberação nunca pode afetar a identidade de OUTRO produto.
+    // Ler todos os documentos antes de qualquer escrita (regra Firestore).
+    await runTransaction(db,async tx=>{
+      const snaps=[];
+      for(const ref of refs) snaps.push({ref,snap:await tx.get(ref)});
+      const agora=new Date().toISOString();
+      for(const {ref,snap} of snaps){
+        if(!snap.exists()) continue;
+        const owner=String(snap.data()?.produtoId||'');
+        if(owner!==String(produto.id)) continue;
+        // Registro reversível para permitir auditoria e reconciliação.
+        // Nunca remover índices físicos em uma falha incerta.
+        tx.set(ref,{ativo:false,liberadoEm:agora,updatedAtServer:serverTimestamp()},{merge:true});
+      }
+    });
     notifyPersistenceStatus({status:'SINCRONIZADO',field:'produto_indices'});
   } catch(error) {
     notifyPersistenceStatus({status:'ERRO',field:'produto_indices',error:error?.message||String(error)});
