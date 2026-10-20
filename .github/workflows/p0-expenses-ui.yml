@@ -1,0 +1,22 @@
+name: P0 Expenses UI Resilience
+on:
+  pull_request:
+    paths:
+      - 'src/components/Despesas.jsx'
+      - 'scripts/recovery/despesas-excluir.ui.test.jsx'
+      - '.github/workflows/p0-expenses-ui.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx vitest run --config vitest.recovery.config.js scripts/recovery/despesas-excluir.ui.test.jsx
+      - run: npm run build
