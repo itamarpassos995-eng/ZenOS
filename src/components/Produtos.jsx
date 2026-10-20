@@ -256,7 +256,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       } else {
         console.warn('[ZenOS] Confirmação do produto desconhecida; índice original preservado para reconciliação.');
       }
-      return mostrarZen('danger', tx('Cadastro não confirmado','Registro sin confirmar','Registration unconfirmed'), tx('A nuvem não confirmou o cadastro. Nenhum produto foi considerado salvo.','La nube no confirmó el registro. Ningún producto fue considerado guardado.','The cloud did not confirm the registration. No product was considered saved.'), [erro?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
+      return mostrarZen('danger', tx('Cadastro não confirmado','Registro sin confirmar','Registration unconfirmed'), tx('A confirmação da nuvem não foi obtida. O cadastro pode estar no servidor; confira a identidade original antes de tentar novamente.','No se recibió confirmación. El registro puede existir en el servidor; verifique antes de repetir.','Cloud confirmation was not received. The original record may exist on the server; verify before retrying.'), [erro?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
     }
   };
 
