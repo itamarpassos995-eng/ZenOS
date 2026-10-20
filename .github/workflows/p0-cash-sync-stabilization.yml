@@ -1,0 +1,24 @@
+name: P0 Cash Sync Stabilization
+on:
+  pull_request:
+    paths:
+      - 'src/App.jsx'
+      - 'scripts/recovery/cash-manual-duplicate-guard.test.mjs'
+      - 'scripts/recovery/sync-stalled-status.test.mjs'
+      - '.github/workflows/p0-cash-sync-stabilization.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test scripts/recovery/cash-manual-duplicate-guard.test.mjs scripts/recovery/sync-stalled-status.test.mjs
+      - run: npm run build
+      - run: node scripts/cash-multicurrency-p0-check.mjs
