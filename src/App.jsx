@@ -357,7 +357,9 @@ export default function App() {
         setErroSincronizacao(''); setStatusSincronizacao('PENDENTE');
       } else if (estados.some(x => x.status === 'SALVANDO')) {
         setErroSincronizacao(''); setStatusSincronizacao('SALVANDO');
-      } else if (estados.length > 0 && estados.every(x => x.status === 'SINCRONIZADO')) {
+      } else if (nuvemSincronizada && (estados.length === 0 || estados.every(x => x.status === 'SINCRONIZADO'))) {
+        // Sem gravações pendentes, a inicialização autoritativa da nuvem é confirmação válida.
+        // Não confundir ausência de eventos de escrita com conexão pendente.
         setErroSincronizacao(''); setStatusSincronizacao('SINCRONIZADO');
       } else {
         setStatusSincronizacao('PENDENTE');
@@ -382,7 +384,7 @@ export default function App() {
       window.removeEventListener('online', atualizarOnline);
       window.removeEventListener('offline', atualizarOnline);
     };
-  }, []);
+  }, [nuvemSincronizada]);
 
   useEffect(() => {
     if (!userId) {
