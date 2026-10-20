@@ -1,3 +1,4 @@
+import {calcularDespesasPagasResultado} from './core/expenseResult';
 import {getOperationalSnapshot,subscribeOperationalSnapshot,clearOperationalSession} from './core/operationalRepository.js';
 import TerminalLogin from './components/TerminalLogin';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
@@ -892,7 +893,7 @@ export default function App() {
   const faturamentoTotalBRL = vendasValidas.reduce((acc, v) => acc + obterFinanceiroVenda(v).totalLiquidoBRL, 0);
   const cmvTotalBRL = vendasValidas.reduce((acc, v) => acc + obterFinanceiroVenda(v).cmvLiquidoBRL, 0);
   const lucroBrutoBRL = vendasValidas.reduce((acc, v) => acc + obterFinanceiroVenda(v).lucroLiquidoBRL, 0);
-  const despesasPagasBRL = despesas.filter(d => (d.status === 'paga' || (d.status === 'excluida' && d.financeiroMantido === true)) && d.afetaResultado !== false && d.naturezaContabil !== 'estoque_ativo' && d.categoria !== 'Mercadoria para Revenda').reduce((acc, d) => acc + (parseFloat(d.valorBRL) || 0), 0);
+  const despesasPagasBRL = calcularDespesasPagasResultado(despesas);
   const lucroLiquidoRealBRL = lucroBrutoBRL - despesasPagasBRL;
   const totalFiadoAbertoBRL = clientes.reduce((acc, c) => acc + (parseFloat(c.saldoDevedorBRL) || 0), 0);
 
