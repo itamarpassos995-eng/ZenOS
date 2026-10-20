@@ -20,7 +20,7 @@ export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, c
   const exclusaoPendenteRef = useRef(false);
   const [exclusaoPendenteId, setExclusaoPendenteId] = useState(null);
   const avisarZen=(variante,titulo,mensagem,detalhes=[])=>setModalZen({variante,titulo,mensagem,detalhes,apenasConfirmar:true});
-  const confirmarZen=({titulo,mensagem,confirmarTexto=null,variante='warning'})=>new Promise(resolve=>setModalZen({variante,titulo,mensagem,confirmarTexto:confirmarTexto || tx('Confirmar','Confirmar','Confirm'),cancelarTexto:tx('Cancelar','Cancelar','Cancel'),resolver}));
+  const confirmarZen=({titulo,mensagem,confirmarTexto=null,variante='warning'})=>new Promise(resolve=>setModalZen({variante,titulo,mensagem,confirmarTexto:confirmarTexto || tx('Confirmar','Confirmar','Confirm'),cancelarTexto:tx('Cancelar','Cancelar','Cancel'),resolver:resolve}));
 
   if (patenteUsuario !== 'gerencia') {
     return (
