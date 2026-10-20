@@ -41,7 +41,8 @@ test('despesa paga pode sair da lista mantendo resultado e livro imutável',asyn
  montar([expense],commit);
  fireEvent.click(screen.getByRole('button',{name:/Pagas/}));
  fireEvent.click(screen.getByRole('button',{name:'Excluir'}));
- expect(screen.getByLabelText(/manter o valor no resultado financeiro/).checked).toBe(true);
+ expect(screen.getByLabelText(/estornar o valor no resultado financeiro/).checked).toBe(true);
+ fireEvent.click(screen.getByLabelText(/manter o valor no resultado financeiro/));
  fireEvent.click(screen.getByRole('button',{name:'Confirmar remoção'}));
  await waitFor(()=>expect(commit).toHaveBeenCalledTimes(1));
  const operation=commit.mock.calls[0][0];
@@ -74,4 +75,28 @@ test('falha na nuvem mantém dado e aviso sem confirmação',async()=>{
  fireEvent.click(screen.getByRole('button',{name:'Confirmar remoção'}));
  await waitFor(()=>expect(screen.getByText(/Remoção sem confirmação/)).toBeTruthy());
  expect(setDespesas).not.toHaveBeenCalled();
+});
+
+test('editar despesa manual pendente preenche valor e grava sem trocar ID ou perder metadados',async()=>{
+ const expense={id:'DESP-EDIT',descricao:'Internet',status:'pendente',categoria:'Infraestrutura',valorBRL:500,dataVencimento:'2026-10-25',origemImportacao:'registro_legado'};
+ const commit=vi.fn(async({changes})=>({cloudOk:true,values:{despesas:changes[0].value}}));
+ const {setDespesas}=montar([expense],commit);
+ fireEvent.click(screen.getByRole('button',{name:'Editar'}));
+ expect(screen.getByText(/Editar Despesa/)).toBeTruthy();
+ expect(screen.getByDisplayValue('500.00')).toBeTruthy();
+ fireEvent.change(screen.getByDisplayValue('500.00'),{target:{value:'550.00'}});
+ fireEvent.click(screen.getByRole('button',{name:'Salvar alterações'}));
+ await waitFor(()=>expect(commit).toHaveBeenCalledTimes(1));
+ const req=commit.mock.calls[0][0];
+ expect(req.changes[0].value[0]).toMatchObject({id:'DESP-EDIT',valorBRL:550,origemImportacao:'registro_legado',status:'pendente'});
+ expect(req.guards[0]).toMatchObject({type:'entity_unchanged',entityId:'DESP-EDIT',field:'despesas'});
+ await waitFor(()=>expect(setDespesas).toHaveBeenCalled());
+});
+test('editar despesa paga preserva registro e exige fluxo financeiro',async()=>{
+ const expense={id:'DESP-PEDIT',descricao:'Recebimento pago',status:'paga',valorBRL:500};
+ const commit=vi.fn();montar([expense],commit);
+ fireEvent.click(screen.getByRole('button',{name:/Pagas/}));
+ fireEvent.click(screen.getByRole('button',{name:'Editar'}));
+ expect(screen.getByText(/Edição exige correção financeira/)).toBeTruthy();
+ expect(commit).not.toHaveBeenCalled();
 });
