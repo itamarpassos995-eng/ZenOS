@@ -19,7 +19,9 @@ assert.ok(changed.every(p=>allowed.has(p)),'GATE_FAIL: alteração fora do pacot
 const read=path=>fs.readFileSync(path,'utf8');
 const mainIdx=run(['show','origin/main:functions/src/index.js']).trim();
 const current=read('functions/src/index.js').trim();
-assert.equal(current,mainIdx+"\nexport { commerceSolicitacaoCliente } from './commerceSolicitacaoCliente.js';",
+const commerceExport="export { commerceSolicitacaoCliente } from './commerceSolicitacaoCliente.js';";
+const expectedIndex=mainIdx.includes(commerceExport)?mainIdx:mainIdx+"\n"+commerceExport;
+assert.equal(current,expectedIndex,
  'GATE_FAIL: alterações inesperadas na entrada das funções fiscais');
 const appBefore=run(['show','origin/main:src/App.jsx']);
 const appAfter=read('src/App.jsx');
