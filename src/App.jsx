@@ -342,10 +342,16 @@ export default function App() {
     const recalcularStatus = () => {
       if (typeof navigator !== 'undefined' && !navigator.onLine) { setStatusSincronizacao('OFFLINE'); return; }
       const estados = [...syncCamposRef.current.values()];
+      // O estado visual não pode permanecer "Salvando" indefinidamente quando
+      // o Firestore não devolve confirmação. Isto NÃO cancela a transação.
+      const travado = estados.some(x => x.status === 'SALVANDO' && Date.now() - x.at >= 30_000);
       if (estados.some(x => x.status === 'ERRO')) {
         const ultimoErro = [...syncCamposRef.current.values()].reverse().find(x => x.status === 'ERRO' && x.error);
         setErroSincronizacao(ultimoErro?.error || 'Existe uma falha de sincronização pendente.');
         setStatusSincronizacao('ERRO');
+      } else if (travado) {
+        setErroSincronizacao('Confirmação da nuvem demorando. Preserve os pré-pedidos e confira o servidor antes de repetir operações.');
+        setStatusSincronizacao('PENDENTE');
       } else if (estados.some(x => x.status === 'PENDENTE')) {
         setErroSincronizacao(''); setStatusSincronizacao('PENDENTE');
       } else if (estados.some(x => x.status === 'SALVANDO')) {
@@ -367,7 +373,10 @@ export default function App() {
     window.addEventListener('online', atualizarOnline);
     window.addEventListener('offline', atualizarOnline);
     atualizarOnline();
+    // Avaliação temporizada somente do indicador. Sem consultas Firestore extras.
+    const statusTimer = window.setInterval(recalcularStatus, 5_000);
     return () => {
+      window.clearInterval(statusTimer);
       window.removeEventListener(PERSISTENCE_STATUS_EVENT, ouvir);
       window.removeEventListener('online', atualizarOnline);
       window.removeEventListener('offline', atualizarOnline);
