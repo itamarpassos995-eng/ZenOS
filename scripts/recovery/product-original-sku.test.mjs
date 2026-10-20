@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {conciliarSkuHistorico as localizar} from '../../src/core/productHistoricalSkuLookup.js';
+import {conciliarSkuHistorico as localizar} from '../../src/core/productHistoricalSkuCore.js';
 const atual=[{id:'P-1',nome:'Pneu Um',sku:'66346',estoque:7,ativo:false}];
 test('registro atual existe: restabelece visibilidade sem alterar ID, saldo ou cadastro',()=>{
  const r=localizar({sku:'66346',indexData:{produtoId:'P-1',ativo:true},catalogoAtual:atual});
