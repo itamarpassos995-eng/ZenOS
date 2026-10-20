@@ -980,7 +980,15 @@ export default function App() {
     resetarValoresCaixa();
   };
 
+  // Impede dupla submissão antes do primeiro render e preserva o resultado incerto.
+  const movCaixaEmAndamentoRef = useRef(false);
+  const movCaixaResultadoIncertoRef = useRef(false);
   const registrarMovimentoCaixa = async () => {
+    if (movCaixaEmAndamentoRef.current || movCaixaResultadoIncertoRef.current) {
+      return avisarAppZen({variante:'warning',titulo:'Movimento pendente de conferência',mensagem:'Não repita a retirada: verifique o extrato e a confirmação no servidor antes de uma nova tentativa.'});
+    }
+    movCaixaEmAndamentoRef.current = true;
+    try {
     if (!sessaoAtiva) return avisarAppZen({ variante:'warning', titulo:'Caixa fechado', mensagem:tx('Precisa de abrir o turno de caixa primeiro.', 'Debe abrir turno primero.', 'Must open shift first.') });
     const movimentoValidado = validarValoresMovCaixa();
     if (!movimentoValidado) return;
@@ -1023,11 +1031,15 @@ export default function App() {
       operationKey: `mov-caixa:${novoMov.id}`,
     });
     if (!confirmado?.cloudOk) {
+      movCaixaResultadoIncertoRef.current = true;
       return avisarAppZen({ variante:'danger', titulo:tx('Movimento não registrado','Movimiento no registrado','Movement not recorded'), mensagem:tx('A nuvem não confirmou o movimento de caixa.','La nube no confirmó el movimiento de caja.','The cloud did not confirm the cash movement.'), detalhes:[confirmado?.error?.message || tx('Nenhum movimento foi finalizado.','Ningún movimiento fue finalizado.','No movement was finalized.')] });
     }
     setCaixaMovimentos(confirmado.values?.caixaMovimentos || movimentosPropostos);
     setModalCaixaAberto(false);
     resetarValoresCaixa(); setDescMovCaixa('');
+    } finally {
+      movCaixaEmAndamentoRef.current = false;
+    }
   };
 
   const processarFechamentoCego = async () => {
