@@ -1,0 +1,23 @@
+name: P0 Product Index Audit
+on:
+  pull_request:
+    paths:
+      - 'src/core/productIndexAudit.js'
+      - 'src/components/Produtos.jsx'
+      - 'scripts/recovery/product-index-audit.test.mjs'
+      - '.github/workflows/p0-product-index-audit.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test scripts/recovery/product-index-audit.test.mjs
+      - run: npm run build
