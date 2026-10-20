@@ -52,6 +52,7 @@ test('pagamento já realizado exige estorno e não permite apagar conta paga',as
  const expense={id:'DESP-PAGA',descricao:'Aluguel',status:'paga',dataPagamento:'2026-10-20T12:00:00Z',valorBRL:100};
  const commit=vi.fn();
  montar([expense],commit);
+ fireEvent.click(screen.getByRole('button',{name:/Pagas/}));
  fireEvent.click(screen.getByRole('button',{name:'Excluir'}));
  expect(screen.getByText(/Despesa com pagamento registrado/)).toBeTruthy();
  expect(commit).not.toHaveBeenCalled();
