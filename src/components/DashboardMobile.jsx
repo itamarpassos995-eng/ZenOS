@@ -1,3 +1,4 @@
+import {calcularDespesasPagasResultado} from '../core/expenseResult';
 import React, { useMemo } from 'react';
 import { obterFinanceiroVenda } from '../core/salesFinancials';
 import { classificarMargem } from '../core/profitability';
@@ -22,7 +23,7 @@ export default function DashboardMobile({ historicoVendas, despesas, clientes, p
     const margemMedia = faturamentoTotal > 0 ? (lucroTotal / faturamentoTotal) * 100 : 0;
 
     const fiadoTotal = clientes.reduce((acc, c) => acc + (parseFloat(c.saldoDevedorBRL) || 0), 0);
-    const despesasPagas = despesas.filter(d => (d.status === 'paga' || (d.status === 'excluida' && d.financeiroMantido === true)) && d.afetaResultado !== false && d.naturezaContabil !== 'estoque_ativo' && d.categoria !== 'Mercadoria para Revenda').reduce((acc, d) => acc + (parseFloat(d.valorBRL) || 0), 0);
+    const despesasPagas = calcularDespesasPagasResultado(despesas);
     const lucroLiquidoReal = lucroTotal - despesasPagas;
 
     // Descobrir o Campeão de Vendas
