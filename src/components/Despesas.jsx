@@ -141,7 +141,10 @@ export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, c
     if(!alvo) return avisarZen('warning','Despesa não encontrada','Atualize a listagem antes de tentar novamente.');
     // Uma despesa originada de compra pertence ao histórico de compras e não
     // pode ser apagada isoladamente do contas a pagar.
-    if(String(alvo.descricao||'').startsWith('Compra de Estoque - ')) {
+    if (alvo.status==='paga'||alvo.dataPagamento) {
+      return avisarZen('warning','Despesa com pagamento registrado','Esse lançamento já possui pagamento. Utilize um estorno auditado para não deixar o livro financeiro ou o caixa divergentes.');
+    }
+    if(alvo.compraId||alvo.naturezaContabil==='estoque_ativo'||String(alvo.descricao||'').startsWith('Compra de Estoque - ')) {
       return avisarZen('warning','Despesa vinculada a compra','Este lançamento pertence a uma compra de estoque. Corrija ou cancele a compra no fluxo de origem, com estorno e auditoria. A exclusão direta foi bloqueada.');
     }
     const confirmou=await confirmarZen({titulo:tx('Excluir registro','Eliminar registro','Delete record'),mensagem:`${tx('Excluir permanentemente','Eliminar permanentemente','Permanently delete')} “${alvo?.descricao || tx('este registro','este registro','this record')}”?`,confirmarTexto:tx('Excluir','Eliminar','Delete'),variante:'danger'});
