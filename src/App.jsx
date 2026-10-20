@@ -750,7 +750,9 @@ export default function App() {
   };
 
   const fazerLogout = async () => {
-    const confirmou = await confirmarAppZen({
+    // Na seleção de operador o modal global não está montado; sair diretamente.
+    // Com operador autenticado, manter a confirmação administrativa existente.
+    const confirmou = !operadorAtivo || await confirmarAppZen({
       variante:'warning',
       titulo:tx('Encerrar sessão da loja', 'Cerrar sesión de la tienda', 'End store session'),
       mensagem:tx('Encerrar a sessão principal desta loja?', '¿Cerrar la sesión principal de esta tienda?', 'End the main session for this store?'),
