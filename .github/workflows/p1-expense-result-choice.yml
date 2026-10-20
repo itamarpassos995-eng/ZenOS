@@ -1,0 +1,27 @@
+name: P1 Expense Result Choice
+on:
+  pull_request:
+    paths:
+      - 'src/components/Despesas.jsx'
+      - 'src/components/DashboardMobile.jsx'
+      - 'src/App.jsx'
+      - 'src/core/expenseResult.js'
+      - 'scripts/recovery/despesas-excluir.ui.test.jsx'
+      - 'scripts/recovery/expense-result.test.mjs'
+      - '.github/workflows/p1-expense-result-choice.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test scripts/recovery/expense-result.test.mjs
+      - run: npx vitest run --config vitest.recovery.config.js scripts/recovery/despesas-excluir.ui.test.jsx
+      - run: npm run build
