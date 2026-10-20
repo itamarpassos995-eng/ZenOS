@@ -74,11 +74,14 @@ export async function liberarIndiceOrfaoPDV({db,userId,sku,ownerId,operadorId}){
     });
     if(!policy.ok)throw new Error('Verificação de integridade bloqueou liberação: '+policy.motivo);
     const agora=new Date().toISOString();
-    for(const ref of refs)tx.set(ref,{
-      ativo:false,liberadoEm:agora,liberadoPor:String(operadorId),
-      motivoLiberacao:'indice_orfao_cadastro_pdv_confirmado',
-      produtoIdOriginal:id,updatedAtServer:serverTimestamp(),
-    },{merge:true});
+    for(let i=0;i<refs.length;i++){
+      if(atuaisIndice[i].ativo===false)continue; // preservar auditoria das reservas já inativadas
+      tx.set(refs[i],{
+        ativo:false,liberadoEm:agora,liberadoPor:String(operadorId),
+        motivoLiberacao:'indice_orfao_cadastro_pdv_confirmado',
+        produtoIdOriginal:id,updatedAtServer:serverTimestamp(),
+      },{merge:true});
+    }
   });
   return {status:'released',ownerId:id,indices:indices.length};
  }catch(error){
