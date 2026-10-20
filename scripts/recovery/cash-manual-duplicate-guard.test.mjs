@@ -1,0 +1,6 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';
+const app=readFileSync(new URL('../../src/App.jsx',import.meta.url),'utf8');
+test('cash drop has synchronous lock and unknown ACK no retry',()=>{assert.match(app,/movCaixaEmAndamentoRef = useRef\(false\)/);assert.match(app,/movCaixaResultadoIncertoRef = useRef\(false\)/);assert.match(app,/movCaixaEmAndamentoRef\.current = true/);assert.match(app,/movCaixaResultadoIncertoRef\.current = true/);assert.match(app,/finally \{\s*movCaixaEmAndamentoRef\.current = false/);assert.match(app,/operationKey: `mov-caixa:\$\{novoMov.id\}`/);});
+test('cash intent persisted before commit; only confirmed operation clears guard',()=>{assert.match(app,/const pendenciaAnterior = pendenciaKey \? zenosStorage\.getItem\(pendenciaKey\)/);assert.match(app,/if \(pendenciaAnterior\)/);assert.match(app,/zenosStorage\.setItem\(pendenciaKey/);assert.match(app,/zenosStorage\.removeItem\(pendenciaKey\)/);assert.match(app,/titulo:tx\('Confirmação pendente'/);});
+
+test('cash close does not claim open when cloud ACK is missing',()=>{assert.match(app,/Confirmação do caixa pendente/);assert.match(app,/Não foi possível confirmar o estado do fechamento no servidor/);});
