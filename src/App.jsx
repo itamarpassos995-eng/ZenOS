@@ -984,6 +984,11 @@ export default function App() {
   const movCaixaEmAndamentoRef = useRef(false);
   const movCaixaResultadoIncertoRef = useRef(false);
   const registrarMovimentoCaixa = async () => {
+    const pendenciaKey = sessaoAtiva && userId ? `zenos_${userId}_caixa_mov_pendente_${sessaoAtiva.id}` : null;
+    const pendenciaAnterior = pendenciaKey ? zenosStorage.getItem(pendenciaKey) : null;
+    if (pendenciaAnterior) {
+      return avisarAppZen({variante:'warning',titulo:'Retirada exige conferência',mensagem:'Há um movimento desta sessão com confirmação desconhecida, preservado neste dispositivo. Confira o extrato no servidor antes de iniciar outra retirada.'});
+    }
     if (movCaixaEmAndamentoRef.current || movCaixaResultadoIncertoRef.current) {
       return avisarAppZen({variante:'warning',titulo:'Movimento pendente de conferência',mensagem:'Não repita a retirada: verifique o extrato e a confirmação no servidor antes de uma nova tentativa.'});
     }
@@ -1006,6 +1011,13 @@ export default function App() {
       operador: operadorAtivo?.nome 
     };
     const movimentosPropostos = [novoMov, ...caixaMovimentos];
+    // Bloqueio persistente ANTES do envio: se cair a rede ou recarregar a aba,
+    // não se pode criar outro ID e movimentar dinheiro novamente às cegas.
+    if (!pendenciaKey || !zenosStorage.setItem(pendenciaKey, JSON.stringify({
+      id:novoMov.id, sessaoId:sessaoAtiva.id, tipo:novoMov.tipo, valorBRL:valBRL, createdAt:agoraISO
+    }))) {
+      return avisarAppZen({variante:'danger',titulo:'Movimento não iniciado',mensagem:'Não foi possível preservar a identificação da retirada neste dispositivo. Nenhum lançamento foi enviado.'});
+    }
     const confirmado = await commitVendaCritica({
       changes: [{ field:'caixaMovimentos', value:movimentosPropostos, storageSuffix:'caixa_movs' }],
       financialEntries: [{
@@ -1032,9 +1044,10 @@ export default function App() {
     });
     if (!confirmado?.cloudOk) {
       movCaixaResultadoIncertoRef.current = true;
-      return avisarAppZen({ variante:'danger', titulo:tx('Movimento não registrado','Movimiento no registrado','Movement not recorded'), mensagem:tx('A nuvem não confirmou o movimento de caixa.','La nube no confirmó el movimiento de caja.','The cloud did not confirm the cash movement.'), detalhes:[confirmado?.error?.message || tx('Nenhum movimento foi finalizado.','Ningún movimiento fue finalizado.','No movement was finalized.')] });
+      return avisarAppZen({ variante:'danger', titulo:tx('Confirmação pendente','Confirmación pendiente','Confirmation pending'), mensagem:tx('A nuvem não confirmou a retirada. Ela pode estar registrada. Não repita: confira o extrato e concilie o movimento original.','La nube no confirmó el retiro; podría estar registrado. No repita sin conciliar.','The cloud did not confirm the withdrawal; it may have been recorded. Verify the original record before retrying.'), detalhes:[confirmado?.error?.message || tx('Confirmação desconhecida; referência preservada neste dispositivo.','Confirmación desconocida; referencia preservada en este dispositivo.','Confirmation unknown; attempt reference preserved on this device.')] });
     }
     setCaixaMovimentos(confirmado.values?.caixaMovimentos || movimentosPropostos);
+    zenosStorage.removeItem(pendenciaKey);
     setModalCaixaAberto(false);
     resetarValoresCaixa(); setDescMovCaixa('');
     } finally {
