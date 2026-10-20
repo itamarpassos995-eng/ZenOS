@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import ZenModal from './ZenModal';
 
-export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, saldoSessaoFisicoBRL = 0, operadorAtivo, despesas, setDespesas, fmt, tx, patenteUsuario, moeda, converterParaBRL }) {
+export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, saldoSessaoFisicoBRL = 0, operadorAtivo, despesas, setDespesas, fmt, tx, patenteUsuario, moeda, converterParaBRL, converterDeBRL }) {
   const [modalAberto, setModalAberto] = useState(false);
   const [despesaEmEdicao, setDespesaEmEdicao] = useState(null);
   const [filtroStatus, setFiltroStatus] = useState('pendente'); // pendente, paga, todas
@@ -17,7 +17,9 @@ export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, c
   const [despesaParaPagar, setDespesaParaPagar] = useState(null);
   const [formaPagamento, setFormaPagamento] = useState('Dinheiro / Caixa');
   const [modalZen, setModalZen] = useState(null);
-  const [opcaoExclusaoFinanceira, setOpcaoExclusaoFinanceira] = useState('manter');
+  const [opcaoExclusaoFinanceira, setOpcaoExclusaoFinanceira] = useState('ajustar');
+  const salvandoDespesaRef = useRef(false);
+  const [salvandoDespesa, setSalvandoDespesa] = useState(false);
   const exclusaoPendenteRef = useRef(false);
   const [exclusaoPendenteId, setExclusaoPendenteId] = useState(null);
   const avisarZen=(variante,titulo,mensagem,detalhes=[])=>setModalZen({variante,titulo,mensagem,detalhes,apenasConfirmar:true});
@@ -42,12 +44,30 @@ export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, c
     setModalAberto(true);
   };
 
+  const editarDespesa = despesa => {
+    if(!despesa || despesa.status!=='pendente' || despesa.compraId || despesa.naturezaContabil==='estoque_ativo' || String(despesa.descricao||'').startsWith('Compra de Estoque - ')) {
+      return avisarZen('warning','Edição exige correção financeira','Somente despesas manuais pendentes podem ser editadas. Para valores já pagos, use a remoção com ajuste do resultado, preservando o histórico.');
+    }
+    setDespesaEmEdicao(despesa);
+    setDescricao(despesa.descricao||'');
+    setCategoria(despesa.categoria||'Outros');
+    const valorExibido=typeof converterDeBRL==='function' ? converterDeBRL(Number(despesa.valorBRL)||0,moeda) : Number(despesa.valorBRL)||0;
+    setValorInput(Number(valorExibido).toFixed(moeda==='PYG'?0:2));
+    setDataVencimento(despesa.dataVencimento||new Date().toISOString().slice(0,10));
+    setModalAberto(true);
+  };
+
   const salvarDespesa = async () => {
+    if(salvandoDespesaRef.current)return;
+    if(despesaEmEdicao && (despesaEmEdicao.status!=='pendente' || despesaEmEdicao.compraId || despesaEmEdicao.naturezaContabil==='estoque_ativo'))
+      return avisarZen('warning','Edição bloqueada','Esta despesa não pode ser editada diretamente por ter pagamento ou vínculo com compra.');
+
     if (!descricao.trim()) return avisarZen('warning',tx('Descrição obrigatória','Descripción obligatoria','Description required'),tx('Informe a descrição da despesa.','Informe la descripción del gasto.','Enter the expense description.'));
     const valBRL = converterParaBRL(parseFloat(valorInput.replace(',', '.')) || 0, moeda);
     if (valBRL <= 0) return avisarZen('warning',tx('Valor inválido','Valor inválido','Invalid amount'),tx('Informe um valor válido maior que zero.','Informe un valor válido mayor que cero.','Enter a valid amount greater than zero.'));
 
     const novaDespesa = {
+      ...(despesaEmEdicao || {}),
       id: despesaEmEdicao ? despesaEmEdicao.id : `DESP-${Date.now()}`,
       descricao,
       categoria,
@@ -60,17 +80,26 @@ export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, c
     const listaProposta = despesaEmEdicao
       ? despesas.map(d => d.id === despesaEmEdicao.id ? novaDespesa : d)
       : [novaDespesa, ...despesas];
+    salvandoDespesaRef.current=true;
+    setSalvandoDespesa(true);
     try {
       let confirmadas = listaProposta;
       if (typeof commitOperacaoNegocio === 'function') {
-        const confirmado = await commitOperacaoNegocio({ changes:[{ field:'despesas', value:listaProposta, storageSuffix:'despesas' }] });
+        const confirmado = await commitOperacaoNegocio({
+          changes:[{ field:'despesas', value:listaProposta, storageSuffix:'despesas' }],
+          guards:despesaEmEdicao?[{type:'entity_unchanged',field:'despesas',entityId:despesaEmEdicao.id,expected:despesaEmEdicao}]:[],
+        });
         if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou a despesa.');
         confirmadas = confirmado.values?.despesas || listaProposta;
       }
       setDespesas(confirmadas);
       setModalAberto(false);
+      setDespesaEmEdicao(null);
     } catch (erro) {
       avisarZen('danger',tx('Despesa não salva','Gasto no guardado','Expense not saved'),tx('A nuvem não confirmou o lançamento. Nenhuma alteração foi considerada concluída.','La nube no confirmó el registro. Ningún cambio fue considerado concluido.','The cloud did not confirm the entry. No change was considered complete.'),[erro?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
+    }finally{
+      salvandoDespesaRef.current=false;
+      setSalvandoDespesa(false);
     }
   };
 
@@ -146,7 +175,7 @@ export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, c
       return avisarZen('warning','Despesa vinculada a compra','Corrija ou cancele a compra no fluxo original, com estorno e auditoria. A exclusão isolada foi bloqueada.');
     }
     const paga=alvo.status==='paga'||Boolean(alvo.dataPagamento);
-    setOpcaoExclusaoFinanceira('manter');
+    setOpcaoExclusaoFinanceira('ajustar');
     const escolha=await confirmarZen({
       titulo:tx('Remover despesa','Quitar gasto de la lista','Remove expense'),
       mensagem:`${tx('Remover da lista','Quitar de la lista','Remove from list')} “${alvo.descricao||'este registro'}”? ${paga?'Este lançamento possui pagamento. Escolha se deseja manter seu efeito no resultado financeiro ou fazer um estorno contábil. O caixa físico não será alterado.':'Esta despesa não foi paga; ela ainda não afeta o resultado financeiro.'}`,
@@ -268,6 +297,7 @@ export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, c
                     {d.status === 'pendente' && (
                       <button onClick={() => abrirPagamento(d)} style={{ backgroundColor: '#064e3b', border: '1px solid #10b981', color: '#34d399', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer', marginRight: '8px' }}>{tx('Baixar Pgto','Registrar Pago','Post Payment')}</button>
                     )}
+                    <button onClick={() => editarDespesa(d)} style={{background:'transparent',border:'1px solid #38bdf8',color:'#7dd3fc',padding:'6px 12px',borderRadius:8,fontSize:11,fontWeight:800,cursor:'pointer',marginRight:8}}>{tx('Editar','Editar','Edit')}</button>
                     <button onClick={() => excluirDespesa(d.id)} disabled={exclusaoPendenteId !== null} style={{ backgroundColor: 'transparent', border: '1px solid #334155', color: '#f43f5e', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>{tx('Excluir','Eliminar','Delete')}</button>
                   </td>
                 </tr>
@@ -290,7 +320,7 @@ export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, c
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1500 }}>
           <div style={{ backgroundColor: '#0b1120', border: '1px solid #f43f5e', borderRadius: '24px', width: '100%', maxWidth: '500px', padding: '28px', color: '#fff' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <div><span style={{ fontSize: '11px', fontWeight: 800, color: '#fb7185', textTransform: 'uppercase' }}>{tx('Contas a Pagar','Cuentas a Pagar','Accounts Payable')}</span><h3 style={{ fontSize: '20px', fontWeight: 900, margin: '2px 0 0 0' }}>{tx('Lançar Nova Despesa','Registrar Nuevo Gasto','Add New Expense')}</h3></div>
+              <div><span style={{ fontSize: '11px', fontWeight: 800, color: '#fb7185', textTransform: 'uppercase' }}>{tx('Contas a Pagar','Cuentas a Pagar','Accounts Payable')}</span><h3 style={{ fontSize: '20px', fontWeight: 900, margin: '2px 0 0 0' }}>{despesaEmEdicao?tx('Editar Despesa','Editar Gasto','Edit Expense'):tx('Lançar Nova Despesa','Registrar Nuevo Gasto','Add New Expense')}</h3></div>
               <button onClick={() => setModalAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#64748b', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>✕</button>
             </div>
 
@@ -322,8 +352,8 @@ export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, c
               </div>
             </div>
 
-            <button onClick={salvarDespesa} style={{ width: '100%', background: 'linear-gradient(135deg, #e11d48, #be123c)', border: 'none', color: '#fff', padding: '16px', borderRadius: '12px', fontSize: '14px', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 15px rgba(225, 29, 72, 0.3)' }}>
-              Registrar Despesa no Sistema
+            <button onClick={salvarDespesa} disabled={salvandoDespesa} style={{ width: '100%', background: 'linear-gradient(135deg, #e11d48, #be123c)', border: 'none', color: '#fff', padding: '16px', borderRadius: '12px', fontSize: '14px', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 15px rgba(225, 29, 72, 0.3)' }}>
+              {salvandoDespesa?'Salvando...':despesaEmEdicao?'Salvar alterações':'Registrar Despesa no Sistema'}
             </button>
           </div>
         </div>
