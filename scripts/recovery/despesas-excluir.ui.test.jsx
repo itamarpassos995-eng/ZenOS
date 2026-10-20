@@ -20,21 +20,21 @@ test('excluir despesa manual exige confirmação, escreve uma vez e avisa sucess
  const commit=vi.fn(async()=>({cloudOk:true,values:{despesas:[]}}));
  const {setDespesas}=montar([expense],commit);
  fireEvent.click(screen.getByRole('button',{name:'Excluir'}));
- expect(screen.getByText('Excluir registro')).toBeTruthy();
+ expect(screen.getByText(/Excluir registro/)).toBeTruthy();
  expect(commit).not.toHaveBeenCalled();
  const excluir=screen.getAllByRole('button',{name:'Excluir'});
  fireEvent.click(excluir[excluir.length-1]);
  await waitFor(()=>expect(commit).toHaveBeenCalledTimes(1));
  expect(commit.mock.calls[0][0].changes[0]).toMatchObject({field:'despesas',value:[]});
  await waitFor(()=>expect(setDespesas).toHaveBeenCalledWith([]));
- expect(screen.getByText('Despesa excluída')).toBeTruthy();
+ expect(screen.getByText(/Despesa excluída/)).toBeTruthy();
 });
 test('exclusão de despesa de compra é bloqueada sem mexer no histórico',async()=>{
  const expense={id:'DESP-2',descricao:'Compra de Estoque - Tambasa | Boleto',status:'pendente',valorBRL:100,dataVencimento:'2026-10-20'};
  const commit=vi.fn();
  montar([expense],commit);
  fireEvent.click(screen.getByRole('button',{name:'Excluir'}));
- expect(screen.getByText('Despesa vinculada a compra')).toBeTruthy();
+ expect(screen.getByText(/Despesa vinculada a compra/)).toBeTruthy();
  expect(commit).not.toHaveBeenCalled();
 });
 test('falha da nuvem não remove despesa manual',async()=>{
@@ -44,6 +44,6 @@ test('falha da nuvem não remove despesa manual',async()=>{
  fireEvent.click(screen.getByRole('button',{name:'Excluir'}));
  const btn=screen.getAllByRole('button',{name:'Excluir'});
  fireEvent.click(btn[btn.length-1]);
- await waitFor(()=>expect(screen.getByText('Exclusão sem confirmação')).toBeTruthy());
+ await waitFor(()=>expect(screen.getByText(/Exclusão sem confirmação/)).toBeTruthy());
  expect(setDespesas).not.toHaveBeenCalled();
 });
