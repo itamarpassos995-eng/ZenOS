@@ -8,6 +8,7 @@ import { classificarMargem } from '../core/profitability';
 import ZenModal from './ZenModal';
 import ZenShareButton from './ZenShareButton';
 import { liberarIdentidadeProduto, reservarIdentidadeProduto } from '../core/productRegistry';
+import {resultadoCadastroIndeterminado} from '../core/productAckOutcome';
 import { normalizarPerfilLoja, larguraCssRecibo } from '../core/storeProfile';
 import { atualizarProdutoUnico, localizarIndiceProdutoUnico, skuJaExiste } from '../core/productIdentity';
 import { formatarEquivalenciaBRL, moedasAtivasRecibo } from '../core/receiptCurrency';
@@ -285,11 +286,15 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
       setModalProdutoPDVAberto(false);
     } catch (erro) {
       console.error('[ZenOS][ATT10.2] Cadastro rápido de produto não confirmado:', erro);
-      try {
-        if (produtoEmEdicaoPDV) await reservarIdentidadeProduto({ db, userId, produto:produtoEmEdicaoPDV, produtoAnterior:dadosFinais });
-        else await liberarIdentidadeProduto({ db, userId, produto:dadosFinais });
-      } catch (rollbackErro) { console.error('[ZenOS][ATT10.2] Falha ao restaurar índice do produto rápido:', rollbackErro); }
-      mostrarZen('danger',tx('Produto não salvo','Producto no guardado','Product not saved'),tx('A nuvem não confirmou o cadastro rápido. Nenhuma alteração foi considerada concluída.','La nube no confirmó el registro rápido. Ningún cambio fue considerado concluido.','The cloud did not confirm quick registration. No change was considered complete.'),[erro?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
+      if(!resultadoCadastroIndeterminado(erro)){
+        try {
+          if (produtoEmEdicaoPDV) await reservarIdentidadeProduto({ db, userId, produto:produtoEmEdicaoPDV, produtoAnterior:dadosFinais });
+          else await liberarIdentidadeProduto({ db, userId, produto:dadosFinais });
+        } catch (rollbackErro) { console.error('[ZenOS][ATT10.2] Falha ao restaurar índice do produto rápido:', rollbackErro); }
+      }else{
+        console.warn('[ZenOS] Confirmação do produto desconhecida; índice original preservado para reconciliação.');
+      }
+      mostrarZen('danger',tx('Cadastro não confirmado','Registro sin confirmar','Registration unconfirmed'),tx('A nuvem não confirmou o cadastro rápido. Nenhuma alteração foi considerada concluída.','La nube no confirmó el registro rápido. Ningún cambio fue considerado concluido.','The cloud did not confirm quick registration. No change was considered complete.'),[erro?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
     }
   };
 
