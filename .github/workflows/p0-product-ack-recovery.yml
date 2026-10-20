@@ -1,0 +1,24 @@
+name: P0 Product ACK Recovery
+on:
+  pull_request:
+    paths:
+      - 'src/core/productAckOutcome.js'
+      - 'src/components/Produtos.jsx'
+      - 'src/components/PDV.jsx'
+      - 'scripts/recovery/product-unknown-ack.test.mjs'
+      - '.github/workflows/p0-product-ack-recovery.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test scripts/recovery/product-unknown-ack.test.mjs
+      - run: npm run build
