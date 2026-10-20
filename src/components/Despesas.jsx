@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import ZenModal from './ZenModal';
 
 export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, saldoSessaoFisicoBRL = 0, operadorAtivo, despesas, setDespesas, fmt, tx, patenteUsuario, moeda, converterParaBRL }) {
@@ -17,8 +17,10 @@ export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, c
   const [despesaParaPagar, setDespesaParaPagar] = useState(null);
   const [formaPagamento, setFormaPagamento] = useState('Dinheiro / Caixa');
   const [modalZen, setModalZen] = useState(null);
+  const exclusaoPendenteRef = useRef(false);
+  const [exclusaoPendenteId, setExclusaoPendenteId] = useState(null);
   const avisarZen=(variante,titulo,mensagem,detalhes=[])=>setModalZen({variante,titulo,mensagem,detalhes,apenasConfirmar:true});
-  const confirmarZen=({titulo,mensagem,confirmarTexto=null,variante='warning'})=>new Promise(resolve=>setModalZen({variante,titulo,mensagem,confirmarTexto:confirmarTexto || tx('Confirmar','Confirmar','Confirm'),cancelarTexto:tx('Cancelar','Cancelar','Cancel'),resolver}));
+  const confirmarZen=({titulo,mensagem,confirmarTexto=null,variante='warning'})=>new Promise(resolve=>setModalZen({variante,titulo,mensagem,confirmarTexto:confirmarTexto || tx('Confirmar','Confirmar','Confirm'),cancelarTexto:tx('Cancelar','Cancelar','Cancel'),resolver:resolve}));
 
   if (patenteUsuario !== 'gerencia') {
     return (
@@ -134,9 +136,21 @@ export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, c
   };
 
   const excluirDespesa = async (id) => {
-    const alvo=(despesas||[]).find(d=>d.id===id);
+    if(exclusaoPendenteRef.current) return;
+    const alvo=(despesas||[]).find(d=>String(d.id)===String(id));
+    if(!alvo) return avisarZen('warning','Despesa não encontrada','Atualize a listagem antes de tentar novamente.');
+    // Uma despesa originada de compra pertence ao histórico de compras e não
+    // pode ser apagada isoladamente do contas a pagar.
+    if (alvo.status==='paga'||alvo.dataPagamento) {
+      return avisarZen('warning','Despesa com pagamento registrado','Esse lançamento já possui pagamento. Utilize um estorno auditado para não deixar o livro financeiro ou o caixa divergentes.');
+    }
+    if(alvo.compraId||alvo.naturezaContabil==='estoque_ativo'||String(alvo.descricao||'').startsWith('Compra de Estoque - ')) {
+      return avisarZen('warning','Despesa vinculada a compra','Este lançamento pertence a uma compra de estoque. Corrija ou cancele a compra no fluxo de origem, com estorno e auditoria. A exclusão direta foi bloqueada.');
+    }
     const confirmou=await confirmarZen({titulo:tx('Excluir registro','Eliminar registro','Delete record'),mensagem:`${tx('Excluir permanentemente','Eliminar permanentemente','Permanently delete')} “${alvo?.descricao || tx('este registro','este registro','this record')}”?`,confirmarTexto:tx('Excluir','Eliminar','Delete'),variante:'danger'});
     if(!confirmou) return;
+    exclusaoPendenteRef.current = true;
+    setExclusaoPendenteId(id);
     const listaProposta = despesas.filter(d=>d.id!==id);
     try {
       let confirmadas = listaProposta;
@@ -146,8 +160,12 @@ export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, c
         confirmadas = resultado.values?.despesas || listaProposta;
       }
       setDespesas(confirmadas);
+      avisarZen('success',tx('Despesa excluída','Gasto eliminado','Expense deleted'),tx('Exclusão confirmada pelo servidor.','Eliminación confirmada por el servidor.','Deletion confirmed by server.'));
     } catch (erro) {
-      avisarZen('danger',tx('Registro não excluído','Registro no eliminado','Record not deleted'),tx('A nuvem não confirmou a exclusão. O registro foi preservado.','La nube no confirmó la eliminación. El registro fue preservado.','The cloud did not confirm deletion. The record was preserved.'),[erro?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
+      avisarZen('danger',tx('Exclusão sem confirmação','Eliminación sin confirmación','Unconfirmed deletion'),tx('Verifique o registro no servidor antes de repetir.','Verifique el registro en el servidor antes de repetir.','Check the server record before retrying.'),[erro?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
+    } finally {
+      exclusaoPendenteRef.current = false;
+      setExclusaoPendenteId(null);
     }
   };
 
@@ -215,7 +233,7 @@ export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, c
                     {d.status === 'pendente' && (
                       <button onClick={() => abrirPagamento(d)} style={{ backgroundColor: '#064e3b', border: '1px solid #10b981', color: '#34d399', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer', marginRight: '8px' }}>{tx('Baixar Pgto','Registrar Pago','Post Payment')}</button>
                     )}
-                    <button onClick={() => excluirDespesa(d.id)} style={{ backgroundColor: 'transparent', border: '1px solid #334155', color: '#f43f5e', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>{tx('Excluir','Eliminar','Delete')}</button>
+                    <button onClick={() => excluirDespesa(d.id)} disabled={exclusaoPendenteId !== null} style={{ backgroundColor: 'transparent', border: '1px solid #334155', color: '#f43f5e', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>{tx('Excluir','Eliminar','Delete')}</button>
                   </td>
                 </tr>
               ))
