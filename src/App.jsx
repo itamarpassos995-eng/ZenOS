@@ -1,4 +1,5 @@
 import {getOperationalSnapshot,subscribeOperationalSnapshot,clearOperationalSession} from './core/operationalRepository.js';
+import {verificarMovimentoCaixaNoServidor} from './core/cashMovementReadOnly.js';
 import TerminalLogin from './components/TerminalLogin';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { traducoes, moedasConfig, normalizarProduto, normalizarCliente, produtosIniciais, clientesIniciais } from './data';
@@ -342,10 +343,16 @@ export default function App() {
     const recalcularStatus = () => {
       if (typeof navigator !== 'undefined' && !navigator.onLine) { setStatusSincronizacao('OFFLINE'); return; }
       const estados = [...syncCamposRef.current.values()];
+      // O estado visual não pode permanecer "Salvando" indefinidamente quando
+      // o Firestore não devolve confirmação. Isto NÃO cancela a transação.
+      const travado = estados.some(x => x.status === 'SALVANDO' && Date.now() - x.at >= 30_000);
       if (estados.some(x => x.status === 'ERRO')) {
         const ultimoErro = [...syncCamposRef.current.values()].reverse().find(x => x.status === 'ERRO' && x.error);
         setErroSincronizacao(ultimoErro?.error || 'Existe uma falha de sincronização pendente.');
         setStatusSincronizacao('ERRO');
+      } else if (travado) {
+        setErroSincronizacao('Confirmação da nuvem demorando. Preserve os pré-pedidos e confira o servidor antes de repetir operações.');
+        setStatusSincronizacao('PENDENTE');
       } else if (estados.some(x => x.status === 'PENDENTE')) {
         setErroSincronizacao(''); setStatusSincronizacao('PENDENTE');
       } else if (estados.some(x => x.status === 'SALVANDO')) {
@@ -367,7 +374,10 @@ export default function App() {
     window.addEventListener('online', atualizarOnline);
     window.addEventListener('offline', atualizarOnline);
     atualizarOnline();
+    // Avaliação temporizada somente do indicador. Sem consultas Firestore extras.
+    const statusTimer = window.setInterval(recalcularStatus, 5_000);
     return () => {
+      window.clearInterval(statusTimer);
       window.removeEventListener(PERSISTENCE_STATUS_EVENT, ouvir);
       window.removeEventListener('online', atualizarOnline);
       window.removeEventListener('offline', atualizarOnline);
@@ -980,7 +990,38 @@ export default function App() {
     resetarValoresCaixa();
   };
 
+  // Impede dupla submissão antes do primeiro render e preserva o resultado incerto.
+  const movCaixaEmAndamentoRef = useRef(false);
+  const movCaixaResultadoIncertoRef = useRef(false);
   const registrarMovimentoCaixa = async () => {
+    const pendenciaKey = sessaoAtiva && userId ? `zenos_${userId}_caixa_mov_pendente_${sessaoAtiva.id}` : null;
+    const pendenciaAnterior = pendenciaKey ? zenosStorage.getItem(pendenciaKey) : null;
+    if (pendenciaAnterior) {
+      if(movCaixaEmAndamentoRef.current)return;
+      movCaixaEmAndamentoRef.current=true;
+      try {
+        let tentativa=null;
+        try {tentativa=JSON.parse(pendenciaAnterior);}catch(_){}
+        const verificacao=await verificarMovimentoCaixaNoServidor({db,userId,tentativa});
+        if(verificacao.status==='confirmed'){
+          setCaixaMovimentos(verificacao.movimentos);
+          zenosStorage.removeItem(pendenciaKey);
+          movCaixaResultadoIncertoRef.current=false;
+          return avisarAppZen({variante:'success',titulo:'Movimento original confirmado',mensagem:'A retirada anterior já estava registrada no servidor e no livro financeiro. Nenhum novo lançamento foi criado. Confira o extrato antes de iniciar outra operação.'});
+        }
+        return avisarAppZen({
+          variante:verificacao.status==='conflict'?'danger':'warning',
+          titulo:'Retirada exige conciliação',
+          mensagem:'O servidor ainda não comprovou a retirada original nos dois registros (caixa e livro financeiro). Nenhuma nova retirada foi enviada. Solicite reconciliação antes de tentar novamente.',
+          detalhes:[`Referência preservada: ${tentativa?.id||'indisponível'}`,`Estado: ${verificacao.reason||verificacao.status}`]
+        });
+      }finally{movCaixaEmAndamentoRef.current=false;}
+    }
+    if (movCaixaEmAndamentoRef.current || movCaixaResultadoIncertoRef.current) {
+      return avisarAppZen({variante:'warning',titulo:'Movimento pendente de conferência',mensagem:'Não repita a retirada: verifique o extrato e a confirmação no servidor antes de uma nova tentativa.'});
+    }
+    movCaixaEmAndamentoRef.current = true;
+    try {
     if (!sessaoAtiva) return avisarAppZen({ variante:'warning', titulo:'Caixa fechado', mensagem:tx('Precisa de abrir o turno de caixa primeiro.', 'Debe abrir turno primero.', 'Must open shift first.') });
     const movimentoValidado = validarValoresMovCaixa();
     if (!movimentoValidado) return;
@@ -998,6 +1039,13 @@ export default function App() {
       operador: operadorAtivo?.nome 
     };
     const movimentosPropostos = [novoMov, ...caixaMovimentos];
+    // Bloqueio persistente ANTES do envio: se cair a rede ou recarregar a aba,
+    // não se pode criar outro ID e movimentar dinheiro novamente às cegas.
+    if (!pendenciaKey || !zenosStorage.setItem(pendenciaKey, JSON.stringify({
+      id:novoMov.id, sessaoId:sessaoAtiva.id, tipo:novoMov.tipo, valorBRL:valBRL, createdAt:agoraISO
+    }))) {
+      return avisarAppZen({variante:'danger',titulo:'Movimento não iniciado',mensagem:'Não foi possível preservar a identificação da retirada neste dispositivo. Nenhum lançamento foi enviado.'});
+    }
     const confirmado = await commitVendaCritica({
       changes: [{ field:'caixaMovimentos', value:movimentosPropostos, storageSuffix:'caixa_movs' }],
       financialEntries: [{
@@ -1023,11 +1071,16 @@ export default function App() {
       operationKey: `mov-caixa:${novoMov.id}`,
     });
     if (!confirmado?.cloudOk) {
-      return avisarAppZen({ variante:'danger', titulo:tx('Movimento não registrado','Movimiento no registrado','Movement not recorded'), mensagem:tx('A nuvem não confirmou o movimento de caixa.','La nube no confirmó el movimiento de caja.','The cloud did not confirm the cash movement.'), detalhes:[confirmado?.error?.message || tx('Nenhum movimento foi finalizado.','Ningún movimiento fue finalizado.','No movement was finalized.')] });
+      movCaixaResultadoIncertoRef.current = true;
+      return avisarAppZen({ variante:'danger', titulo:tx('Confirmação pendente','Confirmación pendiente','Confirmation pending'), mensagem:tx('A nuvem não confirmou a retirada. Ela pode estar registrada. Não repita: confira o extrato e concilie o movimento original.','La nube no confirmó el retiro; podría estar registrado. No repita sin conciliar.','The cloud did not confirm the withdrawal; it may have been recorded. Verify the original record before retrying.'), detalhes:[confirmado?.error?.message || tx('Confirmação desconhecida; referência preservada neste dispositivo.','Confirmación desconocida; referencia preservada en este dispositivo.','Confirmation unknown; attempt reference preserved on this device.')] });
     }
     setCaixaMovimentos(confirmado.values?.caixaMovimentos || movimentosPropostos);
+    zenosStorage.removeItem(pendenciaKey);
     setModalCaixaAberto(false);
     resetarValoresCaixa(); setDescMovCaixa('');
+    } finally {
+      movCaixaEmAndamentoRef.current = false;
+    }
   };
 
   const processarFechamentoCego = async () => {
@@ -1241,9 +1294,11 @@ export default function App() {
     if (!fechamentoConfirmado?.cloudOk) {
       return avisarAppZen({
         variante:'danger',
-        titulo:tx('Caixa não fechado','Caja no cerrada','Register not closed'),
-        mensagem:tx('A nuvem não confirmou o fechamento. O turno continua aberto.','La nube no confirmó el cierre. El turno sigue abierto.','The cloud did not confirm closing. The shift remains open.'),
-        detalhes:[fechamentoConfirmado?.error?.message || tx('Tente novamente sem encerrar a tela.','Intente nuevamente sin cerrar la pantalla.','Try again without closing the screen.')],
+        titulo:tx('Confirmação do caixa pendente','Confirmación de caja pendiente','Register confirmation pending'),
+        mensagem:tx('Não foi possível confirmar o estado do fechamento no servidor. Confira a situação do turno e o extrato após restaurar a conexão. Não repita o fechamento antes de verificar.',
+          'No se pudo confirmar el estado del cierre en el servidor. Revise el turno y el extracto después de restaurar la conexión. No repita el cierre sin verificar.',
+          'Could not verify the register closing on the server. Check shift status and ledger after reconnecting. Do not repeat closing without verification.'),
+        detalhes:[fechamentoConfirmado?.error?.message || tx('Estado desconhecido; preserve os dados e confira o servidor.','Estado desconocido; conserve los datos y consulte el servidor.','Outcome unknown; preserve records and check the server.')],
       });
     }
     setSessoesCaixa(fechamentoConfirmado.values?.sessoesCaixa || sessoesAtualizadas);

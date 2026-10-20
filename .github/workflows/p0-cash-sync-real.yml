@@ -1,0 +1,29 @@
+name: P0 Cash and Sync Real Validation
+on:
+  pull_request:
+    paths:
+      - 'src/App.jsx'
+      - 'src/core/cashMovementReadOnly.js'
+      - 'scripts/recovery/cash-original-movement-reconcile.test.mjs'
+      - 'scripts/recovery/cash-readonly-two-terminals.emulator.mjs'
+      - '.github/workflows/p0-cash-sync-real.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test scripts/recovery/cash-original-movement-reconcile.test.mjs
+      - run: npm run build
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local "node scripts/recovery/cash-readonly-two-terminals.emulator.mjs"
