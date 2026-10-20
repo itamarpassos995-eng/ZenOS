@@ -8,6 +8,7 @@ import { reservarIdentidadeProduto, liberarIdentidadeProduto } from '../core/pro
 import {resultadoCadastroIndeterminado} from '../core/productAckOutcome';
 import { localizarProdutoExistenteServidor } from '../core/productServerLookup';
 import {auditarIndicesProdutosServidor} from '../core/productIndexAudit';
+import {localizarSkuHistoricoServidor} from '../core/productHistoricalSkuLookup';
 import { carregarHistoricoEstoqueProduto, criarEventoEstoque, obterPoliticaHistoricoEstoque, registrarEventosEstoque } from '../core/stockAudit';
 import ZenModal from './ZenModal';
 import { calcularPrecoPorCustoEMargem, calcularMargemPorCustoEPreco, validarMargemPrecoVenda, MAX_MARGEM_PRECO_PCT } from '../core/pricing';
@@ -39,7 +40,32 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
   const [filtroHistoricoFim, setFiltroHistoricoFim] = useState('');
   const [modalZen, setModalZen] = useState(null);
   const [auditandoIndices, setAuditandoIndices] = useState(false);
+  const [skuHistoricoBusca, setSkuHistoricoBusca] = useState('');
+  const [buscandoSkuHistorico, setBuscandoSkuHistorico] = useState(false);
   const mostrarZen = (variante, titulo, mensagem, detalhes = []) => setModalZen({ variante, titulo, mensagem, detalhes, apenasConfirmar: true });
+
+  const buscarCadastroPeloSkuAntigo = async () => {
+    if(patenteUsuario!=='gerencia'||buscandoSkuHistorico)return;
+    const sku=skuHistoricoBusca.trim();
+    if(!sku)return mostrarZen('warning','Informe o SKU antigo','Use o código original que o vendedor cadastrou. A consulta não altera estoque.');
+    setBuscandoSkuHistorico(true);
+    try{
+      const resultado=await localizarSkuHistoricoServidor({db,userId,sku});
+      if(resultado.status==='found'){
+        setProdutos(resultado.catalog);
+        setFiltroGrupo('todos');
+        setMostrarInativos(true);
+        setBuscaProdutoTexto(String(resultado.produto.sku||resultado.produto.nome||''));
+        return mostrarZen('info','Produto original localizado','O produto existe no catálogo confirmado do servidor. A busca foi ajustada para exibi-lo, incluindo produtos inativos. Confira o saldo antes de movimentar.',[`ID: ${resultado.ownerId}`,`SKU: ${resultado.produto.sku||'(sem SKU)'}`]);
+      }
+      if(resultado.status==='historical_only'){
+        return mostrarZen('warning','Cadastro encontrado somente no histórico','O registro original foi localizado no documento legado V1, mas não no catálogo atual. O saldo histórico pode estar desatualizado; nenhum dado foi restaurado ou modificado.',[`ID original: ${resultado.ownerId}`,`Nome: ${resultado.nome}`,`SKU original: ${resultado.sku}`]);
+      }
+      return mostrarZen('warning','Cadastro não localizado no catálogo atual','A identidade precisa de reconciliação no Firestore ou no backup. Nenhum produto foi criado ou alterado.',[`Estado: ${resultado.status}`,`ID reservado: ${resultado.ownerId||'(não localizado)'}`,`Histórico V1: ${resultado.legacyReadStatus||'indisponível'}`]);
+    }catch(error){
+      return mostrarZen('danger','Busca indisponível','Não foi possível conferir os dados do servidor. Nenhum registro foi alterado.',[error?.message||String(error)]);
+    }finally{setBuscandoSkuHistorico(false);}
+  };
 
   const auditarCadastrosOriginais = async () => {
     if(patenteUsuario!=='gerencia'||auditandoIndices)return;
@@ -396,7 +422,11 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div><h2 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>{t ? t('catalogoTitulo') : 'Catálogo'}</h2><span style={{ fontSize: '13px', color: '#64748b' }}>{t ? t('catalogoSub') : 'Gerenciamento'}</span></div>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <label style={{display:'flex',alignItems:'center',gap:6,color:'#94a3b8',fontSize:11,fontWeight:800}}><input type="checkbox" checked={mostrarInativos} onChange={e=>setMostrarInativos(e.target.checked)}/> {tx('Mostrar inativos','Mostrar inactivos','Show inactive')}</label>{patenteUsuario==='gerencia' && <button type="button" disabled={auditandoIndices} onClick={auditarCadastrosOriginais} title="Auditoria sob demanda: pode consultar até 2501 documentos, não modifica cadastros" style={{background:'#0f172a',border:'1px solid #38bdf8',color:'#e0f2fe',borderRadius:12,padding:'10px 12px',fontWeight:800,cursor:'pointer'}}>{auditandoIndices?'Conferindo índices...':'Conferir cadastros ocultos'}</button>}
+          <label style={{display:'flex',alignItems:'center',gap:6,color:'#94a3b8',fontSize:11,fontWeight:800}}><input type="checkbox" checked={mostrarInativos} onChange={e=>setMostrarInativos(e.target.checked)}/> {tx('Mostrar inativos','Mostrar inactivos','Show inactive')}</label>{patenteUsuario==='gerencia' && <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
+            <input aria-label="SKU original" inputMode="numeric" placeholder="SKU antigo (ex. 66346)" value={skuHistoricoBusca} onChange={e=>setSkuHistoricoBusca(e.target.value)} style={{width:155,maxWidth:'100%',background:'#020617',color:'#f8fafc',border:'1px solid #334155',borderRadius:8,padding:'10px 8px'}}/>
+            <button type="button" disabled={buscandoSkuHistorico} onClick={buscarCadastroPeloSkuAntigo} style={{background:'#164e63',color:'#e0f2fe',border:'1px solid #38bdf8',borderRadius:8,padding:'10px',fontWeight:800}}>{buscandoSkuHistorico?'Conferindo...':'Buscar SKU original'}</button>
+          </div>}
+          {patenteUsuario==='gerencia' && <button type="button" disabled={auditandoIndices} onClick={auditarCadastrosOriginais} title="Auditoria sob demanda: pode consultar até 2501 documentos, não modifica cadastros" style={{background:'#0f172a',border:'1px solid #38bdf8',color:'#e0f2fe',borderRadius:12,padding:'10px 12px',fontWeight:800,cursor:'pointer'}}>{auditandoIndices?'Conferindo índices...':'Conferir cadastros ocultos'}</button>}
           <button onClick={abrirCadastroNovoProduto} style={{ background: 'linear-gradient(135deg, #0284c7, #0369a1)', border: '1px solid #38bdf8', color: '#ffffff', padding: '12px 24px', borderRadius: '12px', fontSize: '13px', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 15px rgba(2, 132, 199, 0.3)' }}>{t ? t('novoProdutoBtn') : '+ Novo Produto'}</button>
         </div>
       </div>
