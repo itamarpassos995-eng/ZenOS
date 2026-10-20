@@ -1,4 +1,5 @@
 import {getOperationalSnapshot,subscribeOperationalSnapshot,clearOperationalSession} from './core/operationalRepository.js';
+import {verificarMovimentoCaixaNoServidor} from './core/cashMovementReadOnly.js';
 import TerminalLogin from './components/TerminalLogin';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { traducoes, moedasConfig, normalizarProduto, normalizarCliente, produtosIniciais, clientesIniciais } from './data';
@@ -996,7 +997,25 @@ export default function App() {
     const pendenciaKey = sessaoAtiva && userId ? `zenos_${userId}_caixa_mov_pendente_${sessaoAtiva.id}` : null;
     const pendenciaAnterior = pendenciaKey ? zenosStorage.getItem(pendenciaKey) : null;
     if (pendenciaAnterior) {
-      return avisarAppZen({variante:'warning',titulo:'Retirada exige conferência',mensagem:'Há um movimento desta sessão com confirmação desconhecida, preservado neste dispositivo. Confira o extrato no servidor antes de iniciar outra retirada.'});
+      if(movCaixaEmAndamentoRef.current)return;
+      movCaixaEmAndamentoRef.current=true;
+      try {
+        let tentativa=null;
+        try {tentativa=JSON.parse(pendenciaAnterior);}catch(_){}
+        const verificacao=await verificarMovimentoCaixaNoServidor({db,userId,tentativa});
+        if(verificacao.status==='confirmed'){
+          setCaixaMovimentos(verificacao.movimentos);
+          zenosStorage.removeItem(pendenciaKey);
+          movCaixaResultadoIncertoRef.current=false;
+          return avisarAppZen({variante:'success',titulo:'Movimento original confirmado',mensagem:'A retirada anterior já estava registrada no servidor e no livro financeiro. Nenhum novo lançamento foi criado. Confira o extrato antes de iniciar outra operação.'});
+        }
+        return avisarAppZen({
+          variante:verificacao.status==='conflict'?'danger':'warning',
+          titulo:'Retirada exige conciliação',
+          mensagem:'O servidor ainda não comprovou a retirada original nos dois registros (caixa e livro financeiro). Nenhuma nova retirada foi enviada. Solicite reconciliação antes de tentar novamente.',
+          detalhes:[`Referência preservada: ${tentativa?.id||'indisponível'}`,`Estado: ${verificacao.reason||verificacao.status}`]
+        });
+      }finally{movCaixaEmAndamentoRef.current=false;}
     }
     if (movCaixaEmAndamentoRef.current || movCaixaResultadoIncertoRef.current) {
       return avisarAppZen({variante:'warning',titulo:'Movimento pendente de conferência',mensagem:'Não repita a retirada: verifique o extrato e a confirmação no servidor antes de uma nova tentativa.'});
