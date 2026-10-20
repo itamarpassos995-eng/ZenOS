@@ -1,0 +1,21 @@
+name: P0 Product Lookup Real Click
+on:
+  pull_request:
+    paths:
+      - 'scripts/recovery/produtos-sku-original.ui.test.jsx'
+      - '.github/workflows/p0-product-click.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx vitest run --config vitest.recovery.config.js scripts/recovery/produtos-sku-original.ui.test.jsx
+      - run: npm run build
