@@ -5,6 +5,7 @@ import { db } from '../firebase';
 import { transferirEstoqueEntreLocais } from '../core/inventory';
 import { atualizarProdutoUnico, detectarConflitosIdentidadeProdutos, skuJaExiste } from '../core/productIdentity';
 import { reservarIdentidadeProduto, liberarIdentidadeProduto } from '../core/productRegistry';
+import {resultadoCadastroIndeterminado} from '../core/productAckOutcome';
 import { localizarProdutoExistenteServidor } from '../core/productServerLookup';
 import {auditarIndicesProdutosServidor} from '../core/productIndexAudit';
 import { carregarHistoricoEstoqueProduto, criarEventoEstoque, obterPoliticaHistoricoEstoque, registrarEventosEstoque } from '../core/stockAudit';
@@ -245,13 +246,17 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       setModalProdutoAberto(false);
     } catch (erro) {
       console.error('[ZenOS][ATT10.2] Produto não confirmado:', erro);
-      try {
-        if (produtoEmEdicao) await reservarIdentidadeProduto({ db, userId, produto:produtoEmEdicao, produtoAnterior:dadosFinais });
-        else await liberarIdentidadeProduto({ db, userId, produto:dadosFinais });
-      } catch (rollbackErro) {
-        console.error('[ZenOS][ATT10.2] Falha ao restaurar índice do produto:', rollbackErro);
+      if (!resultadoCadastroIndeterminado(erro)) {
+        try {
+          if (produtoEmEdicao) await reservarIdentidadeProduto({ db, userId, produto:produtoEmEdicao, produtoAnterior:dadosFinais });
+          else await liberarIdentidadeProduto({ db, userId, produto:dadosFinais });
+        } catch (rollbackErro) {
+          console.error('[ZenOS][ATT10.2] Falha ao restaurar índice do produto:', rollbackErro);
+        }
+      } else {
+        console.warn('[ZenOS] Confirmação do produto desconhecida; índice original preservado para reconciliação.');
       }
-      return mostrarZen('danger', tx('Produto não salvo','Producto no guardado','Product not saved'), tx('A nuvem não confirmou o cadastro. Nenhum produto foi considerado salvo.','La nube no confirmó el registro. Ningún producto fue considerado guardado.','The cloud did not confirm the registration. No product was considered saved.'), [erro?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
+      return mostrarZen('danger', tx('Cadastro não confirmado','Registro sin confirmar','Registration unconfirmed'), tx('A nuvem não confirmou o cadastro. Nenhum produto foi considerado salvo.','La nube no confirmó el registro. Ningún producto fue considerado guardado.','The cloud did not confirm the registration. No product was considered saved.'), [erro?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
     }
   };
 
