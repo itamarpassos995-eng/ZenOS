@@ -5,7 +5,11 @@ on:
       - 'src/components/Produtos.jsx'
       - 'src/core/productRecoveryCore.js'
       - 'src/core/productRecoveryDiagnosis.js'
+      - 'src/core/productOriginalRebuildPolicy.js'
+      - 'src/core/productOriginalRebuildCheck.js'
       - 'scripts/recovery/product-hidden-original.test.mjs'
+      - 'scripts/recovery/product-original-rebuild.test.mjs'
+      - 'scripts/recovery/product-original-rebuild.ui.test.jsx'
       - 'scripts/recovery/product-hidden-original.ui.test.jsx'
       - 'scripts/recovery/product-hidden-original.emulator.mjs'
       - '.github/workflows/p0-hidden-original-recovery.yml'
@@ -22,8 +26,8 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - run: node --test scripts/recovery/product-hidden-original.test.mjs
-      - run: npx vitest run --config vitest.recovery.config.js scripts/recovery/product-hidden-original.ui.test.jsx scripts/recovery/produtos-sku-original.ui.test.jsx scripts/recovery/product-pdv-orphan-release.ui.test.jsx
+      - run: node --test scripts/recovery/product-hidden-original.test.mjs scripts/recovery/product-original-rebuild.test.mjs
+      - run: npx vitest run --config vitest.recovery.config.js scripts/recovery/product-hidden-original.ui.test.jsx scripts/recovery/product-original-rebuild.ui.test.jsx scripts/recovery/produtos-sku-original.ui.test.jsx scripts/recovery/product-pdv-orphan-release.ui.test.jsx
       - run: npm run build
       - uses: actions/setup-java@v4
         with:
