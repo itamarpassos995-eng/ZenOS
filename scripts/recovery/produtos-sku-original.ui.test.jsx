@@ -22,7 +22,7 @@ test('SKU histórico exibe confirmação do catálogo e não grava nada',async()
  fireEvent.click(screen.getByRole('button',{name:'Buscar SKU original'}));
  await waitFor(()=>expect(localizarSkuHistoricoServidor).toHaveBeenCalledWith({db:{},userId:'test-tenant',sku:'66346'}));
  await waitFor(()=>expect(props.setProdutos).toHaveBeenCalledWith(catalog));
- expect(screen.getByText(/Produto original localizado/)).toBeTruthy();
+ expect(screen.getByText(/Produto localizado/)).toBeTruthy();
  expect(props.commitOperacaoNegocio).not.toHaveBeenCalled();
 });
 test('SKU presente apenas no histórico mostra ID sem restaurar',async()=>{
@@ -31,7 +31,7 @@ test('SKU presente apenas no histórico mostra ID sem restaurar',async()=>{
  render(<Produtos {...props}/>);
  fireEvent.change(screen.getByRole('textbox',{name:'SKU original'}),{target:{value:'66346'}});
  fireEvent.click(screen.getByRole('button',{name:'Buscar SKU original'}));
- await waitFor(()=>expect(screen.getByText(/Cadastro encontrado somente no histórico/)).toBeTruthy());
+ await waitFor(()=>expect(screen.getByText(/Produto exige conferência/)).toBeTruthy());
  expect(props.setProdutos).not.toHaveBeenCalled();
  expect(props.commitOperacaoNegocio).not.toHaveBeenCalled();
 });
