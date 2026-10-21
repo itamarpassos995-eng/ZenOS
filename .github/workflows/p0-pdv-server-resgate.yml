@@ -1,0 +1,22 @@
+name: P0 PDV Document Server Rescue
+on:
+  pull_request:
+    paths:
+      - 'src/components/PDV.jsx'
+      - 'scripts/recovery/pdv-server-resgate.ui.test.jsx'
+      - '.github/workflows/p0-pdv-server-resgate.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx vitest run --config vitest.recovery.config.js scripts/recovery/pdv-server-resgate.ui.test.jsx scripts/recovery/pdv-draft.ui.test.jsx
+      - run: npm run build

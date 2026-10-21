@@ -341,16 +341,56 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
   const atualizarQtd = (id, valor) => { setItensVenda(itensVenda.map(item => item.id === id ? { ...item, qtd: String(Math.max(1, parseInt(valor) || 1)) } : item)); };
   const lidarDigitacaoPreco = (id, valorDigitado) => { setItensVenda(itensVenda.map(item => item.id === id ? { ...item, precoTexto: valorDigitado, precoPraticadoBRL: converterParaBRL(parseFloat(valorDigitado.replace(',', '.')) || 0, moeda) } : item)); };
 
-  const carregarPrePedido = (pedido) => {
-    setItensVenda(itensVendaComCustoAtual(pedido.itens));
-    setClienteQuerFiscal(pedido.clienteQuerFiscal === true);
-    if (pedido.clienteId) {
-      const cli = clientes.find(c => c.id === pedido.clienteId);
-      if (cli) setClienteSelecionadoPDV(cli);
-    }
-    setNomeClienteVulso(pedido.clienteNome !== tx('Consumidor Balcão', 'Consumidor', 'Walk-in') ? pedido.clienteNome : '');
-    setPrePedidoEmAbertoId(pedido.id);
-    setModalResgateAberto(false);
+  const [consultandoResgate, setConsultandoResgate] = useState(false);
+  const resgateEmAndamentoRef = useRef(false);
+  const carregarPrePedido = async (pedido) => {
+    if(resgateEmAndamentoRef.current || !pedido?.id || !userId)return;
+    resgateEmAndamentoRef.current = true;
+    setConsultandoResgate(true);
+    try {
+      // A lista local pode estar desatualizada após outra caixa liquidar.
+      // Consultar exclusivamente o servidor antes de associar um pré-pedido ao carrinho.
+      const snap = await getOperationalSnapshot(db,userId);
+      const fila = snap.exists() && Array.isArray(snap.data()?.historicoVendas) ? snap.data().historicoVendas : null;
+      if(!fila)throw new Error('A fila de documentos não foi confirmada pelo servidor.');
+      const documento=fila.find(v=>String(v?.id)===String(pedido.id));
+      setHistoricoVendas(fila);
+      if(!documento || !['pendente','orcamento'].includes(documento.estado)){
+        return mostrarZen('warning','Documento indisponível',
+          'Este documento não está mais pendente nem disponível como orçamento. A fila foi atualizada. Verifique o histórico antes de fazer nova cobrança.');
+      }
+      // Usar exclusivamente o documento confirmado pelo servidor daqui em diante.
+      pedido=documento;
+      // Recuperar orçamento não é liquidar pré-pedido: nunca vincular o ID
+      // de um orçamento ao guard de "pendente" do pagamento.
+      const itensRecuperados=itensVendaComCustoAtual(documento.itens||[]);
+      if(!itensRecuperados.length)
+        return mostrarZen('warning','Documento sem itens','O servidor não devolveu itens para este documento. Nada foi alterado no carrinho.');
+      setItensVenda(itensRecuperados);
+      setPagamentosLancados([]); // Não transportar valores de outro atendimento
+      // Conservar o valor total cotado: desconto pode estar incluído no total
+      // sem campo separado nos documentos legados. Não cobrar preço maior ao resgatar.
+      const subtotalOriginal=itensRecuperados.reduce((t,it)=>t+
+        (Math.max(0,Number(it?.qtd)||0)*Math.max(0,Number(it?.precoPraticadoBRL??it?.precoBRL)||0)),0);
+      const totalOriginal=Number(documento.totalBRL);
+      const descontoOriginal=Number.isFinite(totalOriginal)&&totalOriginal>=0
+        ? Math.max(0,subtotalOriginal-totalOriginal):0;
+      const descontoNaMoeda=converterDeBRL(descontoOriginal,moeda);
+      setDescontoTexto(Number.isFinite(Number(descontoNaMoeda))
+        ? Number(descontoNaMoeda).toFixed(moeda==='PYG'?0:2):'0');
+      setClienteQuerFiscal(documento.clienteQuerFiscal===true);
+      const cli=documento.clienteId?clientes.find(c=>String(c.id)===String(documento.clienteId)):null;
+      setClienteSelecionadoPDV(cli||null);
+      setNomeClienteVulso(pedido.clienteNome !== tx('Consumidor Balcão', 'Consumidor', 'Walk-in') ? pedido.clienteNome : '');
+      setPrePedidoEmAbertoId(documento.estado==='pendente'?documento.id:null);
+      operacaoDocumentoRef.current={assinatura:null,id:null,instante:null};
+      setModalResgateAberto(false);
+      if(documento.estado==='orcamento')
+        mostrarZen('info','Orçamento recuperado',
+          'Itens recuperados do servidor. Este é um novo atendimento: confirme estoque, preços, descontos e pagamentos antes de finalizar. O orçamento original permanece no histórico.');
+    }catch(error){
+      mostrarZen('danger','Resgate não confirmado','O servidor não confirmou o documento. O carrinho foi preservado; tente novamente após reconectar.',[error?.message||'Falha de consulta']);
+    }finally{resgateEmAndamentoRef.current=false;setConsultandoResgate(false);}
   };
 
   const subtotalBrutoBRL = itensVenda.reduce((acc, item) => acc + (Math.max(0, parseInt(item.qtd) || 0) * (item.precoPraticadoBRL || 0)), 0);
@@ -527,6 +567,28 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
     operacaoEmAndamentoRef.current = true;
     setProcessandoTransacao(true);
     try {
+      if(tipoFinalizacao==='venda' && prePedidoEmAbertoId){
+        // Um rascunho de outro operador pode ficar ligado a um pré-pedido
+        // que outro caixa já liquidou. Nenhum lançamento financeiro antes da conferência.
+        try{
+          const snap=await getOperationalSnapshot(db,userId);
+          const remoto=snap.exists()?snap.data():null;
+          if(!Array.isArray(remoto?.historicoVendas))
+            throw new Error('Fila não confirmada no servidor.');
+          const originais=remoto.historicoVendas.filter(v=>String(v?.id)===String(prePedidoEmAbertoId));
+          setHistoricoVendas(remoto.historicoVendas);
+          if(originais.length!==1 || originais[0].estado!=='pendente'){
+            mostrarZen('warning','Pré-pedido não disponível para liquidar',
+              'O servidor não confirmou que este pré-pedido continua pendente. O carrinho foi preservado e nenhum pagamento foi enviado. Confira o histórico ou resgate novamente.');
+            return;
+          }
+        }catch(error){
+          mostrarZen('danger','Pré-pedido sem confirmação',
+            'Não foi possível consultar o estado atual do pré-pedido. O carrinho foi preservado; nenhuma cobrança foi enviada.',
+            [error?.message||'Consulta indisponível']);
+          return;
+        }
+      }
       // P0: fiado só pode gravar para exatamente um cadastro com ID e nome coerentes.
       // Bloquear ANTES de qualquer lançamento de estoque, venda ou financeiro.
       if (tipoFinalizacao === 'venda' && pagamentosLancados.some(p => p.formaId === 'crediario')) {
@@ -979,24 +1041,35 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div>
                 <span style={{ fontSize: '11px', fontWeight: 900, color: '#c084fc', letterSpacing: '1px', textTransform: 'uppercase' }}>{tx('Fila do Caixa','Cola de Caja','Checkout Queue')}</span>
-                <h3 style={{ margin: '4px 0 0 0', color: '#ffffff', fontSize: '18px', fontWeight: 900 }}>📥 {tx('Resgatar Pré-Pedidos','Recuperar Pre-Pedidos','Retrieve Pre-Orders')}</h3>
+                <h3 style={{ margin: '4px 0 0 0', color: '#ffffff', fontSize: '18px', fontWeight: 900 }}>📥 {tx('Resgatar Pré-Pedidos e Orçamentos','Recuperar Pre-Pedidos y Presupuestos','Retrieve Pre-Orders and Quotes')}</h3>
               </div>
               <button onClick={() => setModalResgateAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #334155', color: '#94a3b8', borderRadius: '10px', width: '36px', height: '36px', cursor: 'pointer', fontWeight: 900 }}>✕</button>
             </div>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {historicoVendas.filter(v => v.estado === 'pendente').length === 0 ? (
-                <div style={{ textAlign: 'center', color: '#475569', padding: '40px', backgroundColor: '#020617', borderRadius: '12px', border: '1px solid #1e293b' }}>{tx('Nenhum pré-pedido a aguardar pagamento no caixa.','Ningún pre-pedido pendiente de pago en caja.','No pre-orders awaiting payment at checkout.')}</div>
+              {historicoVendas.filter(v => v.estado === 'pendente' || v.estado === 'orcamento').length === 0 ? (
+                <div style={{ textAlign: 'center', color: '#475569', padding: '40px', backgroundColor: '#020617', borderRadius: '12px', border: '1px solid #1e293b' }}>{tx('Nenhum pré-pedido ou orçamento disponível.','Ningún pre-pedido o presupuesto disponible.','No available pre-orders or quotes.')}</div>
               ) : (
-                historicoVendas.filter(v => v.estado === 'pendente').map(v => (
-                  <div key={v.id} onClick={() => carregarPrePedido(v)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', backgroundColor: '#1e1b4b', border: '1px solid #4c1d95', borderRadius: '12px', cursor: 'pointer', transition: 'transform 0.2s', boxShadow: '0 4px 10px rgba(76,29,149,0.2)' }}>
+                <>
+                {historicoVendas.filter(v => v.estado === 'pendente').map(v => (
+                  <div key={v.id} onClick={() => {if(!consultandoResgate)carregarPrePedido(v);}} role="button" tabIndex={0} onKeyDown={e=>{if((e.key==='Enter'||e.key===' ')&&!consultandoResgate){e.preventDefault();carregarPrePedido(v);}}} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', backgroundColor: '#1e1b4b', border: '1px solid #4c1d95', borderRadius: '12px', cursor: 'pointer', transition: 'transform 0.2s', boxShadow: '0 4px 10px rgba(76,29,149,0.2)' }}>
                     <div>
-                      <strong style={{ display: 'block', color: '#e2e8f0', fontSize: '15px' }}>{v.clienteNome}</strong>
+                      <strong style={{ display: 'block', color: '#e2e8f0', fontSize: '15px' }}>{v.clienteNome} {v.estado==='orcamento'?'· ORÇAMENTO':'· PRÉ-PEDIDO'}</strong>
                       <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', display: 'block' }}>{tx('Vendedor:','Vendedor:','Seller:')} <span style={{color: '#a78bfa', fontWeight: 800}}>{v.vendedorNome}</span> • {v.dataHora}</span>
                     </div>
                     <div style={{ fontWeight: 900, color: '#34d399', fontSize: '16px' }}>{fmt(v.totalBRL)}</div>
                   </div>
-                ))
+                ))}
+                {historicoVendas.filter(v => v.estado === 'orcamento').map(v => (
+                  <div key={v.id} onClick={() => {if(!consultandoResgate)carregarPrePedido(v);}} role="button" tabIndex={0} onKeyDown={e=>{if((e.key==='Enter'||e.key===' ')&&!consultandoResgate){e.preventDefault();carregarPrePedido(v);}}} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:16,backgroundColor:'#1e293b',border:'1px solid #60a5fa',borderRadius:12,cursor:'pointer'}}>
+                    <div>
+                      <strong style={{display:'block',color:'#e2e8f0',fontSize:15}}>{v.clienteNome} · ORÇAMENTO</strong>
+                      <span style={{fontSize:11,color:'#94a3b8'}}>{tx('Vendedor:','Vendedor:','Seller:')} {v.vendedorNome} • {v.dataHora}</span>
+                    </div>
+                    <div style={{fontWeight:900,color:'#7dd3fc',fontSize:16}}>{fmt(v.totalBRL)}</div>
+                  </div>
+                ))}
+                </>
               )}
             </div>
           </div>
