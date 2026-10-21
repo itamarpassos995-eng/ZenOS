@@ -51,6 +51,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
   const [conferindoOriginal, setConferindoOriginal] = useState(false);
   const [confirmarReativacaoOriginal, setConfirmarReativacaoOriginal] = useState(false);
   const [recomposicaoOriginal, setRecomposicaoOriginal] = useState(null);
+  const [estoqueRecompostoConferido, setEstoqueRecompostoConferido] = useState(false);
   const [abrindoRecomposicao, setAbrindoRecomposicao] = useState(false);
   const [reativandoOriginal, setReativandoOriginal] = useState(false);
   const [skuHistoricoBusca, setSkuHistoricoBusca] = useState('');
@@ -147,6 +148,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       }
       // ID e SKU originais permanecem; custo/preços/saldo NÃO são inventados.
       setRecomposicaoOriginal(candidato);
+      setEstoqueRecompostoConferido(false);
       setProdutoEmEdicao(null);setCriandoNovoGrupo(false);setNovoGrupoTexto('');
       setHistoricoExpandido(false);setHistoricoMovimentos([]);
       setFormProduto(normalizarProduto({
@@ -268,6 +270,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
 
   const abrirCadastroNovoProduto = () => {
     setRecomposicaoOriginal(null);
+    setEstoqueRecompostoConferido(false);
     setProdutoEmEdicao(null);
     setSecaoFiscalExpandida(false);
     setCriandoNovoGrupo(false);
@@ -330,6 +333,12 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
          String(formProduto.nome).trim().toLowerCase()!==String(recomposicaoOriginal.nome).trim().toLowerCase())
         return mostrarZen('warning','Dados originais protegidos',
           'Nome, código e identificação do produto devem ser preservados. Confira os valores de preço e estoque físico e tente novamente.');
+      if(!estoqueRecompostoConferido)
+        return mostrarZen('warning','Confirme o estoque',
+          'Antes de concluir, confira as quantidades físicas na vitrine e no depósito e marque a confirmação na ficha.');
+      if(!(Number(String(formProduto.precoBRL??'').replace(',','.'))>0))
+        return mostrarZen('warning','Preço obrigatório',
+          'Informe o preço de venda correto antes de concluir o cadastro. O sistema não preenche valores de um cadastro incompleto.');
       const verificado=await verificarRecomposicaoOriginal({db,userId,ownerId:recomposicaoOriginal.ownerId});
       if(!verificado.ok){
         console.warn('[ZenOS][Recomposicao] Bloqueio no salvamento',verificado.reason);
@@ -435,6 +444,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       setProdutos(produtosConfirmados);
       setModalProdutoAberto(false);
       setRecomposicaoOriginal(null);
+      setEstoqueRecompostoConferido(false);
     } catch (erro) {
       console.error('[ZenOS][ATT10.2] Produto não confirmado:', erro);
       if (!resultadoCadastroIndeterminado(erro)) {
@@ -930,6 +940,11 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
 
             <div style={{ display: 'flex', gap: '12px' }}>
               <button onClick={() => setModalProdutoAberto(false)} style={{ flex: 1, backgroundColor: '#020617', border: '1px solid #1e293b', color: '#94a3b8', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}>{tx('Cancelar','Cancelar','Cancel')}</button>
+              {recomposicaoOriginal && <label style={{flex:2,display:'flex',alignItems:'center',gap:8,color:'#e0f2fe',fontSize:12}}>
+                <input aria-label="Conferi o estoque físico" type="checkbox" checked={estoqueRecompostoConferido}
+                  onChange={e=>setEstoqueRecompostoConferido(e.target.checked)}/>
+                Conferi as quantidades físicas e os preços deste produto
+              </label>}
               <button onClick={salvarProduto} style={{ flex: 2, background: 'linear-gradient(135deg, #0284c7, #0369a1)', border: 'none', color: '#ffffff', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 900, cursor: 'pointer' }}>{tx('Salvar Produto no Sistema','Guardar Producto en el Sistema','Save Product in System')}</button>
             </div>
           </div>
