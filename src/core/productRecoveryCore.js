@@ -9,6 +9,8 @@ export function classificarCadastroOculto({ownerId,catalogoAtual,catalogoLegado=
  if(indices.length!==idx.length)return {status:'conflito',reason:'indice_de_outro_proprietario',ownerId:id};
  const atuais=catalogoAtual.filter(p=>p&&String(p.id)===id);
  const antigos=Array.isArray(catalogoLegado)?catalogoLegado.filter(p=>p&&String(p.id)===id):[];
+ const norm=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+ const signature=p=>norm([p?.nome,p?.marca||p?.fornecedor,p?.unidadeMedida||'UN'].join('|'));
  const dados=(p)=>p?{nome:p.nome||'',sku:p.sku||'',ativo:p.ativo!==false,estoque:p.estoque??null,
   estoqueVitrine:p.estoqueVitrine??null,estoqueGalpao:p.estoqueGalpao??null,precoBRL:p.precoBRL??null}:null;
  const resumo={ownerId:id,indices:idx.length,indicesAtivos:idx.filter(x=>x.ativo!==false).length,
@@ -20,6 +22,8 @@ export function classificarCadastroOculto({ownerId,catalogoAtual,catalogoLegado=
    return {...resumo,status:'divergencia_v2',reason:'registro_v2_incoerente_com_catalogo'};
   const otherSKU=catalogoAtual.some(x=>x&&String(x.id)!==id&&String(x.sku||'').trim().toUpperCase()===String(p.sku||'').trim().toUpperCase()&&String(p.sku||'').trim());
   if(otherSKU)return {...resumo,status:'conflito',reason:'sku_em_mais_de_um_cadastro'};
+  if(catalogoAtual.some(x=>x&&String(x.id)!==id&&signature(x)===signature(p)))
+   return {...resumo,status:'conflito',reason:'nome_marca_unidade_duplicados'};
   return {...resumo,status:p.ativo===false?'original_inativo':'original_ativo',
    produto:dados(p),produtoAtual:p};
  }
@@ -44,6 +48,10 @@ export function prepararReativacaoOriginal({diagnostico,catalogo,ownerId}){
  if(!sku)return {ok:false,reason:'sku_original_ausente'};
  if(catalogo.some(p=>p&&String(p.id)!==id&&String(p.sku||'').trim().toUpperCase()===sku))
   return {ok:false,reason:'sku_em_outro_produto'};
+ const norm=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+ const sig=p=>norm([p?.nome,p?.marca||p?.fornecedor,p?.unidadeMedida||'UN'].join('|'));
+ if(catalogo.some(p=>p&&String(p.id)!==id&&sig(p)===sig(current)))
+  return {ok:false,reason:'assinatura_logica_duplicada'};
  const updated={...current,ativo:true,reativadoEm:new Date().toISOString()};
  const next=catalogo.map(p=>p===current?updated:p);
  return {ok:true,antes:current,depois:updated,lista:next};
