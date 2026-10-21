@@ -1,0 +1,51 @@
+import React from 'react';
+import {afterEach,test,expect,vi} from 'vitest';
+import {render,fireEvent,screen,cleanup,waitFor} from '@testing-library/react';
+vi.mock('../../src/firebase',()=>({db:{}}));
+vi.mock('../../src/core/productIndexAudit',()=>({auditarIndicesProdutosServidor:vi.fn()}));
+vi.mock('../../src/core/productRecoveryDiagnosis',()=>({diagnosticarCadastroOcultoServidor:vi.fn()}));
+vi.mock('../../src/core/productOriginalRebuildCheck',()=>({verificarRecomposicaoOriginal:vi.fn()}));
+import {auditarIndicesProdutosServidor} from '../../src/core/productIndexAudit';
+import {diagnosticarCadastroOcultoServidor} from '../../src/core/productRecoveryDiagnosis';
+import {verificarRecomposicaoOriginal} from '../../src/core/productOriginalRebuildCheck';
+import Produtos from '../../src/components/Produtos.jsx';
+const id='PROD-LEGACY-1X9720V',sku='SKU-63346',nome='Pneu 130/70-17 - KONTROL';
+const idx={produtoId:id,nomes:[nome],skus:[sku],indices:2};
+const base=()=>({userId:'store',produtos:[],setProdutos:vi.fn(),moeda:'BRL',fmt:v=>String(v),
+ t:s=>s,tx:s=>s,fornecedoresGlobais:[],operadorAtivo:{id:'adm',nome:'Gerente'},patenteUsuario:'gerencia',
+ historicoVendas:[],historicoCompras:[],vendedores:[],regrasDesconto:{},commitOperacaoNegocio:vi.fn()});
+afterEach(()=>{cleanup();vi.resetAllMocks()});
+test('cliente vê instrução simples e ficha com ID/SKU originais, sem editar estoque automaticamente',async()=>{
+ auditarIndicesProdutosServidor.mockResolvedValue({status:'complete',readCount:115,catalogCount:1087,ativos:1087,inativos:[],ausentes:[idx],duplicados:[]});
+ diagnosticarCadastroOcultoServidor.mockResolvedValue({status:'indice_sem_cadastro',ownerId:id,indicesAtivos:2});
+ verificarRecomposicaoOriginal.mockResolvedValue({ok:true,ownerId:id,sku,nome});
+ const props=base();
+ render(<Produtos {...props}/>);
+ fireEvent.click(screen.getByRole('button',{name:'Recuperar produtos'}));
+ await waitFor(()=>expect(screen.getByText(/Conferência de produtos concluída/)).toBeTruthy());
+ expect(screen.queryByText(/Firestore|orphan_index|Índices lidos|PROD-LEGACY/)).toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'OK'}));
+ fireEvent.click(screen.getByRole('button',{name:'Conferir cadastro'}));
+ await waitFor(()=>expect(screen.getByText(/Cadastro precisa ser completado/)).toBeTruthy());
+ fireEvent.click(screen.getByRole('button',{name:'OK'}));
+ fireEvent.click(screen.getByRole('button',{name:'Completar cadastro'}));
+ await waitFor(()=>expect(verificarRecomposicaoOriginal).toHaveBeenCalledWith({db:{},userId:'store',ownerId:id}));
+ await waitFor(()=>expect(screen.getByRole('checkbox',{name:'Conferi o estoque físico'})).toBeTruthy());
+ expect(props.commitOperacaoNegocio).not.toHaveBeenCalled();
+});
+test('consulta insegura não abre ficha nem altera produto',async()=>{
+ auditarIndicesProdutosServidor.mockResolvedValue({status:'complete',readCount:115,catalogCount:1087,ativos:1087,inativos:[],ausentes:[idx],duplicados:[]});
+ diagnosticarCadastroOcultoServidor.mockResolvedValue({status:'indice_sem_cadastro',ownerId:id,indicesAtivos:2});
+ verificarRecomposicaoOriginal.mockResolvedValue({ok:false,reason:'historico_movimentacoes'});
+ const props=base();
+ render(<Produtos {...props}/>);
+ fireEvent.click(screen.getByRole('button',{name:'Recuperar produtos'}));
+ await waitFor(()=>expect(screen.getByText(/Conferência de produtos concluída/)).toBeTruthy());
+ fireEvent.click(screen.getByRole('button',{name:'OK'}));
+ fireEvent.click(screen.getByRole('button',{name:'Conferir cadastro'}));
+ await waitFor(()=>expect(screen.getByText(/Cadastro precisa ser completado/)).toBeTruthy());
+ fireEvent.click(screen.getByRole('button',{name:'OK'}));
+ fireEvent.click(screen.getByRole('button',{name:'Completar cadastro'}));
+ await waitFor(()=>expect(screen.getByText(/Cadastro precisa de conferência/)).toBeTruthy());
+ expect(props.commitOperacaoNegocio).not.toHaveBeenCalled();
+});
