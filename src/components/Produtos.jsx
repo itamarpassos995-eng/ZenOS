@@ -9,6 +9,7 @@ import {resultadoCadastroIndeterminado} from '../core/productAckOutcome';
 import { localizarProdutoExistenteServidor } from '../core/productServerLookup';
 import {auditarIndicesProdutosServidor} from '../core/productIndexAudit';
 import {diagnosticarCadastroOcultoServidor} from '../core/productRecoveryDiagnosis';
+import {verificarRecomposicaoOriginal} from '../core/productOriginalRebuildCheck';
 import {prepararReativacaoOriginal} from '../core/productRecoveryCore';
 import {getOperationalSnapshot} from '../core/operationalRepository';
 import {localizarSkuHistoricoServidor} from '../core/productHistoricalSkuLookup';
@@ -49,6 +50,8 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
   const [diagnosticoOriginal, setDiagnosticoOriginal] = useState(null);
   const [conferindoOriginal, setConferindoOriginal] = useState(false);
   const [confirmarReativacaoOriginal, setConfirmarReativacaoOriginal] = useState(false);
+  const [recomposicaoOriginal, setRecomposicaoOriginal] = useState(null);
+  const [abrindoRecomposicao, setAbrindoRecomposicao] = useState(false);
   const [reativandoOriginal, setReativandoOriginal] = useState(false);
   const [skuHistoricoBusca, setSkuHistoricoBusca] = useState('');
   const [buscandoSkuHistorico, setBuscandoSkuHistorico] = useState(false);
@@ -140,6 +143,32 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
     }catch(error){
       return mostrarZen('danger','Conferência indisponível','Não foi possível confirmar o cadastro no servidor; nenhuma alteração foi feita.',[error?.message||String(error)]);
     }finally{setConferindoOriginal(false);}
+  };
+
+  const iniciarRecomposicaoOriginal = async () => {
+    if(patenteUsuario!=='gerencia'||abrindoRecomposicao||!diagnosticoOriginal?.ownerId)return;
+    setAbrindoRecomposicao(true);
+    try{
+      const candidato=await verificarRecomposicaoOriginal({db,userId,ownerId:diagnosticoOriginal.ownerId});
+      if(!candidato.ok){
+        console.warn('[ZenOS][Recomposicao] Fonte nao autoriza cadastro',candidato.reason);
+        return mostrarZen('warning','Cadastro precisa de conferência',
+          'Não foi possível confirmar que este produto pode ser completado sem afetar outros registros. Nenhum produto foi alterado. Peça ao suporte para conferir o cadastro.');
+      }
+      // ID e SKU originais permanecem; custo/preços/saldo NÃO são inventados.
+      setRecomposicaoOriginal(candidato);
+      setProdutoEmEdicao(null);setCriandoNovoGrupo(false);setNovoGrupoTexto('');
+      setHistoricoExpandido(false);setHistoricoMovimentos([]);
+      setFormProduto(normalizarProduto({
+        id:candidato.ownerId,nome:candidato.nome,sku:candidato.sku,
+        grupo:'Acessórios & Ferramentas',estoqueVitrine:'0',estoqueGalpao:'0',
+        estoque:0,custoBRL:0,precoBRL:0,margemDesejada:'40'
+      }));
+      setModalProdutoAberto(true);
+    }catch(error){
+      console.error('[ZenOS][Recomposicao] Verificacao indisponivel',error);
+      mostrarZen('warning','Verificação indisponível','O cadastro não foi alterado. Aguarde a sincronização antes de tentar novamente.');
+    }finally{setAbrindoRecomposicao(false);}
   };
 
   const reativarProdutoOriginal = async () => {
@@ -245,6 +274,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
   const atualizarMargemPorPreco = (custoStr, precoStr) => calcularMargemPorCustoEPreco(custoStr, precoStr);
 
   const abrirCadastroNovoProduto = () => {
+    setRecomposicaoOriginal(null);
     setProdutoEmEdicao(null);
     setSecaoFiscalExpandida(false);
     setCriandoNovoGrupo(false);
@@ -264,6 +294,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
   };
 
   const abrirEdicaoProduto = (prod) => {
+    setRecomposicaoOriginal(null);
     setProdutoEmEdicao(prod);
     setSecaoFiscalExpandida(false);
     setCriandoNovoGrupo(false);
@@ -299,6 +330,20 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
   };
 
   const salvarProduto = async () => {
+    if(recomposicaoOriginal){
+      // Este caminho só recompõe a ficha original ausente. Não modifica outros cadastros.
+      if(String(formProduto.id)!==String(recomposicaoOriginal.ownerId)||
+         String(formProduto.sku).trim().toUpperCase()!==String(recomposicaoOriginal.sku).trim().toUpperCase()||
+         String(formProduto.nome).trim().toLowerCase()!==String(recomposicaoOriginal.nome).trim().toLowerCase())
+        return mostrarZen('warning','Dados originais protegidos',
+          'Nome, código e identificação do produto devem ser preservados. Confira os valores de preço e estoque físico e tente novamente.');
+      const verificado=await verificarRecomposicaoOriginal({db,userId,ownerId:recomposicaoOriginal.ownerId});
+      if(!verificado.ok){
+        console.warn('[ZenOS][Recomposicao] Bloqueio no salvamento',verificado.reason);
+        return mostrarZen('warning','Cadastro não concluído',
+          'A conferência encontrou uma alteração ou outro vínculo deste produto. Nenhum item foi criado. Atualize e peça uma conferência ao suporte.');
+      }
+    }
     if (!formProduto.nome.trim()) return mostrarZen('warning', tx('Nome obrigatório','Nombre obligatorio','Name required'), tx('Informe o nome do produto antes de salvar.','Informe el nombre del producto antes de guardar.','Enter the product name before saving.'));
     const margemValidacao = validarMargemPrecoVenda(formProduto.margemDesejada);
     if (!margemValidacao.ok && Number(formProduto.custoBRL || 0) > 0) return mostrarZen('warning', tx('Margem inválida','Margen inválido','Invalid margin'), margemValidacao.erro, [`${tx('Use um valor entre','Use un valor entre','Use a value between')} 0% ${tx('e','y','and')} ${MAX_MARGEM_PRECO_PCT}%.`, tx('A margem é calculada sobre o preço de venda.','El margen se calcula sobre el precio de venta.','Margin is calculated on the sale price.')]);
@@ -387,6 +432,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
         const confirmado = await commitOperacaoNegocio({
           changes: [{ field:'produtos', value:listaProposta, storageSuffix:'produtos' }],
           stockEvents: eventoInicial ? [eventoInicial] : [],
+          ...(recomposicaoOriginal ? {operationKey:`recompor-original:${recomposicaoOriginal.ownerId}`} : {}),
         });
         if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou o cadastro do produto.');
         produtosConfirmados = confirmado.values?.produtos || listaProposta;
@@ -395,12 +441,15 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       }
       setProdutos(produtosConfirmados);
       setModalProdutoAberto(false);
+      setRecomposicaoOriginal(null);
     } catch (erro) {
       console.error('[ZenOS][ATT10.2] Produto não confirmado:', erro);
       if (!resultadoCadastroIndeterminado(erro)) {
         try {
           if (produtoEmEdicao) await reservarIdentidadeProduto({ db, userId, produto:produtoEmEdicao, produtoAnterior:dadosFinais });
-          else await liberarIdentidadeProduto({ db, userId, produto:dadosFinais });
+          else if(!recomposicaoOriginal) await liberarIdentidadeProduto({ db, userId, produto:dadosFinais });
+          // Em recomposição, o índice antecede este atendimento: preservá-lo mesmo
+          // se a nuvem recusar ou a confirmação não chegar.
         } catch (rollbackErro) {
           console.error('[ZenOS][ATT10.2] Falha ao restaurar índice do produto:', rollbackErro);
         }
@@ -701,7 +750,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
                 <span style={{ fontSize: '11px', fontWeight: 800, color: '#38bdf8', letterSpacing: '1px', textTransform: 'uppercase' }}>{tx('Ficha Cadastral Universal','Ficha Universal','Universal Record')}</span>
                 <h3 style={{ fontSize: '20px', fontWeight: 900, color: '#ffffff', margin: '2px 0 0 0' }}>{produtoEmEdicao ? `${tx('Editar:','Editar:','Edit:')} ${produtoEmEdicao.nome}` : tx('Cadastrar Produto ou Serviço','Registrar Producto o Servicio','Register Product or Service')}</h3>
               </div>
-              <button onClick={() => setModalProdutoAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#64748b', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>✕</button>
+              <button onClick={() => {setModalProdutoAberto(false);setRecomposicaoOriginal(null);}} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#64748b', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>✕</button>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '18px' }}>
