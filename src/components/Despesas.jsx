@@ -5,7 +5,7 @@ import {doc,getDocFromServer} from 'firebase/firestore';
 import {getOperationalSnapshot} from '../core/operationalRepository';
 import {avaliarPagamentoExistente} from '../core/expensePaymentReconcile';
 
-export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, saldoSessaoFisicoBRL = 0, operadorAtivo, despesas, setDespesas, fmt, tx, patenteUsuario, moeda, converterParaBRL, converterDeBRL }) {
+export default function Despesas({ userId, commitOperacaoNegocio, registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, saldoSessaoFisicoBRL = 0, operadorAtivo, despesas, setDespesas, fmt, tx, patenteUsuario, moeda, converterParaBRL, converterDeBRL }) {
   const [modalAberto, setModalAberto] = useState(false);
   const [despesaEmEdicao, setDespesaEmEdicao] = useState(null);
   const [filtroStatus, setFiltroStatus] = useState('pendente'); // pendente, paga, todas
