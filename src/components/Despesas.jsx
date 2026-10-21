@@ -1,7 +1,11 @@
 import React, { useState, useRef } from 'react';
 import ZenModal from './ZenModal';
+import {db} from '../firebase';
+import {doc,getDocFromServer} from 'firebase/firestore';
+import {getOperationalSnapshot} from '../core/operationalRepository';
+import {avaliarPagamentoExistente} from '../core/expensePaymentReconcile';
 
-export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, saldoSessaoFisicoBRL = 0, operadorAtivo, despesas, setDespesas, fmt, tx, patenteUsuario, moeda, converterParaBRL, converterDeBRL }) {
+export default function Despesas({ userId, commitOperacaoNegocio, registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, saldoSessaoFisicoBRL = 0, operadorAtivo, despesas, setDespesas, fmt, tx, patenteUsuario, moeda, converterParaBRL, converterDeBRL }) {
   const [modalAberto, setModalAberto] = useState(false);
   const [despesaEmEdicao, setDespesaEmEdicao] = useState(null);
   const [filtroStatus, setFiltroStatus] = useState('pendente'); // pendente, paga, todas
@@ -109,7 +113,53 @@ export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, c
     setModalPagamentoAberto(true);
   };
 
+  const pagamentoEmAndamentoRef=useRef(false);
+  // Apenas quando o livro já possui o lançamento e a transação anterior
+  // não deixou comprovante: nunca debitar o caixa novamente.
+  const reconciliarPagamentoPreExistente = async (despesa) => {
+    const [snap,livro]=await Promise.all([
+      getOperationalSnapshot(db,userId),
+      getDocFromServer(doc(db,'lojas',String(userId),'financeiro_livro',`DESPESA-${despesa.id}`))
+    ]);
+    const remoto=snap.exists()?snap.data():null;
+    const lista=Array.isArray(remoto?.despesas)?remoto.despesas:null;
+    if(!lista||!livro.exists())return {status:'blocked',reason:'documentos_autoritativos_indisponiveis'};
+    const registros=lista.filter(d=>String(d.id)===String(despesa.id));
+    if(registros.length!==1)return {status:'blocked',reason:'despesa_ausente_ou_duplicada'};
+    const original=registros[0];
+    if(original.status==='paga'){
+      setDespesas(lista);
+      return {status:'already_paid'};
+    }
+    if(original.status!=='pendente')return {status:'blocked',reason:'despesa_nao_pendente'};
+    const resultado=avaliarPagamentoExistente({
+      despesa:original,lancamento:livro.data(),movimentos:remoto.caixaMovimentos||[]
+    });
+    if(resultado.status!=='verified')return {status:'blocked',reason:resultado.reason};
+    if(typeof commitOperacaoNegocio!=='function')
+      return {status:'blocked',reason:'servico_de_commit_indisponivel'};
+    const correcao=lista.map(d=>String(d.id)===String(original.id)?{
+      ...d,status:'paga',dataPagamento:resultado.createdAt || d.dataPagamento || new Date().toISOString(),
+      formaPagamento:livro.data().formaPagamento||d.formaPagamento||null,
+      reconciliadaComLancamentoId:livro.id,
+    }:d);
+    const confirmado=await commitOperacaoNegocio({
+      changes:[{field:'despesas',value:correcao,storageSuffix:'despesas'}],
+      financialEntries:[], // nunca gravar novamente o valor do pagamento
+      guards:[{type:'entity_field_equals',field:'despesas',entityId:original.id,entityKey:'id',
+        property:'status',expected:'pendente',
+        message:'A situação da despesa mudou em outro caixa. Recarregue antes de continuar.'}],
+      operationKey:`despesa-reconciliar-pagamento:${original.id}`,
+    });
+    if(!confirmado?.cloudOk)return {status:'blocked',reason:confirmado?.error?.message||'confirmation_unknown'};
+    setDespesas(confirmado.values?.despesas||correcao);
+    return {status:'reconciled'};
+  };
+
   const confirmarPagamento = async () => {
+    if(pagamentoEmAndamentoRef.current)return;
+    pagamentoEmAndamentoRef.current=true;
+    try{
     const dinheiro = String(formaPagamento || '').toLowerCase().includes('dinheiro');
     const valor = Number(despesaParaPagar?.valorBRL || 0);
     if (dinheiro && !sessaoAtiva) return setModalZen({ variante:'danger', titulo:tx('Caixa fechado','Caja cerrada','Register closed'), mensagem:tx('Para pagar uma despesa em dinheiro é necessário um turno de caixa aberto.','Para pagar un gasto en efectivo es necesario un turno de caja abierto.','An open cash shift is required to pay an expense in cash.'), apenasConfirmar:true });
@@ -158,11 +208,32 @@ export default function Despesas({ commitOperacaoNegocio, registrarFinanceiro, c
       if (mov && typeof setCaixaMovimentos === 'function') setCaixaMovimentos(caixaConfirmado);
     } catch (err) {
       console.error('[ZenOS][ATT10.2] Falha no pagamento da despesa:', err);
-      return setModalZen({ variante:'danger', titulo:tx('Pagamento não concluído','Pago no concluido','Payment not completed'), mensagem:tx('A nuvem não confirmou o pagamento. A despesa continua pendente.','La nube no confirmó el pago. El gasto sigue pendiente.','The cloud did not confirm the payment. The expense remains pending.'), detalhes:[err?.message || 'Falha de persistência'], apenasConfirmar:true });
+      if(err?.code==='V2_HISTORY_COLLISION'){
+        try{
+          const resultado=await reconciliarPagamentoPreExistente(despesaParaPagar);
+          if(resultado.status==='reconciled'||resultado.status==='already_paid'){
+            setModalPagamentoAberto(false);
+            setDespesaParaPagar(null);
+            return avisarZen('success','Pagamento original localizado',
+              resultado.status==='reconciled'
+                ? 'Pagamento original confirmado no livro e, quando aplicável, no caixa. A despesa foi conciliada sem novo débito.'
+                : 'Esta despesa já estava paga no servidor. A lista foi atualizada sem novo débito.');
+          }
+          return avisarZen('warning','Pagamento exige conferência',
+            'Há um histórico anterior que não pôde ser conciliado com segurança. Nenhum novo pagamento foi registrado. Não repita antes de verificar.',
+            [`Referência: DESPESA-${despesaParaPagar?.id||'?'}`,`Motivo: ${resultado.reason||'inconclusivo'}`]);
+        }catch(erroConciliacao){
+          return avisarZen('warning','Conciliação indisponível',
+            'O lançamento anterior não pôde ser verificado no servidor. Não repita o pagamento.',
+            [erroConciliacao?.message||'Sem confirmação']);
+        }
+      }
+      return setModalZen({ variante:'danger', titulo:tx('Pagamento sem confirmação','Pago sin confirmar','Payment unconfirmed'), mensagem:tx('Não foi possível confirmar o pagamento. Ele pode existir no servidor. Consulte o histórico antes de repetir.','No se pudo confirmar el pago. Revise el historial antes de repetir.','Payment was not confirmed. Check the server history before retrying.'), detalhes:[err?.message || 'Falha de persistência'], apenasConfirmar:true });
     }
 
     setModalPagamentoAberto(false);
     setDespesaParaPagar(null);
+    }finally{pagamentoEmAndamentoRef.current=false;}
   };
 
   const excluirDespesa = async (id) => {
