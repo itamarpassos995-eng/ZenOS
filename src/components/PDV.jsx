@@ -359,6 +359,8 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
         return mostrarZen('warning','Documento indisponível',
           'Este documento não está mais pendente nem disponível como orçamento. A fila foi atualizada. Verifique o histórico antes de fazer nova cobrança.');
       }
+      // Usar exclusivamente o documento confirmado pelo servidor daqui em diante.
+      pedido=documento;
       // Recuperar orçamento não é liquidar pré-pedido: nunca vincular o ID
       // de um orçamento ao guard de "pendente" do pagamento.
       const itensRecuperados=itensVendaComCustoAtual(documento.itens||[]);
@@ -370,7 +372,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
       setClienteQuerFiscal(documento.clienteQuerFiscal===true);
       const cli=documento.clienteId?clientes.find(c=>String(c.id)===String(documento.clienteId)):null;
       setClienteSelecionadoPDV(cli||null);
-      setNomeClienteVulso(documento.clienteNome!==tx('Consumidor Balcão','Consumidor','Walk-in')?String(documento.clienteNome||''):'');
+      setNomeClienteVulso(pedido.clienteNome !== tx('Consumidor Balcão', 'Consumidor', 'Walk-in') ? pedido.clienteNome : '');
       setPrePedidoEmAbertoId(documento.estado==='pendente'?documento.id:null);
       operacaoDocumentoRef.current={assinatura:null,id:null,instante:null};
       setModalResgateAberto(false);
