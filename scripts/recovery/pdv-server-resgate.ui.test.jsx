@@ -31,12 +31,13 @@ test('operador só resgata pré-pedido confirmado no servidor, sem venda',async(
  expect(commit).not.toHaveBeenCalled();
 });
 test('orçamento aparece em Resgatar e recupera sem liquidar no clique',async()=>{
- const orc=doc('orc-1','orcamento'),set=vi.fn(),commit=vi.fn();
+ const orc={...doc('orc-1','orcamento'),totalBRL:8},set=vi.fn(),commit=vi.fn();
  getOperationalSnapshot.mockResolvedValue(snapshot([orc]));
  base([orc],set,commit);
  fireEvent.click(screen.getByRole('button',{name:/Resgatar/}));
  fireEvent.click(screen.getByText(/ORÇAMENTO/));
  await waitFor(()=>expect(screen.getByText(/Orçamento recuperado/)).toBeTruthy());
+ expect(screen.getByDisplayValue('2.00')).toBeTruthy(); // R$10 original - R$8 cotados
  expect(commit).not.toHaveBeenCalled();
 });
 test('pré-pedido stale no terminal é bloqueado após consulta e carrinho preservado',async()=>{
