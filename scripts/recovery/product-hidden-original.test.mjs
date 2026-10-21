@@ -48,6 +48,15 @@ test('não ativa se outro registro tomou SKU, se índice sumiu ou ID duplicou',(
  assert.equal(diag({indices:[]}).status,'inconclusivo');
  assert.equal(diag({catalogoAtual:[produto,{...produto}]}).status,'conflito');
 });
+test('nome, marca e unidade duplicados com SKU diferente bloqueiam reativação',()=>{
+ const outro={...produto,id:'outro',sku:'SKU-34849',ativo:true};
+ const diagnostico=diag({catalogoAtual:[produto,outro]});
+ assert.equal(diagnostico.status,'conflito');
+ const antigo=diag({});
+ assert.equal(prepararReativacaoOriginal({
+   diagnostico:antigo,ownerId:id,catalogo:[produto,outro]
+ }).ok,false);
+});
 test('mudança concorrente de status bloqueia após consulta inicial',()=>{
  const r=diag({});
  assert.equal(prepararReativacaoOriginal({diagnostico:r,ownerId:id,catalogo:[{...produto,ativo:true}]}).ok,false);
