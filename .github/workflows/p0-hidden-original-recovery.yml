@@ -1,0 +1,36 @@
+name: P0 Hidden Original Product Recovery
+on:
+  pull_request:
+    paths:
+      - 'src/components/Produtos.jsx'
+      - 'src/core/productRecoveryCore.js'
+      - 'src/core/productRecoveryDiagnosis.js'
+      - 'src/core/productOriginalRebuildPolicy.js'
+      - 'src/core/productOriginalRebuildCheck.js'
+      - 'scripts/recovery/product-hidden-original.test.mjs'
+      - 'scripts/recovery/product-original-rebuild.test.mjs'
+      - 'scripts/recovery/product-original-rebuild.ui.test.jsx'
+      - 'scripts/recovery/product-hidden-original.ui.test.jsx'
+      - 'scripts/recovery/product-hidden-original.emulator.mjs'
+      - '.github/workflows/p0-hidden-original-recovery.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test scripts/recovery/product-hidden-original.test.mjs scripts/recovery/product-original-rebuild.test.mjs
+      - run: npx vitest run --config vitest.recovery.config.js scripts/recovery/product-hidden-original.ui.test.jsx scripts/recovery/product-original-rebuild.ui.test.jsx scripts/recovery/produtos-sku-original.ui.test.jsx scripts/recovery/product-pdv-orphan-release.ui.test.jsx
+      - run: npm run build
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local "node scripts/recovery/product-hidden-original.emulator.mjs"
