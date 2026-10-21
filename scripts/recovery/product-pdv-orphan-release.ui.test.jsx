@@ -20,19 +20,19 @@ test('gerência vê liberação só após consulta órfã e confirmação; opera
  liberarIndiceOrfaoPDV.mockResolvedValue({status:'released',ownerId:'PROD-BALCAO-123456789',indices:2});
  const data=props();
  render(<Produtos {...data}/>);
- expect(screen.queryByRole('button',{name:/Conferir e liberar índice órfão/})).toBeNull();
+ expect(screen.queryByRole('button',{name:/Conferir cadastro incompleto/})).toBeNull();
  fireEvent.change(screen.getByRole('textbox',{name:'SKU original'}),{target:{value:'66346'}});
  fireEvent.click(screen.getByRole('button',{name:'Buscar SKU original'}));
- await waitFor(()=>expect(screen.getByText(/Cadastro não localizado no catálogo atual/)).toBeTruthy());
+ await waitFor(()=>expect(screen.getByText(/Cadastro ainda não disponível/)).toBeTruthy());
  expect(liberarIndiceOrfaoPDV).not.toHaveBeenCalled();
  fireEvent.click(screen.getByRole('button',{name:'OK'}));
- fireEvent.click(screen.getByRole('button',{name:/Conferir e liberar índice órfão/}));
+ fireEvent.click(screen.getByRole('button',{name:/Conferir cadastro incompleto/}));
  expect(liberarIndiceOrfaoPDV).not.toHaveBeenCalled();
  fireEvent.click(screen.getByRole('button',{name:'Conferir e liberar se seguro'}));
  await waitFor(()=>expect(liberarIndiceOrfaoPDV).toHaveBeenCalledWith({
   db:{},userId:'store-a',sku:'66346',ownerId:'PROD-BALCAO-123456789',operadorId:'manager-id'
  }));
- await waitFor(()=>expect(screen.getByText(/Índice órfão liberado com auditoria/)).toBeTruthy());
+ await waitFor(()=>expect(screen.getByText(/Cadastro liberado com segurança/)).toBeTruthy());
  expect(data.setProdutos).not.toHaveBeenCalled();
  expect(data.commitOperacaoNegocio).not.toHaveBeenCalled();
 });
@@ -43,14 +43,14 @@ test('liberação rejeitada preserva cadastro e expõe motivo, sem mentir sucess
  render(<Produtos {...data}/>);
  fireEvent.change(screen.getByRole('textbox',{name:'SKU original'}),{target:{value:'66346'}});
  fireEvent.click(screen.getByRole('button',{name:'Buscar SKU original'}));
- await waitFor(()=>expect(screen.getByText(/Cadastro não localizado no catálogo atual/)).toBeTruthy());
+ await waitFor(()=>expect(screen.getByText(/Cadastro ainda não disponível/)).toBeTruthy());
  fireEvent.click(screen.getByRole('button',{name:'OK'}));
- fireEvent.click(screen.getByRole('button',{name:/Conferir e liberar índice órfão/}));
+ fireEvent.click(screen.getByRole('button',{name:/Conferir cadastro incompleto/}));
  fireEvent.click(screen.getByRole('button',{name:'Conferir e liberar se seguro'}));
- await waitFor(()=>expect(screen.getByText(/Liberação bloqueada para proteger dados/)).toBeTruthy());
+ await waitFor(()=>expect(screen.getByText(/Cadastro precisa de suporte/)).toBeTruthy());
  expect(data.setProdutos).not.toHaveBeenCalled();
 });
 test('sem permissão gerencial o botão não existe',()=>{
  render(<Produtos {...props()} patenteUsuario="operador"/>);
- expect(screen.queryByRole('button',{name:/Conferir e liberar índice órfão/})).toBeNull();
+ expect(screen.queryByRole('button',{name:/Conferir cadastro incompleto/})).toBeNull();
 });
