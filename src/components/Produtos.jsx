@@ -3,7 +3,7 @@ import React, { useState, useRef } from 'react';
 import { normalizarProduto } from '../data';
 import { db } from '../firebase';
 import { transferirEstoqueEntreLocais } from '../core/inventory';
-import { atualizarProdutoUnico, detectarConflitosIdentidadeProdutos, skuJaExiste } from '../core/productIdentity';
+import { atualizarProdutoUnico, detectarConflitosIdentidadeProdutos, skuJaExiste, gerarIdSeguro } from '../core/productIdentity';
 import { reservarIdentidadeProduto, liberarIdentidadeProduto } from '../core/productRegistry';
 import {resultadoCadastroIndeterminado} from '../core/productAckOutcome';
 import { localizarProdutoExistenteServidor } from '../core/productServerLookup';
@@ -278,7 +278,10 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
     setPaisRegulamentoFiscal(moeda === 'PYG' ? 'PY' : 'BR');
     setHistoricoExpandido(false);
     setHistoricoMovimentos([]);
+    // ID único por cadastro novo: evita colidir com um produto antigo/inativo de mesmo SKU+nome+grupo.
     setFormProduto(normalizarProduto({ 
+      id: gerarIdSeguro('PROD'),
+      ativo: true,
       sku: `SKU-${Date.now().toString().slice(-5)}`, 
       grupo: gruposCadastrados[0],
       estoqueVitrine: '0',
@@ -320,7 +323,24 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
     const arquivo = e.target.files?.[0];
     if (arquivo) {
       const reader = new FileReader();
-      reader.onloadend = () => setFormProduto(prev => ({ ...prev, imagem: reader.result }));
+      // Foto reduzida (máx. 400px, JPEG): todo o catálogo fica num único documento da nuvem
+      // com limite de ~1 MB; fotos originais enchiam esse limite e bloqueavam vendas.
+      reader.onloadend = () => {
+        const original = reader.result;
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const escala = Math.min(1, 400 / Math.max(img.width || 1, img.height || 1));
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(img.width * escala));
+            canvas.height = Math.max(1, Math.round(img.height * escala));
+            canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+            setFormProduto(prev => ({ ...prev, imagem: canvas.toDataURL('image/jpeg', 0.7) }));
+          } catch (_) { setFormProduto(prev => ({ ...prev, imagem: original })); }
+        };
+        img.onerror = () => setFormProduto(prev => ({ ...prev, imagem: original }));
+        img.src = original;
+      };
       reader.readAsDataURL(arquivo);
     }
   };
@@ -378,6 +398,8 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       estoqueGalpao: galpao,
       localizacao: formProduto.localizacao || ''
     });
+    // Cadastro novo nunca herda "ativo:false" de um registro antigo na mesclagem com a nuvem.
+    if (!produtoEmEdicao && !recomposicaoOriginal) dadosFinais.ativo = true;
 
     let listaProposta;
     if (produtoEmEdicao) {

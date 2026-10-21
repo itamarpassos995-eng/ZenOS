@@ -10,7 +10,7 @@ import ZenShareButton from './ZenShareButton';
 import { liberarIdentidadeProduto, reservarIdentidadeProduto } from '../core/productRegistry';
 import {resultadoCadastroIndeterminado} from '../core/productAckOutcome';
 import { normalizarPerfilLoja, larguraCssRecibo } from '../core/storeProfile';
-import { atualizarProdutoUnico, localizarIndiceProdutoUnico, skuJaExiste } from '../core/productIdentity';
+import { atualizarProdutoUnico, localizarIndiceProdutoUnico, skuJaExiste, gerarIdSeguro } from '../core/productIdentity';
 import { formatarEquivalenciaBRL, moedasAtivasRecibo } from '../core/receiptCurrency';
 import { validarCredencialGerencial } from '../core/accessControl';
 import { calcularCmvVenda } from '../core/salesFinancials';
@@ -191,7 +191,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
 
   const abrirCadastroProdutoPDV = () => {
     setProdutoEmEdicaoPDV(null); 
-    setFormProdutoPDV(normalizarProduto({ sku: gerarSkuProdutoBalcao('BALCAO'), usoUnicoEncomendado: false, classificacaoUso: 'estoque', estoque: 0, estoqueVitrine: 0, estoqueGalpao: 0 }));
+    setFormProdutoPDV(normalizarProduto({ id: gerarIdSeguro('PROD-BALCAO'), ativo: true, sku: gerarSkuProdutoBalcao('BALCAO'), usoUnicoEncomendado: false, classificacaoUso: 'estoque', estoque: 0, estoqueVitrine: 0, estoqueGalpao: 0 }));
     setModalProdutoPDVAberto(true);
   };
 
@@ -234,6 +234,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
       classificacaoUso: usoUnicoEncomendado ? 'encomenda_unica' : 'estoque',
     });
     dadosFinais.usoUnicoEncomendado = usoUnicoEncomendado;
+    if (!produtoEmEdicaoPDV) dadosFinais.ativo = true;
     if (!dadosFinais.id) dadosFinais.id = `PROD-BALCAO-${Date.now()}`;
 
     let listaProposta;

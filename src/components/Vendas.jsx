@@ -12,7 +12,7 @@ import { normalizarPerfilLoja, larguraCssRecibo } from '../core/storeProfile';
 import { calcularResumoSessao } from '../core/cashSession';
 import { formatarEquivalenciaBRL, moedasAtivasRecibo } from '../core/receiptCurrency';
 
-export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoesCaixa = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, saldoSessaoFisicoBRL = 0, perfilLoja, vouchers = [], setVouchers, userId, operadorAtivo, historicoVendas, setHistoricoVendas, produtos, setProdutos, clientes, setClientes, fmt, t, tx, patenteUsuario, moeda, converterDeBRL }) {
+export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoesCaixa = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, saldoSessaoFisicoBRL = 0, perfilLoja, vouchers = [], setVouchers, userId, operadorAtivo, historicoVendas, historicoVendasCompleto, setHistoricoVendas, produtos, setProdutos, clientes, setClientes, fmt, t, tx, patenteUsuario, moeda, converterDeBRL }) {
   const [vendaExpandida, setVendaExpandida] = useState(null);
   const [cupomParaImprimir, setCupomParaImprimir] = useState(null);
 
@@ -227,7 +227,9 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
 
     const voucherCodigo = metodoReembolso === 'voucher' ? `VALE-${String(devolucaoId).replace(/[^A-Z0-9]/gi, '').slice(-10).toUpperCase()}` : null;
 
-    const novoHistorico = historicoVendas.map(venda => {
+    // Sempre partir do histórico COMPLETO: a lista visível do vendedor é filtrada e,
+    // se gravada, apagaria da nuvem as vendas e pré-pedidos dos outros vendedores.
+    const novoHistorico = (Array.isArray(historicoVendasCompleto) ? historicoVendasCompleto : historicoVendas).map(venda => {
       if (venda.id !== vendaSendoDevolvida.id) return venda;
 
       const novosItens = venda.itens.map(it => {

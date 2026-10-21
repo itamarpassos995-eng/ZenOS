@@ -4,7 +4,7 @@ import { normalizarProduto } from '../data';
 import { obterEstoqueProduto, reporEstoqueProduto } from '../core/inventory';
 import { db } from '../firebase';
 import { criarEventoEstoque, registrarEventosEstoque } from '../core/stockAudit'; 
-import { atualizarProdutoUnico, localizarIndiceProdutoUnico, skuJaExiste } from '../core/productIdentity';
+import { atualizarProdutoUnico, localizarIndiceProdutoUnico, skuJaExiste, gerarIdSeguro } from '../core/productIdentity';
 import { calcularCustoMedioMovel, ratearCustosAquisicao } from '../core/purchaseCosts';
 
 export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro, saldoSessaoFisicoBRL = 0, 
@@ -111,7 +111,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
 
   const abrirCadastroProduto = () => {
     setProdutoEmEdicao(null); 
-    setFormProduto(normalizarProduto({ sku: `NOVO-${Date.now().toString().slice(-5)}` }));
+    setFormProduto(normalizarProduto({ id: gerarIdSeguro('PROD'), ativo: true, sku: `NOVO-${Date.now().toString().slice(-5)}` }));
     setModalProdutoAberto(true);
   };
   const abrirEdicaoProduto = (prod) => {
@@ -131,6 +131,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
     if (skuJaExiste(produtos, formProduto.sku, produtoEmEdicao)) return avisarZen('danger',tx('SKU duplicado','SKU duplicado','Duplicate SKU'),`${tx('Já existe outro produto com o SKU','Ya existe otro producto con el SKU','Another product already uses SKU')} ${formProduto.sku}. ${tx('Use um SKU diferente.','Use un SKU diferente.','Use a different SKU.')}`);
     const dadosFinais = normalizarProduto({ ...formProduto, custoBRL: custo, precoBRL: preco, estoque: estoque });
     if (!dadosFinais.id) dadosFinais.id = `PROD-${Date.now()}`;
+    if (!produtoEmEdicao) dadosFinais.ativo = true;
 
     let listaProposta;
     if (produtoEmEdicao) {
