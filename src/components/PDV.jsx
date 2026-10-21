@@ -558,6 +558,28 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
     operacaoEmAndamentoRef.current = true;
     setProcessandoTransacao(true);
     try {
+      if(tipoFinalizacao==='venda' && prePedidoEmAbertoId){
+        // Um rascunho de outro operador pode ficar ligado a um pré-pedido
+        // que outro caixa já liquidou. Nenhum lançamento financeiro antes da conferência.
+        try{
+          const snap=await getOperationalSnapshot(db,userId);
+          const remoto=snap.exists()?snap.data():null;
+          if(!Array.isArray(remoto?.historicoVendas))
+            throw new Error('Fila não confirmada no servidor.');
+          const originais=remoto.historicoVendas.filter(v=>String(v?.id)===String(prePedidoEmAbertoId));
+          setHistoricoVendas(remoto.historicoVendas);
+          if(originais.length!==1 || originais[0].estado!=='pendente'){
+            mostrarZen('warning','Pré-pedido não disponível para liquidar',
+              'O servidor não confirmou que este pré-pedido continua pendente. O carrinho foi preservado e nenhum pagamento foi enviado. Confira o histórico ou resgate novamente.');
+            return;
+          }
+        }catch(error){
+          mostrarZen('danger','Pré-pedido sem confirmação',
+            'Não foi possível consultar o estado atual do pré-pedido. O carrinho foi preservado; nenhuma cobrança foi enviada.',
+            [error?.message||'Consulta indisponível']);
+          return;
+        }
+      }
       // P0: fiado só pode gravar para exatamente um cadastro com ID e nome coerentes.
       // Bloquear ANTES de qualquer lançamento de estoque, venda ou financeiro.
       if (tipoFinalizacao === 'venda' && pagamentosLancados.some(p => p.formaId === 'crediario')) {
