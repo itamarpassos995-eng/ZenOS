@@ -25,6 +25,7 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
   const salvandoDespesaRef = useRef(false);
   const [salvandoDespesa, setSalvandoDespesa] = useState(false);
   const exclusaoPendenteRef = useRef(false);
+  const pagamentoEmAndamentoRef=useRef(false);
   const [exclusaoPendenteId, setExclusaoPendenteId] = useState(null);
   const avisarZen=(variante,titulo,mensagem,detalhes=[])=>setModalZen({variante,titulo,mensagem,detalhes,apenasConfirmar:true});
   const confirmarZen=({titulo,mensagem,confirmarTexto=null,variante='warning',tipo=null})=>new Promise(resolve=>setModalZen({variante,titulo,mensagem,confirmarTexto:confirmarTexto || tx('Confirmar','Confirmar','Confirm'),cancelarTexto:tx('Cancelar','Cancelar','Cancel'),tipo,resolver:resolve}));
@@ -113,7 +114,6 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
     setModalPagamentoAberto(true);
   };
 
-  const pagamentoEmAndamentoRef=useRef(false);
   // Apenas quando o livro já possui o lançamento e a transação anterior
   // não deixou comprovante: nunca debitar o caixa novamente.
   const reconciliarPagamentoPreExistente = async (despesa) => {
