@@ -8,6 +8,9 @@ import { reservarIdentidadeProduto, liberarIdentidadeProduto } from '../core/pro
 import {resultadoCadastroIndeterminado} from '../core/productAckOutcome';
 import { localizarProdutoExistenteServidor } from '../core/productServerLookup';
 import {auditarIndicesProdutosServidor} from '../core/productIndexAudit';
+import {diagnosticarCadastroOcultoServidor} from '../core/productRecoveryDiagnosis';
+import {prepararReativacaoOriginal} from '../core/productRecoveryCore';
+import {getOperationalSnapshot} from '../core/operationalRepository';
 import {localizarSkuHistoricoServidor} from '../core/productHistoricalSkuLookup';
 import {liberarIndiceOrfaoPDV} from '../core/productOrphanRelease';
 import { carregarHistoricoEstoqueProduto, criarEventoEstoque, obterPoliticaHistoricoEstoque, registrarEventosEstoque } from '../core/stockAudit';
@@ -41,6 +44,12 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
   const [filtroHistoricoFim, setFiltroHistoricoFim] = useState('');
   const [modalZen, setModalZen] = useState(null);
   const [auditandoIndices, setAuditandoIndices] = useState(false);
+  const [identidadesAuditadas, setIdentidadesAuditadas] = useState([]);
+  const [idOriginalSelecionado, setIdOriginalSelecionado] = useState('');
+  const [diagnosticoOriginal, setDiagnosticoOriginal] = useState(null);
+  const [conferindoOriginal, setConferindoOriginal] = useState(false);
+  const [confirmarReativacaoOriginal, setConfirmarReativacaoOriginal] = useState(false);
+  const [reativandoOriginal, setReativandoOriginal] = useState(false);
   const [skuHistoricoBusca, setSkuHistoricoBusca] = useState('');
   const [buscandoSkuHistorico, setBuscandoSkuHistorico] = useState(false);
   const [candidatoOrfaoPDV, setCandidatoOrfaoPDV] = useState(null);
@@ -96,13 +105,100 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
     }finally{setLiberandoOrfaoPDV(false);}
   };
 
+  const examinarCadastroPeloId = async (idSelecionado=idOriginalSelecionado) => {
+    if(patenteUsuario!=='gerencia'||conferindoOriginal)return;
+    const id=String(idSelecionado||'').trim();
+    if(!id)return mostrarZen('warning','Selecione um cadastro','Escolha um dos IDs retornados pela auditoria de produtos.');
+    setConferindoOriginal(true);setDiagnosticoOriginal(null);
+    try{
+      const r=await diagnosticarCadastroOcultoServidor({db,userId,ownerId:id});
+      setDiagnosticoOriginal(r);
+      const labels={
+        original_inativo:'Produto original inativo',
+        original_ativo:'Produto já está ativo no servidor',
+        indice_sem_cadastro:'Somente índice sem cadastro',
+        indice_inativo_sem_cadastro:'Índice inativo sem cadastro',
+        somente_legado:'Cadastro encontrado somente no legado V1',
+        removido_v2:'Registro removido na V2',
+        divergencia_v2:'Divergência de catálogo V2',
+        conflito:'Conflito de identidade',
+        inconclusivo:'Verificação inconclusiva'
+      };
+      if(r.status==='original_ativo'||r.status==='original_inativo'){
+        setFiltroGrupo('todos');setMostrarInativos(true);
+        setBuscaProdutoTexto(r.produto?.sku||r.produto?.nome||'');
+      }
+      return mostrarZen(['original_ativo','original_inativo'].includes(r.status)?'info':'warning',
+       labels[r.status]||'Diagnóstico do produto',
+       r.status==='original_inativo'
+        ?'O produto completo está no catálogo atual do servidor, mas está marcado como inativo. O ID, os preços e saldos são os originais. A Gerência poderá solicitar reativação após conferência física do estoque.'
+        :r.status==='original_ativo'
+         ?'O produto original está ativo no servidor. A busca foi ajustada; confira filtros e sincronização, sem criar outro cadastro.'
+         :'O diagnóstico identificou o estado do registro original. Nenhum produto nem índice foi alterado. Registros históricos não são saldos autorizados para restauração.',
+       [`ID: ${id}`,`Situação: ${r.status}`,`SKU: ${r.produto?.sku||r.produtoLegado?.sku||'(não confirmado)'}`,`Nome: ${r.produto?.nome||r.produtoLegado?.nome||'(não confirmado)'}`,
+        `Estoque do catálogo atual: ${r.produto?.estoque??'indisponível'}`,`Índices ativos: ${r.indicesAtivos??'?'}`,`Origem V1: ${r.legacyReadStatus||'n/a'}`,`Registro V2: ${r.v2ReadStatus||'n/a'}`]);
+    }catch(error){
+      return mostrarZen('danger','Conferência indisponível','Não foi possível confirmar o cadastro no servidor; nenhuma alteração foi feita.',[error?.message||String(error)]);
+    }finally{setConferindoOriginal(false);}
+  };
+
+  const reativarProdutoOriginal = async () => {
+    if(patenteUsuario!=='gerencia'||reativandoOriginal||diagnosticoOriginal?.status!=='original_inativo')return;
+    setConfirmarReativacaoOriginal(false);setReativandoOriginal(true);
+    const id=String(diagnosticoOriginal.ownerId);
+    try{
+      // Refazer as provas na hora do clique: não usar status do cache como autorização.
+      const confirmadoOriginal=await diagnosticarCadastroOcultoServidor({db,userId,ownerId:id});
+      if(confirmadoOriginal.status!=='original_inativo')throw new Error('Identidade não está mais confirmada como inativa.');
+      const snap=await getOperationalSnapshot(db,userId);
+      const catalogo=snap.exists()?snap.data()?.produtos:null;
+      const plano=prepararReativacaoOriginal({diagnostico:confirmadoOriginal,catalogo,ownerId:id});
+      if(!plano.ok)throw new Error('Reativação bloqueada: '+plano.reason);
+      if(typeof commitOperacaoNegocio!=='function')throw new Error('Serviço de sincronização não confirmado.');
+      const revision=snap.data()?._syncMeta?.fieldRevisions?.produtos??'v1';
+      const operacao=await commitOperacaoNegocio({
+        changes:[{field:'produtos',value:plano.lista,storageSuffix:'produtos'}],
+        guards:[{type:'entity_unchanged',field:'produtos',entityId:id,entityKey:'id',expected:plano.antes,
+          message:'O produto original mudou em outro caixa. Atualize e confira novamente antes de reativar.'}],
+        operationKey:`reativar-original:${id}:${revision}`,
+      });
+      if(!operacao?.cloudOk){
+        // ACK ausente: consultar registro, mas não reenviar com outro ID.
+        const check=await getOperationalSnapshot(db,userId);
+        const encontrados=Array.isArray(check.data()?.produtos)?
+          check.data().produtos.filter(p=>String(p?.id)===id):[];
+        if(encontrados.length!==1||encontrados[0].ativo===false)
+          throw new Error('Confirmação desconhecida. A reativação pode estar pendente. Não repita.');
+        setProdutos(check.data().produtos);
+      }else setProdutos(operacao.values?.produtos||plano.lista);
+      setDiagnosticoOriginal(null);setMostrarInativos(false);setFiltroGrupo('todos');
+      setBuscaProdutoTexto(plano.antes.sku||plano.antes.nome||'');
+      mostrarZen('success','Produto original reativado',
+        'A nuvem confirmou o cadastro original como ativo. Foram preservados o mesmo ID, SKU, preços, estoque e histórico; nenhuma entrada de estoque foi criada.',
+        [`ID: ${id}`,`SKU: ${plano.antes.sku||'-'}`]);
+    }catch(error){
+      mostrarZen('warning','Reativação não confirmada',
+        'Nenhum novo produto foi criado. Confira novamente o diagnóstico e o histórico antes de tentar outra operação.',
+        [error?.message||String(error)]);
+    }finally{setReativandoOriginal(false);}
+  };
+
   const auditarCadastrosOriginais = async () => {
     if(patenteUsuario!=='gerencia'||auditandoIndices)return;
     setAuditandoIndices(true);
+    setIdentidadesAuditadas([]);
+    setDiagnosticoOriginal(null);
     try{
       const r=await auditarIndicesProdutosServidor({db,userId});
       if(r.status!=='complete')
         return mostrarZen('warning','Auditoria inconclusiva','Não foi possível verificar todos os índices do servidor. Nenhuma alteração foi efetuada.',[`Documentos consultados: ${r.readCount||0}`,`Motivo: ${r.reason||r.status}`]);
+      const candidatos=[
+        ...r.inativos.map(x=>({...x,situacao:'Inativo'})),
+        ...r.ausentes.map(x=>({...x,situacao:'Índice sem cadastro'})),
+        ...r.duplicados.map(x=>({...x,situacao:'ID duplicado'}))
+      ];
+      setIdentidadesAuditadas(candidatos);
+      setIdOriginalSelecionado(candidatos[0]?.produtoId||'');
       const listar=(array,tipo)=>array.slice(0,20).map(x=>`${tipo} — ID ${x.produtoId}, nome: ${x.nomes.join(' / ')||'(sem nome)'}, SKU: ${x.skus.join(' / ')||'(sem SKU)'}`);
       const detalhes=[...listar(r.ausentes,'Índice sem cadastro'),...listar(r.inativos,'Inativo'),...listar(r.duplicados,'ID duplicado')];
       mostrarZen(r.ausentes.length||r.duplicados.length?'warning':'info',
@@ -457,6 +553,24 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
           </div>}
           {patenteUsuario==='gerencia' && candidatoOrfaoPDV && <button type="button" disabled={liberandoOrfaoPDV} onClick={()=>setConfirmarLiberacaoOrfao(true)} style={{border:'1px solid #f59e0b',borderRadius:10,padding:'10px',background:'#422006',color:'#fde68a',fontWeight:800}}>{liberandoOrfaoPDV?'Conferindo...':'Conferir e liberar índice órfão do PDV'}</button>}
           {patenteUsuario==='gerencia' && <button type="button" disabled={auditandoIndices} onClick={auditarCadastrosOriginais} title="Auditoria sob demanda: pode consultar até 2501 documentos, não modifica cadastros" style={{background:'#0f172a',border:'1px solid #38bdf8',color:'#e0f2fe',borderRadius:12,padding:'10px 12px',fontWeight:800,cursor:'pointer'}}>{auditandoIndices?'Conferindo índices...':'Conferir cadastros ocultos'}</button>}
+          {patenteUsuario==='gerencia' && identidadesAuditadas.length>0 && (
+            <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
+              <select aria-label="Cadastro oculto original" value={idOriginalSelecionado}
+                onChange={e=>{setIdOriginalSelecionado(e.target.value);setDiagnosticoOriginal(null);}}
+                style={{maxWidth:235,minWidth:110,background:'#020617',color:'#e0f2fe',border:'1px solid #64748b',padding:10,borderRadius:8}}>
+                {identidadesAuditadas.map(x=><option key={x.produtoId} value={x.produtoId}>{x.situacao} · {x.nomes[0]||x.skus[0]||x.produtoId}</option>)}
+              </select>
+              <button type="button" disabled={conferindoOriginal} onClick={()=>examinarCadastroPeloId()}
+                style={{border:'1px solid #38bdf8',borderRadius:8,padding:10,background:'#0c4a6e',color:'#e0f2fe',fontWeight:800}}>
+                {conferindoOriginal?'Examinando...':'Examinar cadastro original'}
+              </button>
+            </div>
+          )}
+          {patenteUsuario==='gerencia' && diagnosticoOriginal?.status==='original_inativo' &&
+            <button type="button" disabled={reativandoOriginal} onClick={()=>setConfirmarReativacaoOriginal(true)}
+              style={{border:'1px solid #34d399',borderRadius:8,padding:10,background:'#064e3b',color:'#d1fae5',fontWeight:800}}>
+              {reativandoOriginal?'Conferindo...':'Reativar este produto original'}
+            </button>}
           <button onClick={abrirCadastroNovoProduto} style={{ background: 'linear-gradient(135deg, #0284c7, #0369a1)', border: '1px solid #38bdf8', color: '#ffffff', padding: '12px 24px', borderRadius: '12px', fontSize: '13px', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 15px rgba(2, 132, 199, 0.3)' }}>{t ? t('novoProdutoBtn') : '+ Novo Produto'}</button>
         </div>
       </div>
@@ -776,6 +890,17 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       )}
     
       <ZenModal aberto={!!modalZen} variante={modalZen?.variante} titulo={modalZen?.titulo} mensagem={modalZen?.mensagem} detalhes={modalZen?.detalhes} apenasConfirmar={true} onConfirmar={()=>setModalZen(null)} onCancelar={()=>setModalZen(null)} />
+      <ZenModal aberto={confirmarReativacaoOriginal} variante="warning"
+        titulo="Reativar cadastro original existente"
+        mensagem="Somente se o mesmo ID estiver presente e inativo no catálogo do servidor. Preserve o saldo atual; confirme o estoque físico antes de vender. Nenhum novo SKU, produto ou lançamento de entrada será criado. Se a nuvem detectar alterações, bloqueará a reativação."
+        detalhes={diagnosticoOriginal?.produto?[
+          `ID: ${diagnosticoOriginal.ownerId}`,
+          `Produto: ${diagnosticoOriginal.produto.nome}`,
+          `SKU: ${diagnosticoOriginal.produto.sku}`,
+          `Saldo registrado: ${diagnosticoOriginal.produto.estoque??'não informado'}`,
+        ]:[]}
+        confirmarTexto="Confirmar reativação do original" cancelarTexto="Cancelar"
+        onConfirmar={reativarProdutoOriginal} onCancelar={()=>setConfirmarReativacaoOriginal(false)} />
       <ZenModal aberto={confirmarLiberacaoOrfao} variante="warning" titulo="Conferir identidade órfã do PDV"
         mensagem="Esta ação confere novamente os registros atuais e históricos, vendas, compras e movimentos de estoque. Só libera o índice se NÃO houver cadastro nem movimentações vinculadas. Não apaga o ID original e não cria novo produto. Se faltar evidência, a liberação será bloqueada."
         detalhes={candidatoOrfaoPDV?[`SKU original: ${candidatoOrfaoPDV.sku}`,`ID original: ${candidatoOrfaoPDV.ownerId}`]:[]}
