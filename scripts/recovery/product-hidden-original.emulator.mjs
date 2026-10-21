@@ -4,6 +4,7 @@ import {getAuth,connectAuthEmulator,createUserWithEmailAndPassword,signInWithEma
 import {getFirestore,connectFirestoreEmulator,doc,setDoc,getDocFromServer,updateDoc} from 'firebase/firestore';
 import {diagnosticarCadastroOcultoServidor} from '../../src/core/productRecoveryDiagnosis.js';
 import {prepararReativacaoOriginal} from '../../src/core/productRecoveryCore.js';
+import {verificarRecomposicaoOriginal} from '../../src/core/productOriginalRebuildCheck.js';
 import {persistV1BusinessOperationSafe} from '../../src/core/productionSync.js';
 import {clearOperationalSession} from '../../src/core/operationalRepository.js';
 if(process.env.FIRESTORE_EMULATOR_HOST!=='127.0.0.1:8080'||process.env.GCLOUD_PROJECT!=='demo-zenos-local')
@@ -65,6 +66,33 @@ try{
  });
  assert.equal(stale.cloudOk,false,'Conflito remoto não foi bloqueado');
  assert.equal((await getDocFromServer(docRef)).data().produtos[0].precoBRL,340);
+ // Caso real: índice registrado pelo Novo Produto, mas cadastro não existe.
+ // Outro terminal recompõe usando exatamente o mesmo ID (sem apagar a reserva).
+ const missingId='PROD-LEGACY-1X9720V',missingSku='SKU-63346';
+ const missingName='Pneu 130/70-17 - KONTROL';
+ const missIdx=doc(dbA,'lojas',uid,'produto_indices','sku_orfao_63346');
+ const missSig=doc(dbA,'lojas',uid,'produto_indices','sig_orfao_63346');
+ await setDoc(missIdx,{produtoId:missingId,sku:missingSku,nome:missingName,ativo:true});
+ await setDoc(missSig,{produtoId:missingId,sku:'',nome:missingName,ativo:true});
+ const candidate=await verificarRecomposicaoOriginal({db:dbB,userId:uid,ownerId:missingId});
+ assert.equal(candidate.ok,true,JSON.stringify(candidate));
+ assert.equal(candidate.ownerId,missingId);
+ assert.equal(candidate.sku,missingSku);
+ const snapshot=(await getDocFromServer(docRef)).data();
+ const restored={id:missingId,sku:missingSku,nome:missingName,marca:'',unidadeMedida:'UN',
+  ativo:true,estoque:0,estoqueVitrine:0,estoqueGalpao:0,custoBRL:140,precoBRL:240};
+ const repaired=await persistV1BusinessOperationSafe({
+  db:dbB,userId:uid,changes:[{field:'produtos',baseValue:snapshot.produtos,
+    value:[restored,...snapshot.produtos]}],operationKey:'recompor-original:'+missingId
+ });
+ assert.equal(repaired.cloudOk,true,repaired.error?.message);
+ const visible=(await getDocFromServer(docRef)).data();
+ assert.equal(visible.produtos.filter(x=>x.id===missingId).length,1);
+ assert.equal(visible.produtos.find(x=>x.id===missingId).estoque,0);
+ assert.equal(visible.produtos.find(x=>x.id===id).precoBRL,340);
+ assert.equal((await getDocFromServer(missIdx)).data().produtoId,missingId);
+ const again=await verificarRecomposicaoOriginal({db:dbA,userId:uid,ownerId:missingId});
+ assert.equal(again.ok,false,'Não permitir cadastrar novamente após reaparecer no catálogo');
  clearOperationalSession(dbA,uid);clearOperationalSession(dbB,uid);
  console.log('PASS: two-terminals, same-ID reactivation, all inventory untouched, replay idempotent, stale remote blocked');
 }finally{await deleteApp(a);await deleteApp(b);}
