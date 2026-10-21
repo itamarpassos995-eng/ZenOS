@@ -1,0 +1,22 @@
+name: P0 Expense Roles Hook Order
+on:
+  pull_request:
+    paths:
+      - 'src/components/Despesas.jsx'
+      - 'scripts/recovery/expense-payment-hooks.ui.test.jsx'
+      - '.github/workflows/p0-expense-hook-order.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx vitest run --config vitest.recovery.config.js scripts/recovery/expense-payment-hooks.ui.test.jsx scripts/recovery/expense-payment-original.ui.test.jsx
+      - run: npm run build
