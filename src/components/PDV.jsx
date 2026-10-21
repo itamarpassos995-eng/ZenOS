@@ -368,7 +368,16 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
         return mostrarZen('warning','Documento sem itens','O servidor não devolveu itens para este documento. Nada foi alterado no carrinho.');
       setItensVenda(itensRecuperados);
       setPagamentosLancados([]); // Não transportar valores de outro atendimento
-      setDescontoTexto('0'); // Nova cobrança exige conferir descontos
+      // Conservar o valor total cotado: desconto pode estar incluído no total
+      // sem campo separado nos documentos legados. Não cobrar preço maior ao resgatar.
+      const subtotalOriginal=itensRecuperados.reduce((t,it)=>t+
+        (Math.max(0,Number(it?.qtd)||0)*Math.max(0,Number(it?.precoPraticadoBRL??it?.precoBRL)||0)),0);
+      const totalOriginal=Number(documento.totalBRL);
+      const descontoOriginal=Number.isFinite(totalOriginal)&&totalOriginal>=0
+        ? Math.max(0,subtotalOriginal-totalOriginal):0;
+      const descontoNaMoeda=converterDeBRL(descontoOriginal,moeda);
+      setDescontoTexto(Number.isFinite(Number(descontoNaMoeda))
+        ? Number(descontoNaMoeda).toFixed(moeda==='PYG'?0:2):'0');
       setClienteQuerFiscal(documento.clienteQuerFiscal===true);
       const cli=documento.clienteId?clientes.find(c=>String(c.id)===String(documento.clienteId)):null;
       setClienteSelecionadoPDV(cli||null);
