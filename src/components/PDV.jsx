@@ -1050,7 +1050,8 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
               {historicoVendas.filter(v => v.estado === 'pendente' || v.estado === 'orcamento').length === 0 ? (
                 <div style={{ textAlign: 'center', color: '#475569', padding: '40px', backgroundColor: '#020617', borderRadius: '12px', border: '1px solid #1e293b' }}>{tx('Nenhum pré-pedido ou orçamento disponível.','Ningún pre-pedido o presupuesto disponible.','No available pre-orders or quotes.')}</div>
               ) : (
-                historicoVendas.filter(v => v.estado === 'pendente' || v.estado === 'orcamento').map(v => (
+                <>
+                {historicoVendas.filter(v => v.estado === 'pendente').map(v => (
                   <div key={v.id} onClick={() => {if(!consultandoResgate)carregarPrePedido(v);}} role="button" tabIndex={0} onKeyDown={e=>{if((e.key==='Enter'||e.key===' ')&&!consultandoResgate){e.preventDefault();carregarPrePedido(v);}}} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', backgroundColor: '#1e1b4b', border: '1px solid #4c1d95', borderRadius: '12px', cursor: 'pointer', transition: 'transform 0.2s', boxShadow: '0 4px 10px rgba(76,29,149,0.2)' }}>
                     <div>
                       <strong style={{ display: 'block', color: '#e2e8f0', fontSize: '15px' }}>{v.clienteNome} {v.estado==='orcamento'?'· ORÇAMENTO':'· PRÉ-PEDIDO'}</strong>
@@ -1058,7 +1059,17 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
                     </div>
                     <div style={{ fontWeight: 900, color: '#34d399', fontSize: '16px' }}>{fmt(v.totalBRL)}</div>
                   </div>
-                ))
+                ))}
+                {historicoVendas.filter(v => v.estado === 'orcamento').map(v => (
+                  <div key={v.id} onClick={() => {if(!consultandoResgate)carregarPrePedido(v);}} role="button" tabIndex={0} onKeyDown={e=>{if((e.key==='Enter'||e.key===' ')&&!consultandoResgate){e.preventDefault();carregarPrePedido(v);}}} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:16,backgroundColor:'#1e293b',border:'1px solid #60a5fa',borderRadius:12,cursor:'pointer'}}>
+                    <div>
+                      <strong style={{display:'block',color:'#e2e8f0',fontSize:15}}>{v.clienteNome} · ORÇAMENTO</strong>
+                      <span style={{fontSize:11,color:'#94a3b8'}}>{tx('Vendedor:','Vendedor:','Seller:')} {v.vendedorNome} • {v.dataHora}</span>
+                    </div>
+                    <div style={{fontWeight:900,color:'#7dd3fc',fontSize:16}}>{fmt(v.totalBRL)}</div>
+                  </div>
+                ))}
+                </>
               )}
             </div>
           </div>
