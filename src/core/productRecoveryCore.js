@@ -16,6 +16,8 @@ export function classificarCadastroOculto({ownerId,catalogoAtual,catalogoLegado=
  if(atuais.length>1||antigos.length>1)return {...resumo,status:'conflito',reason:'id_duplicado'};
  if(atuais.length===1){
   const p=atuais[0];
+  if(modoV2&&(!registroV2||registroV2.deleted===true||String(registroV2.data?.id||'')!==id))
+   return {...resumo,status:'divergencia_v2',reason:'registro_v2_incoerente_com_catalogo'};
   const otherSKU=catalogoAtual.some(x=>x&&String(x.id)!==id&&String(x.sku||'').trim().toUpperCase()===String(p.sku||'').trim().toUpperCase()&&String(p.sku||'').trim());
   if(otherSKU)return {...resumo,status:'conflito',reason:'sku_em_mais_de_um_cadastro'};
   return {...resumo,status:p.ativo===false?'original_inativo':'original_ativo',
