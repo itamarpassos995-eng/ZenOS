@@ -19,10 +19,10 @@ const base={
 };
 afterEach(()=>{cleanup();vi.clearAllMocks()});
 async function abrir(){
- fireEvent.click(screen.getByRole('button',{name:'Conferir cadastros ocultos'}));
- await waitFor(()=>expect(screen.getByText(/Auditoria de produtos concluída/)).toBeTruthy());
+ fireEvent.click(screen.getByRole('button',{name:'Recuperar produtos'}));
+ await waitFor(()=>expect(screen.getByText(/Conferência de produtos concluída/)).toBeTruthy());
  fireEvent.click(screen.getByRole('button',{name:'OK'}));
- fireEvent.click(screen.getByRole('button',{name:'Examinar cadastro original'}));
+ fireEvent.click(screen.getByRole('button',{name:'Conferir cadastro'}));
 }
 test('botão só aparece após auditoria e recupera cadastro inativo conservando dados',async()=>{
  auditoria&&auditarIndicesProdutosServidor.mockResolvedValue(auditoria);
@@ -32,7 +32,7 @@ test('botão só aparece após auditoria e recupera cadastro inativo conservando
  render(<Produtos {...base} commitOperacaoNegocio={commit}/>);
  expect(screen.queryByRole('button',{name:'Reativar este produto original'})).toBeNull();
  await abrir();
- await waitFor(()=>expect(screen.getByText(/Produto original inativo/)).toBeTruthy());
+ await waitFor(()=>expect(screen.getByText(/Produto desativado/)).toBeTruthy());
  expect(commit).not.toHaveBeenCalled();
  fireEvent.click(screen.getByRole('button',{name:'OK'}));
  fireEvent.click(screen.getByRole('button',{name:'Reativar este produto original'}));
@@ -51,13 +51,13 @@ test('índice sem cadastro nunca apresenta reativação nem gravação',async()=
  const commit=vi.fn();
  render(<Produtos {...base} produtos={[]} commitOperacaoNegocio={commit}/>);
  await abrir();
- await waitFor(()=>expect(screen.getByText(/Somente índice sem cadastro/)).toBeTruthy());
+ await waitFor(()=>expect(screen.getByText(/Cadastro precisa ser completado/)).toBeTruthy());
  fireEvent.click(screen.getByRole('button',{name:'OK'}));
  expect(screen.queryByRole('button',{name:'Reativar este produto original'})).toBeNull();
  expect(commit).not.toHaveBeenCalled();
 });
 test('operador comum não pode auditar nem reativar',()=>{
  render(<Produtos {...base} patenteUsuario="operador"/>);
- expect(screen.queryByRole('button',{name:'Conferir cadastros ocultos'})).toBeNull();
- expect(screen.queryByRole('button',{name:'Examinar cadastro original'})).toBeNull();
+ expect(screen.queryByRole('button',{name:'Recuperar produtos'})).toBeNull();
+ expect(screen.queryByRole('button',{name:'Conferir cadastro'})).toBeNull();
 });
