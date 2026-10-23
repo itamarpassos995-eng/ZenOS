@@ -61,8 +61,14 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
   const [liberandoOrfaoPDV, setLiberandoOrfaoPDV] = useState(false);
   const mostrarZen = (variante, titulo, mensagem, detalhes = []) => setModalZen({ variante, titulo, mensagem, detalhes, apenasConfirmar: true });
 
+  // Cadastro e recuperação de produtos: liberado para a gerência e para qualquer
+  // operador com permissão de produtos/estoque. Exclusão/inativação continua só com a gerência.
+  const podeGerenciarProdutos = patenteUsuario==='gerencia'
+    || operadorAtivo?.permissoes?.admin===true
+    || operadorAtivo?.permissoes?.produtos===true;
+
   const buscarCadastroPeloSkuAntigo = async () => {
-    if(patenteUsuario!=='gerencia'||buscandoSkuHistorico)return;
+    if(!podeGerenciarProdutos||buscandoSkuHistorico)return;
     const sku=skuHistoricoBusca.trim();
     if(!sku)return mostrarZen('warning','Informe o SKU antigo','Use o código original que o vendedor cadastrou. A consulta não altera estoque.');
     setCandidatoOrfaoPDV(null);
@@ -89,7 +95,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
   };
 
   const executarLiberacaoOrfaoPDV = async () => {
-    if(patenteUsuario!=='gerencia'||!candidatoOrfaoPDV||liberandoOrfaoPDV)return;
+    if(!podeGerenciarProdutos||!candidatoOrfaoPDV||liberandoOrfaoPDV)return;
     setConfirmarLiberacaoOrfao(false);
     setLiberandoOrfaoPDV(true);
     try{
@@ -106,7 +112,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
   };
 
   const examinarCadastroPeloId = async (idSelecionado=idOriginalSelecionado) => {
-    if(patenteUsuario!=='gerencia'||conferindoOriginal)return;
+    if(!podeGerenciarProdutos||conferindoOriginal)return;
     const id=String(idSelecionado||'').trim();
     if(!id)return mostrarZen('warning','Selecione um produto','Escolha o produto que deseja recuperar.');
     setConferindoOriginal(true);setDiagnosticoOriginal(null);
@@ -137,7 +143,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
   };
 
   const iniciarRecomposicaoOriginal = async () => {
-    if(patenteUsuario!=='gerencia'||abrindoRecomposicao||!diagnosticoOriginal?.ownerId)return;
+    if(!podeGerenciarProdutos||abrindoRecomposicao||!diagnosticoOriginal?.ownerId)return;
     setAbrindoRecomposicao(true);
     try{
       const candidato=await verificarRecomposicaoOriginal({db,userId,ownerId:diagnosticoOriginal.ownerId});
@@ -164,7 +170,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
   };
 
   const reativarProdutoOriginal = async () => {
-    if(patenteUsuario!=='gerencia'||reativandoOriginal||diagnosticoOriginal?.status!=='original_inativo')return;
+    if(!podeGerenciarProdutos||reativandoOriginal||diagnosticoOriginal?.status!=='original_inativo')return;
     setConfirmarReativacaoOriginal(false);setReativandoOriginal(true);
     const id=String(diagnosticoOriginal.ownerId);
     try{
@@ -205,7 +211,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
   };
 
   const auditarCadastrosOriginais = async () => {
-    if(patenteUsuario!=='gerencia'||auditandoIndices)return;
+    if(!podeGerenciarProdutos||auditandoIndices)return;
     setAuditandoIndices(true);setIdentidadesAuditadas([]);setDiagnosticoOriginal(null);
     try{
       const r=await auditarIndicesProdutosServidor({db,userId});
@@ -621,13 +627,13 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div><h2 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>{t ? t('catalogoTitulo') : 'Catálogo'}</h2><span style={{ fontSize: '13px', color: '#64748b' }}>{t ? t('catalogoSub') : 'Gerenciamento'}</span></div>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <label style={{display:'flex',alignItems:'center',gap:6,color:'#94a3b8',fontSize:11,fontWeight:800}}><input type="checkbox" checked={mostrarInativos} onChange={e=>setMostrarInativos(e.target.checked)}/> {tx('Mostrar inativos','Mostrar inactivos','Show inactive')}</label>{patenteUsuario==='gerencia' && <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
+          <label style={{display:'flex',alignItems:'center',gap:6,color:'#94a3b8',fontSize:11,fontWeight:800}}><input type="checkbox" checked={mostrarInativos} onChange={e=>setMostrarInativos(e.target.checked)}/> {tx('Mostrar inativos','Mostrar inactivos','Show inactive')}</label>{podeGerenciarProdutos && <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
             <input aria-label="SKU original" inputMode="text" placeholder="SKU (ex. SKU-63346)" value={skuHistoricoBusca} onChange={e=>setSkuHistoricoBusca(e.target.value)} style={{width:155,maxWidth:'100%',background:'#020617',color:'#f8fafc',border:'1px solid #334155',borderRadius:8,padding:'10px 8px'}}/>
             <button type="button" disabled={buscandoSkuHistorico} onClick={buscarCadastroPeloSkuAntigo} style={{background:'#164e63',color:'#e0f2fe',border:'1px solid #38bdf8',borderRadius:8,padding:'10px',fontWeight:800}}>{buscandoSkuHistorico?'Conferindo...':'Buscar SKU original'}</button>
           </div>}
-          {patenteUsuario==='gerencia' && candidatoOrfaoPDV && <button type="button" disabled={liberandoOrfaoPDV} onClick={()=>setConfirmarLiberacaoOrfao(true)} style={{border:'1px solid #f59e0b',borderRadius:10,padding:'10px',background:'#422006',color:'#fde68a',fontWeight:800}}>{liberandoOrfaoPDV?'Conferindo...':'Conferir cadastro incompleto'}</button>}
-          {patenteUsuario==='gerencia' && <button type="button" disabled={auditandoIndices} onClick={auditarCadastrosOriginais} title="Verifica cadastros indisponíveis sem alterar produtos ou estoque" style={{background:'#0f172a',border:'1px solid #38bdf8',color:'#e0f2fe',borderRadius:12,padding:'10px 12px',fontWeight:800,cursor:'pointer'}}>{auditandoIndices?'Conferindo...':'Recuperar produtos'}</button>}
-          {patenteUsuario==='gerencia' && identidadesAuditadas.length>0 && (
+          {podeGerenciarProdutos && candidatoOrfaoPDV && <button type="button" disabled={liberandoOrfaoPDV} onClick={()=>setConfirmarLiberacaoOrfao(true)} style={{border:'1px solid #f59e0b',borderRadius:10,padding:'10px',background:'#422006',color:'#fde68a',fontWeight:800}}>{liberandoOrfaoPDV?'Conferindo...':'Conferir cadastro incompleto'}</button>}
+          {podeGerenciarProdutos && <button type="button" disabled={auditandoIndices} onClick={auditarCadastrosOriginais} title="Verifica cadastros indisponíveis sem alterar produtos ou estoque" style={{background:'#0f172a',border:'1px solid #38bdf8',color:'#e0f2fe',borderRadius:12,padding:'10px 12px',fontWeight:800,cursor:'pointer'}}>{auditandoIndices?'Conferindo...':'Recuperar produtos'}</button>}
+          {podeGerenciarProdutos && identidadesAuditadas.length>0 && (
             <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
               <select aria-label="Produto para conferir" value={idOriginalSelecionado}
                 onChange={e=>{setIdOriginalSelecionado(e.target.value);setDiagnosticoOriginal(null);}}
@@ -640,12 +646,12 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
               </button>
             </div>
           )}
-          {patenteUsuario==='gerencia' && diagnosticoOriginal?.status==='original_inativo' &&
+          {podeGerenciarProdutos && diagnosticoOriginal?.status==='original_inativo' &&
             <button type="button" disabled={reativandoOriginal} onClick={()=>setConfirmarReativacaoOriginal(true)}
               style={{border:'1px solid #34d399',borderRadius:8,padding:10,background:'#064e3b',color:'#d1fae5',fontWeight:800}}>
               {reativandoOriginal?'Conferindo...':'Reativar este produto original'}
             </button>}
-          {patenteUsuario==='gerencia' && diagnosticoOriginal?.status==='indice_sem_cadastro' &&
+          {podeGerenciarProdutos && diagnosticoOriginal?.status==='indice_sem_cadastro' &&
             <button type="button" disabled={abrindoRecomposicao} onClick={iniciarRecomposicaoOriginal}
               style={{border:'1px solid #34d399',borderRadius:8,padding:10,background:'#064e3b',color:'#d1fae5',fontWeight:800}}>
               {abrindoRecomposicao?'Conferindo...':'Completar cadastro'}
