@@ -1,5 +1,6 @@
 import {doc,collection,getDocFromServer,getDocsFromServer,onSnapshot,query,orderBy,documentId,limit,startAfter,where} from 'firebase/firestore';
 import {resolveV2ReadMode} from './v2ReadMode.js';
+import {V2_TAIL_WINDOW_SIZE,shouldRearmV2Tail} from './v2TailWindow.js';
 import {V2_COLLECTIONS,encodeV2Id,entityIdV2,v2ControlPath,v2RootPath,v2Error,stableV2Json,hashV2} from './operationalV2Schema.js';
 
 const sessions=new WeakMap();
@@ -80,10 +81,10 @@ export class V2Session {
   let rearming=false;
   const attach=()=>{if(!this.listeners.size||this.failed)return;
    const captured=this.sequence;
-   this.tailStop=onSnapshot(query(collection(this.db,...this.root,'operations'),where('sequence','>',captured),orderBy('sequence'),limit(100)),snap=>{
+   this.tailStop=onSnapshot(query(collection(this.db,...this.root,'operations'),where('sequence','>',captured),orderBy('sequence'),limit(V2_TAIL_WINDOW_SIZE)),snap=>{
     if(snap.metadata.fromCache||snap.metadata.hasPendingWrites)return;
     try{snap.docs.forEach(d=>this.apply(d.data()));
-     if(this.sequence>captured&&!rearming){rearming=true;queueMicrotask(()=>{this.tailStop?.();this.tailStop=null;rearming=false;attach();});}
+     if(shouldRearmV2Tail(snap.size,captured,this.sequence)&&!rearming){rearming=true;queueMicrotask(()=>{this.tailStop?.();this.tailStop=null;rearming=false;attach();});}
     }catch(e){this.fail(e);}
    },e=>this.fail(e));
   };attach();

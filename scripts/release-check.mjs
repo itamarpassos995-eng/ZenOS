@@ -25,6 +25,7 @@ const checks = emulator ? [
   'scripts/att1021-prepedido-check.mjs',
   'scripts/pdv-rascunho-check.mjs',
   'scripts/v2-tombstone-check.mjs',
+  'scripts/v2-tail-window-check.mjs',
   'scripts/pdv-write-intent-check.mjs',
 ];
 
