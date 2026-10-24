@@ -1,11 +1,12 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { normalizarCliente } from '../data';
 import ZenModal from './ZenModal';
+import ZenShareButton from './ZenShareButton';
 import { formaEhDinheiro, lancamentosDoCliente } from '../core/financialLedger';
 import { interpretarValorMonetario } from '../core/cashMoneyInput';
 import { auditarVinculosFiado, encontrarConflitosIdsRecebimento } from '../core/clientCreditLinkAudit';
 
-export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, historicoVendas = [], setClientes, moeda, fmt, t, tx = (pt) => pt, converterDeBRL, converterParaBRL }) {
+export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, historicoVendas = [], setClientes, moeda, fmt, t, tx = (pt) => pt, converterDeBRL, converterParaBRL }) {
   const [filtroPaisCliente, setFiltroPaisCliente] = useState('todos');
   const [buscaClienteTexto, setBuscaClienteTexto] = useState('');
   
@@ -18,6 +19,7 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
   const [valorAmortizacaoInput, setValorAmortizacaoInput] = useState('');
   const [formaAmortizacaoSel, setFormaAmortizacaoSel] = useState('dinheiro_brl');
   const [clienteExtrato, setClienteExtrato] = useState(null);
+  const [comprovanteFiado, setComprovanteFiado] = useState(null);
   const recebimentoEmAndamentoRef = useRef(false);
   const [modalZen, setModalZen] = useState(null);
 
@@ -118,6 +120,16 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
       },
     });
   };
+
+  const comprovanteDeRecebimento = lancamento => ({
+    id: lancamento.id,
+    tipoDocumento: 'recibo',
+    dataHora: lancamento.createdAt ? new Date(lancamento.createdAt).toLocaleString('pt-BR') : '',
+    clienteNome: lancamento.clienteNome || '',
+    totalBRL: Number(lancamento.valor),
+    itens: [{nome:'Recebimento de conta / fiado',qtd:1,precoPraticadoBRL:Number(lancamento.valor),totalBRL:Number(lancamento.valor)}],
+    pagamentos: [{rotulo:lancamento.formaPagamento || 'Recebimento',valorConvertidoBRL:Number(lancamento.valor)}],
+  });
 
   // FLUXO DE RECEBER CONTA / FIADO
   const abrirRecebimentoFiado = (cli) => {
@@ -243,6 +255,7 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
     setModalZen({ variante:'success', titulo:tx('Recebimento registrado','Cobro registrado','Payment recorded'), mensagem:`${fmt(valBRL, 'BRL')} recebidos de ${clienteReceberFiado.nome}.`, detalhes:[`Saldo anterior: ${fmt(saldoAntes, 'BRL')}`, `Saldo atual: ${fmt(saldoDepois, 'BRL')}`, dinheiroFisico ? 'Entrada registrada na gaveta do turno.' : 'Recebimento financeiro sem movimentar a gaveta física.'], apenasConfirmar:true });
     setModalReceberFiadoAberto(false);
     setClienteReceberFiado(null);
+    setComprovanteFiado(comprovanteDeRecebimento(financeiro));
   };
 
   const abrirWhatsApp = (cli) => {
@@ -465,6 +478,10 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
 
       <ZenModal aberto={!!modalZen} variante={modalZen?.variante} titulo={modalZen?.titulo} mensagem={modalZen?.mensagem} detalhes={modalZen?.detalhes} confirmarTexto={modalZen?.confirmarTexto||'OK'} cancelarTexto={modalZen?.cancelarTexto||'Cancelar'} apenasConfirmar={modalZen?.apenasConfirmar} onConfirmar={()=>{ const fn=modalZen?.aoConfirmar; setModalZen(null); if(fn) fn(); }} onCancelar={()=>setModalZen(null)} />
 
+      {comprovanteFiado && <div className="no-print" role="region" aria-label="Compartilhar recibo de fiado" style={{position:'fixed',right:16,bottom:18,zIndex:2200,width:'min(300px,calc(100vw - 32px))',padding:12,background:'#0b1120',border:'1px solid #25d366',borderRadius:14,boxShadow:'0 15px 40px #0009',color:'#f8fafc'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,marginBottom:9}}><strong style={{fontSize:12}}>Recibo confirmado · {comprovanteFiado.id}</strong><button type="button" onClick={()=>setComprovanteFiado(null)} aria-label="Fechar compartilhamento" style={{background:'transparent',border:0,color:'#94a3b8',cursor:'pointer'}}>✕</button></div>
+        <ZenShareButton documento={comprovanteFiado} perfilLoja={perfilLoja} tipo="recibo"/>
+      </div>}
       {clienteExtrato && (() => {
         // Modal guarda somente a identidade escolhida. O cadastro e o extrato
         // precisam refletir os dados atuais recebidos da nuvem, sem saldo antigo em estado local.
