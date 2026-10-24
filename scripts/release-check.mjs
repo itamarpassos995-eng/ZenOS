@@ -12,6 +12,7 @@ if (emulator && (process.env.GCLOUD_PROJECT !== 'demo-zenos-local' ||
 const checks = emulator ? [
   'scripts/p0-fiado-v2-emulator.mjs',
   'scripts/att07-emulator-check.mjs',
+  'scripts/p0-receivables-5k-emulator.mjs',
   'scripts/att09-emulator-check.mjs',
 ] : [
   'scripts/att02-check.mjs',
@@ -20,12 +21,17 @@ const checks = emulator ? [
   'scripts/purchase-costs-check.mjs',
   'scripts/cash-multicurrency-p0-check.mjs',
   'scripts/p0-credit-reconciliation-check.mjs',
+  'scripts/p0-receivables-period-check.mjs',
+  'scripts/p0-preview-login-link-check.mjs',
   'scripts/p0-client-receipt-check.mjs',
   'scripts/p0-fiado-link-audit-check.mjs',
   'scripts/att1021-prepedido-check.mjs',
   'scripts/pdv-rascunho-check.mjs',
   'scripts/v2-tombstone-check.mjs',
   'scripts/v2-tail-window-check.mjs',
+  'scripts/firestore-read-budget-p0-check.mjs',
+  'scripts/p0-financial-scoped-budget-check.mjs',
+  'scripts/p0-isolated-preview-check.mjs',
   'scripts/p0-cash-blind-and-sales-scope-check.mjs',
   'scripts/pdv-write-intent-check.mjs',
 ];
@@ -46,6 +52,7 @@ if (!emulator) run([
   'scripts/recovery/pdv-draft.ui.test.jsx',
   'scripts/recovery/clientes-receipt.ui.test.jsx',
   'scripts/recovery/clientes-quitado-status.ui.test.jsx',
+  'scripts/recovery/contas-receber.ui.test.jsx',
   'scripts/recovery/exchange-rate.ui.test.jsx',
 ]);
 console.log(`Release ${emulator ? 'emulator' : 'business/UI'} checks passed.`);
