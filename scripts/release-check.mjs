@@ -22,6 +22,7 @@ const checks = emulator ? [
   'scripts/cash-multicurrency-p0-check.mjs',
   'scripts/p0-credit-reconciliation-check.mjs',
   'scripts/p0-receivables-period-check.mjs',
+  'scripts/p0-preview-login-link-check.mjs',
   'scripts/p0-client-receipt-check.mjs',
   'scripts/p0-fiado-link-audit-check.mjs',
   'scripts/att1021-prepedido-check.mjs',
