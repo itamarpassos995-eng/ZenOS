@@ -221,7 +221,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
   const auditarCadastrosOriginais = async () => {
     // Auditoria GLOBAL somente mediante confirmação explícita pela gerência.
     // Recuperação do dia a dia permanece por SKU (consulta dirigida).
-    if(patenteUsuario!=='gerencia'||auditandoIndices)return;
+    if(!podeGerenciarProdutos||auditandoIndices)return;
     setConfirmarAuditoriaCompleta(false);
     setAuditandoIndices(true);setIdentidadesAuditadas([]);setDiagnosticoOriginal(null);
     try{
@@ -643,7 +643,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
             <button type="button" disabled={buscandoSkuHistorico} onClick={buscarCadastroPeloSkuAntigo} title="Localiza somente o SKU original informado, sem varrer todos os índices" style={{background:'#164e63',color:'#e0f2fe',border:'1px solid #38bdf8',borderRadius:8,padding:'10px',fontWeight:800}}>{buscandoSkuHistorico?'Conferindo...':'Recuperar produto por SKU'}</button>
           </div>}
           {podeGerenciarProdutos && candidatoOrfaoPDV && <button type="button" disabled={liberandoOrfaoPDV} onClick={()=>setConfirmarLiberacaoOrfao(true)} style={{border:'1px solid #f59e0b',borderRadius:10,padding:'10px',background:'#422006',color:'#fde68a',fontWeight:800}}>{liberandoOrfaoPDV?'Conferindo...':'Conferir cadastro incompleto'}</button>}
-          {patenteUsuario==='gerencia' && <button type="button" disabled={auditandoIndices} onClick={()=>setConfirmarAuditoriaCompleta(true)} title="Auditoria completa excepcional — consulta até 2.501 índices; requer confirmação" style={{background:'#0f172a',border:'1px solid #475569',color:'#94a3b8',borderRadius:12,padding:'8px 10px',fontWeight:700,cursor:'pointer',fontSize:11}}>{auditandoIndices?'Auditando...':'Auditoria completa (avançada)'}</button>}
+          {podeGerenciarProdutos && <button type="button" disabled={auditandoIndices} onClick={()=>setConfirmarAuditoriaCompleta(true)} title="Auditoria completa excepcional — consulta até 2.501 índices; requer confirmação" style={{background:'#0f172a',border:'1px solid #475569',color:'#94a3b8',borderRadius:12,padding:'8px 10px',fontWeight:700,cursor:'pointer',fontSize:11}}>{auditandoIndices?'Auditando...':'Auditoria completa (avançada)'}</button>}
           {podeGerenciarProdutos && identidadesAuditadas.length>0 && (
             <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
               <select aria-label="Produto para conferir" value={idOriginalSelecionado}
