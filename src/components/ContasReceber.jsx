@@ -11,7 +11,9 @@ const celula={borderBottom:'1px solid #263447',padding:'11px 9px',textAlign:'lef
 export default function ContasReceber({db,userId,clientes=[],historicoVendas=[],initialClient=null,onVoltar}) {
  const [periodo,setPeriodo]=useState('7'),[inicioPersonalizado,setInicioPersonalizado]=useState(diasAtras(7));
  const [fimPersonalizado,setFimPersonalizado]=useState(hoje());
- const [aba,setAba]=useState('abertos'),[pesquisa,setPesquisa]=useState('');
+ // Nenhum resultado é selecionado/consultado automaticamente.
+ // A opção de TODAS as contas em aberto exige clique explícito.
+ const [consultaAtiva,setConsultaAtiva]=useState(null),[pesquisa,setPesquisa]=useState('');
  const [cliente,setCliente]=useState(initialClient),[linhas,setLinhas]=useState([]),[cursor,setCursor]=useState(null);
  const [mais,setMais]=useState(false),[estado,setEstado]=useState('nao_consultado');
  const [erro,setErro]=useState(''),[escopoCompleto,setEscopoCompleto]=useState(false);
@@ -20,11 +22,29 @@ export default function ContasReceber({db,userId,clientes=[],historicoVendas=[],
  const inicio=periodo==='personalizado'?inicioPersonalizado:diasAtras(Number(periodo));
  const fim=periodo==='personalizado'?fimPersonalizado:hoje();
  const valido=periodoValido(inicio,fim);
- const resumo=useMemo(()=>valido?resumirRecebiveis({clientes,historicoVendas,inicio,fim}):null,
-  [clientes,historicoVendas,inicio,fim,valido]);
- const lista=useMemo(()=>resumo?(aba==='abertos'?resumo.abertos:resumo.vendas).filter(x=>
-  !pesquisa.trim()||x.nome.toLocaleLowerCase('pt-BR').includes(pesquisa.trim().toLocaleLowerCase('pt-BR'))):[],
-  [resumo,aba,pesquisa]);
+ const resumo=useMemo(()=>{
+  if(!consultaAtiva||consultaAtiva.tipo!=='periodo')return null;
+  return resumirRecebiveis({
+    clientes,historicoVendas,inicio:consultaAtiva.inicio,fim:consultaAtiva.fim,
+  });
+ },[clientes,historicoVendas,consultaAtiva]);
+ const contasAbertas=useMemo(()=>{
+  if(consultaAtiva?.tipo!=='abertos')return [];
+  return (clientes||[]).filter(c=>Number(c?.saldoDevedorBRL||0)>0)
+   .map(c=>({id:String(c.id),nome:String(c.nome||'Cliente'),
+    saldo:Number(c.saldoDevedorBRL||0)}))
+   .sort((a,b)=>b.saldo-a.saldo||a.nome.localeCompare(b.nome));
+ },[clientes,consultaAtiva]);
+ const lista=useMemo(()=>{
+  const origem=consultaAtiva?.tipo==='abertos'?contasAbertas:(resumo?.vendas||[]);
+  return origem.filter(x=>!pesquisa.trim()||x.nome.toLocaleLowerCase('pt-BR')
+   .includes(pesquisa.trim().toLocaleLowerCase('pt-BR')));
+ },[contasAbertas,resumo,consultaAtiva,pesquisa]);
+ const consultarPeriodo=()=>{if(valido)setConsultaAtiva({tipo:'periodo',inicio,fim});};
+ const consultarTodasAbertas=()=>setConsultaAtiva({tipo:'abertos'});
+ const selecionarPeriodo=(valor)=>{setPeriodo(valor);setConsultaAtiva(null);};
+ const alterarInicio=(valor)=>{setInicioPersonalizado(valor);setConsultaAtiva(null);};
+ const alterarFim=(valor)=>{setFimPersonalizado(valor);setConsultaAtiva(null);};
  useEffect(()=>{serial.current++;setLinhas([]);setCursor(null);setMais(false);
   setEstado('nao_consultado');setErro('');setEscopoCompleto(false);setConsultaLegado(false);
  },[userId,cliente?.id,inicio,fim]);
@@ -59,44 +79,71 @@ export default function ContasReceber({db,userId,clientes=[],historicoVendas=[],
   <p style={{fontSize:13,color:'#94a3b8'}}>Consulte dívidas e vendas fiadas sem carregar automaticamente o extrato histórico. Dados em aberto vêm do cadastro operacional sincronizado.</p>
   <div style={{display:'flex',gap:8,flexWrap:'wrap',margin:'18px 0'}}>
    {[['7','7 dias'],['30','30 dias'],['personalizado','Escolher período']].map(([id,label])=>
-    <button key={id} type="button" onClick={()=>setPeriodo(id)} style={{...botao,background:periodo===id?'#086c67':'#15273b'}}>{label}</button>)}
+    <button key={id} type="button" onClick={()=>selecionarPeriodo(id)} style={{...botao,background:periodo===id?'#086c67':'#15273b'}}>{label}</button>)}
    {periodo==='personalizado'&&<>
-    <label style={{fontSize:12}}>Início <input aria-label="Início do período" type="date" style={botao} value={inicioPersonalizado} onChange={e=>setInicioPersonalizado(e.target.value)}/></label>
-    <label style={{fontSize:12}}>Fim <input aria-label="Fim do período" type="date" style={botao} value={fimPersonalizado} onChange={e=>setFimPersonalizado(e.target.value)}/></label>
+    <label style={{fontSize:12}}>Início <input aria-label="Início do período" type="date" style={botao} value={inicioPersonalizado} onChange={e=>alterarInicio(e.target.value)}/></label>
+    <label style={{fontSize:12}}>Fim <input aria-label="Fim do período" type="date" style={botao} value={fimPersonalizado} onChange={e=>alterarFim(e.target.value)}/></label>
    </>}
   </div>
   {!valido&&<p role="alert" style={{color:'#fbbf24'}}>O período precisa ter entre 1 e 120 dias.</p>}
-  {resumo&&<>
-   <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:10}}>
-    {[['Total em aberto',moeda(resumo.totalAberto)],['Clientes devedores',resumo.quantidadeDevedores],
-      ['Vendido fiado no período',moeda(resumo.totalVendido)]].map(([titulo,valor])=>
-      <div key={titulo} style={{border:'1px solid #334155',background:'#101f30',padding:16,borderRadius:12}}>
-       <div style={{fontSize:11,color:'#94a3b8'}}>{titulo}</div><div style={{fontSize:21,fontWeight:800,marginTop:6}}>{valor}</div>
+  <p style={{color:'#94a3b8',fontSize:12,margin:'2px 0 13px'}}>
+    Os filtros por data referem-se à <strong>data da venda fiada</strong>.
+    Vencimentos de parcelas só aparecerão quando estiverem registrados de forma confiável.
+  </p>
+  <div style={{display:'flex',gap:9,flexWrap:'wrap',alignItems:'center',marginBottom:15}}>
+    <button type="button" style={{...botao,background:'#086c67'}} disabled={!valido}
+      onClick={consultarPeriodo}>🔎 Buscar período</button>
+    <button type="button" style={{...botao,background:'#15273b'}}
+      onClick={consultarTodasAbertas}>Exibir todas as contas em aberto (sem filtro de data)</button>
+    <input style={{...botao,flex:'1 1 190px',minWidth:0}} aria-label="Pesquisar cliente"
+      value={pesquisa} onChange={e=>setPesquisa(e.target.value)} placeholder="Pesquisar cliente"/>
+  </div>
+  {!consultaAtiva&&<div role="status" style={{border:'1px solid #334155',background:'#101f30',
+    borderRadius:12,padding:20,color:'#b5cbe0'}}>
+    Nenhuma consulta selecionada. Escolha 7 dias, 30 dias ou um período de até 120 dias e clique
+    em <strong>Buscar período</strong>. Para listar dívidas de qualquer época, clique expressamente
+    em <strong>Exibir todas as contas em aberto</strong>.
+  </div>}
+  {consultaAtiva && <>
+    <p style={{color:'#94a3b8',fontSize:12}}>
+      {consultaAtiva.tipo==='abertos'
+        ? 'Consulta explícita: dívidas atuais de todas as datas, calculadas pelos saldos operacionais já sincronizados.'
+        : `Vendas fiadas realizadas entre ${consultaAtiva.inicio} e ${consultaAtiva.fim}. O valor corresponde às vendas originais, não às parcelas a vencer.`}
+    </p>
+    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:10,marginBottom:15}}>
+      {(consultaAtiva.tipo==='abertos'
+        ? [['Total em aberto',moeda(contasAbertas.reduce((a,c)=>a+c.saldo,0))],
+           ['Clientes com dívida',contasAbertas.length]]
+        : [['Vendido fiado no período',moeda(resumo?.totalVendido||0)],
+           ['Vendas no período',resumo?.vendas.length||0]]
+      ).map(([titulo,valor])=><div key={titulo} style={{border:'1px solid #334155',
+        background:'#101f30',padding:16,borderRadius:12}}>
+        <div style={{fontSize:11,color:'#94a3b8'}}>{titulo}</div>
+        <div style={{fontSize:21,fontWeight:800,marginTop:6}}>{valor}</div>
       </div>)}
-   </div>
-   <div style={{display:'flex',gap:8,flexWrap:'wrap',margin:'19px 0 10px'}}>
-    <button type="button" style={{...botao,background:aba==='abertos'?'#086c67':'#15273b'}} onClick={()=>setAba('abertos')}>Todas em aberto</button>
-    <button type="button" style={{...botao,background:aba==='vendidos'?'#086c67':'#15273b'}} onClick={()=>setAba('vendidos')}>Vendido fiado no período</button>
-    <input style={{...botao,flex:'1 1 180px',minWidth:0}} aria-label="Pesquisar cliente" value={pesquisa}
-     onChange={e=>setPesquisa(e.target.value)} placeholder="Pesquisar cliente"/>
-   </div>
-   <p style={{color:'#94a3b8',fontSize:12}}>{aba==='abertos'
-     ? 'Saldo em aberto inclui dívidas antigas. O filtro de período não reduz o total devido.'
-     : 'Vendas fiadas concluídas dentro do período; valor original, não saldo individual da venda.'}</p>
-   <div style={{overflowX:'auto',border:'1px solid #334155',borderRadius:12}}>
-    <table style={{width:'100%',borderCollapse:'collapse',minWidth:640,fontSize:12}}>
-     <thead><tr>{['Cliente',aba==='abertos'?'Saldo em aberto':'Vendido fiado','Origem','Ação'].map(t=><th key={t} style={celula}>{t}</th>)}</tr></thead>
-     <tbody>{lista.map(v=><tr key={aba+v.id}>
-       <td style={celula}>{v.nome}</td><td style={celula}>{moeda(aba==='abertos'?v.saldo:v.valor)}</td>
-       <td style={celula}>{aba==='abertos'?'Cadastro do cliente':(v.data+' — '+v.id)}</td>
-       <td style={celula}><button style={botao} type="button" disabled={aba==='vendidos'&&!v.clienteId}
-        onClick={()=>setCliente({id:aba==='abertos'?v.id:v.clienteId,nome:v.nome})}>Consultar extrato</button></td>
-      </tr>)}
-      {!lista.length&&<tr><td colSpan={4} style={celula}>Nenhum registro para este filtro.</td></tr>}
-     </tbody></table>
-   </div>
-   <p style={{color:'#fbbf24',fontSize:12,marginTop:14}}>Parcelas e vencimentos individuais ainda não são registrados com baixa vinculada no fiado legado. Não mostramos vencimentos ou quitações inventados.</p>
+    </div>
+    <div style={{overflowX:'auto',border:'1px solid #334155',borderRadius:12}}>
+      <table style={{width:'100%',borderCollapse:'collapse',minWidth:640,fontSize:12}}>
+       <thead><tr>{['Cliente',consultaAtiva.tipo==='abertos'?'Saldo em aberto':'Vendido fiado',
+        'Origem','Ação'].map(t=><th key={t} style={celula}>{t}</th>)}</tr></thead>
+       <tbody>{lista.map(v=><tr key={consultaAtiva.tipo+v.id}>
+        <td style={celula}>{v.nome}</td>
+        <td style={celula}>{moeda(consultaAtiva.tipo==='abertos'?v.saldo:v.valor)}</td>
+        <td style={celula}>{consultaAtiva.tipo==='abertos'?'Saldo atual':(v.data+' — '+v.id)}</td>
+        <td style={celula}><button style={botao} type="button"
+         disabled={consultaAtiva.tipo==='periodo'&&!v.clienteId}
+         onClick={()=>setCliente({id:consultaAtiva.tipo==='abertos'?v.id:v.clienteId,nome:v.nome})}>
+         Consultar extrato</button></td>
+       </tr>)}
+       {!lista.length&&<tr><td colSpan={4} style={celula}>Nenhum registro encontrado no filtro consultado.</td></tr>}
+       </tbody>
+      </table>
+    </div>
   </>}
+  <p style={{color:'#fbbf24',fontSize:12,marginTop:14}}>
+    Parcelas e vencimentos individuais sem registro confiável não serão inventados.
+    O botão de contas em aberto não faz uma leitura global do Livro Financeiro.
+  </p>
   {cliente&&<div role="dialog" aria-label="Extrato do cliente" style={{position:'fixed',inset:0,zIndex:2500,background:'rgba(0,0,0,.82)',overflowY:'auto',padding:16}}>
    <div style={{maxWidth:950,margin:'4vh auto',borderRadius:13,padding:20,background:'#101b2b',border:'1px solid #334155'}}>
     <div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'center'}}>

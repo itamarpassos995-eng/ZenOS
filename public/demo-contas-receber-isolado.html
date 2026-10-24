@@ -48,9 +48,7 @@ footer{color:#839cb4;font-size:12px;margin-top:27px}
 <header><div class="logo">Zen<em>OS</em> <span style="font-size:12px;color:#8eabc4">Sistema de Gestão</span></div>
 <div class="safe">DEMONSTRAÇÃO ISOLADA · DADOS FICTÍCIOS · SEM FIREBASE</div></header>
 <div class="layout"><aside><div class="store"><strong>🏪 Loja Demonstração</strong>Homologação visual, sem conexão a contas reais</div>
-<nav><button type="button" data-go="clients" class="current">👥 Clientes e Fiado</button>
-<button type="button" data-go="receivables" class="sub">📅 Contas a Receber</button>
-<button type="button" data-go="clients">📋 Cadastros de Clientes</button></nav></aside>
+<nav><button type="button" data-go="clients" class="current">👥 Clientes e Fiado</button></nav></aside>
 <main>
 <section id="clients">
  <div class="top"><h1>Gestão de Clientes</h1><button class="btn orange" type="button" disabled title="Não disponível nesta demonstração">+ Novo Cliente</button></div>
@@ -70,7 +68,7 @@ footer{color:#839cb4;font-size:12px;margin-top:27px}
 </section>
 <section id="receivables" class="hidden">
  <div class="top"><h1>📅 Contas a Receber</h1><button class="btn" type="button" data-go="clients">← Clientes e Fiado</button></div>
- <p class="sub">Consultar por período não altera o saldo devedor. Extratos somente quando solicitados.</p>
+ <p class="sub">Consulte vendas fiadas por período. “Todas em aberto” é uma ação excepcional, nunca selecionada automaticamente.</p>
  <div class="toolbar" id="periodTabs">
   <button class="btn active" type="button" data-period="7">7 dias</button>
   <button class="btn" type="button" data-period="30">30 dias</button>
@@ -78,17 +76,17 @@ footer{color:#839cb4;font-size:12px;margin-top:27px}
   <label id="customDates" class="hidden">De <input id="start" type="date" value="2026-10-01"> Até <input id="end" type="date" value="2026-10-24"></label>
  </div>
  <div id="error" class="notice warning hidden" role="alert"></div>
- <div class="grid">
-  <div class="kpi"><small>Total em aberto · não depende do período</small><strong>R$ 4.082,00</strong></div>
-  <div class="kpi"><small>Clientes devedores</small><strong>2</strong></div>
-  <div class="kpi"><small>Vendido fiado no período</small><strong id="salesTotal">R$ 0,00</strong></div>
- </div>
+ <p class="muted">Período por <strong>data da venda fiada</strong>. Vencimentos futuros só serão exibidos quando houver parcelas com datas registradas de forma confiável.</p>
  <div class="toolbar">
- <button type="button" class="btn active" data-tab="open">Todas em aberto</button>
- <button type="button" class="btn" data-tab="sales">Vendido fiado no período</button>
- <input id="search" class="search" placeholder="Pesquisar cliente fictício" aria-label="Pesquisar cliente">
+   <button type="button" id="searchPeriod" class="btn teal">🔎 Buscar período</button>
+   <button type="button" id="searchOpen" class="btn">Exibir todas as contas em aberto (qualquer data)</button>
+   <input id="search" class="search" placeholder="Filtrar cliente fictício" aria-label="Pesquisar cliente">
  </div>
- <div class="panel"><div id="tableResults"></div></div>
+ <div id="resultCards" class="grid hidden">
+  <div class="kpi"><small id="totalCaption">Total consultado</small><strong id="totalValue">—</strong></div>
+  <div class="kpi"><small id="countCaption">Registros encontrados</small><strong id="countValue">—</strong></div>
+ </div>
+ <div class="panel"><div id="tableResults" role="status">Nenhuma consulta selecionada. Escolha o período e clique em <strong>Buscar período</strong>, ou solicite expressamente todas as contas em aberto.</div></div>
  <div class="notice warning">Parcelas individuais e vencimentos não são inferidos de vendas antigas. A demonstração não faz recebimentos, gravações ou cálculos em dados reais.</div>
 </section>
 <footer>Prévia exclusivamente visual do PR #102. Não comprova redução faturada do Firestore nem autoriza publicação. Nenhum login, senha ou conexão Firebase.</footer>
@@ -115,7 +113,7 @@ const sales=[
  {id:'DEMO-005',client:'a',date:'2026-08-06',amount:1700}
 ];
 const brl=n=>'R$ '+n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-let page='clients',period='7',tab='open',openId=null;
+let page='clients',period='7',tab=null,openId=null,lastPeriod=null;
 const el=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function range(){
@@ -136,26 +134,46 @@ function navigate(next){
  el('clients').classList.toggle('hidden',next!=='clients');
  el('receivables').classList.toggle('hidden',next!=='receivables');
  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('current',b.dataset.go===next));
- if(next==='receivables')render();
+ if(next==='receivables')resetConsulta();
  window.scrollTo(0,0);
 }
+function resetConsulta(){
+ tab=null;lastPeriod=null;render();
+}
+function consultarPeriodo(){
+ if(!valid())return;
+ tab='sales';lastPeriod=range();
+ render();
+}
+function consultarAbertos(){
+ tab='open';lastPeriod=null;
+ render();
+}
 function render(){
- const good=valid(),[start,end]=range();
- const filtered=good?sales.filter(x=>x.date>=start&&x.date<=end):[];
- el('salesTotal').textContent=brl(filtered.reduce((n,x)=>n+x.amount,0));
+ const good=valid();
  document.querySelectorAll('[data-period]').forEach(b=>b.classList.toggle('active',b.dataset.period===period));
- document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
  el('customDates').classList.toggle('hidden',period!=='custom');
- const term=el('search').value.trim().toLowerCase();
+ el('searchPeriod').classList.toggle('active',tab==='sales');
+ el('searchOpen').classList.toggle('active',tab==='open');
+ el('searchPeriod').disabled=!good;
+ const notice='Nenhuma consulta selecionada. Escolha 7 dias, 30 dias ou até 120 dias e clique em <strong>Buscar período</strong>. Todas em aberto só aparece quando for solicitada.';
+ el('resultCards').classList.toggle('hidden',!tab);
+ if(!tab){el('tableResults').innerHTML=notice;return;}
+ const filtered=tab==='sales'&&lastPeriod?sales.filter(x=>x.date>=lastPeriod[0]&&x.date<=lastPeriod[1]):[];
  const rows=tab==='open'
   ?samples.filter(x=>x.saldo>0).map(x=>({name:x.nome,value:x.saldo,ref:'Saldo atual',client:x.id}))
   :filtered.map(x=>({name:samples.find(c=>c.id===x.client).nome,value:x.amount,ref:x.date+' · '+x.id,client:x.client}));
+ el('totalCaption').textContent=tab==='open'?'Total de dívidas ainda em aberto':'Vendido fiado no período consultado';
+ el('countCaption').textContent=tab==='open'?'Clientes com dívida':'Vendas fiadas no período';
+ el('totalValue').textContent=brl(rows.reduce((n,x)=>n+x.value,0));
+ el('countValue').textContent=String(rows.length);
+ const term=el('search').value.trim().toLowerCase();
  const visible=rows.filter(x=>x.name.toLowerCase().includes(term));
  el('tableResults').innerHTML='<table><thead><tr><th>Cliente</th><th>'+(tab==='open'?'Total em aberto':'Vendido fiado')+
   '</th><th>Origem</th><th>Ação</th></tr></thead><tbody>'+
   visible.map(x=>'<tr><td>'+esc(x.name)+'</td><td>'+brl(x.value)+'</td><td>'+esc(x.ref)+'</td>'+
   '<td><button type="button" class="btn" data-extrato="'+esc(x.client)+'">Consultar extrato</button></td></tr>').join('')+
-  (!visible.length?'<tr><td colspan="4">Nenhum registro nesse filtro. O saldo total continua separado.</td></tr>':'')+
+  (!visible.length?'<tr><td colspan="4">Nenhum registro nesse filtro. Isso não significa que o cliente não deva valores de outra época.</td></tr>':'')+
   '</tbody></table>';
 }
 function extrato(id){
@@ -170,12 +188,14 @@ function extrato(id){
 }
 document.addEventListener('click',event=>{
  const go=event.target.closest('[data-go]');if(go){navigate(go.dataset.go);return;}
- const date=event.target.closest('[data-period]');if(date){period=date.dataset.period;render();return;}
- const selectedTab=event.target.closest('[data-tab]');if(selectedTab){tab=selectedTab.dataset.tab;render();return;}
+ const date=event.target.closest('[data-period]');if(date){period=date.dataset.period;resetConsulta();return;}
+ if(event.target.id==='searchPeriod'){consultarPeriodo();return;}
+ if(event.target.id==='searchOpen'){consultarAbertos();return;}
  const client=event.target.closest('[data-extrato]');if(client){extrato(client.dataset.extrato);return;}
  if(event.target.id==='closeModal'||event.target.id==='modal')el('modal').classList.add('hidden');
 });
-['start','end','search'].forEach(id=>el(id).addEventListener('input',render));
+['start','end'].forEach(id=>el(id).addEventListener('input',resetConsulta));
+ el('search').addEventListener('input',render);
 document.addEventListener('keydown',event=>{if(event.key==='Escape')el('modal').classList.add('hidden');});
 render();
 </script>
