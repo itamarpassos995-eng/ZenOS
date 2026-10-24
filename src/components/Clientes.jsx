@@ -6,7 +6,7 @@ import { interpretarValorMonetario } from '../core/cashMoneyInput';
 import { auditarVinculosFiado, encontrarConflitosIdsRecebimento } from '../core/clientCreditLinkAudit';
 import { conferirLivroClienteNoServidor, conferirLivroCompletoNoServidor } from '../core/financialLedgerScoped.js';
 
-export default function Clientes({ db, userId, onContasReceber, onConsultarExtrato, commitOperacaoNegocio, livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, historicoVendas = [], setClientes, moeda, fmt, t, tx = (pt) => pt, converterDeBRL, converterParaBRL }) {
+export default function Clientes({ db, userId, podeAuditar=false, onContasReceber, onConsultarExtrato, commitOperacaoNegocio, livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, historicoVendas = [], setClientes, moeda, fmt, t, tx = (pt) => pt, converterDeBRL, converterParaBRL }) {
   const [filtroPaisCliente, setFiltroPaisCliente] = useState('todos');
   const [buscaClienteTexto, setBuscaClienteTexto] = useState('');
   
@@ -302,15 +302,15 @@ export default function Clientes({ db, userId, onContasReceber, onConsultarExtra
         </div>
       </div>
 
-      <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'center'}}>
+      {podeAuditar && <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'center'}}>
         <button type="button" onClick={auditarFiadoSobDemanda} disabled={auditoriaEstado==='carregando'}
           style={{background:'#0b2035',border:'1px solid #334155',borderRadius:8,color:'#cbd5e1',padding:'9px 12px',cursor:'pointer'}}>
           {auditoriaEstado==='carregando'?'Conferindo histórico no servidor…':'Auditar vínculos históricos do fiado'}
         </button>
         {auditoriaEstado==='confirmado' && <span style={{fontSize:11,color:'#a7f3d0'}}>Auditoria concluída nesta consulta; atualize para conferir novas operações.</span>}
         {auditoriaEstado==='erro' && <span role="alert" style={{fontSize:11,color:'#fda4af'}}>Auditoria indisponível: {auditoriaErro}. Nenhuma ausência foi presumida.</span>}
-      </div>
-      {inconsistenciasVinculoFiado.length > 0 && (
+      </div>}
+      {podeAuditar && inconsistenciasVinculoFiado.length > 0 && (
         <details style={{border:'1px solid #f59e0b',background:'#1f160a',borderRadius:12,padding:14}}>
           <summary style={{color:'#fde68a',fontSize:13,fontWeight:900,cursor:'pointer'}}>
             ⚠ Conferência histórica do fiado: {inconsistenciasVinculoFiado.length} venda(s) com observações — somente leitura
