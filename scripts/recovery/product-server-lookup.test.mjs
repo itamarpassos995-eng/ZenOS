@@ -18,3 +18,5 @@ test('busca do produto existente revela inativos e restaura filtro',()=>{
  assert.match(products,/setMostrarInativos\(true\)/);
  assert.match(products,/setFiltroGrupo\('todos'\)/);
 });
+
+test('índice órfão informa identificador original sem escrever no banco',()=>{ assert.match(lookup,/ownerIds:\[\.\.\.owners\]\.sort\(\)/); assert.match(lookup,/indexKeys:keys/); });

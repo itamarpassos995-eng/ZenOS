@@ -447,10 +447,12 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
                'Existing catalog record refreshed from server. Check stock and prices; do not create a duplicate.'));
         }
         if(localizado.status==='orphan_index'||localizado.status==='conflict'){
+          const idsOriginais=(localizado.ownerIds||[]).join(', ');
+          console.warn('[ZenOS][Produtos] Reconciliação autoritativa necessária:', {reason:localizado.reason,ownerIds:localizado.ownerIds||[],indexKeys:localizado.indexKeys||[]});
           return mostrarZen('warning',tx('Cadastro exige reconciliação','Registro requiere conciliación','Catalog requires reconciliation'),
             tx('Existe uma identidade reservada sem correspondência única no catálogo confirmado. Nenhum dado foi apagado. Acione o suporte para conferir os registros antes de cadastrar novamente.',
                'Hay una identidad reservada sin coincidencia única. Ningún dato fue borrado. Contacte soporte antes de registrar de nuevo.',
-               'Reserved identity without a unique catalog match. No data was removed. Contact support before retrying.'));
+               'Reserved identity without a unique catalog match. No data was removed. Contact support before retrying.') + (idsOriginais ? '\nID original: ' + idsOriginais : ''));
         }
       }
       return mostrarZen('danger', erro?.code === 'ZENOS_PRODUTO_DUPLICADO' ? tx('Produto duplicado','Producto duplicado','Duplicate product') : tx('Cadastro não concluído','Registro no concluido','Registration not completed'), erro.message || 'Não foi possível reservar a identidade do produto.');
