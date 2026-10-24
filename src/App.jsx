@@ -163,6 +163,9 @@ export default function App() {
   const [livroFinanceiro, setLivroFinanceiro] = useState([]);
   const [livroFinanceiroConfirmado, setLivroFinanceiroConfirmado] = useState(false);
   const reconciliacaoFiadoEmAndamentoRef = useRef(false);
+  // No máximo uma tentativa por candidato e loja nesta sessão do navegador.
+  // Falhas transitórias podem ser reavaliadas após um refresh, sem escrita às cegas.
+  const reconciliacaoFiadoTentadasRef = useRef(new Set());
   const [perfilLoja, setPerfilLoja] = useState(() => normalizarPerfilLoja({}));
   const [modalPerfilRapido, setModalPerfilRapido] = useState(false);
   const [perfilRapidoErro, setPerfilRapidoErro] = useState('');
@@ -696,7 +699,8 @@ export default function App() {
   // Sem criação de vendas, migração, restauração, alteração de caixa ou inferência.
   useEffect(() => {
     if (!userId || !nuvemSincronizada || !livroFinanceiroConfirmado || reconciliacaoFiadoEmAndamentoRef.current) return;
-    const candidatos = planejarReconciliacoesFiado({clientes,historicoVendas,livroFinanceiro});
+    const candidatos = planejarReconciliacoesFiado({clientes,historicoVendas,livroFinanceiro})
+      .filter(c => c.operationKey && !reconciliacaoFiadoTentadasRef.current.has(`${userId}:${c.operationKey}`));
     if (!candidatos.length) return;
     let cancelado=false;
     const executar=async()=>{
@@ -704,6 +708,11 @@ export default function App() {
       try {
         for(const candidato of candidatos){
           if(cancelado)break;
+          const chaveTentativa = `${userId}:${candidato.operationKey}`;
+          if(reconciliacaoFiadoTentadasRef.current.has(chaveTentativa))continue;
+          // Marcar antes do primeiro await impede conferências duplicadas.
+          // Uma sessão seguinte pode reavaliar falhas transitórias.
+          reconciliacaoFiadoTentadasRef.current.add(chaveTentativa);
           // Segunda leitura obrigatória: jamais gravar com base em tela/cache.
           const [snapshot, lancamentosSnap] = await Promise.all([
             getOperationalSnapshot(db,userId),
