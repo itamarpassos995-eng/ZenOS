@@ -5,7 +5,7 @@ const path=new URL('../../src/components/Produtos.jsx',import.meta.url);
 const src=readFileSync(path,'utf8');
 assert.match(src,/onClick=\{buscarCadastroPeloSkuAntigo\} title="Localiza somente o SKU original informado/);
 assert.match(src,/Recuperar produto por SKU/);
-assert.equal((src.match(/'Recuperar produto por SKU'<\/button>/g)||[]).length,1,'Não repetir ação de busca');
+assert.equal((src.match(/'Recuperar produto por SKU'/g)||[]).length,1,'Não repetir ação de busca');
 assert.match(src,/resultado.status==='orphan_index' && resultado.ownerId/);
 assert.match(src,/await examinarCadastroPeloId\(String\(resultado.ownerId\)\)/);
 assert.match(src,/patenteUsuario==='gerencia' && <button[^\n]+onClick=\{\(\)=>setConfirmarAuditoriaCompleta\(true\)\}/);
