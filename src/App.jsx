@@ -18,6 +18,7 @@ import LandingPage from './components/LandingPage';
 import Produtos from './components/Produtos';
 import Fornecedores from './components/Fornecedores';
 import Clientes from './components/Clientes';
+import ContasReceber from './components/ContasReceber';
 import PDV from './components/PDV';
 import PDVCompras from './components/PDVCompras';
 import Vendas from './components/Vendas';
@@ -1396,7 +1397,10 @@ export default function App() {
     },
     {
       id: 'clientes', titulo: tx('Clientes e Fiado', 'Clientes y Fiado', 'Customers & Credit'), icone: '👥', abertaInicial: false,
-      itens: temPermissao('clientes') ? [{ id:'clientes', tela:'clientes', icone:'👥', rotulo:t('clientesFiado'), badge:totalFiadoAbertoBRL > 0 ? tx('Fiado','Deuda','Debt') : null, onClick:()=>navegarPara('clientes') }] : [],
+      itens: temPermissao('clientes') ? [
+        { id:'clientes', tela:'clientes', icone:'👥', rotulo:t('clientesFiado'), badge:totalFiadoAbertoBRL > 0 ? tx('Fiado','Deuda','Debt') : null, onClick:()=>navegarPara('clientes') },
+        { id:'contas-receber', tela:'contas_receber', icone:'📆', rotulo:tx('Contas a Receber','Cuentas por Cobrar','Accounts Receivable'), onClick:()=>navegarPara('contas_receber') },
+      ] : [],
     },
     {
       id: 'caixa', titulo: tx('Caixa', 'Caja', 'Cash Drawer'), icone: '💵', abertaInicial: true,
@@ -1793,6 +1797,7 @@ export default function App() {
         {ecraAtual === 'inteligencia' && <EstoqueInteligente produtos={produtos} fmt={fmt} tx={tx} />}
         {ecraAtual === 'comissoes' && <Comissoes commitOperacaoNegocio={commitVendaCritica} historicoVendas={historicoVisivelParaOperador} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} operadorAtivo={operadorAtivo} regrasDesconto={regrasDesconto} regrasComissao={regrasComissao} setRegrasComissao={setRegrasComissao} />}
         {ecraAtual === 'dashboardMobile' && <DashboardMobile historicoVendas={historicoVendas} despesas={despesas} clientes={clientes} produtos={produtos} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} regrasDesconto={regrasDesconto} />}
+        {ecraAtual === 'contas_receber' && temPermissao('clientes') && <ContasReceber key={String(userId)} db={db} userId={userId} clientes={clientes} historicoVendas={historicoVendas} />}
         {ecraAtual === 'clientes' && <Clientes commitOperacaoNegocio={commitVendaCritica} livroFinanceiro={livroFinanceiro} historicoVendas={historicoVendas} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} operadorAtivo={operadorAtivo} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} />}
         {ecraAtual === 'vendas' && <Vendas commitOperacaoNegocio={commitVendaCritica} taxasCambio={taxasCambio} sessoesCaixa={sessoesCaixa} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} saldoSessaoFisicoBRL={saldoSessaoFisicoBRL} perfilLoja={perfilLoja} vouchers={vouchers} setVouchers={setVouchers} userId={userId} operadorAtivo={operadorAtivo} historicoVendas={historicoVisivelParaOperador} historicoVendasCompleto={historicoVendas} setHistoricoVendas={setHistoricoVendas} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} fmt={fmt} t={t} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterDeBRL={converterDeBRL} />}
         {ecraAtual === 'commerce-solicitar' && temPermissao('admin') && <React.Suspense fallback={<div role="status" style={{padding:20,color:'#bdd5df'}}>{tx('Preparando Minha Loja Online…','Preparando Mi Tienda Online…','Preparing My Online Store…')}</div>}><CommerceSolicitacao key={String(userId)+':'+String(operadorAtivo?.id)} lojaId={userId} tx={tx}/></React.Suspense>}
