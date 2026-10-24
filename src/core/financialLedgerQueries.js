@@ -23,9 +23,13 @@ export async function buscarPaginaExtrato({db,userId,clienteId,inicio,fim,cursor
 // incluindo documentos legados sem createdAt, sem varrer outras lojas/clientes.
 export async function buscarHistoricoIntegralCliente({db,userId,clienteId}={}) {
  if(!db||!userId||clienteId==null)throw new Error('Loja ou cliente ausente.');
+ const texto=String(clienteId);
+ const variantes=[texto];
+ if(/^[1-9][0-9]*$/.test(texto) && Number.isSafeInteger(Number(texto))) variantes.push(Number(texto));
  const snap=await getDocsFromServer(query(collection(db,'lojas',String(userId),'financeiro_livro'),
-  where('clienteId','==',String(clienteId))));
+  where('clienteId',variantes.length===1?'==':'in',variantes.length===1?texto:variantes)));
  const itens=snap.docs.map(d=>({id:d.id,...d.data()}))
   .sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||''))||String(b.id).localeCompare(String(a.id)));
- return {itens,confirmadoPeloServidor:true,escopoCompleto:true};
+ return {itens,confirmadoPeloServidor:true,escopoCompleto:true,
+  observacaoLegado:'Inclui vínculos numéricos quando compatíveis; documentos sem clienteId exigem auditoria separada.'};
 }

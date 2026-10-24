@@ -12,6 +12,7 @@ if (emulator && (process.env.GCLOUD_PROJECT !== 'demo-zenos-local' ||
 const checks = emulator ? [
   'scripts/p0-fiado-v2-emulator.mjs',
   'scripts/att07-emulator-check.mjs',
+  'scripts/p0-receivables-5k-emulator.mjs',
   'scripts/att09-emulator-check.mjs',
 ] : [
   'scripts/att02-check.mjs',

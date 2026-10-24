@@ -99,17 +99,17 @@ export default function ContasReceber({db,userId,clientes=[],historicoVendas=[]}
     <div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'center'}}>
      <h3 style={{margin:0}}>Extrato de {cliente.nome}</h3><button style={botao} type="button" onClick={()=>setCliente(null)}>Fechar</button>
     </div>
-    <p style={{color:'#94a3b8',fontSize:12}}>Período selecionado: {inicio} a {fim}. Consulta explícita ao servidor. Registros legados sem data não estão incluídos no período.</p>
+    <p style={{color:'#94a3b8',fontSize:12}}>Período selecionado: {inicio} a {fim}. Consulta explícita ao servidor. Registros legados sem data não aparecem na pesquisa por período; use a consulta histórica vinculada para verificá-los.</p>
     <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:12}}>
      <button style={botao} type="button" disabled={!valido||estado==='carregando'} onClick={()=>buscar(true)}>Buscar período</button>
-     <button style={botao} type="button" disabled={estado==='carregando'} onClick={legadoCompleto}>Consultar todo o histórico deste cliente (inclui legado)</button>
+     <button style={botao} type="button" disabled={estado==='carregando'} onClick={legadoCompleto}>Consultar lançamentos vinculados do cliente (inclui legado)</button>
     </div>
     {estado==='nao_consultado'&&<p style={{color:'#fbbf24'}} role="status">A consulta ainda não foi iniciada.</p>}
     {estado==='carregando'&&<p role="status">Consultando servidor…</p>}
     {estado==='erro'&&<p role="alert" style={{color:'#fca5a5'}}>Erro: {erro}. Nenhum resultado foi confirmado como completo.</p>}
     {estado==='confirmado'&&<p role="status" style={{color:'#a7f3d0'}}>{consultaLegado
-      ? 'Histórico deste cliente confirmado pelo servidor.'
-      : escopoCompleto?'Páginas do período concluídas.':'Página confirmada; podem existir outras páginas.'}</p>}
+      ? 'Histórico de lançamentos vinculados a este cliente confirmado; documentos sem clienteId exigem auditoria separada.'
+      : escopoCompleto?'Páginas percorridas até o fim; atualize para conferir novos lançamentos.':'Página confirmada; outras páginas podem existir. Atualize se houve movimentação concorrente.'}</p>}
     <div style={{overflowX:'auto'}}><table style={{width:'100%',minWidth:670,borderCollapse:'collapse',fontSize:12}}>
      <thead><tr>{['Data','Tipo','Valor','Saldo após','Referência'].map(t=><th key={t} style={celula}>{t}</th>)}</tr></thead>
      <tbody>{linhas.map(l=><tr key={l.id}>
