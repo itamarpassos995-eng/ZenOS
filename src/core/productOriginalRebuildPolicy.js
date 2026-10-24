@@ -7,7 +7,7 @@ export const idOriginalRecomponivel = value => {
  const id=String(value??'').trim();
  return /^PROD-LEGACY-[A-Z0-9]+$/i.test(id)
   || /^PROD-[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i.test(id)
-  || /^PROD-\\d{13}-\\d{1,9}$/.test(id);
+  || /^PROD-\d{13}-\d{1,9}$/.test(id);
 };
 
 const norm=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
