@@ -49,6 +49,7 @@ if (!emulator) run([
   'scripts/recovery/pdv-draft.ui.test.jsx',
   'scripts/recovery/clientes-receipt.ui.test.jsx',
   'scripts/recovery/clientes-quitado-status.ui.test.jsx',
+  'scripts/recovery/contas-receber.ui.test.jsx',
   'scripts/recovery/exchange-rate.ui.test.jsx',
 ]);
 console.log(`Release ${emulator ? 'emulator' : 'business/UI'} checks passed.`);
