@@ -1,0 +1,24 @@
+name: P0 Ledger Demand and Cash Close
+on:
+  pull_request:
+    paths:
+      - 'src/App.jsx'
+      - 'src/core/financialLedger.js'
+      - 'scripts/recovery/financial-ledger-demand-check.mjs'
+      - '.github/workflows/p0-financial-ledger-demand.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node scripts/recovery/financial-ledger-demand-check.mjs
+      - run: node scripts/release-check.mjs
+      - run: npm run build

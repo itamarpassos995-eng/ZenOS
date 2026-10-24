@@ -1,4 +1,4 @@
-import { collection, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
+import { collection, doc, onSnapshot, serverTimestamp, setDoc, query, where, getDocsFromServer } from 'firebase/firestore';
 import { criarLancamentoFinanceiro } from './financialLedgerCore';
 import { notifyPersistenceStatus } from './persistenceSafety.js';
 
@@ -41,4 +41,15 @@ export function lancamentosDoCliente(livro = [], clienteId) {
   return (livro || [])
     .filter(l => String(l.clienteId || '') === String(clienteId))
     .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+}
+
+// Consulta autoritativa limitada ao turno no momento de fechar o caixa.
+// Sem cache nem listener global. Se falhar, quem chama deve BLOQUEAR o fechamento.
+export async function consultarLivroFinanceiroSessaoServidor({ db, userId, sessaoId }) {
+  if (!db || !userId || !String(sessaoId || '').trim()) throw new Error('Loja ou turno não identificado para conciliação.');
+  const snap = await getDocsFromServer(query(
+    collection(db, 'lojas', String(userId), COLECAO),
+    where('sessaoId', '==', String(sessaoId)),
+  ));
+  return snap.docs.map(d => ({ ...d.data(), id:d.id }));
 }
