@@ -38,17 +38,7 @@ jobs:
         run: |
           git fetch --no-tags origin main
           CHANGED="$(git diff --name-only origin/main...HEAD)"
-          if printf '%s\n' "$CHANGED" | grep -Eq '^(src/components/CommerceSolicitacao\\.|functions/src/(index\\.js|commerceSolicitacaoCliente\\.js|commerceInteresseCore\\.js)|functions/test/commerceInteresseCore\\.test\\.mjs|scripts/(recovery/commerce-request\\.ui\\.test\\.jsx|commerce-request-release-audit\\.mjs)|docs/commerce-request-only-release-20261019\\.md|\\.github/workflows/(commerce-request-only-ci|deploy-fiscal-functions)\\.yml)
-      - name: Pure request and auth tests
-        run: node --test functions/test/commerceInteresseCore.test.mjs
-      - name: Frontend request tests
-        run: npx vitest run --config vitest.recovery.config.js scripts/recovery/commerce-request.ui.test.jsx
-      - name: Static syntax and production build
-        run: |
-          node --check functions/src/commerceInteresseCore.js
-          node --check functions/src/commerceSolicitacaoCliente.js
-          npm run build
-; then
+          if printf '%s\n' "$CHANGED" | grep -Eq '^(src/components/CommerceSolicitacao\\.|functions/src/(index\\.js|commerceSolicitacaoCliente\\.js|commerceInteresseCore\\.js)|functions/test/commerceInteresseCore\\.test\\.mjs|scripts/(recovery/commerce-request\\.ui\\.test\\.jsx|commerce-request-release-audit\\.mjs)|docs/commerce-request-only-release-20261019\\.md|\\.github/workflows/(commerce-request-only-ci|deploy-fiscal-functions)\\.yml)'; then
             echo 'enabled=true' >> "$GITHUB_OUTPUT"
           elif git diff --unified=0 origin/main...HEAD -- src/App.jsx | grep -Eq '^[+-][^+-].*(CommerceSolicitacao|commerceSolicitacaoCliente|commerceInteresse|commerce-request|solicitacaoCommerce)'; then
             echo 'enabled=true' >> "$GITHUB_OUTPUT"
