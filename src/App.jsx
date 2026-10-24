@@ -162,6 +162,7 @@ export default function App() {
   const [vouchers, setVouchers] = useState([]);
   const [livroFinanceiro, setLivroFinanceiro] = useState([]);
   const [livroFinanceiroConfirmado, setLivroFinanceiroConfirmado] = useState(false);
+  const [livroFinanceiroAtivadoParaLoja, setLivroFinanceiroAtivadoParaLoja] = useState(null);
   const reconciliacaoFiadoEmAndamentoRef = useRef(false);
   const [perfilLoja, setPerfilLoja] = useState(() => normalizarPerfilLoja({}));
   const [modalPerfilRapido, setModalPerfilRapido] = useState(false);
@@ -682,10 +683,20 @@ export default function App() {
   // Livro completo só nas telas de auditoria/contas, nunca ao entrar no PDV.
   // Não limitar histórico: fiado e vinculação de IDs exigem todos os lançamentos.
   const telaPrecisaLivroCompleto = ecraAtual === 'clientes' || ecraAtual === 'auditoria_caixas';
+  // Após a primeira abertura mantém um ÚNICO listener por sessão da loja.
+  // Alternar Clientes ↔ PDV não provoca nova leitura integral do histórico.
   useEffect(() => {
-    if (!userId) { setLivroFinanceiro([]); setLivroFinanceiroConfirmado(false); return; }
+    if (userId && telaPrecisaLivroCompleto) setLivroFinanceiroAtivadoParaLoja(String(userId));
+  }, [userId, telaPrecisaLivroCompleto]);
+  useEffect(() => {
+    if (!userId) {
+      setLivroFinanceiro([]);
+      setLivroFinanceiroConfirmado(false);
+      setLivroFinanceiroAtivadoParaLoja(null);
+      return;
+    }
     setLivroFinanceiroConfirmado(false);
-    if (!telaPrecisaLivroCompleto) return;
+    if (livroFinanceiroAtivadoParaLoja !== String(userId)) return;
     let ativo = true;
     return (() => {
       const cancelar = assinarLivroFinanceiro({
@@ -707,7 +718,7 @@ export default function App() {
       });
       return () => { ativo = false; cancelar(); };
     })();
-  }, [userId, telaPrecisaLivroCompleto]);
+  }, [userId, livroFinanceiroAtivadoParaLoja]);
 
   // Reparação conservadora: apenas um lançamento fiado isolado com evidência
   // convergente no histórico, no Livro Financeiro e na V1/V2 atuais.
@@ -1812,13 +1823,13 @@ export default function App() {
         {ecraAtual === 'inteligencia' && <EstoqueInteligente produtos={produtos} fmt={fmt} tx={tx} />}
         {ecraAtual === 'comissoes' && <Comissoes commitOperacaoNegocio={commitVendaCritica} historicoVendas={historicoVisivelParaOperador} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} operadorAtivo={operadorAtivo} regrasDesconto={regrasDesconto} regrasComissao={regrasComissao} setRegrasComissao={setRegrasComissao} />}
         {ecraAtual === 'dashboardMobile' && <DashboardMobile historicoVendas={historicoVendas} despesas={despesas} clientes={clientes} produtos={produtos} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} regrasDesconto={regrasDesconto} />}
-        {ecraAtual === 'clientes' && (livroFinanceiroConfirmado ? <Clientes commitOperacaoNegocio={commitVendaCritica} livroFinanceiro={livroFinanceiro} historicoVendas={historicoVendas} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} operadorAtivo={operadorAtivo} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} /> : <div role="status" style={{padding:24,color:'#cbd5e1'}}>Conferindo histórico financeiro completo no servidor antes de liberar contas e fiado…</div>)}
+        {ecraAtual === 'clientes' && (livroFinanceiroConfirmado && livroFinanceiroAtivadoParaLoja === String(userId) ? <Clientes commitOperacaoNegocio={commitVendaCritica} livroFinanceiro={livroFinanceiro} historicoVendas={historicoVendas} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} operadorAtivo={operadorAtivo} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} /> : <div role="status" style={{padding:24,color:'#cbd5e1'}}>Conferindo histórico financeiro completo no servidor antes de liberar contas e fiado…</div>)}
         {ecraAtual === 'vendas' && <Vendas commitOperacaoNegocio={commitVendaCritica} taxasCambio={taxasCambio} sessoesCaixa={sessoesCaixa} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} saldoSessaoFisicoBRL={saldoSessaoFisicoBRL} perfilLoja={perfilLoja} vouchers={vouchers} setVouchers={setVouchers} userId={userId} operadorAtivo={operadorAtivo} historicoVendas={historicoVisivelParaOperador} historicoVendasCompleto={historicoVendas} setHistoricoVendas={setHistoricoVendas} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} fmt={fmt} t={t} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterDeBRL={converterDeBRL} />}
         {ecraAtual === 'commerce-solicitar' && temPermissao('admin') && <React.Suspense fallback={<div role="status" style={{padding:20,color:'#bdd5df'}}>{tx('Preparando Minha Loja Online…','Preparando Mi Tienda Online…','Preparing My Online Store…')}</div>}><CommerceSolicitacao key={String(userId)+':'+String(operadorAtivo?.id)} lojaId={userId} tx={tx}/></React.Suspense>}
         {ecraAtual === 'fiscal' && <FiscalErrorBoundary resetKey={`${userId || ''}:${perfilLoja?.pais || ''}:${resultadoFilaFiscal.erro || ''}`} onVoltar={() => navegarPara('hub')} tx={tx}><Fiscal lojaId={userId} perfilLoja={perfilLoja} filaFiscal={resultadoFilaFiscal.fila} erroFila={resultadoFilaFiscal.erro} clientes={clientes} ambiente="homologacao" onVerVenda={() => navegarPara('vendas')} tx={tx} idioma={idioma} /></FiscalErrorBoundary>}
         {ecraAtual === 'migracao' && <Migracao commitOperacaoNegocio={commitVendaCritica} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} t={t} tx={tx} />}
         {ecraAtual === 'configuracoes' && <Configuracoes commitOperacaoNegocio={commitVendaCritica} userId={userId} operadorAtivo={operadorAtivo} perfilLojaGlobal={perfilLoja} setPerfilLojaGlobal={setPerfilLoja} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} despesas={despesas} setDespesas={setDespesas} moeda={moeda} fmt={fmt} tx={tx} regrasDesconto={regrasDesconto} setRegrasDesconto={setRegrasDesconto} vendedores={vendedores} setVendedores={(novosVendedores) => { setVendedores(novosVendedores); persistirCampoSeguro({ field: 'vendedores', value:novosVendedores, setter:setVendedores, localStorageKey:`zenos_${userId}_vendedores` }); }} />}
-        {ecraAtual === 'auditoria_caixas' && (livroFinanceiroConfirmado ? <GestaoCaixas sessoesCaixa={sessoesCaixa} historicoVendas={historicoVendas} caixaMovimentos={caixaMovimentos} livroFinanceiro={livroFinanceiro} fmt={fmt} tx={tx} /> : <div role="status" style={{padding:24,color:'#cbd5e1'}}>Conferindo o Livro Financeiro no servidor para a auditoria de caixas…</div>)}
+        {ecraAtual === 'auditoria_caixas' && (livroFinanceiroConfirmado && livroFinanceiroAtivadoParaLoja === String(userId) ? <GestaoCaixas sessoesCaixa={sessoesCaixa} historicoVendas={historicoVendas} caixaMovimentos={caixaMovimentos} livroFinanceiro={livroFinanceiro} fmt={fmt} tx={tx} /> : <div role="status" style={{padding:24,color:'#cbd5e1'}}>Conferindo o Livro Financeiro no servidor para a auditoria de caixas…</div>)}
         {ecraAtual === 'despesas' && <Despesas userId={userId} commitOperacaoNegocio={commitVendaCritica} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} saldoSessaoFisicoBRL={saldoSessaoFisicoBRL} operadorAtivo={operadorAtivo} despesas={despesas} setDespesas={setDespesas} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterParaBRL={converterParaBRL} converterDeBRL={converterDeBRL} />}
       </main>
 
