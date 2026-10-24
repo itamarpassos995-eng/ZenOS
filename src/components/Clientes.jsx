@@ -121,6 +121,16 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
     });
   };
 
+  const comprovanteDeRecebimento = lancamento => ({
+    id: lancamento.id,
+    tipoDocumento: 'recibo',
+    dataHora: lancamento.createdAt ? new Date(lancamento.createdAt).toLocaleString('pt-BR') : '',
+    clienteNome: lancamento.clienteNome || '',
+    totalBRL: Number(lancamento.valor),
+    itens: [{nome:'Recebimento de conta / fiado',qtd:1,precoPraticadoBRL:Number(lancamento.valor),totalBRL:Number(lancamento.valor)}],
+    pagamentos: [{rotulo:lancamento.formaPagamento || 'Recebimento',valorConvertidoBRL:Number(lancamento.valor)}],
+  });
+
   // FLUXO DE RECEBER CONTA / FIADO
   const abrirRecebimentoFiado = (cli) => {
     setClienteReceberFiado(cli);
