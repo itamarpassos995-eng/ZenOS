@@ -19,7 +19,10 @@ const base={
 };
 afterEach(()=>{cleanup();vi.clearAllMocks()});
 async function abrir(){
- fireEvent.click(screen.getByRole('button',{name:'Recuperar produtos'}));
+ fireEvent.click(screen.getByRole('button',{name:'Auditoria completa (avançada)'}));
+ // Sem confirmação, a varredura NÃO pode iniciar.
+ expect(auditarIndicesProdutosServidor).not.toHaveBeenCalled();
+ fireEvent.click(screen.getByRole('button',{name:'Executar auditoria completa'}));
  await waitFor(()=>expect(screen.getByText(/Conferência de produtos concluída/)).toBeTruthy());
  fireEvent.click(screen.getByRole('button',{name:'OK'}));
  fireEvent.click(screen.getByRole('button',{name:'Conferir cadastro'}));
@@ -58,6 +61,7 @@ test('índice sem cadastro nunca apresenta reativação nem gravação',async()=
 });
 test('operador comum não pode auditar nem reativar',()=>{
  render(<Produtos {...base} patenteUsuario="operador"/>);
- expect(screen.queryByRole('button',{name:'Recuperar produtos'})).toBeNull();
+ expect(screen.queryByRole('button',{name:'Auditoria completa (avançada)'})).toBeNull();
+ expect(screen.queryByRole('button',{name:'Recuperar produto por SKU'})).toBeNull();
  expect(screen.queryByRole('button',{name:'Conferir cadastro'})).toBeNull();
 });

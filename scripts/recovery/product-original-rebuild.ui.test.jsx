@@ -21,7 +21,9 @@ test('cliente vê instrução simples e ficha com ID/SKU originais, sem editar e
  verificarRecomposicaoOriginal.mockResolvedValue({ok:true,ownerId:id,sku,nome});
  const props=base();
  render(<Produtos {...props}/>);
- fireEvent.click(screen.getByRole('button',{name:'Recuperar produtos'}));
+ fireEvent.click(screen.getByRole('button',{name:'Auditoria completa (avançada)'}));
+ expect(auditarIndicesProdutosServidor).not.toHaveBeenCalled();
+ fireEvent.click(screen.getByRole('button',{name:'Executar auditoria completa'}));
  await waitFor(()=>expect(screen.getByText(/Conferência de produtos concluída/)).toBeTruthy());
  expect(screen.queryByText(/Firestore|orphan_index|Índices lidos|PROD-LEGACY/)).toBeNull();
  fireEvent.click(screen.getByRole('button',{name:'OK'}));
@@ -39,7 +41,9 @@ test('consulta insegura não abre ficha nem altera produto',async()=>{
  verificarRecomposicaoOriginal.mockResolvedValue({ok:false,reason:'historico_movimentacoes'});
  const props=base();
  render(<Produtos {...props}/>);
- fireEvent.click(screen.getByRole('button',{name:'Recuperar produtos'}));
+ fireEvent.click(screen.getByRole('button',{name:'Auditoria completa (avançada)'}));
+ expect(auditarIndicesProdutosServidor).not.toHaveBeenCalled();
+ fireEvent.click(screen.getByRole('button',{name:'Executar auditoria completa'}));
  await waitFor(()=>expect(screen.getByText(/Conferência de produtos concluída/)).toBeTruthy());
  fireEvent.click(screen.getByRole('button',{name:'OK'}));
  fireEvent.click(screen.getByRole('button',{name:'Conferir cadastro'}));
