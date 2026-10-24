@@ -34,9 +34,9 @@ test('não libera índice de outra pessoa, recente, sem data, nem ID fora do PDV
  {indices:[{produtoId:old,sku:'66346',nome:'Pneu Novo',ativo:true}]},
  ])assert.equal(avaliar({...dado,...patch}).ok,false);
 });
-test('UI exige gerência, confirmação explícita e nunca aplica liberação ao pesquisar sozinho',()=>{
+test('UI exige permissão de produtos, confirmação explícita e nunca aplica liberação ao pesquisar sozinho',()=>{
  const ui=readFileSync(new URL('../../src/components/Produtos.jsx',import.meta.url),'utf8');
- assert.match(ui,/patenteUsuario==='gerencia' && candidatoOrfaoPDV/);
+ assert.match(ui,/podeGerenciarProdutos && candidatoOrfaoPDV/);
  assert.match(ui,/onClick=\{\(\)=>setConfirmarLiberacaoOrfao\(true\)\}/);
  assert.match(ui,/liberarIndiceOrfaoPDV\(\{/);
  assert.match(ui,/Conferir e liberar se seguro/);
