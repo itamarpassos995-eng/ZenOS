@@ -31,6 +31,7 @@ const checks = emulator ? [
   'scripts/v2-tail-window-check.mjs',
   'scripts/firestore-read-budget-p0-check.mjs',
   'scripts/p0-financial-scoped-budget-check.mjs',
+  'scripts/p0-isolated-preview-check.mjs',
   'scripts/p0-cash-blind-and-sales-scope-check.mjs',
   'scripts/pdv-write-intent-check.mjs',
 ];

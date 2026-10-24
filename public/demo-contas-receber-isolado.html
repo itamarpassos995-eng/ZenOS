@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ZenOS • Demonstração isolada de Clientes e Fiado</title>
+<style>
+:root{color-scheme:dark;font-family:Inter,system-ui,-apple-system,Segoe UI,Arial,sans-serif;background:#030c1b;color:#ecf5ff}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 70% 0,#0b1c38,#030a17 65%)}button,input,select{font:inherit}
+button{cursor:pointer}button:focus-visible,input:focus-visible{outline:2px solid #37e9dc;outline-offset:2px}
+header{height:68px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 22px;border-bottom:1px solid #233046;background:#031123}
+.logo{font-weight:900;font-size:22px}.logo em{font-style:normal;color:#30cbe6}
+.safe{background:#123a37;color:#a7f3d0;font-size:12px;padding:9px 12px;border-radius:12px;border:1px solid #227b70}
+.layout{display:grid;grid-template-columns:265px minmax(0,1fr);min-height:calc(100vh - 68px)}
+aside{border-right:1px solid #213045;padding:20px 12px;background:#031124}
+.store{padding:20px 13px;border:1px solid #244566;border-radius:16px;margin-bottom:24px;color:#a9dff3;font-size:13px}.store strong{display:block;color:white;font-size:16px;margin-bottom:6px}
+nav button{display:block;width:100%;text-align:left;border:0;background:transparent;color:#a5bfd7;font-weight:750;padding:15px 15px;border-radius:11px}
+nav button.current,nav button:hover{background:#102e47;color:#e8ffff}
+nav button.sub{margin-left:19px;width:calc(100% - 19px);font-size:13px;padding:12px}
+main{padding:27px 34px;max-width:1320px;width:100%;margin:0 auto}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+h1{font-size:25px;margin:0}h2{font-size:19px;margin:0}p.sub{color:#95acc7;font-size:13px;margin:7px 0 18px}
+.panel{border:1px solid #22324c;border-radius:16px;background:#0a1629;padding:20px;margin:15px 0}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.kpi{background:#101f34;border:1px solid #2b3e53;padding:18px;border-radius:13px;min-height:94px}
+.kpi small{display:block;color:#9ab1c7;font-size:12px;margin-bottom:8px}
+.kpi strong{font-size:24px;color:white}
+.toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin:17px 0}
+.btn{background:#182e47;border:1px solid #304862;color:white;border-radius:9px;padding:10px 13px;font-size:13px;font-weight:800}
+.btn.active,.btn.teal{background:#0c756f;border-color:#1cb4a5}
+.btn.orange{background:#ac5b00;border-color:#e7a31c}
+.btn:disabled{opacity:.4;cursor:default}
+input{background:#12243b;color:white;border:1px solid #38516d;border-radius:9px;padding:10px 12px;min-width:0}
+input[type=date]{max-width:175px}
+.search{flex:1;min-width:160px}
+table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;color:#9eb4c7;font-size:11px;text-transform:uppercase;letter-spacing:.05em;background:#0e1c31}th,td{padding:15px 11px;border-bottom:1px solid #29394c}td:last-child{text-align:right}
+.badge{font-size:11px;background:#51330a;color:#ffcd62;border:1px solid #9e6b21;border-radius:9px;padding:5px 8px}
+.muted{color:#9cb3ca;font-size:12px}
+.overlay{position:fixed;inset:0;background:#000c;display:flex;justify-content:center;align-items:center;padding:15px;z-index:5}
+.dialog{background:#101d32;border:1px solid #3c5976;border-radius:15px;width:min(850px,100%);padding:22px;max-height:90vh;overflow:auto}
+.hidden{display:none!important}
+.notice{margin:12px 0;padding:12px 14px;border:1px solid #2d7371;border-radius:12px;color:#b9f5ed;font-size:12px;background:#102a34}
+.warning{border-color:#85621f;background:#33270e;color:#ffde9f}
+footer{color:#839cb4;font-size:12px;margin-top:27px}
+@media(max-width:800px){.layout{display:block}aside{padding:10px}nav{display:flex;overflow:auto;gap:6px}.store{display:none}nav button{width:auto;white-space:nowrap}nav button.sub{display:none}main{padding:18px}.grid{grid-template-columns:1fr}td,th{padding:11px 7px;font-size:11px}.panel{overflow:auto;padding:12px}header{height:auto;padding:12px;flex-wrap:wrap}}
+</style>
+</head>
+<body>
+<header><div class="logo">Zen<em>OS</em> <span style="font-size:12px;color:#8eabc4">Sistema de Gestão</span></div>
+<div class="safe">DEMONSTRAÇÃO ISOLADA · DADOS FICTÍCIOS · SEM FIREBASE</div></header>
+<div class="layout"><aside><div class="store"><strong>🏪 Loja Demonstração</strong>Homologação visual, sem conexão a contas reais</div>
+<nav><button type="button" data-go="clients" class="current">👥 Clientes e Fiado</button>
+<button type="button" data-go="receivables" class="sub">📅 Contas a Receber</button>
+<button type="button" data-go="clients">📋 Cadastros de Clientes</button></nav></aside>
+<main>
+<section id="clients">
+ <div class="top"><h1>Gestão de Clientes</h1><button class="btn orange" type="button" disabled title="Não disponível nesta demonstração">+ Novo Cliente</button></div>
+ <p class="sub">Cadastro, limite de crédito, situação financeira e cobrança no mesmo módulo.</p>
+ <div class="grid">
+  <div class="kpi"><small>TOTAL FIADO EM ABERTO</small><strong>R$ 4.082,00</strong></div>
+  <div class="kpi"><small>CLIENTES CADASTRADOS</small><strong>3</strong></div>
+  <div class="kpi"><small>CONTAS ABERTAS</small><strong>2</strong></div>
+ </div>
+ <div class="toolbar"><button class="btn teal" data-go="receivables" type="button">📅 Contas a Receber — períodos e cobranças →</button><span class="muted">O histórico não é consultado ao abrir o cadastro.</span></div>
+ <div class="panel"><table><thead><tr><th>Cliente</th><th>Saldo atual</th><th>Situação</th><th>Ação</th></tr></thead>
+ <tbody>
+ <tr><td>Cliente Exemplo A</td><td>R$ 3.950,00</td><td><span class="badge">Em aberto</span></td><td><button type="button" class="btn" data-extrato="a">Extrato</button></td></tr>
+ <tr><td>Cliente Exemplo B</td><td>R$ 132,00</td><td><span class="badge">Em aberto</span></td><td><button type="button" class="btn" data-extrato="b">Extrato</button></td></tr>
+ <tr><td>Cliente Exemplo C</td><td>R$ 0,00</td><td>Em dia</td><td><button type="button" class="btn" data-extrato="c">Extrato</button></td></tr>
+ </tbody></table></div>
+</section>
+<section id="receivables" class="hidden">
+ <div class="top"><h1>📅 Contas a Receber</h1><button class="btn" type="button" data-go="clients">← Clientes e Fiado</button></div>
+ <p class="sub">Consultar por período não altera o saldo devedor. Extratos somente quando solicitados.</p>
+ <div class="toolbar" id="periodTabs">
+  <button class="btn active" type="button" data-period="7">7 dias</button>
+  <button class="btn" type="button" data-period="30">30 dias</button>
+  <button class="btn" type="button" data-period="custom">Escolher período</button>
+  <label id="customDates" class="hidden">De <input id="start" type="date" value="2026-10-01"> Até <input id="end" type="date" value="2026-10-24"></label>
+ </div>
+ <div id="error" class="notice warning hidden" role="alert"></div>
+ <div class="grid">
+  <div class="kpi"><small>Total em aberto · não depende do período</small><strong>R$ 4.082,00</strong></div>
+  <div class="kpi"><small>Clientes devedores</small><strong>2</strong></div>
+  <div class="kpi"><small>Vendido fiado no período</small><strong id="salesTotal">R$ 0,00</strong></div>
+ </div>
+ <div class="toolbar">
+ <button type="button" class="btn active" data-tab="open">Todas em aberto</button>
+ <button type="button" class="btn" data-tab="sales">Vendido fiado no período</button>
+ <input id="search" class="search" placeholder="Pesquisar cliente fictício" aria-label="Pesquisar cliente">
+ </div>
+ <div class="panel"><div id="tableResults"></div></div>
+ <div class="notice warning">Parcelas individuais e vencimentos não são inferidos de vendas antigas. A demonstração não faz recebimentos, gravações ou cálculos em dados reais.</div>
+</section>
+<footer>Prévia exclusivamente visual do PR #102. Não comprova redução faturada do Firestore nem autoriza publicação. Nenhum login, senha ou conexão Firebase.</footer>
+</main></div>
+<div class="overlay hidden" id="modal"><div class="dialog" role="dialog" aria-modal="true" aria-label="Extrato fictício">
+ <div class="top"><h2 id="modalTitle">Extrato</h2><button class="btn" id="closeModal" type="button">✕ Fechar</button></div>
+ <p class="muted">Exemplo de consulta sob demanda. 7, 30 ou até 120 dias por busca; 50 registros por página no ZenOS proposto. Esta simulação não consulta servidores.</p>
+ <div class="notice">Histórico fictício: nenhuma movimentação ou pagamento foi realizado.</div>
+ <div id="modalResults"></div>
+</div></div>
+<script>
+'use strict';
+// Todos os dados e interações são locais e fictícios. Não existem requisições externas.
+const samples=[
+ {id:'a',nome:'Cliente Exemplo A',saldo:3950},
+ {id:'b',nome:'Cliente Exemplo B',saldo:132},
+ {id:'c',nome:'Cliente Exemplo C',saldo:0}
+];
+const sales=[
+ {id:'DEMO-001',client:'a',date:'2026-10-22',amount:250},
+ {id:'DEMO-002',client:'a',date:'2026-10-20',amount:400},
+ {id:'DEMO-003',client:'b',date:'2026-10-10',amount:132},
+ {id:'DEMO-004',client:'a',date:'2026-08-07',amount:1800},
+ {id:'DEMO-005',client:'a',date:'2026-08-06',amount:1700}
+];
+const brl=n=>'R$ '+n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+let page='clients',period='7',tab='open',openId=null;
+const el=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function range(){
+ const today=new Date('2026-10-24T12:00:00');
+ if(period!=='custom'){const from=new Date(today);from.setDate(today.getDate()-(period==='7'?6:29));return[from.toISOString().slice(0,10),'2026-10-24'];}
+ return [el('start').value,el('end').value];
+}
+function valid(){
+ const [a,b]=range(),p=el('error');
+ const d1=new Date(a+'T12:00:00Z'),d2=new Date(b+'T12:00:00Z');
+ const ok=/^\d{4}-\d{2}-\d{2}$/.test(a)&&/^\d{4}-\d{2}-\d{2}$/.test(b)&&
+ !isNaN(d1)&&!isNaN(d2)&&a<=b&&(d2-d1)/86400000<=119;
+ p.classList.toggle('hidden',ok);p.textContent=ok?'':'Escolha um intervalo válido de no máximo 120 dias.';
+ return ok;
+}
+function navigate(next){
+ page=next;
+ el('clients').classList.toggle('hidden',next!=='clients');
+ el('receivables').classList.toggle('hidden',next!=='receivables');
+ document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('current',b.dataset.go===next));
+ if(next==='receivables')render();
+ window.scrollTo(0,0);
+}
+function render(){
+ const good=valid(),[start,end]=range();
+ const filtered=good?sales.filter(x=>x.date>=start&&x.date<=end):[];
+ el('salesTotal').textContent=brl(filtered.reduce((n,x)=>n+x.amount,0));
+ document.querySelectorAll('[data-period]').forEach(b=>b.classList.toggle('active',b.dataset.period===period));
+ document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
+ el('customDates').classList.toggle('hidden',period!=='custom');
+ const term=el('search').value.trim().toLowerCase();
+ const rows=tab==='open'
+  ?samples.filter(x=>x.saldo>0).map(x=>({name:x.nome,value:x.saldo,ref:'Saldo atual',client:x.id}))
+  :filtered.map(x=>({name:samples.find(c=>c.id===x.client).nome,value:x.amount,ref:x.date+' · '+x.id,client:x.client}));
+ const visible=rows.filter(x=>x.name.toLowerCase().includes(term));
+ el('tableResults').innerHTML='<table><thead><tr><th>Cliente</th><th>'+(tab==='open'?'Total em aberto':'Vendido fiado')+
+  '</th><th>Origem</th><th>Ação</th></tr></thead><tbody>'+
+  visible.map(x=>'<tr><td>'+esc(x.name)+'</td><td>'+brl(x.value)+'</td><td>'+esc(x.ref)+'</td>'+
+  '<td><button type="button" class="btn" data-extrato="'+esc(x.client)+'">Consultar extrato</button></td></tr>').join('')+
+  (!visible.length?'<tr><td colspan="4">Nenhum registro nesse filtro. O saldo total continua separado.</td></tr>':'')+
+  '</tbody></table>';
+}
+function extrato(id){
+ const selected=samples.find(x=>x.id===id);if(!selected)return;
+ openId=id;el('modalTitle').textContent='Extrato fictício · '+selected.nome;
+ const moves=sales.filter(x=>x.client===id);
+ el('modalResults').innerHTML='<p><strong>Saldo em aberto: '+brl(selected.saldo)+'</strong> · independente do período</p>'+
+ '<table><thead><tr><th>Data</th><th>Operação</th><th>Valor original</th></tr></thead><tbody>'+
+ moves.map(x=>'<tr><td>'+x.date+'</td><td>'+esc(x.id)+'</td><td>'+brl(x.amount)+'</td></tr>').join('')+
+ (!moves.length?'<tr><td colspan="3">Nenhum lançamento fictício para este cliente.</td></tr>':'')+'</tbody></table>';
+ el('modal').classList.remove('hidden');
+}
+document.addEventListener('click',event=>{
+ const go=event.target.closest('[data-go]');if(go){navigate(go.dataset.go);return;}
+ const date=event.target.closest('[data-period]');if(date){period=date.dataset.period;render();return;}
+ const selectedTab=event.target.closest('[data-tab]');if(selectedTab){tab=selectedTab.dataset.tab;render();return;}
+ const client=event.target.closest('[data-extrato]');if(client){extrato(client.dataset.extrato);return;}
+ if(event.target.id==='closeModal'||event.target.id==='modal')el('modal').classList.add('hidden');
+});
+['start','end','search'].forEach(id=>el(id).addEventListener('input',render));
+document.addEventListener('keydown',event=>{if(event.key==='Escape')el('modal').classList.add('hidden');});
+render();
+</script>
+</body></html>

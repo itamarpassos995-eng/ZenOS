@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const html=readFileSync(new URL('../public/demo-contas-receber-isolado.html',import.meta.url),'utf8');
+assert.match(html,/DEMONSTRAÇÃO ISOLADA/);
+assert.match(html,/DADOS FICTÍCIOS/);
+assert.match(html,/SEM FIREBASE/);
+assert.match(html,/Contas a Receber/);
+assert.match(html,/data-period="7"/);
+assert.match(html,/data-period="30"/);
+assert.match(html,/data-period="custom"/);
+assert.match(html,/intervalo válido de no máximo 120 dias/);
+assert.match(html,/data-go="receivables"/);
+assert.doesNotMatch(html,/\b(?:href|src)\s*=\s*["']https?:/i);
+assert.doesNotMatch(html,/\bfetch\s*\(|XMLHttpRequest|firebase\/|<script\s+src\s*=|<iframe\b|navigator\.sendBeacon|<form\b/i);
+console.log('Prévia de aprovação: HTML isolado com dados fictícios, sem Firebase ou transporte externo.');
