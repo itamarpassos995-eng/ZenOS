@@ -255,6 +255,7 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
     setModalZen({ variante:'success', titulo:tx('Recebimento registrado','Cobro registrado','Payment recorded'), mensagem:`${fmt(valBRL, 'BRL')} recebidos de ${clienteReceberFiado.nome}.`, detalhes:[`Saldo anterior: ${fmt(saldoAntes, 'BRL')}`, `Saldo atual: ${fmt(saldoDepois, 'BRL')}`, dinheiroFisico ? 'Entrada registrada na gaveta do turno.' : 'Recebimento financeiro sem movimentar a gaveta física.'], apenasConfirmar:true });
     setModalReceberFiadoAberto(false);
     setClienteReceberFiado(null);
+    setComprovanteFiado(comprovanteDeRecebimento(financeiro));
   };
 
   const abrirWhatsApp = (cli) => {
