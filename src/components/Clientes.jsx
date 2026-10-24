@@ -478,6 +478,10 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
 
       <ZenModal aberto={!!modalZen} variante={modalZen?.variante} titulo={modalZen?.titulo} mensagem={modalZen?.mensagem} detalhes={modalZen?.detalhes} confirmarTexto={modalZen?.confirmarTexto||'OK'} cancelarTexto={modalZen?.cancelarTexto||'Cancelar'} apenasConfirmar={modalZen?.apenasConfirmar} onConfirmar={()=>{ const fn=modalZen?.aoConfirmar; setModalZen(null); if(fn) fn(); }} onCancelar={()=>setModalZen(null)} />
 
+      {comprovanteFiado && <div className="no-print" role="region" aria-label="Compartilhar recibo de fiado" style={{position:'fixed',right:16,bottom:18,zIndex:2200,width:'min(300px,calc(100vw - 32px))',padding:12,background:'#0b1120',border:'1px solid #25d366',borderRadius:14,boxShadow:'0 15px 40px #0009',color:'#f8fafc'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,marginBottom:9}}><strong style={{fontSize:12}}>Recibo confirmado · {comprovanteFiado.id}</strong><button type="button" onClick={()=>setComprovanteFiado(null)} aria-label="Fechar compartilhamento" style={{background:'transparent',border:0,color:'#94a3b8',cursor:'pointer'}}>✕</button></div>
+        <ZenShareButton documento={comprovanteFiado} perfilLoja={perfilLoja} tipo="recibo"/>
+      </div>}
       {clienteExtrato && (() => {
         // Modal guarda somente a identidade escolhida. O cadastro e o extrato
         // precisam refletir os dados atuais recebidos da nuvem, sem saldo antigo em estado local.
