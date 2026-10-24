@@ -15,6 +15,7 @@ import { formatarEquivalenciaBRL, moedasAtivasRecibo } from '../core/receiptCurr
 export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoesCaixa = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, saldoSessaoFisicoBRL = 0, perfilLoja, vouchers = [], setVouchers, userId, operadorAtivo, historicoVendas, historicoVendasCompleto, setHistoricoVendas, produtos, setProdutos, clientes, setClientes, fmt, t, tx, patenteUsuario, moeda, converterDeBRL }) {
   const [vendaExpandida, setVendaExpandida] = useState(null);
   const [cupomParaImprimir, setCupomParaImprimir] = useState(null);
+  const [filtroTipoDocumento, setFiltroTipoDocumento] = useState('todos');
 
   const [modalDevolucaoAberto, setModalDevolucaoAberto] = useState(false);
   const [vendaSendoDevolvida, setVendaSendoDevolvida] = useState(null);
@@ -27,6 +28,17 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
   const devolucaoEmAndamentoRef = useRef(false);
   const devolucaoOperacaoRef = useRef({ assinatura: null, id: null });
   const perfilRecibo = normalizarPerfilLoja(perfilLoja);
+  // Documentos não faturados nunca podem movimentar caixa, estoque ou fiado.
+  // Vendas legadas podem não ter o campo tipoDocumento.
+  const ehVendaFaturada = v => (!v?.tipoDocumento || v.tipoDocumento === 'venda')
+    && ['concluida','parcial'].includes(v?.estado);
+  const ehDocumentoPendente = v => (v?.tipoDocumento === 'pre_pedido' && v?.estado === 'pendente')
+    || (v?.tipoDocumento === 'orcamento' && v?.estado === 'orcamento');
+  const historicoVisivel = (historicoVendas || []).filter(v => v?.estado !== 'excluida'
+    && (filtroTipoDocumento === 'todos'
+      || (filtroTipoDocumento === 'venda' && ehVendaFaturada(v))
+      || (filtroTipoDocumento === 'pre_pedido' && v?.tipoDocumento === 'pre_pedido')
+      || (filtroTipoDocumento === 'orcamento' && v?.tipoDocumento === 'orcamento')));
   const caixasAbertos = (sessoesCaixa || [])
     .filter(s => s?.status === 'aberta')
     .map(sessao => ({ sessao, resumo: calcularResumoSessao({ sessao, historicoVendas, caixaMovimentos }) }))
@@ -45,6 +57,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
   const iniciarDevolucao = (venda) => {
     if (patenteUsuario !== 'gerencia') return avisarZen({ variante:'danger', titulo:'Acesso negado', mensagem:tx('Apenas a Gerência pode processar devoluções.', 'Solo Gerencia puede procesar devoluciones.', 'Management access required.') });
     if (venda.estado === 'cancelada') return avisarZen({ variante:'warning', titulo:'Venda já cancelada', mensagem:tx('Esta venda já foi totalmente cancelada.', 'Esta venta ya fue cancelada.', 'This sale is already canceled.') });
+    if (!ehVendaFaturada(venda)) return avisarZen({variante:'warning',titulo:'Documento não faturado',mensagem:'Pré-pedidos e orçamentos não admitem estorno. Somente vendas efetivamente faturadas podem gerar devolução.'});
 
     setVendaSendoDevolvida(venda);
     const itensIniciais = {};
@@ -94,8 +107,34 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
 
   const calcularTotalDevolucaoBRL = () => calcularValorDevolucaoAtual(vendaSendoDevolvida || {}, itensParaDevolver);
 
+  const arquivarDocumentoNaoFaturado = async venda => {
+    if (patenteUsuario !== 'gerencia') return avisarZen({variante:'danger',titulo:'Acesso negado',mensagem:'Somente a gerência pode retirar pré-pedidos e orçamentos do histórico.'});
+    if (!ehDocumentoPendente(venda)) return avisarZen({variante:'danger',titulo:'Operação bloqueada',mensagem:'Somente orçamentos e pré-pedidos ainda não faturados podem ser excluídos.'});
+    const confirmou = await pedirConfirmacaoZen({titulo:'Excluir documento não faturado?',mensagem:'O documento será ocultado do histórico operacional, mas preservado para auditoria. Nenhuma devolução, estorno, alteração de estoque ou baixa de fiado será criada.',confirmarTexto:'Excluir'});
+    if (!confirmou) return;
+    const base = Array.isArray(historicoVendasCompleto) ? historicoVendasCompleto : historicoVendas;
+    const encontrados = (base || []).filter(v=>String(v?.id)===String(venda.id));
+    const atual = encontrados.length === 1 ? encontrados[0] : null;
+    if (!atual || !ehDocumentoPendente(atual) || typeof commitOperacaoNegocio !== 'function') return avisarZen({variante:'danger',titulo:'Exclusão bloqueada',mensagem:'O documento mudou ou a confirmação remota está indisponível. Nenhum dado foi alterado.'});
+    const alterado = {...atual,estado:'excluida',arquivadoEm:new Date().toISOString(),arquivadoPor:operadorAtivo?.id||'admin'};
+    const proposto = base.map(v=>String(v?.id)===String(atual.id)?alterado:v);
+    try {
+      const resultado=await commitOperacaoNegocio({
+        changes:[{field:'historicoVendas',value:proposto,storageSuffix:'historico_vendas'}],
+        guards:[{type:'entity_unchanged',field:'historicoVendas',entityKey:'id',entityId:atual.id,expected:atual}],
+        operationKey:'arquivar-nao-faturado:'+String(atual.id),
+      });
+      if (!resultado?.cloudOk) throw resultado?.error || new Error('Servidor não confirmou a exclusão.');
+      setHistoricoVendas(resultado.values?.historicoVendas || proposto);
+      if (vendaExpandida===atual.id)setVendaExpandida(null);
+    } catch(error) {
+      avisarZen({variante:'danger',titulo:'Documento preservado',mensagem:'A nuvem não confirmou a operação. Nada foi excluído ou estornado.',detalhes:[error?.message||String(error)]});
+    }
+  };
+
   const confirmarDevolucao = async () => {
     if (devolucaoEmAndamentoRef.current) return;
+    if (!ehVendaFaturada(vendaSendoDevolvida)) return avisarZen({variante:'danger',titulo:'Estorno bloqueado',mensagem:'Este documento não é uma venda faturada. Nenhum movimento financeiro foi realizado.'});
     devolucaoEmAndamentoRef.current = true;
     setProcessandoDevolucao(true);
     try {
@@ -480,7 +519,13 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
         {(vouchers||[]).length===0 ? <div style={{padding:18,color:'#64748b',textAlign:'center'}}>{tx('Nenhum voucher emitido.','Ningún voucher emitido.','No voucher issued.')}</div> : <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}><thead><tr style={{color:'#94a3b8',borderBottom:'1px solid #1e293b',textAlign:'left'}}><th style={{padding:'8px 6px'}}>{tx('Código','Código','Code')}</th><th>{tx('Saldo','Saldo','Balance')}</th><th>{tx('Valor original','Valor original','Original value')}</th><th>{tx('Status','Estado','Status')}</th><th>{tx('Origem','Origen','Source')}</th><th>{tx('Emitido por','Emitido por','Issued by')}</th><th>{tx('Data','Fecha','Date')}</th><th style={{textAlign:'right'}}>{tx('Ações','Acciones','Actions')}</th></tr></thead><tbody>{(vouchers||[]).map(v=><tr key={v.codigo} style={{borderBottom:'1px solid #1e293b',color:'#cbd5e1'}}><td style={{padding:'10px 6px',fontWeight:900,color:'#c4b5fd'}}>{v.codigo}</td><td style={{fontWeight:900,color:Number(v.saldoBRL||0)>0?'#34d399':'#64748b'}}>{fmt(Number(v.saldoBRL||0),'BRL')}</td><td>{fmt(Number(v.valorOriginalBRL||0),'BRL')}</td><td><span style={{padding:'3px 8px',borderRadius:999,background:v.status==='ativo'?'#064e3b':'#1e293b',color:v.status==='ativo'?'#6ee7b7':'#94a3b8',fontWeight:800}}>{v.status||'—'}</span></td><td>{v.origemVendaId||'—'}</td><td>{v.criadoPor||'—'}<div style={{fontSize:10,color:'#64748b',marginTop:3}}>Impressões: {(v.impressoes||[]).length}</div></td><td>{v.criadoEm?new Date(v.criadoEm).toLocaleString('pt-BR'):'—'}</td><td style={{textAlign:'right'}}><button onClick={()=>imprimirVoucher(v)} style={{background:'#082f49',border:'1px solid #38bdf8',color:'#7dd3fc',padding:'6px 10px',borderRadius:8,fontWeight:900,cursor:'pointer'}}>🖨️ {tx('Imprimir','Imprimir','Print')}</button></td></tr>)}</tbody></table></div>}
       </div>}
 
-      <div className="no-print" style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', overflow: 'hidden' }}>
+      <div className="no-print" style={{display:'flex',flexWrap:'wrap',gap:8,alignItems:'center'}}>
+        <span style={{fontSize:12,fontWeight:800,color:'#94a3b8'}}>Filtrar documentos:</span>
+        {[['todos','Todos'],['venda','Vendas'],['pre_pedido','Pré-pedidos'],['orcamento','Orçamentos']].map(([valor,rotulo]) => (
+          <button key={valor} type="button" onClick={()=>setFiltroTipoDocumento(valor)} aria-pressed={filtroTipoDocumento===valor} style={{padding:'8px 12px',borderRadius:9,border:'1px solid '+(filtroTipoDocumento===valor?'#38bdf8':'#334155'),background:filtroTipoDocumento===valor?'#082f49':'#0f172a',color:'#e2e8f0',fontSize:12,cursor:'pointer',fontWeight:800}}>{rotulo}</button>
+        ))}
+      </div>
+      <div className="no-print" style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', overflow: 'hidden' }}> 
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid #1e293b', color: '#64748b', fontSize: '11px', textTransform: 'uppercase', backgroundColor: '#020617' }}>
@@ -494,10 +539,10 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
             </tr>
           </thead>
           <tbody>
-            {historicoVendas.length === 0 ? (
+            {historicoVisivel.length === 0 ? (
               <tr><td colSpan="7" style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>{tx('Nenhuma venda registada até o momento.','Ninguna venta registrada hasta el momento.','No sales recorded yet.')}</td></tr>
             ) : (
-              historicoVendas.map(venda => (
+              historicoVisivel.map(venda => (
                 <React.Fragment key={venda.id}>
                   <tr style={{ borderBottom: '1px solid #1e293b', backgroundColor: vendaExpandida === venda.id ? '#1e1b4b' : 'transparent', transition: 'all 0.2s' }}>
                     <td style={{ padding: '16px 20px', color: '#cbd5e1' }}>{venda.dataHora}</td>
@@ -507,14 +552,16 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
                     <td style={{ padding: '16px 12px', textAlign: 'right', fontWeight: 900, color: venda.estado === 'cancelada' ? '#64748b' : '#34d399', fontSize: '15px' }}>{fmt(obterFinanceiroVenda(venda).totalLiquidoBRL, 'BRL')}</td>
                     <td style={{ padding: '16px 12px', textAlign: 'center' }}>
                       {venda.estado === 'cancelada' ? <span style={{ backgroundColor: 'rgba(244, 63, 94, 0.1)', color: '#f43f5e', border: '1px solid #f43f5e', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>{tx('Cancelada Total', 'Cancelada', 'Canceled')}</span>
+                      : ehDocumentoPendente(venda) ? <span style={{background:'rgba(59,130,246,.1)',color:'#93c5fd',border:'1px solid #2563eb',padding:'4px 10px',borderRadius:6,fontSize:11,fontWeight:800}}>{venda.tipoDocumento==='pre_pedido'?'Pré-pedido':'Orçamento'}</span>
                       : venda.estado === 'parcial' ? <span style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#fbbf24', border: '1px solid #f59e0b', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>{tx('Devolução Parcial', 'Devol. Parcial', 'Partial Return')}</span>
                       : <span style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid #10b981', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>{tx('Concluída', 'Concluida', 'Completed')}</span>}
                     </td>
                     <td style={{ padding: '16px 20px', textAlign: 'right' }}>
                       <button onClick={() => setVendaExpandida(vendaExpandida === venda.id ? null : venda.id)} style={{ backgroundColor: '#020617', border: '1px solid #334155', color: '#cbd5e1', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer', marginRight: '8px' }}>{tx('Itens', 'Ítems', 'Items')}</button>
-                      {venda.estado !== 'cancelada' && (
+                      {ehVendaFaturada(venda) && (
                         <button onClick={() => iniciarDevolucao(venda)} style={{ backgroundColor: 'rgba(244, 63, 94, 0.1)', border: '1px solid #f43f5e', color: '#fb7185', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>⚙️ {tx('Estorno', 'Devolución', 'Refund')}</button>
                       )}
+                      {patenteUsuario === 'gerencia' && ehDocumentoPendente(venda) && <button type="button" onClick={()=>void arquivarDocumentoNaoFaturado(venda)} style={{background:'rgba(239,68,68,.07)',border:'1px solid #f87171',color:'#fda4af',padding:'6px 12px',borderRadius:8,fontSize:11,fontWeight:800,cursor:'pointer'}}>Excluir</button>}
                     </td>
                   </tr>
 

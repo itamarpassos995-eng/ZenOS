@@ -91,6 +91,21 @@ try{
  assert.equal(visible.produtos.find(x=>x.id===missingId).estoque,0);
  assert.equal(visible.produtos.find(x=>x.id===id).precoBRL,340);
  assert.equal((await getDocFromServer(missIdx)).data().produtoId,missingId);
+ // Regressão do incidente real: Novo Produto usa UUID, não PROD-LEGACY.
+ // Reservas sem cadastro e sem movimento podem ser completadas com o MESMO ID.
+ const novoId='PROD-550e8400-e29b-41d4-a716-446655440000';
+ const novoSku='SKU-76781',novoNome='Produto do operador extra';
+ await setDoc(doc(dbA,'lojas',uid,'produto_indices','sku_orfao_76781'),
+  {produtoId:novoId,sku:novoSku,nome:novoNome,ativo:true});
+ await setDoc(doc(dbA,'lojas',uid,'produto_indices','sig_orfao_76781'),
+  {produtoId:novoId,sku:'',nome:novoNome,ativo:true});
+ const novoCandidato=await verificarRecomposicaoOriginal({db:dbB,userId:uid,ownerId:novoId});
+ assert.equal(novoCandidato.ok,true,JSON.stringify(novoCandidato));
+ assert.equal(novoCandidato.ownerId,novoId);
+ assert.equal(novoCandidato.sku,novoSku);
+ assert.equal('estoque' in novoCandidato,false);
+ const noWrite=(await getDocFromServer(docRef)).data();
+ assert.equal(noWrite.produtos.some(x=>x.id===novoId),false);
  const again=await verificarRecomposicaoOriginal({db:dbA,userId:uid,ownerId:missingId});
  assert.equal(again.ok,false,'Não permitir cadastrar novamente após reaparecer no catálogo');
  clearOperationalSession(dbA,uid);clearOperationalSession(dbB,uid);

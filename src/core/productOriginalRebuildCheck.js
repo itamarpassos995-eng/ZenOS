@@ -2,13 +2,13 @@ import {collection,doc,getDocFromServer,getDocsFromServer,query,where,limit} fro
 import {getOperationalSnapshot,peekV2Session} from './operationalRepository.js';
 import {v2RootPath,encodeV2Id} from './operationalV2Schema.js';
 import {chaveAuditoriaProduto} from './productIdentity.js';
-import {avaliarRecomposicaoOriginal} from './productOriginalRebuildPolicy.js';
+import {avaliarRecomposicaoOriginal,idOriginalRecomponivel} from './productOriginalRebuildPolicy.js';
 
 // Confere apenas o ID selecionado, nunca varre o estoque a cada clique.
 // Identidade original é preservada. Sem gravar, apagar ou reconstruir saldos históricos.
 export async function verificarRecomposicaoOriginal({db,userId,ownerId}){
  const id=String(ownerId??'').trim();
- if(!db||!userId||!/^PROD-LEGACY-[A-Z0-9]+$/i.test(id))
+ if(!db||!userId||!idOriginalRecomponivel(id))
   return {ok:false,reason:'identificacao_invalida'};
  try{
   const snapshot=await getOperationalSnapshot(db,userId);
