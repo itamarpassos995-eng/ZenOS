@@ -44,6 +44,27 @@ export class V2Session {
    if(page.size<100)break;
   }
  }
+ // A checagem continua autoritativa no servidor; somente elimina buscas
+ // repetidas de páginas de operações quando a sequência não avançou.
+ // Chamadas simultâneas compartilham a mesma verificação remota.
+ async catchUpIfBehind(){
+  if(this.failed)throw this.failed;
+  if(this.catchUpCheckPromise)return this.catchUpCheckPromise;
+  const pending=(async()=>{
+   const head=await getDocFromServer(doc(this.db,...this.root));
+   const info=head.exists()?head.data():null;
+   if(!info||info.schema!==2||info.state!=='ready')throw v2Error('V2_NOT_READY','Cópia V2 indisponível para confirmação.');
+   if(info.sourceChecksum!==this.control.sourceChecksum)throw v2Error('V2_SOURCE_MISMATCH','A geração V2 não corresponde à cópia certificada.');
+   const remoteSequence=Number(info.sequence);
+   if(!Number.isSafeInteger(remoteSequence)||remoteSequence<0||remoteSequence<this.sequence)
+    throw v2Error('V2_HEAD_SEQUENCE','Cabeçalho V2 inconsistente; confirmação bloqueada.');
+   if(remoteSequence===this.sequence)return;
+   await this.catchUp();
+   if(this.sequence<remoteSequence)throw v2Error('V2_NOT_CAUGHT_UP','Não foi possível conferir operações pendentes no servidor.');
+  })();
+  this.catchUpCheckPromise=pending;
+  try{return await pending;}finally{if(this.catchUpCheckPromise===pending)this.catchUpCheckPromise=null;}
+ }
  async load(){
   const head=await getDocFromServer(doc(this.db,...this.root));
   if(!head.exists()||head.data().schema!==2||head.data().state!=='ready')throw v2Error('V2_NOT_READY','Cópia V2 ainda não foi certificada.');
@@ -97,7 +118,7 @@ export class V2Session {
 
 export async function getOperationalSnapshot(db,userId){
  const entry=await initializeRoute(db,userId);
- if(entry.session){if(entry.session.failed)throw entry.session.failed;await entry.session.catchUp();return asSnapshot(entry.session.materialize());}
+ if(entry.session){if(entry.session.failed)throw entry.session.failed;await entry.session.catchUpIfBehind();return asSnapshot(entry.session.materialize());}
  const snap=await getDocFromServer(doc(db,'lojas',String(userId),'dados','operacao'));
  if(entry.route.shadow)await compareShadow(entry,snap);
  return snap;

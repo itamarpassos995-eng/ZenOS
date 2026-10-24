@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {avaliarRecomposicaoOriginal as avaliar} from '../../src/core/productOriginalRebuildPolicy.js';
+import {avaliarRecomposicaoOriginal as avaliar,idOriginalRecomponivel} from '../../src/core/productOriginalRebuildPolicy.js';
 const id='PROD-LEGACY-1X9720V',nome='Pneu 130/70-17 - KONTROL',sku='SKU-63346';
 const indices=[
  {produtoId:id,nome,sku,ativo:true},
@@ -41,4 +41,28 @@ test('tombstone V2, índice inativo, donos distintos e identidade sem SKU bloque
   {legacyConfiavel:false},
   {ownerId:'PROD-BALCAO-12345'}
  ])assert.equal(avaliar({...base,...replace}).ok,false,JSON.stringify(replace));
+});
+
+test('IDs normais do Novo Produto (UUID v4 e fallback) recuperam apenas reserva íntegra',()=>{
+ const normais=[
+  'PROD-550e8400-e29b-41d4-a716-446655440000',
+  'PROD-1792846800000-123456789'
+ ];
+ for(const ownerId of normais){
+  assert.equal(idOriginalRecomponivel(ownerId),true);
+  const r=avaliar({...base,ownerId,indices:indices.map(i=>({...i,produtoId:ownerId}))});
+  assert.deepEqual(r,{ok:true,ownerId,nome,sku});
+  for(const bloqueio of [
+   {vendas:[{itens:[{produtoOriginalId:ownerId}]}]},
+   {movimentoEncontrado:true},
+   {legado:[{id:ownerId,nome,sku}]},
+   {indices:indices.map(i=>({...i,produtoId:'outro'}))}
+  ])assert.equal(avaliar({...base,ownerId,indices:indices.map(i=>({...i,produtoId:ownerId})),...bloqueio}).ok,false);
+ }
+});
+test('não aceitar IDs arbitrários, rápidos do balcão ou UUID com formato inválido',()=>{
+ for(const ownerId of ['PROD-BALCAO-1792846800000','PROD-qualquer','PROD-550e8400-e29b-11d4-a716-446655440000','CLI-LEGACY-X','PROD-1792846800000']){
+  assert.equal(idOriginalRecomponivel(ownerId),false,ownerId);
+  assert.equal(avaliar({...base,ownerId,indices:indices.map(x=>({...x,produtoId:ownerId}))}).ok,false);
+ }
 });
