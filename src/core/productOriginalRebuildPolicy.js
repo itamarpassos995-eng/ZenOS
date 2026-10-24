@@ -1,5 +1,15 @@
 // Reconstrução SOMENTE do cadastro cujo ID foi reservado pelo Novo Produto.
 // Não copia saldos históricos e nunca transfere um ID a um nome/SKU diferente.
+// IDs produzidos pelo próprio cadastro ZenOS: legado normalizado, UUID v4
+// ou fallback timestamp+aleatório. Nunca aceitar IDs de cadastro rápido do PDV.
+// A forma do ID NÃO autoriza restauração: os demais guards continuam obrigatórios.
+export const idOriginalRecomponivel = value => {
+ const id=String(value??'').trim();
+ return /^PROD-LEGACY-[A-Z0-9]+$/i.test(id)
+  || /^PROD-[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i.test(id)
+  || /^PROD-\\d{13}-\\d{1,9}$/.test(id);
+};
+
 const norm=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
 const referenced=(entries=[],id,sku)=>entries.some(record=>record&&(
  String(record.produtoId??'')===id||
@@ -12,7 +22,7 @@ export function avaliarRecomposicaoOriginal({
  modoV2=false,registroV2=null,legacyConfiavel=true
 }){
  const id=String(ownerId??'').trim();
- if(!/^PROD-LEGACY-[A-Z0-9]+$/i.test(id))
+ if(!idOriginalRecomponivel(id))
   return {ok:false,reason:'origem_de_cadastro_nao_suportada'};
  if(!Array.isArray(indices)||indices.length<2||indices.length>10||
     indices.some(x=>!x||String(x.produtoId)!==id))
