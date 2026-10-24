@@ -34,6 +34,7 @@ import FiscalErrorBoundary from './components/FiscalErrorBoundary';
 // Lazy para não carregar a interface opcional durante vendas e fechamento de caixa.
 const CommerceSolicitacao = React.lazy(() => import('./components/CommerceSolicitacao'));
 import ZenModal from './components/ZenModal';
+import AssistenteZen from './components/AssistenteZen';
 import { normalizarPerfilLoja, lerPerfilLojaLocal, salvarPerfilLojaLocal, limparPerfilLojaLocal } from './core/storeProfile';
 import { assinarLivroFinanceiro, registrarLancamentoFinanceiro } from './core/financialLedger';
 import { planejarReconciliacoesFiado } from './core/creditReconciliation.js';
@@ -1870,6 +1871,22 @@ export default function App() {
         </div>
       )}
     
+      <AssistenteZen
+        operadorAtivo={operadorAtivo}
+        patenteUsuario={patenteUsuario}
+        temPermissao={temPermissao}
+        produtos={produtos}
+        historicoVendas={historicoVendas}
+        clientes={clientes}
+        despesas={despesas}
+        fornecedores={fornecedores}
+        navegarPara={navegarPara}
+        ecraAtual={ecraAtual}
+        fmt={fmt}
+        tx={tx}
+        moeda={moeda}
+      />
+
       <ZenModal aberto={!!modalAppZen} variante={modalAppZen?.variante} titulo={modalAppZen?.titulo} mensagem={modalAppZen?.mensagem} detalhes={modalAppZen?.detalhes} confirmarTexto={modalAppZen?.confirmarTexto || 'OK'} cancelarTexto={modalAppZen?.cancelarTexto || 'Cancelar'} apenasConfirmar={!!modalAppZen?.apenasConfirmar} onConfirmar={()=>{ const resolver=modalAppZen?.resolver; setModalAppZen(null); if(resolver) resolver(true); }} onCancelar={()=>{ const resolver=modalAppZen?.resolver; setModalAppZen(null); if(resolver) resolver(false); }} />
 
       {modalPerfilRapido && <div style={{position:'fixed',inset:0,zIndex:21000,background:'rgba(2,6,23,.88)',backdropFilter:'blur(8px)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}><div style={{width:'100%',maxWidth:460,background:'#0b1120',border:'1px solid #38bdf8',borderRadius:22,padding:22,color:'#fff'}}>
