@@ -324,7 +324,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
       return setModalZen({ variante:'danger', titulo:tx('Caixa fechado','Caja cerrada','Register closed'), mensagem:tx('Para pagar uma compra em dinheiro é necessário um turno de caixa aberto.','Para pagar una compra en efectivo se requiere un turno de caja abierto.','An open cash shift is required to pay a purchase in cash.'), apenasConfirmar:true });
     }
     if (totalDinheiroImediato > Number(saldoSessaoFisicoBRL || 0) + 0.001) {
-      return setModalZen({ variante:'danger', titulo:tx('Saldo insuficiente na gaveta','Saldo insuficiente en caja','Insufficient drawer balance'), mensagem:`${tx('Disponível:','Disponible:','Available:')} ${fmt(saldoSessaoFisicoBRL, 'BRL')}`, detalhes:[`${tx('Pagamento em dinheiro:','Pago en efectivo:','Cash payment:')} ${fmt(totalDinheiroImediato, 'BRL')}`], apenasConfirmar:true });
+      return setModalZen({ variante:'danger', titulo:tx('Saldo insuficiente na gaveta','Saldo insuficiente en caja','Insufficient drawer balance'), mensagem:tx('Saldo insuficiente para esta saída. O saldo esperado permanece oculto até o fechamento cego.','Saldo insuficiente para esta salida. El saldo esperado permanece oculto hasta el cierre ciego.','Insufficient balance for this payment. The expected balance remains hidden until blind closeout.'), detalhes:[`${tx('Pagamento em dinheiro:','Pago en efectivo:','Cash payment:')} ${fmt(totalDinheiroImediato, 'BRL')}`], apenasConfirmar:true });
     }
     compraEmAndamentoRef.current = true;
     setProcessandoCompra(true);
