@@ -12,6 +12,7 @@ import { cloneSyncValue, hasLocalSyncChange, syncValuesEqual } from './core/sync
 import { zenosStorage } from './core/storage';
 import { obterFinanceiroVenda } from './core/salesFinancials';
 import { registroEhDoDiaLocal } from './core/dates';
+import { filtrarVendasHojeVisiveis } from './core/salesTodayScope';
 import LandingPage from './components/LandingPage';
 
 import Produtos from './components/Produtos';
@@ -899,7 +900,8 @@ export default function App() {
 
   const vendasValidas = historicoVendas.filter(v => v.estado === 'concluida' || v.estado === 'parcial');
   
-  const vendasHoje = vendasValidas.filter(v => registroEhDoDiaLocal(v));
+  // Resumo individual para vendedores; gerência mantém a visão global.
+  const vendasHoje = filtrarVendasHojeVisiveis({historicoVendas,operadorAtivo,patenteUsuario});
   const faturamentoHojeBRL = vendasHoje.reduce((acc, v) => acc + obterFinanceiroVenda(v).totalLiquidoBRL, 0);
   const faturamentoTotalBRL = vendasValidas.reduce((acc, v) => acc + obterFinanceiroVenda(v).totalLiquidoBRL, 0);
   const cmvTotalBRL = vendasValidas.reduce((acc, v) => acc + obterFinanceiroVenda(v).cmvLiquidoBRL, 0);
@@ -1030,7 +1032,7 @@ export default function App() {
     const valBRL = movimentoValidado.totalBRL;
     if (valBRL <= 0) return avisarAppZen({ variante:'warning', titulo:'Valor inválido', mensagem:tx('Insira um valor válido.', 'Ingrese un valor válido.', 'Enter a valid amount.') });
     if (tipoMovCaixa === 'sangria' && valBRL > saldoSessaoFisicoBRL + 0.001) {
-      return avisarAppZen({ variante:'danger', titulo:'Saldo insuficiente na gaveta', mensagem:tx('A sangria não pode ser maior que o dinheiro físico disponível.', 'La sangría no puede superar el efectivo disponible.', 'Cash drop cannot exceed physical cash available.'), detalhes:[`Disponível: ${fmt(saldoSessaoFisicoBRL,'BRL')}`, `Solicitado: ${fmt(valBRL,'BRL')}`] });
+      return avisarAppZen({ variante:'danger', titulo:'Saldo insuficiente na gaveta', mensagem:tx('A sangria não pode ser maior que o dinheiro físico disponível.', 'La sangría no puede superar el efectivo disponible.', 'Cash drop cannot exceed physical cash available.'), detalhes:[`Solicitado: ${fmt(valBRL,'BRL')}`, tx('Saldo esperado oculto até o fechamento cego.','Saldo esperado oculto hasta el cierre ciego.','Expected balance hidden until blind closeout.')] });
     }
     const agoraISO = new Date().toISOString();
     const novoMov = { 
@@ -1715,7 +1717,7 @@ export default function App() {
             <ZenHero operador={operadorAtivo?.nome || tx('Administrador (Gerência)','Administrador (Gerencia)','Administrator (Management)')} patente={patenteUsuario} idioma={idioma} tx={tx} />
 
             <div className="zen-kpi-grid">
-              <ZenKpiCard icon="🛒" titulo={tx('Vendido Hoje','Vendido Hoy','Sold Today')} valor={valoresTopoVisiveis ? fmt(faturamentoHojeBRL) : '*****'} detalhe={`${historicoVendas.filter(v => registroEhDoDiaLocal(v) && v.status !== 'cancelada').length} ${tx('vendas realizadas','ventas realizadas','sales completed')}`} tone="teal" trailing={<button onClick={() => setValoresTopoVisiveis(!valoresTopoVisiveis)} style={{border:0,background:'transparent',color:'inherit',cursor:'pointer',fontSize:18}}>{valoresTopoVisiveis ? '◉' : '○'}</button>} />
+              <ZenKpiCard icon="🛒" titulo={tx('Vendido Hoje','Vendido Hoy','Sold Today')} valor={valoresTopoVisiveis ? fmt(faturamentoHojeBRL) : '*****'} detalhe={`${vendasHoje.length} ${tx('vendas realizadas','ventas realizadas','sales completed')}`} tone="teal" trailing={<button onClick={() => setValoresTopoVisiveis(!valoresTopoVisiveis)} style={{border:0,background:'transparent',color:'inherit',cursor:'pointer',fontSize:18}}>{valoresTopoVisiveis ? '◉' : '○'}</button>} />
               <ZenKpiCard icon="👥" titulo={tx('FIADO NA PRAÇA','FIADO A COBRAR','PENDING CREDIT')} valor={valoresTopoVisiveis ? fmt(totalFiadoAbertoBRL) : '*****'} detalhe={totalFiadoAbertoBRL > 0 ? tx('Valores pendentes de clientes','Valores pendientes','Customer balances due') : tx('Nenhum valor pendente','Sin valores pendientes','No pending balance')} tone="purple" trailing="▥" />
               <ZenKpiCard icon="↻" titulo={tx('SINCRONIZAÇÃO','SINCRONIZACIÓN','SYNC')} valor={statusSincronizacao === 'SINCRONIZADO' ? 'Online' : statusSincronizacao === 'SALVANDO' ? tx('Salvando...','Guardando...','Saving...') : statusSincronizacao === 'ERRO' ? tx('Erro','Error','Error') : statusSincronizacao === 'OFFLINE' ? 'Offline' : tx('Pendente','Pendiente','Pending')} detalhe={tx('Dados atualizados em tempo real','Datos actualizados en tiempo real','Realtime data status')} tone="cyan" trailing="◯" />
             </div>
@@ -1723,7 +1725,7 @@ export default function App() {
             <div className="zen-dashboard-middle">
               {temPermissao('pdv') && (
                 <section className="zen-dashboard-card" id="zen-meu-turno">
-                  <div className="zen-dashboard-card-head"><strong>💵 {tx('Meu Turno de Caixa','Mi Turno de Caja','My Cash Shift')}</strong><span className={`zen-status-badge ${sessaoAtiva ? 'open' : 'closed'}`}>{sessaoAtiva ? `${tx('ABERTO','ABIERTO','OPEN')} • ${fmt(saldoSessaoFisicoBRL)}` : tx('FECHADO','CERRADO','CLOSED')}</span></div>
+                  <div className="zen-dashboard-card-head"><strong>💵 {tx('Meu Turno de Caixa','Mi Turno de Caja','My Cash Shift')}</strong><span className={`zen-status-badge ${sessaoAtiva ? 'open' : 'closed'}`}>{sessaoAtiva ? tx('ABERTO','ABIERTO','OPEN') : tx('FECHADO','CERRADO','CLOSED')}</span></div>
                   <div className="zen-cash-card-body">
                     <div className="zen-cash-illustration" />
                     {!sessaoAtiva ? <>
