@@ -22,7 +22,7 @@ test('gerência vê liberação só após consulta órfã e confirmação; opera
  render(<Produtos {...data}/>);
  expect(screen.queryByRole('button',{name:/Conferir cadastro incompleto/})).toBeNull();
  fireEvent.change(screen.getByRole('textbox',{name:'SKU original'}),{target:{value:'66346'}});
- fireEvent.click(screen.getByRole('button',{name:'Buscar SKU original'}));
+ fireEvent.click(screen.getByRole('button',{name:'Recuperar produto por SKU'}));
  await waitFor(()=>expect(screen.getByText(/Cadastro ainda não disponível/)).toBeTruthy());
  expect(liberarIndiceOrfaoPDV).not.toHaveBeenCalled();
  fireEvent.click(screen.getByRole('button',{name:'OK'}));
@@ -42,7 +42,7 @@ test('liberação rejeitada preserva cadastro e expõe motivo, sem mentir sucess
  const data=props();
  render(<Produtos {...data}/>);
  fireEvent.change(screen.getByRole('textbox',{name:'SKU original'}),{target:{value:'66346'}});
- fireEvent.click(screen.getByRole('button',{name:'Buscar SKU original'}));
+ fireEvent.click(screen.getByRole('button',{name:'Recuperar produto por SKU'}));
  await waitFor(()=>expect(screen.getByText(/Cadastro ainda não disponível/)).toBeTruthy());
  fireEvent.click(screen.getByRole('button',{name:'OK'}));
  fireEvent.click(screen.getByRole('button',{name:/Conferir cadastro incompleto/}));
