@@ -4,8 +4,9 @@ import ZenModal from './ZenModal';
 import { formaEhDinheiro, lancamentosDoCliente } from '../core/financialLedger';
 import { interpretarValorMonetario } from '../core/cashMoneyInput';
 import { auditarVinculosFiado, encontrarConflitosIdsRecebimento } from '../core/clientCreditLinkAudit';
+import { conferirLivroClienteNoServidor, conferirLivroCompletoNoServidor } from '../core/financialLedgerScoped.js';
 
-export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, historicoVendas = [], setClientes, moeda, fmt, t, tx = (pt) => pt, converterDeBRL, converterParaBRL }) {
+export default function Clientes({ db, userId, onContasReceber, onConsultarExtrato, commitOperacaoNegocio, livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, historicoVendas = [], setClientes, moeda, fmt, t, tx = (pt) => pt, converterDeBRL, converterParaBRL }) {
   const [filtroPaisCliente, setFiltroPaisCliente] = useState('todos');
   const [buscaClienteTexto, setBuscaClienteTexto] = useState('');
   
@@ -19,6 +20,9 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
   const [formaAmortizacaoSel, setFormaAmortizacaoSel] = useState('dinheiro_brl');
   const [clienteExtrato, setClienteExtrato] = useState(null);
   const recebimentoEmAndamentoRef = useRef(false);
+  const [auditoriaLivro, setAuditoriaLivro] = useState(null);
+  const [auditoriaEstado, setAuditoriaEstado] = useState('nao_consultado');
+  const [auditoriaErro, setAuditoriaErro] = useState('');
   const [modalZen, setModalZen] = useState(null);
 
   const catalogoFormas = [
@@ -37,10 +41,22 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
   const inputValorAmortizacaoRef = useRef(null);
 
   const totalEmFiadoAbertoBRL = clientes.reduce((acc, c) => acc + (c.saldoDevedorBRL || 0), 0);
-  // Apenas leitura: nenhum ajuste de saldo, histórico ou identificação.
-  const inconsistenciasVinculoFiado = useMemo(() => auditarVinculosFiado({
-    clientes,historicoVendas,livroFinanceiro,
-  }),[clientes,historicoVendas,livroFinanceiro]);
+  // Auditoria histórica completa apenas após clique explícito, NUNCA no login.
+  // Uma janela recente não pode ser usada para declarar vínculos ausentes.
+  const inconsistenciasVinculoFiado = useMemo(() => auditoriaEstado==='confirmado' && auditoriaLivro
+    ? auditarVinculosFiado({clientes,historicoVendas,livroFinanceiro:auditoriaLivro})
+    : [],[clientes,historicoVendas,auditoriaLivro,auditoriaEstado]);
+  const auditarFiadoSobDemanda = async () => {
+    setAuditoriaEstado('carregando');setAuditoriaErro('');
+    try {
+      const resultado=await conferirLivroCompletoNoServidor({db,userId});
+      setAuditoriaLivro(resultado.itens);
+      setAuditoriaEstado('confirmado');
+    } catch(err) {
+      setAuditoriaEstado('erro');setAuditoriaErro(err?.message||'Consulta indisponível');
+      setAuditoriaLivro(null);
+    }
+  };
 
   const clientesListaFiltrada = clientes.filter(c => {
     if (!c) return false;
@@ -140,17 +156,6 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
         mensagem:'O cadastro ou saldo desta conta mudou. Feche o recebimento, confira o extrato atualizado e abra novamente. Nenhum valor foi recebido.',
         apenasConfirmar:true});
     }
-    // Nomes nas vendas e no livro são fotografias históricas: podem ser
-    // diferentes após uma edição legítima do cliente. Eles NÃO são chave.
-    // Somente IDs diferentes entre venda e lançamento justificam bloquear.
-    const conflitosVinculo = encontrarConflitosIdsRecebimento({
-      clienteId:clienteAtual.id,historicoVendas,livroFinanceiro,
-    });
-    if(conflitosVinculo.length) {
-      return setModalZen({variante:'danger',titulo:'Conta com vínculo financeiro inconsistente',
-        mensagem:'O ID do cliente no lançamento financeiro é diferente do ID da venda original. Nenhum recebimento foi registrado. Confira os registros antes de baixar.',
-        detalhes:conflitosVinculo.slice(0,3).map(c=>`Venda ${c.vendaId}: ID na venda ${c.clienteIdVenda} / ID no financeiro ${c.clienteIdFinanceiro}`),apenasConfirmar:true});
-    }
     const formaCfg = catalogoFormas.find(f => f.id === formaAmortizacaoSel) || catalogoFormas[0];
     const leitura = interpretarValorMonetario(valorAmortizacaoInput, formaCfg.moedaOrigem);
     if (!leitura.ok) return setModalZen({ variante:'warning', titulo:'Valor monetário inválido', mensagem:leitura.erro, apenasConfirmar:true });
@@ -212,6 +217,20 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
 
     recebimentoEmAndamentoRef.current = true;
     try {
+      // Somente o cliente desta cobrança, SEM limites de data/página.
+      // Ausência de confirmação do servidor bloqueia a cobrança.
+      const livroClienteConfirmado = db && userId
+        ? (await conferirLivroClienteNoServidor({db,userId,clienteId:clienteAtual.id})).itens
+        : livroFinanceiro; // Apenas para fixtures legadas sem Firebase nos testes.
+      const conflitosVinculo = encontrarConflitosIdsRecebimento({
+        clienteId:clienteAtual.id,historicoVendas,livroFinanceiro:livroClienteConfirmado,
+      });
+      if(conflitosVinculo.length) {
+        setModalZen({variante:'danger',titulo:'Conta com vínculo financeiro inconsistente',
+          mensagem:'O ID do cliente no lançamento financeiro diverge do ID na venda original. Nenhum recebimento foi registrado.',
+          detalhes:conflitosVinculo.slice(0,3).map(c=>`Venda ${c.vendaId}: ID na venda ${c.clienteIdVenda} / ID no financeiro ${c.clienteIdFinanceiro}`),apenasConfirmar:true});
+        return;
+      }
       let clientesConfirmados = clientesPropostos;
       let caixaConfirmado = caixaProposto;
       if (typeof commitOperacaoNegocio === 'function') {
@@ -258,6 +277,7 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
           <h2 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>{t('clientesTitulo')}</h2>
           <span style={{ fontSize: '13px', color: '#64748b' }}>{t('clientesSub')}</span>
         </div>
+        {onContasReceber && <button type="button" onClick={onContasReceber} style={{background:'#0c6b68',border:'1px solid #22d3c5',color:'#fff',padding:'12px 18px',borderRadius:12,fontSize:13,fontWeight:900,cursor:'pointer'}}>📅 Contas a Receber</button>}
         <button onClick={abrirCadastroNovoCliente} type="button" style={{ background: 'linear-gradient(135deg, #d97706, #b45309)', border: '1px solid #fbbf24', color: '#ffffff', padding: '12px 24px', borderRadius: '12px', fontSize: '13px', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 15px rgba(217, 119, 6, 0.3)' }}>
           {t('novoClienteBtn')}
         </button>
@@ -282,6 +302,14 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
         </div>
       </div>
 
+      <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'center'}}>
+        <button type="button" onClick={auditarFiadoSobDemanda} disabled={auditoriaEstado==='carregando'}
+          style={{background:'#0b2035',border:'1px solid #334155',borderRadius:8,color:'#cbd5e1',padding:'9px 12px',cursor:'pointer'}}>
+          {auditoriaEstado==='carregando'?'Conferindo histórico no servidor…':'Auditar vínculos históricos do fiado'}
+        </button>
+        {auditoriaEstado==='confirmado' && <span style={{fontSize:11,color:'#a7f3d0'}}>Auditoria concluída nesta consulta; atualize para conferir novas operações.</span>}
+        {auditoriaEstado==='erro' && <span role="alert" style={{fontSize:11,color:'#fda4af'}}>Auditoria indisponível: {auditoriaErro}. Nenhuma ausência foi presumida.</span>}
+      </div>
       {inconsistenciasVinculoFiado.length > 0 && (
         <details style={{border:'1px solid #f59e0b',background:'#1f160a',borderRadius:12,padding:14}}>
           <summary style={{color:'#fde68a',fontSize:13,fontWeight:900,cursor:'pointer'}}>
@@ -371,7 +399,7 @@ export default function Clientes({ commitOperacaoNegocio, livroFinanceiro = [], 
                               Receber Conta
                             </button>
                           )}
-                          <button onClick={() => setClienteExtrato(cli)} type="button" style={{ backgroundColor: '#111827', border: '1px solid #334155', color: '#cbd5e1', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>📒 {tx('Extrato','Extracto','Statement')}</button>
+                          <button onClick={() => onConsultarExtrato ? onConsultarExtrato(cli) : setClienteExtrato(cli)} type="button" style={{ backgroundColor: '#111827', border: '1px solid #334155', color: '#cbd5e1', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>📒 {tx('Extrato','Extracto','Statement')}</button>
                           <button onClick={() => abrirEdicaoCliente(cli)} type="button" style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#38bdf8', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>{t('editar')}</button>
                           <button onClick={() => excluirCliente(cli.id, cli.saldoDevedorBRL)} type="button" style={{ backgroundColor: 'transparent', border: '1px solid #1e293b', color: '#f43f5e', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>{tx('Excluir','Eliminar','Delete')}</button>
                         </div>

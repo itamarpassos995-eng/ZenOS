@@ -57,5 +57,17 @@ try{
  assert(refreshed.itens.some(l=>l.id==='L-NEW'));
  await assert.rejects(()=>buscarPaginaExtrato({db,userId:user.uid,clienteId:'C5',
   inicio:'2026-01-01',fim:'2026-10-31'}),/período/i);
+ const {conferirLivroClienteNoServidor,conferirLivroSessaoNoServidor} =
+   await import('../src/core/financialLedgerScoped.js');
+ const [C5,S1]=await Promise.all([
+   conferirLivroClienteNoServidor({db,userId:user.uid,clienteId:'C5'}),
+   conferirLivroSessaoNoServidor({db,userId:user.uid,sessaoId:'S1'}),
+ ]);
+ assert.equal(C5.itens.length,251);
+ assert.equal(S1.itens.length,1250);
+ assert(C5.itens.every(item=>item.clienteId==='C5'));
+ assert(S1.itens.every(item=>item.sessaoId==='S1'));
+ assert(C5.confirmadoPeloServidor&&S1.confirmadoPeloServidor);
+ console.log('PASS: 5000 lançamentos, consulta autoritativa do cliente (251) e sessão (1250).');
  console.log('PASS: 5000 lançamentos, paginação ordenada sem duplicação, legado, concorrência e limite de 120 dias.');
 }finally{await deleteApp(app);}

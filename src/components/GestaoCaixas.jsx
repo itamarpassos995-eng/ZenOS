@@ -1,17 +1,47 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { assinarLivroSessaoEnquantoAberta, assinarUltimosFinanceirosNaAuditoria } from '../core/financialLedgerScoped.js';
 import { calcularResumoSessao, calcularConciliacaoEletronicaSessao } from '../core/cashSession';
 
-export default function GestaoCaixas({ sessoesCaixa, historicoVendas = [], caixaMovimentos = [], livroFinanceiro = [], fmt, tx }) {
+export default function GestaoCaixas({ db, userId, sessoesCaixa, historicoVendas = [], caixaMovimentos = [], fmt, tx }) {
   const sessoes = sessoesCaixa || [];
   const abertas = sessoes.filter(s => s.status === 'aberta');
+  const [livrosPorSessao,setLivrosPorSessao] = useState({});
+  const [recentes,setRecentes] = useState({status:'carregando',itens:[],erro:''});
+  const sessoesIds=abertas.map(s=>String(s.id)).sort().join('|');
+  // A auditoria existe apenas enquanto esta tela estiver aberta.
+  // Realtime de até 30 recentes + histórico integral exclusivamente das sessões abertas.
+  useEffect(()=>{
+    let vigente=true;
+    setLivrosPorSessao({});
+    setRecentes({status:'carregando',itens:[],erro:''});
+    if(!db||!userId)return;
+    const parar=[];
+    for(const id of sessoesIds.split('|').filter(Boolean)) {
+      parar.push(assinarLivroSessaoEnquantoAberta({db,userId,sessaoId:id,
+        onData:(itens,meta)=>{if(vigente&&meta.confirmado)
+          setLivrosPorSessao(estado=>({...estado,[id]:{status:'confirmado',itens}}));},
+        onError:err=>{if(vigente)setLivrosPorSessao(estado=>({
+          ...estado,[id]:{status:'erro',erro:err?.message||'Falha na leitura'}}));},
+      }));
+    }
+    parar.push(assinarUltimosFinanceirosNaAuditoria({db,userId,max:30,
+      onData:(itens,meta)=>{if(vigente&&meta.confirmado)
+        setRecentes({status:'confirmado',itens,erro:''});},
+      onError:err=>{if(vigente)setRecentes({status:'erro',itens:[],erro:err?.message||'Falha na leitura'});},
+    }));
+    return()=>{vigente=false;parar.forEach(fn=>fn());};
+  },[db,userId,sessoesIds]);
   const resumosAbertos = abertas.map(sessao => {
     const resumo = calcularResumoSessao({ sessao, historicoVendas, caixaMovimentos });
     if (!resumo) return null;
-    const eletronico = calcularConciliacaoEletronicaSessao({ sessao, livroFinanceiro }) || {};
-    return { ...resumo, ...eletronico };
+    const controle=livrosPorSessao[String(sessao.id)];
+    const eletronico=controle?.status==='confirmado'
+      ? calcularConciliacaoEletronicaSessao({ sessao, livroFinanceiro:controle.itens }) : null;
+    return { ...resumo, ...(eletronico||{}),
+      _financeiroConfirmado:!!eletronico,_financeiroErro:controle?.status==='erro'?controle.erro:'' };
   }).filter(Boolean);
   const dinheiroCirculando = resumosAbertos.reduce((acc, r) => acc + (Number(r.saldoEsperado) || 0), 0);
-  const ultimosLancamentos = (livroFinanceiro || []).slice(0, 30);
+  const ultimosLancamentos = recentes.status==='confirmado' ? recentes.itens : [];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '1200px', margin: '0 auto' }}>
@@ -41,11 +71,15 @@ export default function GestaoCaixas({ sessoesCaixa, historicoVendas = [], caixa
                 <span>{tx('Compras em dinheiro','Compras en efectivo','Cash Purchases')}</span><strong style={{textAlign:'right',color:'#fb7185'}}>{fmt(r.comprasDinheiro,'BRL')}</strong>
                 <span>{tx('PIX registrado','PIX registrado','PIX Recorded')}</span><strong style={{textAlign:'right',color:'#38bdf8'}}>{fmt(r.pixRegistrado,'BRL')}</strong>
                 <span>{tx('Cartões registrados','Tarjetas registradas','Cards Recorded')}</span><strong style={{textAlign:'right',color:'#a78bfa'}}>{fmt(r.cartoesRegistrados,'BRL')}</strong>
-                <span>{tx('PIX saídas/estornos','PIX salidas/reversiones','PIX Outflows/Refunds')}</span><strong style={{textAlign:'right',color:'#fb7185'}}>{fmt(r.pixSaidas,'BRL')}</strong>
-                <span>{tx('PIX líquido','PIX neto','Net PIX')}</span><strong style={{textAlign:'right',color:'#38bdf8'}}>{fmt(r.pixLiquido,'BRL')}</strong>
-                <span>{tx('Cartão crédito líquido','Tarjeta crédito neta','Net Credit Card')}</span><strong style={{textAlign:'right',color:'#a78bfa'}}>{fmt(r.cartaoCreditoLiquido,'BRL')}</strong>
-                <span>{tx('Cartão débito líquido','Tarjeta débito neta','Net Debit Card')}</span><strong style={{textAlign:'right',color:'#a78bfa'}}>{fmt(r.cartaoDebitoLiquido,'BRL')}</strong>
+                <span>{tx('PIX saídas/estornos','PIX salidas/reversiones','PIX Outflows/Refunds')}</span><strong style={{textAlign:'right',color:'#fb7185'}}>{r._financeiroConfirmado?fmt(r.pixSaidas,'BRL'):'—'}</strong>
+                <span>{tx('PIX líquido','PIX neto','Net PIX')}</span><strong style={{textAlign:'right',color:'#38bdf8'}}>{r._financeiroConfirmado?fmt(r.pixLiquido,'BRL'):'—'}</strong>
+                <span>{tx('Cartão crédito líquido','Tarjeta crédito neta','Net Credit Card')}</span><strong style={{textAlign:'right',color:'#a78bfa'}}>{r._financeiroConfirmado?fmt(r.cartaoCreditoLiquido,'BRL'):'—'}</strong>
+                <span>{tx('Cartão débito líquido','Tarjeta débito neta','Net Debit Card')}</span><strong style={{textAlign:'right',color:'#a78bfa'}}>{r._financeiroConfirmado?fmt(r.cartaoDebitoLiquido,'BRL'):'—'}</strong>
               </div>
+              {!r._financeiroConfirmado && <div role="status" style={{color:r._financeiroErro?'#fda4af':'#fbbf24',fontSize:11,marginTop:8}}>
+                {r._financeiroErro?'Conciliação eletrônica indisponível: '+r._financeiroErro
+                  :'Conferindo lançamentos eletrônicos desta sessão no servidor…'}
+              </div>}
               <div style={{marginTop:14,paddingTop:12,borderTop:'1px solid #1e293b',display:'flex',justifyContent:'space-between',alignItems:'center'}}><span style={{fontSize:11,fontWeight:900,color:'#94a3b8'}}>{tx('SALDO FÍSICO ESPERADO','SALDO FÍSICO ESPERADO','EXPECTED PHYSICAL CASH')}</span><strong style={{fontSize:20,color:'#fff'}}>{fmt(r.saldoEsperado,'BRL')}</strong></div>
             </div>)}
           </div>}
@@ -67,7 +101,8 @@ export default function GestaoCaixas({ sessoesCaixa, historicoVendas = [], caixa
 
       <section style={{background:'#0b1120',border:'1px solid #1e293b',borderRadius:20,padding:22}}>
         <div style={{marginBottom:14}}><strong style={{color:'#fff'}}>{tx('Livro Financeiro — novos lançamentos','Libro Financiero — nuevos movimientos','Financial Ledger — new entries')}</strong><div style={{fontSize:11,color:'#64748b'}}>{tx('Trilha aditiva da ATT 07. Nenhum movimento antigo é reconstruído por inferência.','Rastro aditivo de ATT 07. Ningún movimiento antiguo se reconstruye por inferencia.','ATT 07 additive trail. No old movement is reconstructed by inference.')}</div></div>
-        {ultimosLancamentos.length===0 ? <div style={{padding:28,textAlign:'center',color:'#475569'}}>{tx('Nenhum lançamento novo no Livro Financeiro.','Ningún movimiento nuevo en el Libro Financiero.','No new entries in the Financial Ledger.')}</div> : <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:11,minWidth:900}}><thead><tr style={{color:'#64748b',textTransform:'uppercase',borderBottom:'1px solid #1e293b'}}><th style={{padding:10,textAlign:'left'}}>{tx('Data','Fecha','Date')}</th><th style={{textAlign:'left'}}>{tx('Tipo','Tipo','Type')}</th><th style={{textAlign:'left'}}>{tx('Origem','Origen','Source')}</th><th style={{textAlign:'left'}}>{tx('Referência','Referencia','Reference')}</th><th style={{textAlign:'left'}}>{tx('Forma','Forma','Method')}</th><th style={{textAlign:'left'}}>{tx('Operador','Operador','Operator')}</th><th style={{textAlign:'right'}}>{tx('Valor','Valor','Amount')}</th><th style={{textAlign:'center'}}>{tx('Gaveta','Caja','Drawer')}</th><th style={{textAlign:'center'}}>{tx('Resultado','Resultado','Result')}</th></tr></thead><tbody>{ultimosLancamentos.map(l=><tr key={l.id} style={{borderBottom:'1px solid rgba(255,255,255,.05)',color:'#cbd5e1'}}><td style={{padding:10,color:'#94a3b8'}}>{l.createdAt?new Date(l.createdAt).toLocaleString('pt-BR'):'—'}</td><td style={{fontWeight:800}}>{l.tipo}</td><td>{l.origem}</td><td>{l.referenciaId}</td><td>{l.formaPagamento}</td><td>{l.operadorNome}</td><td style={{textAlign:'right',fontWeight:900,color:l.direcao==='saida'?'#fb7185':'#34d399'}}>{l.direcao==='saida'?'- ':'+ '}{fmt(l.valor,'BRL')}</td><td style={{textAlign:'center'}}>{l.afetaCaixaFisico?'✓':'—'}</td><td style={{textAlign:'center'}}>{l.afetaResultado?'✓':'—'}</td></tr>)}</tbody></table></div>}
+        {recentes.status!=='confirmado' ? <div role="status" style={{padding:28,color:recentes.status==='erro'?'#fda4af':'#fbbf24'}}>{recentes.status==='erro'?'Falha na consulta financeira: '+recentes.erro:'Conferindo últimos lançamentos no servidor…'}</div>
+          : ultimosLancamentos.length===0 ? <div style={{padding:28,textAlign:'center',color:'#475569'}}>{tx('Nenhum lançamento novo no Livro Financeiro.','Ningún movimiento nuevo en el Libro Financiero.','No new entries in the Financial Ledger.')}</div> : <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:11,minWidth:900}}><thead><tr style={{color:'#64748b',textTransform:'uppercase',borderBottom:'1px solid #1e293b'}}><th style={{padding:10,textAlign:'left'}}>{tx('Data','Fecha','Date')}</th><th style={{textAlign:'left'}}>{tx('Tipo','Tipo','Type')}</th><th style={{textAlign:'left'}}>{tx('Origem','Origen','Source')}</th><th style={{textAlign:'left'}}>{tx('Referência','Referencia','Reference')}</th><th style={{textAlign:'left'}}>{tx('Forma','Forma','Method')}</th><th style={{textAlign:'left'}}>{tx('Operador','Operador','Operator')}</th><th style={{textAlign:'right'}}>{tx('Valor','Valor','Amount')}</th><th style={{textAlign:'center'}}>{tx('Gaveta','Caja','Drawer')}</th><th style={{textAlign:'center'}}>{tx('Resultado','Resultado','Result')}</th></tr></thead><tbody>{ultimosLancamentos.map(l=><tr key={l.id} style={{borderBottom:'1px solid rgba(255,255,255,.05)',color:'#cbd5e1'}}><td style={{padding:10,color:'#94a3b8'}}>{l.createdAt?new Date(l.createdAt).toLocaleString('pt-BR'):'—'}</td><td style={{fontWeight:800}}>{l.tipo}</td><td>{l.origem}</td><td>{l.referenciaId}</td><td>{l.formaPagamento}</td><td>{l.operadorNome}</td><td style={{textAlign:'right',fontWeight:900,color:l.direcao==='saida'?'#fb7185':'#34d399'}}>{l.direcao==='saida'?'- ':'+ '}{fmt(l.valor,'BRL')}</td><td style={{textAlign:'center'}}>{l.afetaCaixaFisico?'✓':'—'}</td><td style={{textAlign:'center'}}>{l.afetaResultado?'✓':'—'}</td></tr>)}</tbody></table></div>}
       </section>
     </div>
   );

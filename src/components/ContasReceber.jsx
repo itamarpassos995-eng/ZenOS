@@ -8,11 +8,11 @@ const moeda=v=>'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:
 const botao={border:'1px solid #334155',borderRadius:8,background:'#15273b',color:'#e2e8f0',cursor:'pointer',padding:'9px 12px',fontWeight:700};
 const celula={borderBottom:'1px solid #263447',padding:'11px 9px',textAlign:'left'};
 
-export default function ContasReceber({db,userId,clientes=[],historicoVendas=[]}) {
+export default function ContasReceber({db,userId,clientes=[],historicoVendas=[],initialClient=null,onVoltar}) {
  const [periodo,setPeriodo]=useState('7'),[inicioPersonalizado,setInicioPersonalizado]=useState(diasAtras(7));
  const [fimPersonalizado,setFimPersonalizado]=useState(hoje());
  const [aba,setAba]=useState('abertos'),[pesquisa,setPesquisa]=useState('');
- const [cliente,setCliente]=useState(null),[linhas,setLinhas]=useState([]),[cursor,setCursor]=useState(null);
+ const [cliente,setCliente]=useState(initialClient),[linhas,setLinhas]=useState([]),[cursor,setCursor]=useState(null);
  const [mais,setMais]=useState(false),[estado,setEstado]=useState('nao_consultado');
  const [erro,setErro]=useState(''),[escopoCompleto,setEscopoCompleto]=useState(false);
  const [consultaLegado,setConsultaLegado]=useState(false);
@@ -52,7 +52,10 @@ export default function ContasReceber({db,userId,clientes=[],historicoVendas=[]}
   }catch(e){if(key===serial.current){setErro(e?.message||'Consulta indisponível');setEstado('erro');}}
  };
  return <section style={{padding:16,maxWidth:1150,margin:'0 auto',color:'#e2e8f0'}}>
-  <h2 style={{fontSize:22,margin:'0 0 6px'}}>📆 Contas a Receber</h2>
+  <div style={{display:'flex',gap:10,alignItems:'center',marginBottom:10,flexWrap:'wrap'}}>
+   {onVoltar && <button type="button" style={botao} onClick={onVoltar}>← Clientes e Fiado</button>}
+   <h2 style={{fontSize:22,margin:'0 0 6px'}}>📆 Contas a Receber</h2>
+  </div>
   <p style={{fontSize:13,color:'#94a3b8'}}>Consulte dívidas e vendas fiadas sem carregar automaticamente o extrato histórico. Dados em aberto vêm do cadastro operacional sincronizado.</p>
   <div style={{display:'flex',gap:8,flexWrap:'wrap',margin:'18px 0'}}>
    {[['7','7 dias'],['30','30 dias'],['personalizado','Escolher período']].map(([id,label])=>
