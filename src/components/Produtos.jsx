@@ -45,6 +45,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
   const [filtroHistoricoFim, setFiltroHistoricoFim] = useState('');
   const [modalZen, setModalZen] = useState(null);
   const [auditandoIndices, setAuditandoIndices] = useState(false);
+  const [confirmarAuditoriaCompleta, setConfirmarAuditoriaCompleta] = useState(false);
   const [identidadesAuditadas, setIdentidadesAuditadas] = useState([]);
   const [idOriginalSelecionado, setIdOriginalSelecionado] = useState('');
   const [diagnosticoOriginal, setDiagnosticoOriginal] = useState(null);
@@ -87,6 +88,13 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       }
       if(resultado.status==='orphan_index' && String(resultado.ownerId||'').startsWith('PROD-BALCAO-')){
         setCandidatoOrfaoPDV({sku,ownerId:resultado.ownerId});
+      } else if(resultado.status==='orphan_index' && resultado.ownerId) {
+        // Cadastro normal reservado: identidade conhecida pelo índice do SKU.
+        // Sem varrer os demais índices da loja nem assumir que pode recriar estoque.
+        setIdentidadesAuditadas([{produtoId:String(resultado.ownerId),nomes:[],skus:[sku],situacao:'Cadastro incompleto'}]);
+        setIdOriginalSelecionado(String(resultado.ownerId));
+        await examinarCadastroPeloId(String(resultado.ownerId));
+        return;
       }
       return mostrarZen('warning','Cadastro ainda não disponível','Este produto precisa de conferência para voltar à lista. Utilize Recuperar produtos ou entre em contato com o suporte. Nenhum cadastro foi alterado.',[`SKU pesquisado: ${sku}`]);
     }catch(error){
@@ -211,7 +219,10 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
   };
 
   const auditarCadastrosOriginais = async () => {
-    if(!podeGerenciarProdutos||auditandoIndices)return;
+    // Auditoria GLOBAL somente mediante confirmação explícita pela gerência.
+    // Recuperação do dia a dia permanece por SKU (consulta dirigida).
+    if(patenteUsuario!=='gerencia'||auditandoIndices)return;
+    setConfirmarAuditoriaCompleta(false);
     setAuditandoIndices(true);setIdentidadesAuditadas([]);setDiagnosticoOriginal(null);
     try{
       const r=await auditarIndicesProdutosServidor({db,userId});
@@ -632,7 +643,8 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
             <button type="button" disabled={buscandoSkuHistorico} onClick={buscarCadastroPeloSkuAntigo} style={{background:'#164e63',color:'#e0f2fe',border:'1px solid #38bdf8',borderRadius:8,padding:'10px',fontWeight:800}}>{buscandoSkuHistorico?'Conferindo...':'Buscar SKU original'}</button>
           </div>}
           {podeGerenciarProdutos && candidatoOrfaoPDV && <button type="button" disabled={liberandoOrfaoPDV} onClick={()=>setConfirmarLiberacaoOrfao(true)} style={{border:'1px solid #f59e0b',borderRadius:10,padding:'10px',background:'#422006',color:'#fde68a',fontWeight:800}}>{liberandoOrfaoPDV?'Conferindo...':'Conferir cadastro incompleto'}</button>}
-          {podeGerenciarProdutos && <button type="button" disabled={auditandoIndices} onClick={auditarCadastrosOriginais} title="Verifica cadastros indisponíveis sem alterar produtos ou estoque" style={{background:'#0f172a',border:'1px solid #38bdf8',color:'#e0f2fe',borderRadius:12,padding:'10px 12px',fontWeight:800,cursor:'pointer'}}>{auditandoIndices?'Conferindo...':'Recuperar produtos'}</button>}
+          {podeGerenciarProdutos && <button type="button" disabled={buscandoSkuHistorico} onClick={buscarCadastroPeloSkuAntigo} title="Localiza apenas o SKU original informado, sem varredura do catálogo" style={{background:'#0f172a',border:'1px solid #38bdf8',color:'#e0f2fe',borderRadius:12,padding:'10px 12px',fontWeight:800,cursor:'pointer'}}>{buscandoSkuHistorico?'Conferindo...':'Recuperar produto por SKU'}</button>}
+          {patenteUsuario==='gerencia' && <button type="button" disabled={auditandoIndices} onClick={()=>setConfirmarAuditoriaCompleta(true)} title="Auditoria completa excepcional — consulta até 2.501 índices; requer confirmação" style={{background:'#0f172a',border:'1px solid #475569',color:'#94a3b8',borderRadius:12,padding:'8px 10px',fontWeight:700,cursor:'pointer',fontSize:11}}>{auditandoIndices?'Auditando...':'Auditoria completa (avançada)'}</button>}
           {podeGerenciarProdutos && identidadesAuditadas.length>0 && (
             <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
               <select aria-label="Produto para conferir" value={idOriginalSelecionado}
@@ -980,6 +992,11 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       )}
     
       <ZenModal aberto={!!modalZen} variante={modalZen?.variante} titulo={modalZen?.titulo} mensagem={modalZen?.mensagem} detalhes={modalZen?.detalhes} apenasConfirmar={true} onConfirmar={()=>setModalZen(null)} onCancelar={()=>setModalZen(null)} />
+      <ZenModal aberto={confirmarAuditoriaCompleta} variante="warning"
+        titulo="Auditoria completa de índices — uso excepcional"
+        mensagem="Esta auditoria consulta até 2.501 documentos no Firestore e pode gerar um pico de leituras. Para recuperar um produto específico, prefira informar o SKU original e clicar em Recuperar produto por SKU. A auditoria não altera dados, estoque ou valores."
+        confirmarTexto="Executar auditoria completa" cancelarTexto="Cancelar"
+        onConfirmar={auditarCadastrosOriginais} onCancelar={()=>setConfirmarAuditoriaCompleta(false)} />
       <ZenModal aberto={confirmarReativacaoOriginal} variante="warning"
         titulo="Reativar produto desativado"
         mensagem="Confirme que o estoque físico está correto. A reativação mantém os valores e o código já cadastrados. Se houver qualquer alteração simultânea, a operação será bloqueada."

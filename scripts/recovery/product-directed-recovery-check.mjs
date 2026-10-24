@@ -1,0 +1,15 @@
+// P0: nunca carregar 2.501 documentos no clique comum de recuperar um produto.
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const path=new URL('../../src/components/Produtos.jsx',import.meta.url);
+const src=readFileSync(path,'utf8');
+assert.match(src,/onClick=\{buscarCadastroPeloSkuAntigo\} title="Localiza apenas o SKU original informado/);
+assert.match(src,/Recuperar produto por SKU/);
+assert.match(src,/resultado.status==='orphan_index' && resultado.ownerId/);
+assert.match(src,/await examinarCadastroPeloId\(String\(resultado.ownerId\)\)/);
+assert.match(src,/patenteUsuario==='gerencia' && <button[^\n]+onClick=\{\(\)=>setConfirmarAuditoriaCompleta\(true\)\}/);
+assert.match(src,/onConfirmar=\{auditarCadastrosOriginais\}/);
+assert.match(src,/if\(patenteUsuario!=='gerencia'\|\|auditandoIndices\)return;/);
+const buttonBlock=src.slice(src.indexOf('  return (\n    <div'),src.lastIndexOf('</div>'));
+assert.doesNotMatch(buttonBlock,/onClick=\{auditarCadastrosOriginais\}/);
+console.log('PASS: recuperação normal usa busca dirigida; auditoria ampla isolada na confirmação gerencial.');

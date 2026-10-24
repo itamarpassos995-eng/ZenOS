@@ -1,0 +1,22 @@
+name: P0 Recuperação SKU sem varredura
+on:
+  pull_request:
+    paths:
+      - 'src/components/Produtos.jsx'
+      - 'scripts/recovery/product-directed-recovery-check.mjs'
+      - '.github/workflows/p0-directed-product-recovery.yml'
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node scripts/recovery/product-directed-recovery-check.mjs
+      - run: node scripts/release-check.mjs
+      - run: npm run build
