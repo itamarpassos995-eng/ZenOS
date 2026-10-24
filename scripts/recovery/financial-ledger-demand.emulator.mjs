@@ -23,8 +23,8 @@ try {
    id,lojaId:u.uid,referenciaId:id,tipo:'venda',createdAt:new Date().toISOString(),
    sessaoId,formaPagamento,valor,direcao,
  });
- const outras=Array.from({length:150},(_,i)=>criar('antigo-'+i,'turno-velho','pix',100));
- for(let i=0;i<outras.length;i+=15)await Promise.all(outras.slice(i,i+15));
+ const outras=Array.from({length:150},(_,i)=>()=>criar('antigo-'+i,'turno-velho','pix',100));
+ for(let i=0;i<outras.length;i+=15)await Promise.all(outras.slice(i,i+15).map(fn=>fn()));
  await criar('a','turno-atual','pix',120);
  await criar('b','turno-atual','cartao_credito',45);
  await criar('c','turno-atual','pix',20,'saida');

@@ -1,9 +1,9 @@
 import { collection, doc, onSnapshot, serverTimestamp, setDoc, query, where, getDocsFromServer } from 'firebase/firestore';
-import { criarLancamentoFinanceiro } from './financialLedgerCore';
+import { criarLancamentoFinanceiro } from './financialLedgerCore.js';
 import { notifyPersistenceStatus } from './persistenceSafety.js';
 
 const COLECAO = 'financeiro_livro';
-export { criarLancamentoFinanceiro, formaEhDinheiro } from './financialLedgerCore';
+export { criarLancamentoFinanceiro, formaEhDinheiro } from './financialLedgerCore.js';
 
 export async function registrarLancamentoFinanceiro({ db, userId, lancamento }) {
   const normalizado = criarLancamentoFinanceiro({ ...lancamento, lojaId: userId || lancamento?.lojaId });
