@@ -163,6 +163,46 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
     } catch (erro) { mostrarZen('danger', tx('Preço não restaurado','Precio no restaurado','Price not restored'), erro.message || tx('Não foi possível retornar aos preços de balcão com segurança.','No fue posible volver a los precios de mostrador con seguridad.','Could not safely restore counter prices.')); }
   };
 
+  useEffect(() => {
+    const handleSelecionarCliente = (e) => {
+      const cli = e?.detail;
+      if (cli) {
+        const cliAtual = (clientes || []).find(c => String(c.id) === String(cli.id)) || cli;
+        selecionarClienteNoPDV(cliAtual);
+      }
+    };
+    const handleAdicionarItem = (e) => {
+      const prod = e?.detail;
+      if (prod) {
+        const prodOriginal = (produtos || []).find(p => String(p.id) === String(prod.id)) || prod;
+        const precoBase = aplicarPrecoPorPerfilCliente(prodOriginal, clienteSelecionadoPDV);
+        setItensVenda(prev => {
+          const idx = prev.findIndex(i => String(i.produtoOriginalId || i.id) === String(prodOriginal.id) || (i.sku && prodOriginal.sku && String(i.sku) === String(prodOriginal.sku)));
+          if (idx !== -1) {
+            const copia = [...prev];
+            copia[idx] = { ...copia[idx], qtd: String((parseInt(copia[idx].qtd) || 1) + 1) };
+            return copia;
+          }
+          return [...prev, {
+            ...prodOriginal,
+            id: `${prodOriginal.id}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            produtoOriginalId: prodOriginal.id,
+            produtoOriginalSku: prodOriginal.sku,
+            qtd: '1',
+            precoPraticadoBRL: precoBase,
+            precoTexto: converterDeBRL(precoBase, moeda).toFixed(2)
+          }];
+        });
+      }
+    };
+    window.addEventListener("zenos:selecionar-cliente-pdv", handleSelecionarCliente);
+    window.addEventListener("zenos:adicionar-item-pdv", handleAdicionarItem);
+    return () => {
+      window.removeEventListener("zenos:selecionar-cliente-pdv", handleSelecionarCliente);
+      window.removeEventListener("zenos:adicionar-item-pdv", handleAdicionarItem);
+    };
+  }, [clientes, produtos, clienteSelecionadoPDV, moeda]);
+
   const abrirCadastroClientePDV = () => {
     setFormClientePDV(normalizarCliente({ nome: nomeClienteVulso, pais: moeda === 'PYG' ? 'PY' : 'BR', tipoDocumento: moeda === 'PYG' ? 'RUC' : 'CPF' }));
     setModalClientePDVAberto(true);

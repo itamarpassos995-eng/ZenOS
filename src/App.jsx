@@ -34,7 +34,7 @@ import FiscalErrorBoundary from './components/FiscalErrorBoundary';
 // Lazy para não carregar a interface opcional durante vendas e fechamento de caixa.
 const CommerceSolicitacao = React.lazy(() => import('./components/CommerceSolicitacao'));
 import ZenModal from './components/ZenModal';
-import AssistenteZen from './components/AssistenteZen';
+import ZenAssistenteIA from './components/ZenAssistenteIA';
 import { normalizarPerfilLoja, lerPerfilLojaLocal, salvarPerfilLojaLocal, limparPerfilLojaLocal } from './core/storeProfile';
 import { assinarLivroFinanceiro, registrarLancamentoFinanceiro, consultarLivroFinanceiroSessaoServidor } from './core/financialLedger';
 import { planejarReconciliacoesFiado } from './core/creditReconciliation.js';
@@ -175,6 +175,7 @@ export default function App() {
   const syncDeferredRemoteRef = useRef(new Map());
   const syncCamposRef = useRef(new Map());
   const [modalAppZen, setModalAppZen] = useState(null);
+  const [assistenteIAAberto, setAssistenteIAAberto] = useState(false);
 
   const avisarAppZen = ({ variante = 'info', titulo, mensagem, detalhes = [] }) =>
     setModalAppZen({ variante, titulo, mensagem, detalhes, apenasConfirmar: true });
@@ -1749,6 +1750,7 @@ export default function App() {
         <div className="zen-content">
           <ZenTopbar
             onAbrirMobile={() => setMenuNavAberto(true)}
+            onAbrirIA={() => setAssistenteIAAberto(true)}
             status={statusSincronizacao}
             statusTitle={erroSincronizacao || statusSincronizacao}
             labelErroSincronizacao={tx('Erro ao sincronizar','Error al sincronizar','Sync error')}
@@ -1925,20 +1927,26 @@ export default function App() {
         </div>
       )}
     
-      <AssistenteZen
+      <ZenAssistenteIA
+        aberto={assistenteIAAberto}
+        onAbrir={() => setAssistenteIAAberto(true)}
+        onFechar={() => setAssistenteIAAberto(false)}
         operadorAtivo={operadorAtivo}
         patenteUsuario={patenteUsuario}
         temPermissao={temPermissao}
+        navegarPara={navegarPara}
+        onAbrirCaixa={() => { setTipoMovCaixa("abertura"); setModalCaixaAberto(true); }}
         produtos={produtos}
         historicoVendas={historicoVendas}
         clientes={clientes}
         despesas={despesas}
-        fornecedores={fornecedores}
-        navegarPara={navegarPara}
-        ecraAtual={ecraAtual}
+        caixaMovimentos={caixaMovimentos}
+        sessoesCaixa={sessoesCaixa}
+        sessaoAtiva={sessaoAtiva}
+        moeda={moeda}
         fmt={fmt}
         tx={tx}
-        moeda={moeda}
+        saldoSessaoFisicoBRL={saldoSessaoFisicoBRL}
       />
 
       <ZenModal aberto={!!modalAppZen} variante={modalAppZen?.variante} titulo={modalAppZen?.titulo} mensagem={modalAppZen?.mensagem} detalhes={modalAppZen?.detalhes} confirmarTexto={modalAppZen?.confirmarTexto || 'OK'} cancelarTexto={modalAppZen?.cancelarTexto || 'Cancelar'} apenasConfirmar={!!modalAppZen?.apenasConfirmar} onConfirmar={()=>{ const resolver=modalAppZen?.resolver; setModalAppZen(null); if(resolver) resolver(true); }} onCancelar={()=>{ const resolver=modalAppZen?.resolver; setModalAppZen(null); if(resolver) resolver(false); }} />

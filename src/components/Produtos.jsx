@@ -336,6 +336,23 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
     setModalProdutoAberto(true);
   };
 
+  React.useEffect(() => {
+    const handleAbrirNovo = () => abrirCadastroNovoProduto();
+    const handleAbrirProd = (e) => {
+      const prod = e?.detail;
+      if (prod) {
+        const prodAtual = (produtos || []).find(p => String(p.id) === String(prod.id)) || prod;
+        abrirEdicaoProduto(prodAtual);
+      }
+    };
+    window.addEventListener("zenos:abrir-novo-produto", handleAbrirNovo);
+    window.addEventListener("zenos:abrir-produto", handleAbrirProd);
+    return () => {
+      window.removeEventListener("zenos:abrir-novo-produto", handleAbrirNovo);
+      window.removeEventListener("zenos:abrir-produto", handleAbrirProd);
+    };
+  }, [gruposCadastrados, moeda, produtos]);
+
   const lidarUploadImagem = (e) => {
     const arquivo = e.target.files?.[0];
     if (arquivo) {
