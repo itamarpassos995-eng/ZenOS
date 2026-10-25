@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { calcularAlocacaoReposicaoDevolucao, obterEstoqueProduto, reporEstoqueProduto } from '../core/inventory';
 import { calcularCustoDevolucaoAtual, calcularValorDevolucaoAtual, obterCustoSnapshotItem, obterFinanceiroVenda, precoLiquidoUnitarioItem } from '../core/salesFinancials';
 import { calcularCustoMedioMovel } from '../core/purchaseCosts';
@@ -16,6 +16,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
   const [vendaExpandida, setVendaExpandida] = useState(null);
   const [cupomParaImprimir, setCupomParaImprimir] = useState(null);
   const [filtroTipoDocumento, setFiltroTipoDocumento] = useState('todos');
+  const [limiteHistorico, setLimiteHistorico] = useState(50);
 
   const [modalDevolucaoAberto, setModalDevolucaoAberto] = useState(false);
   const [vendaSendoDevolvida, setVendaSendoDevolvida] = useState(null);
@@ -27,23 +28,27 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
   const [processandoDevolucao, setProcessandoDevolucao] = useState(false);
   const devolucaoEmAndamentoRef = useRef(false);
   const devolucaoOperacaoRef = useRef({ assinatura: null, id: null });
-  const perfilRecibo = normalizarPerfilLoja(perfilLoja);
+  const perfilRecibo = useMemo(() => normalizarPerfilLoja(perfilLoja), [perfilLoja]);
   // Documentos não faturados nunca podem movimentar caixa, estoque ou fiado.
   // Vendas legadas podem não ter o campo tipoDocumento.
   const ehVendaFaturada = v => (!v?.tipoDocumento || v.tipoDocumento === 'venda')
     && ['concluida','parcial'].includes(v?.estado);
   const ehDocumentoPendente = v => (v?.tipoDocumento === 'pre_pedido' && v?.estado === 'pendente')
     || (v?.tipoDocumento === 'orcamento' && v?.estado === 'orcamento');
-  const historicoVisivel = (historicoVendas || []).filter(v => v?.estado !== 'excluida'
+  const historicoVisivel = useMemo(() => (historicoVendas || []).filter(v => v?.estado !== 'excluida'
     && (filtroTipoDocumento === 'todos'
       || (filtroTipoDocumento === 'venda' && ehVendaFaturada(v))
       || (filtroTipoDocumento === 'pre_pedido' && v?.tipoDocumento === 'pre_pedido')
-      || (filtroTipoDocumento === 'orcamento' && v?.tipoDocumento === 'orcamento')));
-  const caixasAbertos = (sessoesCaixa || [])
+      || (filtroTipoDocumento === 'orcamento' && v?.tipoDocumento === 'orcamento'))),
+    [historicoVendas, filtroTipoDocumento]);
+  const historicoExibido = useMemo(() => historicoVisivel.slice(0, limiteHistorico),
+    [historicoVisivel, limiteHistorico]);
+  const caixasAbertos = useMemo(() => (sessoesCaixa || [])
     .filter(s => s?.status === 'aberta')
     .map(sessao => ({ sessao, resumo: calcularResumoSessao({ sessao, historicoVendas, caixaMovimentos }) }))
     .filter(x => x.resumo)
-    .sort((a,b) => Number(b.resumo.saldoEsperado || 0) - Number(a.resumo.saldoEsperado || 0));
+    .sort((a,b) => Number(b.resumo.saldoEsperado || 0) - Number(a.resumo.saldoEsperado || 0)),
+    [sessoesCaixa, historicoVendas, caixaMovimentos]);
   const caixaReembolsoSelecionado = caixasAbertos.find(x => String(x.sessao.id) === String(sessaoReembolsoId)) || null;
   const cotacoesReimpressao = cupomParaImprimir?.taxasCambio || taxasCambio || {};
   const moedasReimpressao = moedasAtivasRecibo(cotacoesReimpressao);
@@ -522,7 +527,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
       <div className="no-print" style={{display:'flex',flexWrap:'wrap',gap:8,alignItems:'center'}}>
         <span style={{fontSize:12,fontWeight:800,color:'#94a3b8'}}>Filtrar documentos:</span>
         {[['todos','Todos'],['venda','Vendas'],['pre_pedido','Pré-pedidos'],['orcamento','Orçamentos']].map(([valor,rotulo]) => (
-          <button key={valor} type="button" onClick={()=>setFiltroTipoDocumento(valor)} aria-pressed={filtroTipoDocumento===valor} style={{padding:'8px 12px',borderRadius:9,border:'1px solid '+(filtroTipoDocumento===valor?'#38bdf8':'#334155'),background:filtroTipoDocumento===valor?'#082f49':'#0f172a',color:'#e2e8f0',fontSize:12,cursor:'pointer',fontWeight:800}}>{rotulo}</button>
+          <button key={valor} type="button" onClick={()=>{setFiltroTipoDocumento(valor);setLimiteHistorico(50);}} aria-pressed={filtroTipoDocumento===valor} style={{padding:'8px 12px',borderRadius:9,border:'1px solid '+(filtroTipoDocumento===valor?'#38bdf8':'#334155'),background:filtroTipoDocumento===valor?'#082f49':'#0f172a',color:'#e2e8f0',fontSize:12,cursor:'pointer',fontWeight:800}}>{rotulo}</button>
         ))}
       </div>
       <div className="no-print" style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', overflow: 'hidden' }}> 
@@ -542,7 +547,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
             {historicoVisivel.length === 0 ? (
               <tr><td colSpan="7" style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>{tx('Nenhuma venda registada até o momento.','Ninguna venta registrada hasta el momento.','No sales recorded yet.')}</td></tr>
             ) : (
-              historicoVisivel.map(venda => (
+              historicoExibido.map(venda => (
                 <React.Fragment key={venda.id}>
                   <tr style={{ borderBottom: '1px solid #1e293b', backgroundColor: vendaExpandida === venda.id ? '#1e1b4b' : 'transparent', transition: 'all 0.2s' }}>
                     <td style={{ padding: '16px 20px', color: '#cbd5e1' }}>{venda.dataHora}</td>
@@ -572,6 +577,10 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
                             <span style={{ fontSize: '12px', fontWeight: 900, color: '#38bdf8', textTransform: 'uppercase' }}>{tx('Produtos desta Comanda','Productos de esta Comanda','Products in this Tab')}</span>
                             <button onClick={() => setCupomParaImprimir(venda)} style={{ background: '#082f49', border: '1px solid #0284c7', color: '#38bdf8', padding: '6px 14px', borderRadius: '8px', fontSize: '11px', cursor: 'pointer', fontWeight: 800 }}>🖨️ {tx('Re-Imprimir Cupom', 'Re-Imprimir', 'Re-Print')}</button>
+                          </div>
+                          <div style={{fontSize:12,color:'#94a3b8',marginBottom:12}}>
+                            {tx('Vendedor:','Vendedor:','Seller:')} <strong style={{color:'#e2e8f0'}}>{venda.vendedorNome || '—'}</strong>
+                            {venda.finalizadoPorNome && <> • {tx('Caixa:','Caja:','Checkout:')} <strong style={{color:'#e2e8f0'}}>{venda.finalizadoPorNome}</strong></>}
                           </div>
                           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                             <thead><tr style={{ borderBottom: '1px solid #1e293b', color: '#64748b', fontSize: '11px', textAlign: 'left' }}><th style={{ paddingBottom: '8px' }}>{tx('Qtd','Cant.','Qty')}</th><th style={{ paddingBottom: '8px' }}>{tx('Produto','Producto','Product')}</th><th style={{ paddingBottom: '8px', textAlign: 'right' }}>{tx('Vl. Un (R$)','Val. Un. (R$)','Unit Price (R$)')}</th><th style={{ paddingBottom: '8px', textAlign: 'right' }}>{tx('Total (R$)','Total (R$)','Total (R$)')}</th><th style={{ paddingBottom: '8px', textAlign: 'right' }}>{tx('Status Devolução','Estado Devolución','Return Status')}</th></tr></thead>
@@ -609,6 +618,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
           </tbody>
         </table>
       </div>
+      {historicoVisivel.length > limiteHistorico && <button type="button" className="no-print" onClick={()=>setLimiteHistorico(limite=>limite+50)} style={{alignSelf:'center',padding:'11px 22px',background:'#082f49',border:'1px solid #38bdf8',borderRadius:10,color:'#7dd3fc',fontWeight:800,cursor:'pointer'}}>{tx('Mostrar mais 50 registros','Mostrar 50 registros más','Show 50 more records')} ({historicoExibido.length}/{historicoVisivel.length})</button>}
 
       <ZenModal aberto={!!modalZen} variante={modalZen?.variante} titulo={modalZen?.titulo} mensagem={modalZen?.mensagem} detalhes={modalZen?.detalhes} confirmarTexto={modalZen?.confirmarTexto||'OK'} cancelarTexto={modalZen?.cancelarTexto||'Cancelar'} apenasConfirmar={modalZen?.apenasConfirmar} onConfirmar={()=>{ const r=modalZen?.resolver; setModalZen(null); if(r) r(true); }} onCancelar={()=>{ const r=modalZen?.resolver; setModalZen(null); if(r) r(false); }}/>
 

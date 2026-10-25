@@ -58,3 +58,27 @@ test('sem servidor resgate mantém rascunho e não confirma operação',async()=
  await waitFor(()=>expect(screen.getByText(/Resgate não confirmado/)).toBeTruthy());
  expect(commit).not.toHaveBeenCalled();
 });
+test('caixa B liquida pré-pedido de A sem transferir a autoria nem fazer consulta nova',async()=>{
+ const pedido={...doc('pre-autoria','pendente'),vendedorId:'vend-ana',vendedorNome:'Ana'};
+ const commit=vi.fn(async()=>({cloudOk:true,values:{}}));
+ getOperationalSnapshot.mockResolvedValue(snapshot([pedido]));
+ base([pedido],vi.fn(),commit);
+ fireEvent.click(screen.getByRole('button',{name:/Resgatar/}));
+ fireEvent.click(screen.getByText(/PRÉ-PEDIDO/));
+ await waitFor(()=>expect(getOperationalSnapshot).toHaveBeenCalledTimes(1));
+ fireEvent.click(screen.getByRole('button',{name:/Receber no Caixa/}));
+ fireEvent.click(screen.getByRole('button',{name:/Lançar Pagamento/}));
+ fireEvent.click(screen.getByRole('button',{name:/Liquidar no Caixa/}));
+ await waitFor(()=>expect(commit).toHaveBeenCalledTimes(1));
+ const proposta=commit.mock.calls[0][0].changes.find(c=>c.field==='historicoVendas').value;
+ const venda=proposta.find(v=>v.estado==='concluida');
+ expect(venda.vendedorId).toBe('vend-ana');
+ expect(venda.vendedorNome).toBe('Ana');
+ expect(venda.finalizadoPorId).toBe('operator-extra');
+ expect(venda.finalizadoPorNome).toBe('Peterson');
+ expect(venda.sessaoId).toBe('cx');
+ const guards=commit.mock.calls[0][0].guards;
+ expect(guards).toContainEqual(expect.objectContaining({property:'vendedorId',expected:'vend-ana'}));
+ expect(guards).toContainEqual(expect.objectContaining({property:'vendedorNome',expected:'Ana'}));
+ expect(getOperationalSnapshot).toHaveBeenCalledTimes(2); // resgate e guard já existentes
+});

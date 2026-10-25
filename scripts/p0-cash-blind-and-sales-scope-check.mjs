@@ -25,7 +25,7 @@ assert.equal(buscar('op-1').length,2);
 assert.equal(buscar('op-2').length,1);
 const read=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
 const app=read('src/App.jsx');
-assert.match(app,/const vendasHoje = filtrarVendasHojeVisiveis\(/);
+assert.match(app,/const vendasHoje = (?:filtrarVendasHojeVisiveis\(|useMemo\(\(\) => filtrarVendasHojeVisiveis\()/);
 assert.match(app,/fmt\(faturamentoHojeBRL\)/);
 assert.match(app,/\$\{vendasHoje.length\} \$\{tx\('vendas realizadas'/);
 assert.match(app,/zen-status-badge[\s\S]{0,140}tx\('ABERTO','ABIERTO','OPEN'\)/);

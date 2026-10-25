@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { normalizarProduto, normalizarCliente } from '../data';
 import { aplicarVendaAoEstoque, obterEstoqueProduto, preverBaixaEstoqueProduto } from '../core/inventory';
 import { db } from '../firebase';
@@ -18,6 +18,8 @@ import { validarComposicaoPagamento } from '../core/paymentValidation';
 import { interpretarValorMonetario } from '../core/cashMoneyInput';
 import { lerRascunhoPDV, salvarRascunhoPDV, apagarRascunhoPDV } from '../core/pdvDraft';
 import { getOperationalSnapshot } from '../core/operationalRepository';
+import { autoriaDoDocumento, autoriaDoOperador, resolverAutoriaVenda } from '../core/salesAttribution';
+import { indexarProdutosPDV, indexarClientesPDV, buscarProdutosPDV, buscarClientesPDV } from '../core/pdvSearch';
 
 export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro, commitOperacaoCritica, commitVendaCritica, recarregarDadosPDV, vouchers = [], setVouchers, userId, produtos, setProdutos, clientes, setClientes, moeda, fmt, t, tx, converterDeBRL, converterParaBRL, historicoVendas, setHistoricoVendas, patenteUsuario, idioma, regrasDesconto, vendedores = [], operadorAtivo, sessaoAtiva }) {
   const [rascunhoInicial] = useState(() => lerRascunhoPDV(userId, operadorAtivo?.id));
@@ -25,6 +27,8 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
   const [termoBusca, setTermoBusca] = useState('');
   const [indiceFocoBusca, setIndiceFocoBusca] = useState(0);
   const [itensVenda, setItensVenda] = useState(rascunhoInicial?.itensVenda || []);
+  const [autoriaAtendimento, setAutoriaAtendimento] = useState(() =>
+    rascunhoInicial?.autoriaAtendimento || (rascunhoInicial?.itensVenda?.length ? autoriaDoOperador(operadorAtivo) : null));
   const [descontoTexto, setDescontoTexto] = useState(rascunhoInicial?.descontoTexto || '0');
   
   const [nomeClienteVulso, setNomeClienteVulso] = useState(rascunhoInicial?.nomeClienteVulso || '');
@@ -61,23 +65,32 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
   const [modalResgateAberto, setModalResgateAberto] = useState(false);
   const [prePedidoEmAbertoId, setPrePedidoEmAbertoId] = useState(rascunhoInicial?.prePedidoEmAbertoId || null);
 
+  useEffect(() => {
+    if (!itensVenda.length && !prePedidoEmAbertoId) {
+      if (autoriaAtendimento) setAutoriaAtendimento(null);
+      return;
+    }
+    if (itensVenda.length && !autoriaAtendimento)
+      setAutoriaAtendimento(autoriaDoOperador(operadorAtivo));
+  }, [itensVenda.length, prePedidoEmAbertoId, autoriaAtendimento, operadorAtivo?.id, operadorAtivo?.nome]);
+
   // Persistir o carrinho após cada edição; a confirmação da venda continua exclusiva da nuvem.
   // Guardar somente dados comerciais necessários (nunca fotos grandes no localStorage).
   useEffect(() => {
     if (vendaSucesso) return;
     salvarRascunhoPDV(userId, operadorAtivo?.id, {
-      itensVenda, descontoTexto, nomeClienteVulso,
+      itensVenda, autoriaAtendimento, descontoTexto, nomeClienteVulso,
       clienteSelecionadoPDV: clienteSelecionadoPDV ? {
         id: clienteSelecionadoPDV.id, nome: clienteSelecionadoPDV.nome,
       } : null,
       clienteQuerFiscal, pagamentosLancados, prePedidoEmAbertoId,
       modalFechamentoAberto, operacaoDocumento: operacaoDocumentoRef.current,
     });
-  }, [userId, operadorAtivo?.id, itensVenda, descontoTexto, nomeClienteVulso,
+  }, [userId, operadorAtivo?.id, itensVenda, autoriaAtendimento, descontoTexto, nomeClienteVulso,
       clienteSelecionadoPDV, clienteQuerFiscal, pagamentosLancados,
       prePedidoEmAbertoId, modalFechamentoAberto, vendaSucesso]);
 
-  const perfilRecibo = normalizarPerfilLoja(perfilLoja);
+  const perfilRecibo = useMemo(() => normalizarPerfilLoja(perfilLoja), [perfilLoja]);
   const cotacoesRecibo = vendaConcluidaObj?.taxasCambio || taxasCambio || {};
   const moedasReciboAtivas = moedasAtivasRecibo(cotacoesRecibo);
   const [modalZen, setModalZen] = useState(null);
@@ -90,27 +103,17 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
   const inputQtdRapidaRef = useRef(null);
   const inputValorLancamentoRef = useRef(null);
 
-  const termosProd = termoBusca.toLowerCase().trim().split(/\s+/).filter(Boolean);
-  const produtosFiltrados = produtos.filter(prod => {
-    if (!prod) return false;
-    const ehUsoUnico = ehEncomendaUsoUnico(prod);
-    if (ehUsoUnico && parseInt(prod.estoque || 0) <= 0) return false; 
-    const textoCompleto = `${prod.nome || ''} ${prod.sku || ''} ${prod.grupo || ''}`.toLowerCase();
-    return termosProd.every(termo => textoCompleto.includes(termo));
-  });
-
-  const termosBuscaCli = nomeClienteVulso.toLowerCase().trim().split(/\s+/).filter(Boolean);
+  const indiceProdutos = useMemo(() => indexarProdutosPDV(produtos), [produtos]);
+  const produtosFiltrados = useMemo(() => buscarProdutosPDV(indiceProdutos, termoBusca), [indiceProdutos, termoBusca]);
+  const indiceClientes = useMemo(() => indexarClientesPDV(clientes), [clientes]);
   // Evita utilizar saldo/limite congelado no momento da seleção do cliente.
   // A venda continua protegida pelas mesmas validações transacionais da nuvem.
   const clienteAtualPDV = clienteSelecionadoPDV
     ? clientes.find(c => String(c.id) === String(clienteSelecionadoPDV.id)) || clienteSelecionadoPDV
     : null;
-  const clientesSugeridos = (nomeClienteVulso.trim() && !clienteSelecionadoPDV)
-    ? clientes.filter(c => {
-        const textoCompleto = `${c.nome || ''} ${c.documento || ''} ${c.telefone || ''}`.toLowerCase();
-        return termosBuscaCli.every(termo => textoCompleto.includes(termo));
-      })
-    : [];
+  const clientesSugeridos = useMemo(() =>
+    clienteSelecionadoPDV ? [] : buscarClientesPDV(indiceClientes, nomeClienteVulso),
+    [indiceClientes, nomeClienteVulso, clienteSelecionadoPDV]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { setIndiceFocoBusca(0); }, [termoBusca]);
@@ -402,6 +405,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
       }
       // Usar exclusivamente o documento confirmado pelo servidor daqui em diante.
       pedido=documento;
+      setAutoriaAtendimento(autoriaDoDocumento(documento) || autoriaDoOperador(operadorAtivo));
       // Recuperar orçamento não é liquidar pré-pedido: nunca vincular o ID
       // de um orçamento ao guard de "pendente" do pagamento.
       const itensRecuperados=itensVendaComCustoAtual(documento.itens||[]);
@@ -434,8 +438,10 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
     }finally{resgateEmAndamentoRef.current=false;setConsultandoResgate(false);}
   };
 
-  const subtotalBrutoBRL = itensVenda.reduce((acc, item) => acc + (Math.max(0, parseInt(item.qtd) || 0) * (item.precoPraticadoBRL || 0)), 0);
-  const custoTotalBRL = itensVendaComCustoAtual(itensVenda).reduce((acc, item) => acc + (Math.max(0, parseInt(item.qtd) || 0) * (item.custoBRL || 0)), 0);
+  const subtotalBrutoBRL = useMemo(() => itensVenda.reduce((acc, item) =>
+    acc + (Math.max(0, parseInt(item.qtd) || 0) * (item.precoPraticadoBRL || 0)), 0), [itensVenda]);
+  const custoTotalBRL = useMemo(() => itensVendaComCustoAtual(itensVenda).reduce((acc, item) =>
+    acc + (Math.max(0, parseInt(item.qtd) || 0) * (item.custoBRL || 0)), 0), [itensVenda, produtos]);
   const descBRL = converterParaBRL(parseFloat(String(descontoTexto).replace(',', '.')) || 0, moeda);
   
   const totalFinalBRL = Math.max(0, subtotalBrutoBRL - descBRL);
@@ -611,6 +617,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
     operacaoEmAndamentoRef.current = true;
     setProcessandoTransacao(true);
     try {
+      let documentoOrigemConfirmado = null;
       if(tipoFinalizacao==='venda' && prePedidoEmAbertoId){
         // Um rascunho de outro operador pode ficar ligado a um pré-pedido
         // que outro caixa já liquidou. Nenhum lançamento financeiro antes da conferência.
@@ -626,6 +633,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
               'O servidor não confirmou que este pré-pedido continua pendente. O carrinho foi preservado e nenhum pagamento foi enviado. Confira o histórico ou resgate novamente.');
             return;
           }
+          documentoOrigemConfirmado = originais[0];
         }catch(error){
           mostrarZen('danger','Pré-pedido sem confirmação',
             'Não foi possível consultar o estado atual do pré-pedido. O carrinho foi preservado; nenhuma cobrança foi enviada.',
@@ -676,7 +684,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
       // Mesmo ID/data em cada retry: não duplicar recibos financeiros após timeout.
       const instanteVenda = new Date(operacaoDocumentoRef.current.instante || new Date().toISOString());
       const rascunhoSeguro = salvarRascunhoPDV(userId, operadorAtivo?.id, {
-        itensVenda, descontoTexto, nomeClienteVulso,
+        itensVenda, autoriaAtendimento, descontoTexto, nomeClienteVulso,
         clienteSelecionadoPDV: clienteSelecionadoPDV ? {
           id: clienteSelecionadoPDV.id, nome: clienteSelecionadoPDV.nome,
         } : null,
@@ -755,6 +763,9 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
 
       const idSeguro = (operadorAtivo && operadorAtivo.id) ? operadorAtivo.id : 'admin';
       const nomeSeguro = (operadorAtivo && operadorAtivo.nome) ? operadorAtivo.nome : 'Administrador';
+      const autorVenda = resolverAutoriaVenda({
+        operadorAtivo, autoriaAtendimento, documentoConfirmado: documentoOrigemConfirmado,
+      });
 
       const estadoFinal = tipoFinalizacao === 'venda' ? 'concluida' : (tipoFinalizacao === 'pre_pedido' ? 'pendente' : 'orcamento');
       if (tipoFinalizacao === 'venda') {
@@ -772,8 +783,10 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
         clienteId: clienteSelecionadoPDV ? clienteSelecionadoPDV.id : null,
         clienteQuerFiscal,
         clienteNome: (String(clienteSelecionadoPDV?.nome || '').trim() || String(nomeClienteVulso || '').trim() || tx('Consumidor Balcão', 'Consumidor', 'Walk-in')),
-        vendedorId: idSeguro,
-        vendedorNome: nomeSeguro,
+        vendedorId: autorVenda.vendedorId,
+        vendedorNome: autorVenda.vendedorNome,
+        // O responsável pelo caixa pode ser diferente de quem lançou a venda.
+        ...(tipoFinalizacao === 'venda' ? { finalizadoPorId: idSeguro, finalizadoPorNome: nomeSeguro } : {}),
         sessaoId: tipoFinalizacao === 'venda' ? sessaoAtiva?.id || null : null,
         itens: itensDocumento, 
         totalBRL: totalFinalBRL, 
@@ -948,6 +961,17 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
             expected:'pendente',
             message:tx('Este pré-pedido já foi liquidado ou deixou de estar pendente em outro caixa. Atualize a fila antes de continuar.','Este pre-pedido ya fue liquidado o dejó de estar pendiente en otra caja. Actualice la cola antes de continuar.','This pre-order was already settled or is no longer pending at another register. Refresh the queue before continuing.'),
           });
+          // A mesma transação já consulta o histórico para validar o estado.
+          // Protege também a autoria contra alterações concorrentes, sem leitura extra.
+          for (const campo of ['vendedorId', 'vendedorNome']) {
+            if (documentoOrigemConfirmado?.[campo] == null) continue;
+            guards.push({
+              type:'entity_field_equals', field:'historicoVendas',
+              entityId:prePedidoEmAbertoId, entityKey:'id', property:campo,
+              expected:documentoOrigemConfirmado[campo],
+              message:'A autoria do pré-pedido mudou em outro terminal. Atualize a fila antes de liquidar.',
+            });
+          }
         }
         const confirmado = await commitVendaCritica({
           changes,
@@ -1047,6 +1071,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
     apagarRascunhoPDV(userId, operadorAtivo?.id);
     operacaoDocumentoRef.current = { assinatura: null, id: null, instante: null };
     setItensVenda([]); setDescontoTexto('0'); setPagamentosLancados([]);
+    setAutoriaAtendimento(null);
     setClienteSelecionadoPDV(null); setNomeClienteVulso('');
     setClienteQuerFiscal(false);
     setPrePedidoEmAbertoId(null); 
@@ -1221,6 +1246,7 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
                     </div>
                   );
                 }) : <div style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>{tx('Nenhum produto localizado', 'Ningún producto', 'No products found')}</div>}
+                {produtosFiltrados.length === 40 && <div style={{padding:'8px 14px',fontSize:11,color:'#94a3b8'}}>{tx('Exibindo até 40 resultados. Refine a busca para localizar outros produtos.','Mostrando hasta 40 resultados. Refine la búsqueda.','Showing up to 40 results. Refine your search.')}</div>}
               </div>
             )}
           </div>
@@ -1404,7 +1430,8 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
                   <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
                   <div style={{ marginBottom: '8px', fontSize: '11px' }}>
                     <strong>{tx('Cliente:','Cliente:','Customer:')}</strong> {vendaConcluidaObj?.clienteNome}<br/>
-                    <strong>{tx('Operador:','Operador:','Operator:')}</strong> {vendaConcluidaObj?.vendedorNome}
+                    <strong>{tx('Vendedor:','Vendedor:','Seller:')}</strong> {vendaConcluidaObj?.vendedorNome}
+                    {vendaConcluidaObj?.finalizadoPorNome && <><br/><strong>{tx('Caixa responsável:','Caja responsable:','Checkout operator:')}</strong> {vendaConcluidaObj.finalizadoPorNome}</>}
                   </div>
                   <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
                   <table style={{ width: '100%', textAlign: 'left', fontSize: '11px' }}>
