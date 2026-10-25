@@ -1960,6 +1960,7 @@ export default function App() {
         caixaMovimentos={caixaMovimentos}
         sessoesCaixa={sessoesCaixa}
         sessaoAtiva={sessaoAtiva}
+        vendedores={vendedores}
         moeda={moeda}
         fmt={fmt}
         tx={tx}
