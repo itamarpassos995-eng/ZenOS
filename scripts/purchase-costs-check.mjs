@@ -146,7 +146,13 @@ assert.match(pdv, /custoNaVendaBRL:\s*Number\.isFinite\(Number\(item\.custoBRL\)
 assert.match(pdv, /const itensVendaAtualizada = itensVendaComCustoAtual\(itensVenda\)/);
 assert.match(pdv, /cmvBRL:\s*cmvVendaBRL/);
 assert.match(vendas, /custoFinalEntradaUnitarioBRL:\s*itemDev\.custoBRL/);
-assert.match(app, /obterFinanceiroVenda\(v\)\.cmvLiquidoBRL/);
+// Aceita tanto o cálculo direto quanto uma única passagem que reutiliza
+// obterFinanceiroVenda por venda; ambos usam o CMV líquido canônico.
+assert.ok(
+  /obterFinanceiroVenda\(v\)\.cmvLiquidoBRL/.test(app) ||
+  /const financeiro = obterFinanceiroVenda\(venda\);[\s\S]{0,250}acc\.cmv \+= financeiro\.cmvLiquidoBRL/.test(app),
+  'O painel deve calcular CMV líquido via obterFinanceiroVenda',
+);
 assert.match(app, /<span>CMV<\/span>/);
 
 console.log('Compra, rateio, custo médio, snapshots, CMV, margem, comissão, devolução, painel e compatibilidade: 15/15 grupos aprovados.');
