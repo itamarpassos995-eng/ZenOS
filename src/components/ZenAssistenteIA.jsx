@@ -1,5 +1,17 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import { obterDataRegistro } from "../core/dates.js";
+import { obterFinanceiroVenda } from "../core/salesFinancials.js";
 import "./ZenAssistenteIA.css";
+
+// Utilitário de normalização de texto (remove acentos e pontuações para busca semântica natural)
+const normalizar = (str = "") =>
+  str
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
 export default function ZenAssistenteIA({
   aberto,
@@ -17,6 +29,7 @@ export default function ZenAssistenteIA({
   caixaMovimentos = [],
   sessoesCaixa = [],
   sessaoAtiva,
+  vendedores = [],
   moeda = "BRL",
   fmt = (v) => `R$ ${Number(v || 0).toFixed(2)}`,
   tx = (pt) => pt,
@@ -31,6 +44,18 @@ export default function ZenAssistenteIA({
 
   const nomeOperador = operadorAtivo?.nome || "Operador";
   const ehGerente = patenteUsuario === "gerencia" || operadorAtivo?.id === "admin";
+  const vendedoresCandidatos = useMemo(() => {
+    const porId = new Map();
+    (vendedores || []).forEach((v) => {
+      if (v?.id != null && v?.nome) porId.set(String(v.id), v);
+    });
+    (historicoVendas || []).forEach((v) => {
+      const id = v?.vendedorId ?? v?.operadorId;
+      const nome = v?.vendedorNome || v?.operadorNome || v?.vendedor;
+      if (id != null && nome && !porId.has(String(id))) porId.set(String(id), { id, nome });
+    });
+    return [...porId.values()];
+  }, [vendedores, historicoVendas]);
 
   // Mensagem inicial de boas-vindas
   useEffect(() => {
@@ -40,11 +65,13 @@ export default function ZenAssistenteIA({
           id: "welcome",
           remetente: "assistant",
           hora: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          texto: `Olá, ${nomeOperador}! Sou o **Zen IA**, seu copiloto de gestão em tempo real. Você pode me perguntar qualquer coisa, buscar clientes pelo nome, consultar estoques ou pedir para abrir telas e operações.`,
+          texto: `Olá, ${nomeOperador}! Sou o **Zen IA**, seu copiloto de gestão em tempo real. Você pode me perguntar qualquer coisa em português comum: vendas por vendedor, produtos mais vendidos, reposição de estoque, consultar clientes, ou pedir para abrir telas e operações.`,
           chips: [
             ...(!sessaoAtiva ? [{ label: "🔓 Abrir turno de caixa", comando: "abrir caixa" }] : []),
+            { label: "👥 Vendas por vendedor", comando: "quanto cada vendedor vendeu" },
             { label: "🏆 Mais vendidos hoje", comando: "o que mais vendeu hoje" },
             { label: "⚠️ O que preciso repor?", comando: "o que preciso repor no estoque" },
+            { label: "💰 Faturamento de hoje", comando: "quanto faturou hoje" },
             { label: "🛒 Abrir PDV Balcão", comando: "abrir pdv" },
             { label: "👥 Quem deve fiado?", comando: "clientes com fiado" },
             { label: "➕ Cadastrar cliente", comando: "cadastrar cliente" },
@@ -58,18 +85,24 @@ export default function ZenAssistenteIA({
 
   // Rola até o fim da lista de mensagens
   useEffect(() => {
+    if (aberto && fimMensagensRef.current) {
+      fimMensagensRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [mensagens, aberto]);
+
+  // Foco no input ao abrir
+  useEffect(() => {
     if (aberto) {
       setTimeout(() => {
-        fimMensagensRef.current?.scrollIntoView({ behavior: "smooth" });
         inputRef.current?.focus();
       }, 150);
     }
-  }, [aberto, mensagens]);
+  }, [aberto]);
 
-  // Atalho de teclado global Ctrl+K ou Cmd+K
+  // Preserva Ctrl/Cmd+K para abrir/fechar e ESC para fechar.
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+      if ((e.ctrlKey || e.metaKey) && e.key?.toLowerCase() === "k") {
         e.preventDefault();
         if (aberto) onFechar();
         else onAbrir();
@@ -81,75 +114,216 @@ export default function ZenAssistenteIA({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [aberto, onAbrir, onFechar]);
 
-  // Configuração da API de Reconhecimento de Voz (Web Speech API)
-  useEffect(() => {
+  // Controle de comando de voz (Web Speech API)
+  const alternarVoz = () => {
+    if (gravandoVoz) {
+      recognitionRef.current?.stop();
+      setGravandoVoz(false);
+      return;
+    }
+
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
+    if (!SpeechRecognition) {
+      responderIA("🎙️ Reconhecimento de voz não suportado pelo navegador. Experimente digitar a pergunta ou utilizar o Chrome.");
+      return;
+    }
+
+    try {
       const recognition = new SpeechRecognition();
+      recognition.lang = "pt-BR";
       recognition.continuous = false;
       recognition.interimResults = false;
-      recognition.lang = "pt-BR";
 
+      recognition.onstart = () => setGravandoVoz(true);
+      recognition.onend = () => setGravandoVoz(false);
+      recognition.onerror = () => setGravandoVoz(false);
       recognition.onresult = (event) => {
         const transcricao = event.results[0][0].transcript;
         if (transcricao) {
           setInputTexto(transcricao);
-          setGravandoVoz(false);
           processarComando(transcricao);
         }
       };
 
-      recognition.onerror = () => setGravandoVoz(false);
-      recognition.onend = () => setGravandoVoz(false);
-
       recognitionRef.current = recognition;
-    }
-  }, []);
-
-  const alternarVoz = () => {
-    if (!recognitionRef.current) {
-      responderIA("🎙️ Reconhecimento de voz não suportado pelo seu navegador.");
-      return;
-    }
-
-    if (gravandoVoz) {
-      recognitionRef.current.stop();
+      recognition.start();
+    } catch (err) {
+      console.error("Erro ao iniciar voz:", err);
       setGravandoVoz(false);
-    } else {
-      try {
-        recognitionRef.current.start();
-        setGravandoVoz(true);
-      } catch (err) {
-        console.error("Erro ao iniciar voz:", err);
-      }
     }
+  };
+
+  // DETECÇÃO INTELIGENTE DE PERÍODOS
+  const detectarPeriodo = (norm) => {
+    if (norm.includes("ontem")) return { periodo: "ontem", rotulo: "Ontem" };
+    if (
+      norm.includes("semana") ||
+      norm.includes("7 dias") ||
+      norm.includes("ultimos 7") ||
+      norm.includes("ultimos dias")
+    ) {
+      return { periodo: "semana", rotulo: "Últimos 7 dias" };
+    }
+    if (
+      norm.includes("mes") ||
+      norm.includes("30 dias") ||
+      norm.includes("mensal") ||
+      norm.includes("neste mes") ||
+      norm.includes("este mes")
+    ) {
+      return { periodo: "mes", rotulo: "Este Mês (30 dias)" };
+    }
+    if (norm.includes("hoje")) return { periodo: "hoje", rotulo: "Hoje" };
+    if (
+      norm.includes("geral") ||
+      norm.includes("total") ||
+      norm.includes("sempre") ||
+      norm.includes("historico") ||
+      norm.includes("todos os tempos")
+    ) {
+      return { periodo: "geral", rotulo: "Todo o Histórico" };
+    }
+    return { periodo: "hoje", rotulo: "Hoje" };
+  };
+
+  // EXTRAÇÃO E FILTRO DE DATA DE VENDAS
+  const extrairDataVenda = (venda) => obterDataRegistro(venda);
+
+  // Mesma regra do histórico e das comissões: somente vendas efetivamente concluídas.
+  const vendaConcluida = (v) => v?.estado === "concluida" || v?.estado === "parcial";
+  const vendaVisivelAoOperador = (v) =>
+    ehGerente || String(v?.vendedorId ?? "") === String(operadorAtivo?.id ?? "");
+
+  const filtrarVendasPorPeriodo = (vendas, periodo = "hoje") => {
+    const agora = new Date();
+    const hojeStr = agora.toLocaleDateString();
+    const ontem = new Date(agora);
+    ontem.setDate(ontem.getDate() - 1);
+    const ontemStr = ontem.toLocaleDateString();
+
+    return (vendas || []).filter((v) => {
+      if (!vendaConcluida(v)) return false;
+      if (periodo === "geral") return true;
+
+      const dataVenda = extrairDataVenda(v);
+      if (!dataVenda) return false;
+
+      if (periodo === "hoje") {
+        return dataVenda.toLocaleDateString() === hojeStr;
+      }
+      if (periodo === "ontem") {
+        return dataVenda.toLocaleDateString() === ontemStr;
+      }
+      if (periodo === "semana") {
+        const diffDias = (agora.getTime() - dataVenda.getTime()) / (1000 * 3600 * 24);
+        return diffDias >= 0 && diffDias <= 7;
+      }
+      if (periodo === "mes") {
+        const diffDias = (agora.getTime() - dataVenda.getTime()) / (1000 * 3600 * 24);
+        return diffDias >= 0 && diffDias <= 30;
+      }
+      return true;
+    });
+  };
+
+  // CÁLCULO DE VENDAS POR VENDEDOR
+  const calcularVendasPorVendedor = (periodo = "hoje") => {
+    const vendasFiltradas = filtrarVendasPorPeriodo(historicoVendas, periodo);
+    const mapa = new Map();
+
+    // Pré-popula com todos os vendedores cadastrados para dar visibilidade completa
+    (vendedores || []).forEach((vend) => {
+      if (!vend || !vend.id) return;
+      const vid = String(vend.id).trim();
+      mapa.set(vid, {
+        id: vid,
+        nome: vend.nome || "Vendedor",
+        cargo: vend.cargo || vend.patente || (vid === "admin" ? "Gerência" : "Vendedor Balcão"),
+        percentual: Number(vend.percentual || 0),
+        comissaoTipo: vend.comissaoTipo || "lucro",
+        totalFaturadoBRL: 0,
+        qtdVendas: 0,
+        qtdItens: 0,
+        ticketMedioBRL: 0,
+        participacaoPct: 0,
+      });
+    });
+
+    let totalGeralBRL = 0;
+    let totalItensGeral = 0;
+
+    vendasFiltradas.forEach((v) => {
+      const vid = String(v.vendedorId || v.operadorId || "admin").trim();
+      const vnome =
+        v.vendedorNome ||
+        v.operadorNome ||
+        v.vendedor ||
+        (vid === "admin" ? "Administrador (Gerência)" : `Vendedor #${vid}`);
+      const totalVenda = obterFinanceiroVenda(v).totalLiquidoBRL;
+
+      const itens = Array.isArray(v.itens)
+        ? v.itens
+        : Array.isArray(v.itensDocumento)
+        ? v.itensDocumento
+        : [];
+      const qtdItens = itens.reduce((acc, it) => acc + Number(it.qtd || it.quantidade || 1), 0);
+
+      if (!mapa.has(vid)) {
+        mapa.set(vid, {
+          id: vid,
+          nome: vnome,
+          cargo: vid === "admin" ? "Gerência" : "Vendedor",
+          percentual: 0,
+          comissaoTipo: "lucro",
+          totalFaturadoBRL: 0,
+          qtdVendas: 0,
+          qtdItens: 0,
+          ticketMedioBRL: 0,
+          participacaoPct: 0,
+        });
+      }
+
+      const item = mapa.get(vid);
+      item.totalFaturadoBRL += totalVenda;
+      item.qtdVendas += 1;
+      item.qtdItens += qtdItens;
+
+      totalGeralBRL += totalVenda;
+      totalItensGeral += qtdItens;
+    });
+
+    const lista = Array.from(mapa.values()).map((v) => {
+      const ticket = v.qtdVendas > 0 ? v.totalFaturadoBRL / v.qtdVendas : 0;
+      const pct = totalGeralBRL > 0 ? (v.totalFaturadoBRL / totalGeralBRL) * 100 : 0;
+      return {
+        ...v,
+        ticketMedioBRL: ticket,
+        participacaoPct: Number(pct.toFixed(1)),
+      };
+    });
+
+    const comVendas = lista
+      .filter((v) => v.qtdVendas > 0)
+      .sort((a, b) => b.totalFaturadoBRL - a.totalFaturadoBRL || b.qtdVendas - a.qtdVendas);
+
+    const semVendas = lista
+      .filter((v) => v.qtdVendas === 0)
+      .sort((a, b) => a.nome.localeCompare(b.nome));
+
+    return {
+      ranking: [...comVendas, ...semVendas],
+      comVendas,
+      semVendas,
+      totalGeralBRL,
+      totalVendasGeral: vendasFiltradas.length,
+      totalItensGeral,
+      periodo,
+    };
   };
 
   // CÁLCULO DE VENDAS E MAIS VENDIDOS
   const calcularMaisVendidos = (periodo = "hoje") => {
-    const agora = new Date();
-    const dataHojeFormatada = agora.toLocaleDateString();
-
-    const vendasFiltradas = historicoVendas.filter((venda) => {
-      if (!venda || venda.estado === "cancelado") return false;
-      if (!ehGerente && venda.vendedorId && venda.vendedorId !== operadorAtivo?.id) {
-        return false;
-      }
-      if (periodo === "geral") return true;
-
-      const dataVendaStr = venda.dataHora || venda.createdAt;
-      if (!dataVendaStr) return false;
-      const dataVenda = new Date(dataVendaStr);
-
-      if (periodo === "hoje") {
-        return dataVenda.toLocaleDateString() === dataHojeFormatada;
-      }
-      if (periodo === "semana") {
-        const diffDias = (agora.getTime() - dataVenda.getTime()) / (1000 * 3600 * 24);
-        return diffDias <= 7;
-      }
-      return true;
-    });
+    const vendasFiltradas = filtrarVendasPorPeriodo(historicoVendas, periodo).filter(vendaVisivelAoOperador);
 
     const mapaProdutos = new Map();
 
@@ -203,11 +377,11 @@ export default function ZenAssistenteIA({
     const agora = new Date();
     const mapaVendas15d = new Map();
 
-    historicoVendas.forEach((venda) => {
-      if (!venda || venda.estado === "cancelado") return false;
-      const dataVendaStr = venda.dataHora || venda.createdAt;
-      if (!dataVendaStr) return;
-      const diffDias = (agora.getTime() - new Date(dataVendaStr).getTime()) / (1000 * 3600 * 24);
+    (historicoVendas || []).forEach((venda) => {
+      if (!vendaConcluida(venda)) return;
+      const dataVenda = extrairDataVenda(venda);
+      if (!dataVenda) return;
+      const diffDias = (agora.getTime() - dataVenda.getTime()) / (1000 * 3600 * 24);
       if (diffDias > 15) return;
 
       const itens = Array.isArray(venda.itens)
@@ -262,21 +436,97 @@ export default function ZenAssistenteIA({
     });
   };
 
-  // CÁLCULO DE RESUMO DE HOJE
-  const calcularResumoHoje = () => {
-    const hojeStr = new Date().toLocaleDateString();
-    const vendasHoje = historicoVendas.filter((v) => {
-      if (!v || v.estado === "cancelado") return false;
-      if (!ehGerente && v.vendedorId && v.vendedorId !== operadorAtivo?.id) return false;
-      const d = v.dataHora || v.createdAt;
-      return d ? new Date(d).toLocaleDateString() === hojeStr : false;
-    });
+  // CÁLCULO DE RESUMO FINANCEIRO DE VENDAS
+  const calcularResumoPeriodo = (periodo = "hoje") => {
+    const vendasFiltradas = filtrarVendasPorPeriodo(historicoVendas, periodo).filter(vendaVisivelAoOperador);
 
-    const totalFaturadoBRL = vendasHoje.reduce((acc, v) => acc + Number(v.totalBRL || 0), 0);
-    const qtdPedidos = vendasHoje.length;
+    const financeiros = vendasFiltradas.map(obterFinanceiroVenda);
+    const totalFaturadoBRL = financeiros.reduce((acc, v) => acc + v.totalLiquidoBRL, 0);
+    const qtdPedidos = vendasFiltradas.length;
     const ticketMedio = qtdPedidos > 0 ? totalFaturadoBRL / qtdPedidos : 0;
 
-    return { totalFaturadoBRL, qtdPedidos, ticketMedio };
+    // Reutiliza a apuração canônica, incluindo devoluções e prejuízos.
+    const custoTotalBRL = financeiros.reduce((acc, v) => acc + v.cmvLiquidoBRL, 0);
+    const lucroEstimadoBRL = financeiros.reduce((acc, v) => acc + v.lucroLiquidoBRL, 0);
+    const margemPct = totalFaturadoBRL > 0 ? (lucroEstimadoBRL / totalFaturadoBRL) * 100 : 0;
+
+    return {
+      totalFaturadoBRL,
+      qtdPedidos,
+      ticketMedio,
+      custoTotalBRL,
+      lucroEstimadoBRL,
+      margemPct: Number(margemPct.toFixed(1)),
+      periodo,
+    };
+  };
+
+  // CÁLCULO DE VENDAS POR FORMA DE PAGAMENTO
+  const calcularVendasPorFormaPagamento = (periodo = "hoje") => {
+    const vendasFiltradas = filtrarVendasPorPeriodo(historicoVendas, periodo).filter(vendaVisivelAoOperador);
+    const mapaFormas = new Map();
+
+    const normalizarNomeForma = (formaId = "") => {
+      const f = String(formaId).toLowerCase();
+      if (f.includes("pix")) return { nome: "Pix", icone: "⚡" };
+      if (f.includes("dinheiro") || f.includes("especie")) return { nome: "Dinheiro (Espécie)", icone: "💵" };
+      if (f.includes("credito") || f.includes("cartao_credito")) return { nome: "Cartão de Crédito", icone: "💳" };
+      if (f.includes("debito") || f.includes("cartao_debito")) return { nome: "Cartão de Débito", icone: "💳" };
+      if (f.includes("crediario") || f.includes("fiado")) return { nome: "Fiado / Crediário", icone: "📝" };
+      if (f.includes("voucher") || f.includes("vale")) return { nome: "Voucher / Crédito", icone: "🎟️" };
+      return { nome: "Outras Formas", icone: "💰" };
+    };
+
+    let totalGeralBRL = 0;
+
+    vendasFiltradas.forEach((venda) => {
+      const pagamentosLancados = [];
+
+      if (Array.isArray(venda.pagamentos)) {
+        venda.pagamentos.forEach((p) => {
+          if (Array.isArray(p)) {
+            pagamentosLancados.push({ formaId: p[0], valor: Number(p[1] || 0) });
+          } else if (typeof p === "object" && p !== null) {
+            pagamentosLancados.push({
+              formaId: p.formaId || p.forma || p.metodo,
+              valor: Number(p.valorConvertidoBRL || p.valorBRL || p.valor || 0)
+            });
+          }
+        });
+      } else if (venda.formaPagamento) {
+        pagamentosLancados.push({ formaId: venda.formaPagamento, valor: Number(venda.totalBRL || 0) });
+      }
+
+      if (pagamentosLancados.length === 0 && Number(venda.totalBRL || 0) > 0) {
+        pagamentosLancados.push({ formaId: "dinheiro", valor: Number(venda.totalBRL || 0) });
+      }
+
+      pagamentosLancados.forEach(({ formaId, valor }) => {
+        const info = normalizarNomeForma(formaId);
+        if (!mapaFormas.has(info.nome)) {
+          mapaFormas.set(info.nome, {
+            id: info.nome,
+            nome: info.nome,
+            icone: info.icone,
+            totalBRL: 0,
+            qtdVendas: 0,
+          });
+        }
+        const item = mapaFormas.get(info.nome);
+        item.totalBRL += valor;
+        item.qtdVendas += 1;
+        totalGeralBRL += valor;
+      });
+    });
+
+    const lista = Array.from(mapaFormas.values())
+      .map((item) => ({
+        ...item,
+        participacaoPct: totalGeralBRL > 0 ? Number(((item.totalBRL / totalGeralBRL) * 100).toFixed(1)) : 0,
+      }))
+      .sort((a, b) => b.totalBRL - a.totalBRL);
+
+    return { formas: lista, totalGeralBRL, periodo };
   };
 
   // CLIENTES COM FIADO
@@ -286,12 +536,67 @@ export default function ZenAssistenteIA({
       .sort((a, b) => (b.saldoDevedorBRL || 0) - (a.saldoDevedorBRL || 0));
   };
 
+  // TOP CLIENTES QUE MAIS COMPRAM
+  const calcularTopClientes = (limite = 5) => {
+    const mapa = new Map();
+
+    (historicoVendas || []).forEach((v) => {
+      if (!vendaConcluida(v) || !vendaVisivelAoOperador(v)) return;
+      const cliId = String(v.clienteId || v.clienteNome || "Consumidor Balcão");
+      if (cliId === "Consumidor Balcão" || cliId === "null" || cliId === "undefined") return;
+
+      const cliNome = v.clienteNome || cliId;
+      const total = obterFinanceiroVenda(v).totalLiquidoBRL;
+
+      if (!mapa.has(cliId)) {
+        mapa.set(cliId, { id: cliId, nome: cliNome, totalGastoBRL: 0, qtdCompras: 0 });
+      }
+      const item = mapa.get(cliId);
+      item.totalGastoBRL += total;
+      item.qtdCompras += 1;
+    });
+
+    return Array.from(mapa.values())
+      .sort((a, b) => b.totalGastoBRL - a.totalGastoBRL)
+      .slice(0, limite);
+  };
+
+  // VALOR TOTAL DO ESTOQUE
+  const calcularResumoEstoque = () => {
+    const ativos = (produtos || []).filter((p) => p && p.ativo !== false);
+    const totalItens = ativos.length;
+    let unidadesEstoque = 0;
+    let valorCustoTotal = 0;
+    let valorVendaTotal = 0;
+    let produtosZerados = 0;
+
+    ativos.forEach((p) => {
+      const est = Number(p.estoque || 0);
+      const custo = Number(p.custoBRL || 0);
+      const preco = Number(p.precoBRL || 0);
+
+      unidadesEstoque += Math.max(0, est);
+      valorCustoTotal += Math.max(0, est) * custo;
+      valorVendaTotal += Math.max(0, est) * preco;
+
+      if (est <= 0) produtosZerados += 1;
+    });
+
+    return {
+      totalItens,
+      unidadesEstoque,
+      valorCustoTotal,
+      valorVendaTotal,
+      produtosZerados,
+      lucroProjetado: Math.max(0, valorVendaTotal - valorCustoTotal),
+    };
+  };
+
   // BUSCA UNIVERSAL DE REFERÊNCIAS (CLIENTES E PRODUTOS)
   const buscarReferencias = (termoBruto) => {
     let termo = (termoBruto || "").toLowerCase().trim();
     if (!termo) return { clientesEncontrados: [], produtosEncontrados: [] };
 
-    // Limpa palavras comuns de comando para isolar o termo real
     const prefixos = [
       "abrir cliente", "buscar cliente", "cliente", "ver cliente", "acha cliente", "procura cliente",
       "abrir produto", "buscar produto", "produto", "ver produto", "acha produto", "procura produto",
@@ -479,16 +784,18 @@ export default function ZenAssistenteIA({
     setMensagens((prev) => [...prev, novaMensagemUsuario]);
     setInputTexto("");
 
-    const tLower = texto.toLowerCase();
+    const tNorm = normalizar(texto);
+    const { periodo, rotulo: rotuloPeriodo } = detectarPeriodo(tNorm);
 
+    // =========================================================================
     // 1. ABERTURA / STATUS DO CAIXA
+    // =========================================================================
     if (
-      tLower.includes("abrir caixa") ||
-      tLower.includes("abertura de caixa") ||
-      tLower.includes("abrir turno") ||
-      tLower.includes("iniciar turno") ||
-      tLower.includes("abrir o caixa") ||
-      tLower.includes("começar turno")
+      tNorm.includes("abrir caixa") ||
+      tNorm.includes("abertura de caixa") ||
+      tNorm.includes("abrir turno") ||
+      tNorm.includes("iniciar turno") ||
+      tNorm.includes("comecar turno")
     ) {
       if (sessaoAtiva) {
         responderIA(
@@ -511,16 +818,17 @@ export default function ZenAssistenteIA({
         `O turno de caixa está **Fechado ⚠️** no momento.
 ` +
         `Você pode abrir o caixa agora mesmo sem sair do PDV e sem perder nenhum item do seu carrinho!`,
-        [
-          { label: "🛒 Abrir PDV Balcão", comando: "abrir pdv" }
-        ],
+        [{ label: "🛒 Abrir PDV Balcão", comando: "abrir pdv" }],
         { tipo: "abrir_caixa" }
       );
       return;
     }
 
-    // AVISO PROATIVO: SE TENTAR VENDER OU FINALIZAR E O CAIXA ESTIVER FECHADO
-    if ((tLower.includes("fechar venda") || tLower.includes("finalizar pedido") || tLower.includes("liquidar")) && !sessaoAtiva) {
+    // AVISO PROATIVO: FINALIZAR VENDA COM CAIXA FECHADO
+    if (
+      (tNorm.includes("fechar venda") || tNorm.includes("finalizar pedido") || tNorm.includes("liquidar")) &&
+      !sessaoAtiva
+    ) {
       responderIA(
         `⚠️ **Atenção:** O caixa ainda está fechado, então o PDV não conseguirá liquidar a venda.
 ` +
@@ -531,26 +839,333 @@ export default function ZenAssistenteIA({
       return;
     }
 
-    // 2. MAIS VENDIDOS / GIRO
+    // =========================================================================
+    // 2. VENDEDORES / QUANTO CADA VENDEDOR VENDEU / RANKING DE EQUIPE
+    // =========================================================================
+    const tokens = new Set(tNorm.split(" "));
+
+    // Checa se o usuário perguntou sobre um vendedor específico por nome
+    let vendedorEspecificoEncontrado = null;
+    for (const vCand of vendedoresCandidatos) {
+      const primeiroNomeNorm = normalizar(vCand.nome.split(" ")[0]);
+      if (primeiroNomeNorm.length >= 3 && (tokens.has(primeiroNomeNorm) || tNorm.includes(primeiroNomeNorm))) {
+        if (
+          tNorm.includes("quanto") ||
+          tNorm.includes("vendeu") ||
+          tNorm.includes("venda") ||
+          tNorm.includes("pedidos") ||
+          tNorm.includes("comissao") ||
+          tNorm.includes("desempenho")
+        ) {
+          vendedorEspecificoEncontrado = vCand;
+          break;
+        }
+      }
+    }
+
+    const ehPerguntaVendedorGeral =
+      tNorm === "vendedor" ||
+      tNorm === "vendedores" ||
+      tNorm === "equipe de vendas" ||
+      tNorm === "equipe" ||
+      /quanto[s]?\s+.*vendedor/.test(tNorm) ||
+      /venda[s]?\s+.*vendedor/.test(tNorm) ||
+      /ranking\s+.*vendedor/.test(tNorm) ||
+      /desempenho\s+.*(vendedor|equipe|operador)/.test(tNorm) ||
+      /comissa[o|es]\s+.*(vendedor|equipe)/.test(tNorm) ||
+      /quem\s+(mais\s+vendeu|vendeu\s+mais|lidera\s+as\s+vendas)/.test(tNorm) ||
+      tNorm.includes("melhor vendedor") ||
+      tNorm.includes("vendas por vendedor") ||
+      tNorm.includes("vendas de cada vendedor") ||
+      tNorm.includes("quanto cada vendedor vendeu") ||
+      tNorm.includes("quantos cada vendedor vendeu") ||
+      tNorm.includes("quanto cada um vendeu") ||
+      tNorm.includes("quanto cada operador vendeu") ||
+      tNorm.includes("producao dos vendedores") ||
+      tNorm.includes("total por vendedor");
+
+    if (vendedorEspecificoEncontrado) {
+      if (!ehGerente && String(vendedorEspecificoEncontrado.id) !== String(operadorAtivo?.id)) {
+        responderIA("🔒 Consulta de desempenho de outros vendedores é restrita à gerência.");
+        return;
+      }
+
+      const res = calcularVendasPorVendedor(periodo);
+      const dadosVend = res.ranking.find(
+        (r) =>
+          String(r.id) === String(vendedorEspecificoEncontrado.id) ||
+          normalizar(r.nome).includes(normalizar(vendedorEspecificoEncontrado.nome.split(" ")[0]))
+      );
+
+      if (!dadosVend || dadosVend.qtdVendas === 0) {
+        responderIA(
+          `👤 **Desempenho de ${vendedorEspecificoEncontrado.nome} (${rotuloPeriodo}):**
+` +
+          `Ainda não há vendas finalizadas registradas para este vendedor no período selecionado.`,
+          [
+            { label: "👥 Ver toda a equipe", comando: "quanto cada vendedor vendeu" },
+            { label: "📅 Ver na semana", comando: `quanto ${vendedorEspecificoEncontrado.nome} vendeu na semana` },
+            { label: "📊 Histórico geral", comando: `quanto ${vendedorEspecificoEncontrado.nome} vendeu no geral` }
+          ]
+        );
+        return;
+      }
+
+      const posicao = res.comVendas.findIndex((r) => r.id === dadosVend.id) + 1;
+      responderIA(
+        `👤 **Desempenho de ${dadosVend.nome} (${rotuloPeriodo}):**
+` +
+        `• Total Faturado: **${fmt(dadosVend.totalFaturadoBRL)}**
+` +
+        `• Pedidos Finalizados: **${dadosVend.qtdVendas} venda(s)**
+` +
+        `• Ticket Médio: **${fmt(dadosVend.ticketMedioBRL)}**
+` +
+        `• Participação na Loja: **${dadosVend.participacaoPct}%** ${posicao === 1 ? "(Líder da equipe 🏆)" : `(${posicao}º no ranking)`}`,
+        [
+          { label: "👥 Ver ranking completo", comando: `quanto cada vendedor vendeu ${periodo}` },
+          { label: "📅 Ver na semana", comando: `quanto ${dadosVend.nome} vendeu na semana` },
+          { label: "💰 Ver Comissões", comando: "abrir comissoes" }
+        ],
+        {
+          tipo: "ranking_vendedores",
+          itens: [dadosVend],
+          onAcaoPrincipal: () => navegarPara("comissoes"),
+          rotuloAcaoPrincipal: "💰 Ver Comissões & Metas"
+        }
+      );
+      return;
+    }
+
+    if (ehPerguntaVendedorGeral) {
+      if (!ehGerente) {
+        // Usuário sem permissão gerencial vê apenas seu próprio desempenho
+        const res = calcularVendasPorVendedor(periodo);
+        const meuDesempenho = res.ranking.find((r) => String(r.id) === String(operadorAtivo?.id));
+        const total = meuDesempenho?.totalFaturadoBRL || 0;
+        const qtd = meuDesempenho?.qtdVendas || 0;
+
+        responderIA(
+          `👤 **Seu Desempenho (${rotuloPeriodo}):**
+` +
+          `• Vendas concluídas: **${qtd} pedido(s)**
+` +
+          `• Total Faturado: **${fmt(total)}**
+` +
+          `*(Consulta da equipe completa restrita à gerência)*`,
+          [
+            { label: "🛒 Ir para o PDV", comando: "abrir pdv" },
+            { label: "🏆 Mais vendidos hoje", comando: "o que mais vendeu hoje" }
+          ]
+        );
+        return;
+      }
+
+      let resultadoVendedores = calcularVendasPorVendedor(periodo);
+      let periodoUtilizado = rotuloPeriodo;
+
+      // Se pediu hoje e ainda não há nenhuma venda hoje, busca inteligentemente os últimos 7 dias
+      let avisoVendasHoje = "";
+      if (resultadoVendedores.totalVendasGeral === 0 && periodo === "hoje") {
+        const resultadoSemana = calcularVendasPorVendedor("semana");
+        if (resultadoSemana.totalVendasGeral > 0) {
+          resultadoVendedores = resultadoSemana;
+          periodoUtilizado = "Últimos 7 dias (hoje ainda não houve vendas)";
+          avisoVendasHoje = "ℹ️ Como hoje ainda não tivemos vendas registradas, puxei os dados dos **últimos 7 dias** para você acompanhar:\n\n";
+        }
+      }
+
+      const { ranking, comVendas, totalGeralBRL, totalVendasGeral } = resultadoVendedores;
+
+      if (totalVendasGeral === 0) {
+        responderIA(
+          `👥 **Vendas por Vendedor (${periodoUtilizado}):**
+` +
+          `Não há registros de vendas finalizadas no período selecionado.`,
+          [
+            { label: "📅 Ver na semana", comando: "quanto cada vendedor vendeu na semana" },
+            { label: "📅 Ver este mês", comando: "quanto cada vendedor vendeu no mes" },
+            { label: "📊 Ver no geral", comando: "quanto cada vendedor vendeu no geral" },
+            { label: "🛒 Abrir PDV Balcão", comando: "abrir pdv" }
+          ]
+        );
+        return;
+      }
+
+      const lider = comVendas[0];
+      const textoLider = lider
+        ? `🏆 **Líder em Vendas:** **${lider.nome}** com **${fmt(lider.totalFaturadoBRL)}** (${lider.participacaoPct}% do total).`
+        : "";
+
+      responderIA(
+        `${avisoVendasHoje}👥 **Desempenho de Vendas por Vendedor (${periodoUtilizado}):**
+` +
+        `A equipe faturou **${fmt(totalGeralBRL)}** em **${totalVendasGeral} venda(s)**.
+` +
+        `${textoLider}`,
+        [
+          { label: "📅 Ver na semana", comando: "quanto cada vendedor vendeu na semana" },
+          { label: "📅 Ver este mês", comando: "quanto cada vendedor vendeu no mes" },
+          { label: "📊 Ver no geral", comando: "quanto cada vendedor vendeu no geral" },
+          { label: "💰 Ver Comissões", comando: "abrir comissoes" },
+          { label: "🏆 Mais vendidos", comando: "o que mais vendeu hoje" }
+        ],
+        {
+          tipo: "ranking_vendedores",
+          itens: ranking.slice(0, 8),
+          onAcaoPrincipal: () => navegarPara("comissoes"),
+          rotuloAcaoPrincipal: "💰 Abrir Painel de Comissões & Metas"
+        }
+      );
+      return;
+    }
+
+    // =========================================================================
+    // 3. FORMAS DE PAGAMENTO (Pix, Dinheiro, Cartão, Fiado)
+    // =========================================================================
+    const ehPerguntaPagamento =
+      tNorm.includes("forma de pagamento") ||
+      tNorm.includes("formas de pagamento") ||
+      tNorm.includes("meios de pagamento") ||
+      tNorm.includes("quanto no pix") ||
+      tNorm.includes("vendas no pix") ||
+      tNorm.includes("quanto em dinheiro") ||
+      tNorm.includes("vendas em dinheiro") ||
+      tNorm.includes("quanto no cartao") ||
+      tNorm.includes("vendas no cartao") ||
+      tNorm.includes("como pagaram") ||
+      tNorm.includes("recebimento");
+
+    if (ehPerguntaPagamento) {
+      if (!temPermissao("vendas") && !ehGerente) {
+        responderIA("🔒 Consulta de recebimentos restrita à gerência.");
+        return;
+      }
+
+      const { formas, totalGeralBRL } = calcularVendasPorFormaPagamento(periodo);
+
+      if (formas.length === 0) {
+        responderIA(`Não há registros de recebimentos de vendas em **${rotuloPeriodo}**.`, [
+          { label: "📅 Ver na semana", comando: "formas de pagamento na semana" },
+          { label: "🛒 Abrir PDV", comando: "abrir pdv" }
+        ]);
+        return;
+      }
+
+      // Se perguntou por pix especificamente
+      if (tNorm.includes("pix")) {
+        const pix = formas.find((f) => f.nome.toLowerCase().includes("pix"));
+        const totalPix = pix ? pix.totalBRL : 0;
+        const qtdPix = pix ? pix.qtdVendas : 0;
+        responderIA(
+          `⚡ **Recebimentos via Pix (${rotuloPeriodo}):**
+` +
+          `• Total Recebido: **${fmt(totalPix)}**
+` +
+          `• Quantidade de Vendas: **${qtdPix} pedido(s)**
+` +
+          `• Participação: **${pix ? pix.participacaoPct : 0}%** do faturamento do período.`,
+          [
+            { label: "💳 Ver todas as formas", comando: `formas de pagamento ${periodo}` },
+            { label: "💰 Faturamento de hoje", comando: "quanto faturou hoje" }
+          ]
+        );
+        return;
+      }
+
+      // Se perguntou por dinheiro especificamente
+      if (tNorm.includes("dinheiro") || tNorm.includes("especie")) {
+        const dinheiro = formas.find((f) => f.nome.toLowerCase().includes("dinheiro"));
+        const totalDinheiro = dinheiro ? dinheiro.totalBRL : 0;
+        const qtdDinheiro = dinheiro ? dinheiro.qtdVendas : 0;
+        responderIA(
+          `💵 **Recebimentos em Dinheiro / Gaveta (${rotuloPeriodo}):**
+` +
+          `• Total em Espécie: **${fmt(totalDinheiro)}**
+` +
+          `• Quantidade de Vendas: **${qtdDinheiro} pedido(s)**
+` +
+          `• Saldo atual estimado da gaveta: **${fmt(saldoSessaoFisicoBRL)}**`,
+          [
+            { label: "💳 Ver todas as formas", comando: `formas de pagamento ${periodo}` },
+            { label: "💵 Saldo da Gaveta", comando: "saldo da gaveta" }
+          ]
+        );
+        return;
+      }
+
+      responderIA(
+        `💳 **Vendas por Meio de Pagamento (${rotuloPeriodo}):**
+` +
+        `Total recebido: **${fmt(totalGeralBRL)}** distribuído entre as seguintes formas:`,
+        [
+          { label: "📅 Ver na semana", comando: "formas de pagamento na semana" },
+          { label: "👥 Vendas por vendedor", comando: "quanto cada vendedor vendeu" },
+          { label: "💰 Resumo do dia", comando: "quanto faturou hoje" }
+        ],
+        {
+          tipo: "formas_pagamento",
+          itens: formas
+        }
+      );
+      return;
+    }
+
+    // =========================================================================
+    // 4. LUCRO / RENTABILIDADE / MARGEM
+    // =========================================================================
     if (
-      tLower.includes("mais vendido") ||
-      tLower.includes("mais vendida") ||
-      tLower.includes("o que mais vendeu") ||
-      tLower.includes("top produtos") ||
-      tLower.includes("campeoes de venda") ||
-      tLower.includes("campeões")
+      tNorm.includes("lucro") ||
+      tNorm.includes("lucramos") ||
+      tNorm.includes("lucrou") ||
+      tNorm.includes("margem de lucro") ||
+      tNorm.includes("rentabilidade")
+    ) {
+      if (!temPermissao("vendas") && !ehGerente) {
+        responderIA("🔒 Consulta de margem e lucro é exclusiva para gerência.");
+        return;
+      }
+
+      const resumo = calcularResumoPeriodo(periodo);
+
+      responderIA(
+        `📈 **Lucro e Rentabilidade (${rotuloPeriodo}):**
+` +
+        `• Faturamento Bruto: **${fmt(resumo.totalFaturadoBRL)}**
+` +
+        `• Custo das Mercadorias (CMV): **${fmt(resumo.custoTotalBRL)}**
+` +
+        `• **Lucro Bruto Estimado: ${fmt(resumo.lucroEstimadoBRL)}**
+` +
+        `• Margem Média: **${resumo.margemPct}%** sobre as vendas finalizadas.`,
+        [
+          { label: "📅 Ver lucro na semana", comando: "qual foi o lucro na semana" },
+          { label: "📅 Ver lucro no mês", comando: "qual foi o lucro no mes" },
+          { label: "💰 Ver Faturamento", comando: "quanto faturou hoje" },
+          { label: "👥 Vendas por vendedor", comando: "quanto cada vendedor vendeu" }
+        ]
+      );
+      return;
+    }
+
+    // =========================================================================
+    // 5. MAIS VENDIDOS / PRODUTOS CAMPEÕES
+    // =========================================================================
+    if (
+      tNorm.includes("mais vendido") ||
+      tNorm.includes("mais vendida") ||
+      tNorm.includes("o que mais vendeu") ||
+      tNorm.includes("top produtos") ||
+      tNorm.includes("campeoes de venda") ||
+      tNorm.includes("campeoes") ||
+      tNorm.includes("produtos mais vendidos")
     ) {
       if (!temPermissao("vendas") && !temPermissao("pdv") && !ehGerente) {
         responderIA(`🔒 Seu operador não possui permissão para consultar histórico e relatórios de vendas.`);
         return;
       }
 
-      let periodo = "hoje";
-      if (tLower.includes("semana") || tLower.includes("7 dias")) periodo = "semana";
-      else if (tLower.includes("geral") || tLower.includes("sempre") || tLower.includes("mes") || tLower.includes("mês")) periodo = "geral";
-
       const { ranking, totalVendas } = calcularMaisVendidos(periodo);
-      const rotuloPeriodo = periodo === "hoje" ? "Hoje" : periodo === "semana" ? "Últimos 7 dias" : "Todo o Histórico";
 
       if (ranking.length === 0) {
         responderIA(`Não há registros de vendas concluídas no período (**${rotuloPeriodo}**).`, [
@@ -565,10 +1180,12 @@ export default function ZenAssistenteIA({
 
       responderIA(
         `🏆 **Top Campeões de Venda (${rotuloPeriodo}):**
-Foram realizadas **${totalVendas} vendas** ${!ehGerente ? "(apenas suas vendas)" : ""}.`,
+` +
+        `Foram realizadas **${totalVendas} vendas** ${!ehGerente ? "(apenas suas vendas)" : ""}.`,
         [
           { label: "⚠️ O que preciso repor?", comando: "o que repor no estoque" },
           { label: "📅 Ver mais vendidos na semana", comando: "mais vendidos na semana" },
+          { label: "👥 Vendas por vendedor", comando: "quanto cada vendedor vendeu" },
           { label: "📦 Ir para Estoque", comando: "abrir produtos" }
         ],
         {
@@ -581,17 +1198,19 @@ Foram realizadas **${totalVendas} vendas** ${!ehGerente ? "(apenas suas vendas)"
       return;
     }
 
-    // 3. REPOSIÇÃO DE ESTOQUE / O QUE COMPRAR / ESTOQUE BAIXO
+    // =========================================================================
+    // 6. REPOSIÇÃO DE ESTOQUE / O QUE COMPRAR / ESTOQUE BAIXO
+    // =========================================================================
     if (
-      tLower.includes("repor") ||
-      tLower.includes("reposi") ||
-      tLower.includes("o que comprar") ||
-      tLower.includes("comprar mercadoria") ||
-      tLower.includes("estoque baixo") ||
-      tLower.includes("estoque acabando") ||
-      tLower.includes("zerado") ||
-      tLower.includes("falta no estoque") ||
-      tLower.includes("falta estoque")
+      tNorm.includes("repor") ||
+      tNorm.includes("reposi") ||
+      tNorm.includes("o que comprar") ||
+      tNorm.includes("comprar mercadoria") ||
+      tNorm.includes("estoque baixo") ||
+      tNorm.includes("estoque acabando") ||
+      tNorm.includes("zerado") ||
+      tNorm.includes("falta no estoque") ||
+      tNorm.includes("falta estoque")
     ) {
       if (!temPermissao("produtos")) {
         responderIA(`🔒 Seu perfil não possui acesso ao módulo de **Produtos e Estoque**.`);
@@ -601,10 +1220,13 @@ Foram realizadas **${totalVendas} vendas** ${!ehGerente ? "(apenas suas vendas)"
       const itens = calcularSugestaoReposicao();
 
       if (itens.length === 0) {
-        responderIA(`✅ **Excelente notícia!** Todos os produtos ativos estão com estoque adequado e acima da margem de segurança baseada nas vendas dos últimos 15 dias.`, [
-          { label: "📦 Ver catálogo de produtos", comando: "abrir produtos" },
-          { label: "🏆 Mais vendidos hoje", comando: "o que mais vendeu hoje" }
-        ]);
+        responderIA(
+          `✅ **Excelente notícia!** Todos os produtos ativos estão com estoque adequado e acima da margem de segurança baseada nas vendas dos últimos 15 dias.`,
+          [
+            { label: "📦 Ver catálogo de produtos", comando: "abrir produtos" },
+            { label: "🏆 Mais vendidos hoje", comando: "o que mais vendeu hoje" }
+          ]
+        );
         return;
       }
 
@@ -613,7 +1235,8 @@ Foram realizadas **${totalVendas} vendas** ${!ehGerente ? "(apenas suas vendas)"
 
       responderIA(
         `⚠️ **Sugestão Inteligente de Reposição:**
-Encontrei **${itens.length} produto(s)** que precisam de compra imediata (${criticos.length} zerado(s) e ${baixos.length} com estoque crítico/baixo).`,
+` +
+        `Encontrei **${itens.length} produto(s)** que precisam de compra imediata (${criticos.length} zerado(s) e ${baixos.length} com estoque crítico/baixo).`,
         [
           { label: "📥 Ir para PDV Compras (Entrada)", comando: "abrir compras" },
           { label: "📦 Ver Produtos & Estoque", comando: "abrir produtos" }
@@ -628,50 +1251,137 @@ Encontrei **${itens.length} produto(s)** que precisam de compra imediata (${crit
       return;
     }
 
-    // 4. FATURAMENTO / VENDAS DE HOJE
+    // =========================================================================
+    // 7. FATURAMENTO / VENDAS GERAIS / RESUMO
+    // =========================================================================
     if (
-      tLower.includes("quanto faturou") ||
-      tLower.includes("faturamento") ||
-      tLower.includes("quanto vend") ||
-      tLower.includes("vendas hoje") ||
-      tLower.includes("total de hoje") ||
-      tLower.includes("ticket medio") ||
-      tLower.includes("ticket médio") ||
-      tLower.includes("resumo do dia")
+      tNorm.includes("quanto faturou") ||
+      tNorm.includes("faturamento") ||
+      tNorm.includes("quanto vend") ||
+      tNorm.includes("vendas hoje") ||
+      tNorm.includes("total de hoje") ||
+      tNorm.includes("ticket medio") ||
+      tNorm.includes("ticket medio") ||
+      tNorm.includes("resumo do dia") ||
+      tNorm.includes("faturamento de ontem") ||
+      tNorm.includes("vendas de ontem") ||
+      tNorm.includes("vendas da semana") ||
+      tNorm.includes("vendas do mes")
     ) {
       if (!temPermissao("vendas") && !ehGerente) {
-        responderIA(`🔒 Consulta de faturamento diário restrita à gerência ou operadores com permissão de vendas.`);
+        responderIA(`🔒 Consulta de faturamento restrita à gerência ou operadores com permissão.`);
         return;
       }
 
-      const { totalFaturadoBRL, qtdPedidos, ticketMedio } = calcularResumoHoje();
+      const resumo = calcularResumoPeriodo(periodo);
 
       responderIA(
-        `💰 **Resumo de Vendas Hoje (${new Date().toLocaleDateString()}):**
+        `💰 **Resumo de Vendas (${rotuloPeriodo}):**
 ` +
-        `• Total Faturado: **${fmt(totalFaturadoBRL)}**
+        `• Total Faturado: **${fmt(resumo.totalFaturadoBRL)}**
 ` +
-        `• Pedidos Finalizados: **${qtdPedidos} venda(s)**
+        `• Pedidos Finalizados: **${resumo.qtdPedidos} venda(s)**
 ` +
-        `• Ticket Médio: **${fmt(ticketMedio)}**`,
+        `• Ticket Médio: **${fmt(resumo.ticketMedio)}**`,
         [
-          { label: "🏆 Campeões de Venda Hoje", comando: "o que mais vendeu hoje" },
-          { label: "💵 Ver Saldo da Gaveta", comando: "saldo da gaveta" },
-          { label: "📑 Abrir Histórico de Vendas", comando: "abrir vendas" }
+          { label: "👥 Vendas por vendedor", comando: `quanto cada vendedor vendeu ${periodo}` },
+          { label: "🏆 Campeões de Venda", comando: `o que mais vendeu ${periodo}` },
+          { label: "💳 Formas de Pagamento", comando: `formas de pagamento ${periodo}` },
+          { label: "💵 Ver Saldo da Gaveta", comando: "saldo da gaveta" }
         ]
       );
       return;
     }
 
-    // 5. CLIENTES COM FIADO / CONTAS A RECEBER
+    // =========================================================================
+    // 8. TOP CLIENTES QUE MAIS COMPRAM
+    // =========================================================================
     if (
-      tLower.includes("fiado") ||
-      tLower.includes("devedor") ||
-      tLower.includes("quem deve") ||
-      tLower.includes("saldo devedor") ||
-      tLower.includes("contas a receber") ||
-      tLower.includes("cobrança") ||
-      tLower.includes("cobranca")
+      tNorm.includes("quem mais compra") ||
+      tNorm.includes("melhores clientes") ||
+      tNorm.includes("top clientes") ||
+      tNorm.includes("clientes vips") ||
+      tNorm.includes("quem compra mais")
+    ) {
+      if (!temPermissao("clientes")) {
+        responderIA(`🔒 Consulta de clientes restrita a perfis autorizados.`);
+        return;
+      }
+
+      const topClientes = calcularTopClientes(5);
+
+      if (topClientes.length === 0) {
+        responderIA("Ainda não temos compras associadas a clientes com cadastro no histórico.", [
+          { label: "👥 Abrir Clientes", comando: "abrir clientes" }
+        ]);
+        return;
+      }
+
+      responderIA(
+        `⭐ **Clientes Campeões de Compra (Top Clientes):**
+` +
+        `Aqui estão os clientes que mais movimentaram compras na sua loja:`,
+        [
+          { label: "👥 Abrir Clientes & Fiado", comando: "abrir clientes" },
+          { label: "🛒 Ir para o PDV", comando: "abrir pdv" }
+        ],
+        {
+          tipo: "top_clientes",
+          itens: topClientes
+        }
+      );
+      return;
+    }
+
+    // =========================================================================
+    // 9. VALOR TOTAL DO ESTOQUE / INVENTÁRIO
+    // =========================================================================
+    if (
+      tNorm.includes("valor do estoque") ||
+      tNorm.includes("quanto vale o estoque") ||
+      tNorm.includes("total do estoque") ||
+      tNorm.includes("inventario")
+    ) {
+      if (!temPermissao("produtos")) {
+        responderIA(`🔒 Seu operador não possui acesso ao módulo de Produtos e Estoque.`);
+        return;
+      }
+
+      const est = calcularResumoEstoque();
+
+      responderIA(
+        `📦 **Panorama Geral do Estoque:**
+` +
+        `• Produtos Ativos no Catálogo: **${est.totalItens} itens**
+` +
+        `• Volume Físico Total: **${est.unidadesEstoque} unidades**
+` +
+        `• **Valor de Custo do Estoque: ${fmt(est.valorCustoTotal)}**
+` +
+        `• **Valor Potencial de Venda: ${fmt(est.valorVendaTotal)}**
+` +
+        `• Lucro Bruto Projetado: **${fmt(est.lucroProjetado)}**
+` +
+        `• Itens com Estoque Zerado: **${est.produtosZerados} produto(s)**`,
+        [
+          { label: "⚠️ O que preciso repor?", comando: "o que repor no estoque" },
+          { label: "📦 Abrir Produtos & Estoque", comando: "abrir produtos" },
+          { label: "📥 Entrada no PDV Compras", comando: "abrir compras" }
+        ]
+      );
+      return;
+    }
+
+    // =========================================================================
+    // 10. CLIENTES COM FIADO / CONTAS A RECEBER
+    // =========================================================================
+    if (
+      tNorm.includes("fiado") ||
+      tNorm.includes("devedor") ||
+      tNorm.includes("quem deve") ||
+      tNorm.includes("saldo devedor") ||
+      tNorm.includes("contas a receber") ||
+      tNorm.includes("cobranca")
     ) {
       if (!temPermissao("clientes")) {
         responderIA(`🔒 Seu usuário não possui acesso ao módulo de **Clientes e Fiado**.`);
@@ -707,14 +1417,55 @@ Encontrei **${itens.length} produto(s)** que precisam de compra imediata (${crit
       return;
     }
 
-    // 6. CAIXA / TURNO / GAVETA (STATUS GERAL)
+    // =========================================================================
+    // 11. DESPESAS / CONTAS PAGAS
+    // =========================================================================
     if (
-      tLower.includes("gaveta") ||
-      tLower.includes("saldo do caixa") ||
-      tLower.includes("saldo da gaveta") ||
-      tLower.includes("dinheiro no caixa") ||
-      tLower.includes("sangria") ||
-      tLower.includes("suprimento")
+      tNorm.includes("despesa") ||
+      tNorm.includes("despesas") ||
+      tNorm.includes("quanto gastou") ||
+      tNorm.includes("contas pagas") ||
+      tNorm.includes("gastos")
+    ) {
+      if (!temPermissao("financeiro") && !ehGerente) {
+        responderIA(`🔒 Consulta de despesas restrita a operadores autorizados.`);
+        return;
+      }
+
+      const hojeStr = new Date().toLocaleDateString();
+      const despesasHoje = (despesas || []).filter((d) => {
+        const data = d.data || d.createdAt || d.dataHora;
+        return data ? new Date(data).toLocaleDateString() === hojeStr : false;
+      });
+
+      const totalDespesasHoje = despesasHoje.reduce((acc, d) => acc + Number(d.valorBRL || d.valor || 0), 0);
+      const totalDespesasGeral = (despesas || []).reduce((acc, d) => acc + Number(d.valorBRL || d.valor || 0), 0);
+
+      responderIA(
+        `💸 **Controle de Despesas:**
+` +
+        `• Lançamentos de Hoje: **${fmt(totalDespesasHoje)}** (${despesasHoje.length} registro(s))
+` +
+        `• Total Acumulado Registrado: **${fmt(totalDespesasGeral)}**`,
+        [
+          { label: "💰 Faturamento de hoje", comando: "quanto faturou hoje" },
+          { label: "💵 Saldo da Gaveta", comando: "saldo da gaveta" }
+        ]
+      );
+      return;
+    }
+
+    // =========================================================================
+    // 12. CAIXA / TURNO / GAVETA (STATUS GERAL)
+    // =========================================================================
+    if (
+      tNorm.includes("gaveta") ||
+      tNorm.includes("saldo do caixa") ||
+      tNorm.includes("saldo da gaveta") ||
+      tNorm.includes("dinheiro no caixa") ||
+      tNorm.includes("sangria") ||
+      tNorm.includes("suprimento") ||
+      tNorm === "caixa"
     ) {
       if (!temPermissao("pdv")) {
         responderIA(`🔒 Seu operador não tem acesso às operações de caixa.`);
@@ -739,12 +1490,14 @@ Encontrei **${itens.length} produto(s)** que precisam de compra imediata (${crit
       return;
     }
 
-    // 7. ABERTURA DIRETA DE CADASTROS (Produto / Cliente)
+    // =========================================================================
+    // 13. ABERTURA DIRETA DE CADASTROS (Produto / Cliente)
+    // =========================================================================
     if (
-      tLower.includes("cadastrar produto") ||
-      tLower.includes("novo produto") ||
-      tLower.includes("adicionar produto") ||
-      tLower.includes("criar produto")
+      tNorm.includes("cadastrar produto") ||
+      tNorm.includes("novo produto") ||
+      tNorm.includes("adicionar produto") ||
+      tNorm.includes("criar produto")
     ) {
       const res = executarNavegacaoSegura("produtos", "Produtos & Estoque", () => {
         window.dispatchEvent(new CustomEvent("zenos:abrir-novo-produto"));
@@ -755,10 +1508,10 @@ Encontrei **${itens.length} produto(s)** que precisam de compra imediata (${crit
     }
 
     if (
-      tLower.includes("cadastrar cliente") ||
-      tLower.includes("novo cliente") ||
-      tLower.includes("adicionar cliente") ||
-      tLower.includes("criar cliente")
+      tNorm.includes("cadastrar cliente") ||
+      tNorm.includes("novo cliente") ||
+      tNorm.includes("adicionar cliente") ||
+      tNorm.includes("criar cliente")
     ) {
       const res = executarNavegacaoSegura("clientes", "Clientes & Fiado", () => {
         window.dispatchEvent(new CustomEvent("zenos:abrir-novo-cliente"));
@@ -768,81 +1521,114 @@ Encontrei **${itens.length} produto(s)** que precisam de compra imediata (${crit
       return;
     }
 
-    // 8. NAVEGAÇÃO ENTRE TELAS DO SISTEMA
-    if (tLower.includes("abrir pdv") || tLower.includes("ir pro pdv") || tLower.includes("ir para pdv") || tLower.includes("ir pro caixa") || tLower.includes("frente de caixa")) {
+    // =========================================================================
+    // 14. NAVEGAÇÃO ENTRE TELAS DO SISTEMA
+    // =========================================================================
+    if (
+      tNorm.includes("abrir pdv") ||
+      tNorm.includes("ir pro pdv") ||
+      tNorm.includes("ir para pdv") ||
+      tNorm.includes("ir pro caixa") ||
+      tNorm.includes("frente de caixa")
+    ) {
       const res = executarNavegacaoSegura("pdv", "PDV Balcão");
       responderIA(res.mensagem);
       return;
     }
 
-    if (tLower.includes("abrir compras") || tLower.includes("pdv compras") || tLower.includes("entrada de mercadoria") || tLower.includes("dar entrada")) {
+    if (
+      tNorm.includes("abrir compras") ||
+      tNorm.includes("pdv compras") ||
+      tNorm.includes("entrada de mercadoria") ||
+      tNorm.includes("dar entrada")
+    ) {
       const res = executarNavegacaoSegura("compras", "PDV Compras / Entrada de Mercadoria");
       responderIA(res.mensagem);
       return;
     }
 
-    if (tLower.includes("abrir produtos") || tLower.includes("ir para produtos") || tLower.includes("tela de produtos") || tLower.includes("ver estoque")) {
+    if (
+      tNorm.includes("abrir produtos") ||
+      tNorm.includes("ir para produtos") ||
+      tNorm.includes("tela de produtos") ||
+      tNorm.includes("ver estoque")
+    ) {
       const res = executarNavegacaoSegura("produtos", "Produtos & Estoque");
       responderIA(res.mensagem);
       return;
     }
 
-    if (tLower.includes("abrir clientes") || tLower.includes("ir para clientes") || tLower.includes("tela de clientes")) {
+    if (
+      tNorm.includes("abrir clientes") ||
+      tNorm.includes("ir para clientes") ||
+      tNorm.includes("tela de clientes")
+    ) {
       const res = executarNavegacaoSegura("clientes", "Clientes & Fiado");
       responderIA(res.mensagem);
       return;
     }
 
-    if (tLower.includes("abrir vendas") || tLower.includes("historico de vendas") || tLower.includes("histórico de vendas")) {
+    if (
+      tNorm.includes("abrir vendas") ||
+      tNorm.includes("historico de vendas")
+    ) {
       const res = executarNavegacaoSegura("vendas", "Histórico de Vendas");
       responderIA(res.mensagem);
       return;
     }
 
-    if (tLower.includes("abrir fornecedores") || tLower.includes("ir para fornecedores")) {
+    if (tNorm.includes("abrir fornecedores") || tNorm.includes("ir para fornecedores")) {
       const res = executarNavegacaoSegura("fornecedores", "Fornecedores");
       responderIA(res.mensagem);
       return;
     }
 
-    if (tLower.includes("abrir mesas") || tLower.includes("comandas")) {
+    if (tNorm.includes("abrir mesas") || tNorm.includes("comandas")) {
       const res = executarNavegacaoSegura("mesas", "Mesas / Comandas");
       responderIA(res.mensagem);
       return;
     }
 
-    if (tLower.includes("abrir fiscal") || tLower.includes("ir para fiscal") || tLower.includes("nfe")) {
+    if (tNorm.includes("abrir fiscal") || tNorm.includes("ir para fiscal") || tNorm.includes("nfe")) {
       const res = executarNavegacaoSegura("fiscal", "Módulo Fiscal / NF-e");
       responderIA(res.mensagem);
       return;
     }
 
-    if (tLower.includes("abrir configur") || tLower.includes("configurações") || tLower.includes("ajustes")) {
+    if (tNorm.includes("abrir configur") || tNorm.includes("configuracoes") || tNorm.includes("ajustes")) {
       const res = executarNavegacaoSegura("configuracoes", "Configurações do Sistema");
       responderIA(res.mensagem);
       return;
     }
 
-    if (tLower.includes("abrir comiss") || tLower.includes("comissões")) {
+    if (tNorm.includes("abrir comiss") || tNorm.includes("comissoes")) {
       const res = executarNavegacaoSegura("comissoes", "Comissões de Vendedores");
       responderIA(res.mensagem);
       return;
     }
 
-    if (tLower.includes("auditoria") || tLower.includes("auditoria de caixas")) {
+    if (tNorm.includes("auditoria") || tNorm.includes("auditoria de caixas")) {
       const res = executarNavegacaoSegura("auditoria_caixas", "Auditoria Geral de Caixas");
       responderIA(res.mensagem);
       return;
     }
 
-    if (tLower.includes("ir para o inicio") || tLower.includes("ir para o início") || tLower.includes("abrir hub") || tLower.includes("dashboard") || tLower.includes("painel")) {
+    if (
+      tNorm.includes("ir para o inicio") ||
+      tNorm.includes("abrir hub") ||
+      tNorm.includes("dashboard") ||
+      tNorm.includes("painel")
+    ) {
       navegarPara("hub");
       responderIA("🏠 Retornando ao Painel Principal (Hub).");
       return;
     }
 
-    // 9. BUSCA INTELIGENTE DE REFERÊNCIAS (CLIENTE / PRODUTO)
-    const { termoPesquisado, clientesEncontrados, produtosEncontrados, totalClientes, totalProdutos } = buscarReferencias(texto);
+    // =========================================================================
+    // 15. BUSCA INTELIGENTE DE REFERÊNCIAS (CLIENTE / PRODUTO)
+    // =========================================================================
+    const { termoPesquisado, clientesEncontrados, produtosEncontrados, totalClientes, totalProdutos } =
+      buscarReferencias(texto);
 
     if (totalClientes > 0 || totalProdutos > 0) {
       let textoRetorno = `Encontrei referências no sistema para **"${termoPesquisado}"**.
@@ -869,37 +1655,54 @@ Com qual destas opções posso te ajudar?`;
       return;
     }
 
-    // 10. SAUDAÇÕES
-    if (tLower === "oi" || tLower === "olá" || tLower === "ola" || tLower === "bom dia" || tLower === "boa tarde" || tLower === "boa noite") {
+    // =========================================================================
+    // 16. SAUDAÇÕES E AJUDA
+    // =========================================================================
+    if (
+      tNorm === "oi" ||
+      tNorm === "ola" ||
+      tNorm === "bom dia" ||
+      tNorm === "boa tarde" ||
+      tNorm === "boa noite" ||
+      tNorm === "ajuda" ||
+      tNorm.includes("o que voce faz") ||
+      tNorm.includes("o que pode fazer")
+    ) {
       responderIA(
-        `Olá, ${nomeOperador}! Como posso te ajudar agora? Você pode digitar o nome de um cliente, de um produto ou escolher uma das ações rápidas abaixo:`,
+        `Olá, ${nomeOperador}! Como posso te ajudar agora? Sou seu assistente completo de gestão.
+` +
+        `Você pode perguntar métricas da loja, vendas por vendedor, pesquisar clientes/produtos ou clicar nos atalhos abaixo:`,
         [
           ...(!sessaoAtiva ? [{ label: "🔓 Abrir turno de caixa", comando: "abrir caixa" }] : []),
+          { label: "👥 Vendas por vendedor", comando: "quanto cada vendedor vendeu" },
           { label: "🏆 Mais vendidos hoje", comando: "o que mais vendeu hoje" },
           { label: "⚠️ O que repor no estoque", comando: "o que repor no estoque" },
-          { label: "💰 Vendas de hoje", comando: "quanto vendemos hoje" },
+          { label: "💰 Faturamento de hoje", comando: "quanto vendemos hoje" },
           { label: "🛒 Abrir PDV Balcão", comando: "abrir pdv" }
         ]
       );
       return;
     }
 
-    // 11. FALLBACK INTELIGENTE (QUANDO NÃO ENCONTRA NENHUMA REFERÊNCIA OU COMANDO)
+    // =========================================================================
+    // 17. FALLBACK INTELIGENTE COM SUGESTÕES ACIONÁVEIS
+    // =========================================================================
     responderIA(
       `Não encontrei nenhum cliente, produto ou comando relacionado a **"${texto}"**.
 
 ` +
-      `Como posso te ajudar agora? Posso consultar estoques, buscar clientes, ver o que mais vendeu ou abrir qualquer tela para você.
+      `Como posso te ajudar agora? Posso consultar estoques, desempenho de vendedores, buscar clientes ou abrir qualquer tela para você.
 
 ` +
-      `Aqui estão algumas ideias do que você pode fazer agora:`,
+      `Aqui estão algumas ideias do que você pode perguntar agora:`,
       [
         ...(!sessaoAtiva ? [{ label: "🔓 Abrir turno de caixa", comando: "abrir caixa" }] : []),
+        { label: "👥 Vendas por vendedor", comando: "quanto cada vendedor vendeu" },
         { label: "🏆 Mais vendidos hoje", comando: "o que mais vendeu hoje" },
         { label: "⚠️ O que repor no estoque", comando: "o que repor no estoque" },
+        { label: "💰 Faturamento de hoje", comando: "quanto vendemos hoje" },
         { label: "➕ Cadastrar novo cliente", comando: "cadastrar cliente" },
         { label: "➕ Cadastrar novo produto", comando: "cadastrar produto" },
-        { label: "💰 Vendas de hoje", comando: "quanto vendemos hoje" },
         { label: "👥 Quem deve fiado?", comando: "clientes com fiado" },
         { label: "🛒 Abrir PDV Balcão", comando: "abrir pdv" }
       ]
@@ -928,8 +1731,10 @@ Com qual destas opções posso te ajudar?`;
         texto: `Histórico limpo. Como posso te ajudar agora, ${nomeOperador}?`,
         chips: [
           ...(!sessaoAtiva ? [{ label: "🔓 Abrir turno de caixa", comando: "abrir caixa" }] : []),
-          { label: "🏆 Mais vendidos", comando: "o que mais vendeu hoje" },
-          { label: "⚠️ O que repor?", comando: "o que preciso repor no estoque" },
+          { label: "👥 Vendas por vendedor", comando: "quanto cada vendedor vendeu" },
+          { label: "🏆 Mais vendidos hoje", comando: "o que mais vendeu hoje" },
+          { label: "⚠️ O que repor no estoque", comando: "o que repor no estoque" },
+          { label: "💰 Vendas de hoje", comando: "quanto vendemos hoje" },
           { label: "🛒 Abrir PDV", comando: "abrir pdv" }
         ]
       }
@@ -938,34 +1743,40 @@ Com qual destas opções posso te ajudar?`;
 
   return (
     <>
-      {/* Botão Flutuante luminoso no canto inferior direito */}
+      {/* Botão Flutuante (Discreto no canto inferior direito) */}
       {!aberto && (
         <button
           className="zen-ia-float-trigger no-print"
           onClick={onAbrir}
-          title="Assistente Zen IA (Ctrl+K)"
-          aria-label="Abrir Assistente Zen IA"
+          title="Abrir Zen IA Assistente (Copiloto de Gestão)"
+          aria-label="Abrir Zen IA Assistente"
         >
           <span className="zen-ia-pulse-badge" />
-          <span>✨ Zen IA</span>
+          ✨ Zen IA
         </button>
       )}
 
-      {/* Gaveta / Drawer do Assistente IA */}
+      {/* Drawer / Painel Lateral */}
       {aberto && (
-        <div className="zen-ia-panel-backdrop no-print" onClick={(e) => { if (e.target === e.currentTarget) onFechar(); }}>
-          <aside className="zen-ia-drawer" role="dialog" aria-modal="true" aria-label="Zen IA">
-            {/* Cabeçalho */}
+        <div
+          className="zen-ia-panel-backdrop no-print"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) onFechar();
+          }}
+        >
+          <div className="zen-ia-drawer" role="dialog" aria-modal="true" aria-label="Painel Zen IA Assistente">
+            {/* Cabeçalho do Drawer */}
             <div className="zen-ia-header">
               <div className="zen-ia-header-left">
                 <div className="zen-ia-avatar">✨</div>
-                <div className="zen-ia-title">
-                  <strong>Zen<span>IA</span> Assistente</strong>
-                  <small>
-                    {nomeOperador} • <span style={{ color: ehGerente ? "#ffd52f" : "#34d399", fontWeight: 900 }}>{patenteUsuario?.toUpperCase() || "OPERADOR"}</span>
-                  </small>
+                <div>
+                  <div className="zen-ia-title">Zen IA Assistente</div>
+                  <div className="zen-ia-hint">
+                    {nomeOperador} • <span style={{ color: "#fbbf24", fontWeight: 800 }}>{patenteUsuario?.toUpperCase()}</span>
+                  </div>
                 </div>
               </div>
+
               <div className="zen-ia-header-actions">
                 <button className="zen-ia-btn-icon" onClick={limparHistorico} title="Limpar conversa">
                   🗑️
@@ -1107,7 +1918,53 @@ Com qual destas opções posso te ajudar?`;
                         </>
                       )}
 
-                      {/* CARTÃO: RANKING DE VENDAS */}
+                      {/* CARTÃO: RANKING DE VENDEDORES */}
+                      {msg.cartaoEspecial.tipo === "ranking_vendedores" && (
+                        <>
+                          {msg.cartaoEspecial.itens.map((v, idx) => {
+                            const medalha = idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx + 1}`;
+                            const corMedalha = idx === 0 ? "#fbbf24" : idx === 1 ? "#cbd5e1" : idx === 2 ? "#d97706" : "#38bdf8";
+                            return (
+                              <div key={v.id || idx} className="zen-ia-data-item">
+                                <div
+                                  className="zen-ia-rank-badge"
+                                  style={{
+                                    background: idx < 3 ? "rgba(251, 191, 36, 0.12)" : "rgba(25, 211, 255, 0.12)",
+                                    color: corMedalha,
+                                    fontSize: idx < 3 ? "14px" : "11px"
+                                  }}
+                                >
+                                  {medalha}
+                                </div>
+                                <div className="zen-ia-item-info">
+                                  <strong>{v.nome}</strong>
+                                  <small>
+                                    {v.cargo || "Vendedor"} • {v.qtdVendas} venda(s)
+                                    {v.participacaoPct > 0 ? ` • ${v.participacaoPct}% da loja` : ""}
+                                  </small>
+                                </div>
+                                <div className="zen-ia-item-value">
+                                  <strong style={{ color: "#10b981" }}>{fmt(v.totalFaturadoBRL)}</strong>
+                                  <small>Médio: {fmt(v.ticketMedioBRL)}</small>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {msg.cartaoEspecial.onAcaoPrincipal && (
+                            <button
+                              className="zen-ia-action-btn"
+                              onClick={() => {
+                                msg.cartaoEspecial.onAcaoPrincipal();
+                                onFechar();
+                              }}
+                            >
+                              {msg.cartaoEspecial.rotuloAcaoPrincipal}
+                            </button>
+                          )}
+                        </>
+                      )}
+
+                      {/* CARTÃO: RANKING DE PRODUTOS MAIS VENDIDOS */}
                       {msg.cartaoEspecial.tipo === "ranking_vendas" && (
                         <>
                           {msg.cartaoEspecial.itens.map((it, idx) => (
@@ -1134,6 +1991,42 @@ Com qual destas opções posso te ajudar?`;
                               {msg.cartaoEspecial.rotuloAcaoPrincipal}
                             </button>
                           )}
+                        </>
+                      )}
+
+                      {/* CARTÃO: FORMAS DE PAGAMENTO */}
+                      {msg.cartaoEspecial.tipo === "formas_pagamento" && (
+                        <>
+                          {msg.cartaoEspecial.itens.map((fp, idx) => (
+                            <div key={fp.id || idx} className="zen-ia-data-item">
+                              <div className="zen-ia-rank-badge" style={{ fontSize: "14px" }}>{fp.icone || "💳"}</div>
+                              <div className="zen-ia-item-info">
+                                <strong>{fp.nome}</strong>
+                                <small>{fp.qtdVendas} recebimento(s){fp.participacaoPct > 0 ? ` • ${fp.participacaoPct}% do total` : ""}</small>
+                              </div>
+                              <div className="zen-ia-item-value">
+                                <strong style={{ color: "#38bdf8" }}>{fmt(fp.totalBRL)}</strong>
+                              </div>
+                            </div>
+                          ))}
+                        </>
+                      )}
+
+                      {/* CARTÃO: TOP CLIENTES */}
+                      {msg.cartaoEspecial.tipo === "top_clientes" && (
+                        <>
+                          {msg.cartaoEspecial.itens.map((cli, idx) => (
+                            <div key={cli.id || idx} className="zen-ia-data-item">
+                              <div className="zen-ia-rank-badge">#{idx + 1}</div>
+                              <div className="zen-ia-item-info">
+                                <strong>{cli.nome}</strong>
+                                <small>{cli.qtdCompras} compra(s)</small>
+                              </div>
+                              <div className="zen-ia-item-value">
+                                <strong style={{ color: "#10b981" }}>{fmt(cli.totalGastoBRL)}</strong>
+                              </div>
+                            </div>
+                          ))}
                         </>
                       )}
 
@@ -1228,46 +2121,43 @@ Com qual destas opções posso te ajudar?`;
               <div ref={fimMensagensRef} />
             </div>
 
-            {/* Rodapé e Campo de Entrada */}
+            {/* Rodapé com Input e Microfone */}
             <div className="zen-ia-footer">
               <form
+                className="zen-ia-input-wrapper"
                 onSubmit={(e) => {
                   e.preventDefault();
                   processarComando(inputTexto);
                 }}
-                className="zen-ia-input-wrapper"
               >
                 <button
                   type="button"
-                  onClick={alternarVoz}
                   className={`zen-ia-btn-mic ${gravandoVoz ? "recording" : ""}`}
-                  title={gravandoVoz ? "Ouvindo... Clique para parar" : "Falar por voz"}
+                  onClick={alternarVoz}
+                  title={gravandoVoz ? "Gravando voz... Clique para parar" : "Falar por comando de voz"}
                 >
-                  {gravandoVoz ? "🔴" : "🎤"}
+                  🎤
                 </button>
 
                 <input
                   ref={inputRef}
                   type="text"
+                  placeholder="Pergunte algo (ex: quanto cada vendedor vendeu, mais vendidos)..."
                   value={inputTexto}
                   onChange={(e) => setInputTexto(e.target.value)}
-                  placeholder="Pergunte algo, digite o nome de um cliente ou peça para abrir..."
                 />
 
                 <button
                   type="submit"
-                  disabled={!inputTexto.trim()}
                   className="zen-ia-btn-send"
-                  title="Enviar comando"
+                  disabled={!inputTexto.trim()}
+                  title="Enviar pergunta"
                 >
                   ➤
                 </button>
               </form>
-              <div className="zen-ia-hint">
-                <small>Dica: Pressione <kbd>Ctrl</kbd> + <kbd>K</kbd> a qualquer momento para abrir ou fechar</small>
-              </div>
             </div>
-          </aside>
+          </div>
         </div>
       )}
     </>
