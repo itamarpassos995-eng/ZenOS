@@ -444,7 +444,13 @@ export default function App() {
   const authRouteUidRef = useRef(null);
   // 🔒 ATUALIZADO: MOTOR CLOUD-FIRST (A nuvem é a fonte absoluta da verdade)
   useEffect(() => {
+    // Uma resposta assíncrona do login anterior nunca pode reativar dados de
+    // outra loja depois de logout/troca de conta ou do StrictMode cleanup.
+    let mounted = true;
+    let authSequence = 0;
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      const sequence = ++authSequence;
+      const isCurrent = () => mounted && sequence === authSequence;
       if (authRouteUidRef.current) clearOperationalSession(db, authRouteUidRef.current);
       authRouteUidRef.current = user?.uid || null;
       syncCamposRef.current.clear();
@@ -468,6 +474,7 @@ export default function App() {
         try {
           const docRef = doc(db, "lojas", user.uid);
           const docSnap = await getDoc(docRef);
+          if (!isCurrent()) return;
           if (docSnap.exists()) {
             const dadosLoja = docSnap.data();
             let status = dadosLoja.status || 'aguardando_pagamento';
@@ -481,11 +488,13 @@ export default function App() {
           } else {
             const novaDataCriacao = new Date().toISOString();
             await setDoc(docRef, { email: user.email, status: 'aguardando_pagamento', dataCriacao: novaDataCriacao, createdAtServer: serverTimestamp() }, { merge: true });
+            if (!isCurrent()) return;
             setStatusLoja('ativo');
             setPlanoLoja('basico');
           }
 
           const dadosLojaSnap = await getOperationalSnapshot(db, user.uid);
+          if (!isCurrent()) return;
           const adminPadrao = [{ id: 'admin', nome: 'Administrador (Gerência)', patente: 'gerencia', senha: 'admin', pinTrocaObrigatoria: true, percentual: 0, comissaoTipo: 'lucro', permissoes: { admin: true } }];
           if (dadosLojaSnap.exists()) {
             // SE A LOJA TEM DADOS NA NUVEM, PUXA TUDO DAQUI SEM REGRAVAR NO LOGIN.
@@ -561,7 +570,8 @@ export default function App() {
           setNuvemSincronizada(true);
           setStatusSincronizacao('SINCRONIZADO');
           setErroSincronizacao('');
-        } catch (err) { 
+        } catch (err) {
+          if (!isCurrent()) return;
           console.error('[ZenOS][BOOTSTRAP] Falha ao confirmar os dados da nuvem. Escritas permanecem bloqueadas.', err);
           setStatusLoja('ativo');
           setPlanoLoja('basico');
@@ -599,18 +609,20 @@ export default function App() {
         setFalhaBootstrapNuvem(null);
         setProdutos([]); setClientes([]); setHistoricoVendas([]); setCaixaMovimentos([]); setDespesas([]); setHistoricoCompras([]); setFornecedores([]); setVouchers([]); setLivroFinanceiro([]); setSessoesCaixa([]); setRegrasDesconto({ ...REGRAS_DESCONTO_PADRAO }); setRegrasComissao(normalizarRegrasComissao(REGRAS_COMISSAO_PADRAO)); setVendedores([]); setPerfilLoja(normalizarPerfilLoja({})); setPerfilRapidoRascunho(normalizarPerfilLoja({})); setTaxasCambio({ ...TAXAS_CAMBIO_PADRAO }); setTaxasInput({ ...TAXAS_INPUT_PADRAO });
       }
-      setCarregandoAuth(false);
+      if (isCurrent()) setCarregandoAuth(false);
     });
-    return () => unsubscribe();
+    return () => { mounted = false; authSequence++; unsubscribe(); };
   }, []);
 
   // ATT 06.2: sincronização reativa V1 entre terminais.
   // ATT 10.2: realtime somente aplica dados remotos; NUNCA ecoa snapshot de volta para a nuvem.
   useEffect(() => {
     if (!userId) return;
+    let active = true;
     const refConfig = doc(db, 'lojas', userId, 'dados', 'configuracoes');
 
     const unsubOperacao = subscribeOperationalSnapshot(db, userId, (snap) => {
+      if (!active) return;
       if (!snap.exists() || snap.metadata?.fromCache || snap.metadata?.hasPendingWrites) return;
       recordSyncMetric('snapshotReads', 'operacao');
       const d = snap.data() || {};
@@ -647,12 +659,14 @@ export default function App() {
       }
       // Snapshot passivo não muda status para SALVANDO/SINCRONIZADO: o indicador reflete somente writes locais.
     }, err => {
+      if (!active) return;
       console.error('[ZenOS][Realtime] operação:', err);
       setNuvemSincronizada(false);
       notifyPersistenceStatus({status:'ERRO',field: 'operacao_realtime',error:err?.message || 'Falha na sincronização operacional.'});
     });
 
     const unsubConfig = onSnapshot(refConfig, (snap) => {
+      if (!active) return;
       if (snap.metadata?.fromCache || snap.metadata?.hasPendingWrites) return;
       recordSyncMetric('snapshotReads', 'configuracoes');
       if (!snap.exists()) {
@@ -675,10 +689,11 @@ export default function App() {
         setTaxasInput(taxasInputAPartirDasTaxas(taxas));
       }
     }, err => {
+      if (!active) return;
       console.error('[ZenOS][Realtime] configuração:', err);
       notifyPersistenceStatus({status:'ERRO',field: 'configuracoes_realtime',error:err?.message || 'Falha na sincronização de configuração.'});
     });
-    return () => { unsubOperacao(); unsubConfig(); };
+    return () => { active = false; unsubOperacao(); unsubConfig(); };
   }, [userId]);
 
   // Livro completo só nas telas de auditoria/contas, nunca ao entrar no PDV.
