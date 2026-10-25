@@ -944,17 +944,29 @@ export default function App() {
     }
   };
 
-  const vendasValidas = historicoVendas.filter(v => v.estado === 'concluida' || v.estado === 'parcial');
+  const vendasValidas = useMemo(() => historicoVendas.filter(v =>
+    v.estado === 'concluida' || v.estado === 'parcial'), [historicoVendas]);
   
   // Resumo individual para vendedores; gerência mantém a visão global.
-  const vendasHoje = filtrarVendasHojeVisiveis({historicoVendas,operadorAtivo,patenteUsuario});
-  const faturamentoHojeBRL = vendasHoje.reduce((acc, v) => acc + obterFinanceiroVenda(v).totalLiquidoBRL, 0);
-  const faturamentoTotalBRL = vendasValidas.reduce((acc, v) => acc + obterFinanceiroVenda(v).totalLiquidoBRL, 0);
-  const cmvTotalBRL = vendasValidas.reduce((acc, v) => acc + obterFinanceiroVenda(v).cmvLiquidoBRL, 0);
-  const lucroBrutoBRL = vendasValidas.reduce((acc, v) => acc + obterFinanceiroVenda(v).lucroLiquidoBRL, 0);
-  const despesasPagasBRL = despesas.filter(d => (d.status === 'paga' || (d.status === 'excluida' && d.financeiroMantido === true)) && d.afetaResultado !== false && d.naturezaContabil !== 'estoque_ativo' && d.categoria !== 'Mercadoria para Revenda').reduce((acc,d)=>acc+(Number(d.valorBRL)||0),0);
+  const diaLocalAtual = new Date().toDateString();
+  const vendasHoje = useMemo(() => filtrarVendasHojeVisiveis({historicoVendas,operadorAtivo,patenteUsuario}),
+    [historicoVendas, operadorAtivo?.id, patenteUsuario, diaLocalAtual]);
+  const faturamentoHojeBRL = useMemo(() => vendasHoje.reduce((acc, v) =>
+    acc + obterFinanceiroVenda(v).totalLiquidoBRL, 0), [vendasHoje]);
+  // Um único percurso financeiro substitui três varreduras completas por render.
+  const financeiroHistorico = useMemo(() => vendasValidas.reduce((acc, venda) => {
+    const financeiro = obterFinanceiroVenda(venda);
+    acc.total += financeiro.totalLiquidoBRL;
+    acc.cmv += financeiro.cmvLiquidoBRL;
+    acc.lucro += financeiro.lucroLiquidoBRL;
+    return acc;
+  }, { total: 0, cmv: 0, lucro: 0 }), [vendasValidas]);
+  const faturamentoTotalBRL = financeiroHistorico.total;
+  const cmvTotalBRL = financeiroHistorico.cmv;
+  const lucroBrutoBRL = financeiroHistorico.lucro;
+  const despesasPagasBRL = useMemo(() => despesas.filter(d => (d.status === 'paga' || (d.status === 'excluida' && d.financeiroMantido === true)) && d.afetaResultado !== false && d.naturezaContabil !== 'estoque_ativo' && d.categoria !== 'Mercadoria para Revenda').reduce((acc,d)=>acc+(Number(d.valorBRL)||0),0), [despesas]);
   const lucroLiquidoRealBRL = lucroBrutoBRL - despesasPagasBRL;
-  const totalFiadoAbertoBRL = clientes.reduce((acc, c) => acc + (parseFloat(c.saldoDevedorBRL) || 0), 0);
+  const totalFiadoAbertoBRL = useMemo(() => clientes.reduce((acc, c) => acc + (parseFloat(c.saldoDevedorBRL) || 0), 0), [clientes]);
 
   const gerarCurvaABC = () => {
     const mapa = {};
@@ -971,17 +983,21 @@ export default function App() {
     });
     return Object.values(mapa).sort((a, b) => b.faturamentoBRL - a.faturamentoBRL).slice(0, 5); 
   };
-  const curvaABC = gerarCurvaABC();
+  const curvaABC = useMemo(() => gerarCurvaABC(), [vendasValidas]);
 
   const idVendedorAtual = (operadorAtivo && operadorAtivo.id) ? operadorAtivo.id : 'admin';
-  const sessaoAtiva = sessoesCaixa.find(s => s.operadorId === idVendedorAtual && s.status === 'aberta');
+  const sessaoAtiva = useMemo(() => sessoesCaixa.find(s => s.operadorId === idVendedorAtual && s.status === 'aberta'),
+    [sessoesCaixa, idVendedorAtual]);
   // O caixa físico precisa preservar a entrada original mesmo quando a venda é
   // totalmente devolvida e passa ao estado `cancelada`. O motor canônico de caixa
   // já distingue quais estados possuem fluxo financeiro; por isso recebe o histórico
   // completo, enquanto os indicadores comerciais acima continuam usando vendasValidas.
-  const resumoSessaoAtiva = sessaoAtiva ? calcularResumoSessao({ sessao: sessaoAtiva, historicoVendas, caixaMovimentos }) : null;
-  const vendasDestaSessao = sessaoAtiva ? vendasDaSessao({ sessao: sessaoAtiva, historicoVendas }) : [];
-  const movsSessao = sessaoAtiva ? caixaMovimentos.filter(m => m.sessaoId === sessaoAtiva.id) : [];
+  const resumoSessaoAtiva = useMemo(() => sessaoAtiva ? calcularResumoSessao({ sessao: sessaoAtiva, historicoVendas, caixaMovimentos }) : null,
+    [sessaoAtiva, historicoVendas, caixaMovimentos]);
+  const vendasDestaSessao = useMemo(() => sessaoAtiva ? vendasDaSessao({ sessao: sessaoAtiva, historicoVendas }) : [],
+    [sessaoAtiva, historicoVendas]);
+  const movsSessao = useMemo(() => sessaoAtiva ? caixaMovimentos.filter(m => m.sessaoId === sessaoAtiva.id) : [],
+    [sessaoAtiva, caixaMovimentos]);
   const saldoSessaoFisicoBRL = resumoSessaoAtiva?.saldoEsperado || 0;
   // Compatibilidade dos relatórios/fecho: aliases derivados do resumo canônico da sessão.
   const suprimentosSessaoBRL = Number(resumoSessaoAtiva?.suprimentos || 0);
@@ -1398,9 +1414,10 @@ export default function App() {
     return !!operadorAtivo.permissoes?.[modulo];
   };
 
-  const historicoVisivelParaOperador = patenteUsuario === 'gerencia' 
-    ? historicoVendas 
-    : historicoVendas.filter(v => String(v.vendedorId) === String(operadorAtivo?.id));
+  const historicoVisivelParaOperador = useMemo(() => patenteUsuario === 'gerencia'
+    ? historicoVendas
+    : historicoVendas.filter(v => String(v.vendedorId) === String(operadorAtivo?.id)),
+    [historicoVendas, patenteUsuario, operadorAtivo?.id]);
 
   const resultadoFilaFiscal = useMemo(() => {
     return derivarFilaFiscalSegura({
