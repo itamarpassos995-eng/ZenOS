@@ -28,7 +28,7 @@ export default function Mesas({ commitOperacaoNegocio, userId, produtos, fmt, tx
         setMesas(lista.length ? lista : criarMesasPadrao());
         setErroMesas('');
       },
-      onError: error => { console.error('[ZenOS][Mesas V1]', error); setErroMesas(error?.message || tx('Falha de sincronização das mesas.','Error de sincronización de mesas.','Table synchronization failed.')); },
+      onError: error => { if(!ativo)return; console.error('[ZenOS][Mesas V1]', error); setErroMesas(error?.message || tx('Falha de sincronização das mesas.','Error de sincronización de mesas.','Table synchronization failed.')); },
     });
     return () => { ativo = false; unsub(); };
   }, [userId]);

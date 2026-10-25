@@ -12,7 +12,7 @@ const asSnapshot=data=>({exists:()=>true,data:()=>data,metadata:{fromCache:false
 
 export class V2Session {
  constructor(db,userId,control){this.db=db;this.userId=String(userId);this.control=control;this.generation=control.generation;
-  this.root=v2RootPath(userId,control.generation);this.records=new Map();this.values={};this.sequence=0;this.revisions={};this.listeners=new Set();this.tailStop=null;this.failed=null;}
+  this.root=v2RootPath(userId,control.generation);this.records=new Map();this.values={};this.sequence=0;this.revisions={};this.listeners=new Set();this.tailStop=null;this.tailEpoch=0;this.failed=null;}
  async paged(path,consume){let cursor=null,count=0;
   do{const q=query(collection(this.db,...path),orderBy(documentId()),...(cursor?[startAfter(cursor)]:[]),limit(PAGE));
    const page=await getDocsFromServer(q);count+=page.size;this.reads=(this.reads||0)+page.size;
@@ -98,21 +98,32 @@ export class V2Session {
   if(this.sequence<Number(end.data()?.sequence||0))throw v2Error('V2_NOT_CAUGHT_UP','Não foi possível sincronizar todas as operações.');
   return this;
  }
- startTail(){if(this.tailStop||!this.listeners.size||this.failed)return;
-  let rearming=false;
-  const attach=()=>{if(!this.listeners.size||this.failed)return;
-   const captured=this.sequence;
-   this.tailStop=onSnapshot(query(collection(this.db,...this.root,'operations'),where('sequence','>',captured),orderBy('sequence'),limit(V2_TAIL_WINDOW_SIZE)),snap=>{
-    if(snap.metadata.fromCache||snap.metadata.hasPendingWrites)return;
-    try{snap.docs.forEach(d=>this.apply(d.data()));
-     if(shouldRearmV2Tail(snap.size,captured,this.sequence)&&!rearming){rearming=true;queueMicrotask(()=>{this.tailStop?.();this.tailStop=null;rearming=false;attach();});}
-    }catch(e){this.fail(e);}
-   },e=>this.fail(e));
-  };attach();
+ // Invalida também callbacks/microtasks de uma assinatura já cancelada.
+ stopTail(){this.tailEpoch++;const stop=this.tailStop;this.tailStop=null;stop?.();}
+ startTail(){
+  if(this.tailStop||!this.listeners.size||this.failed)return;
+  const epoch=++this.tailEpoch,captured=this.sequence;
+  let rearmQueued=false;
+  this.tailStop=onSnapshot(query(collection(this.db,...this.root,'operations'),where('sequence','>',captured),orderBy('sequence'),limit(V2_TAIL_WINDOW_SIZE)),snap=>{
+   if(epoch!==this.tailEpoch||!this.listeners.size||this.failed)return;
+   if(snap.metadata.fromCache||snap.metadata.hasPendingWrites)return;
+   try{
+    snap.docs.forEach(d=>this.apply(d.data()));
+    if(shouldRearmV2Tail(snap.size,captured,this.sequence)&&!rearmQueued){
+     rearmQueued=true;
+     queueMicrotask(()=>{
+      if(epoch!==this.tailEpoch||!this.listeners.size||this.failed)return;
+      this.stopTail();
+      this.startTail();
+     });
+    }
+   }catch(e){this.fail(e);}
+  },e=>{if(epoch===this.tailEpoch&&this.listeners.size)this.fail(e);});
  }
- fail(error){this.failed=error;this.tailStop?.();this.tailStop=null;for(const l of this.listeners)l.error?.(error);}
+ fail(error){this.failed=error;this.stopTail();for(const l of this.listeners)l.error?.(error);}
  subscribe(onData,onError){const l={data:onData,error:onError};this.listeners.add(l);onData(asSnapshot(this.materialize()));this.startTail();
-  return()=>{this.listeners.delete(l);if(!this.listeners.size){this.tailStop?.();this.tailStop=null;}};
+  let closed=false;
+  return()=>{if(closed)return;closed=true;this.listeners.delete(l);if(!this.listeners.size)this.stopTail();};
  }
 }
 
@@ -137,22 +148,35 @@ async function initializeRoute(db,userId){
 }
 export function subscribeOperationalSnapshot(db,userId,onData,onError){
  let disposed=false,stopData=null,stopControl=null;
+ const reportError=error=>{if(!disposed)onError?.(error);};
+ const emitData=snapshot=>{if(!disposed)onData?.(snapshot);};
  void initializeRoute(db,userId).then(entry=>{
   if(disposed)return;
-  stopData=entry.session?entry.session.subscribe(onData,onError):onSnapshot(doc(db,'lojas',String(userId),'dados','operacao'),snap=>{onData(snap);if(entry.route.shadow&&!snap.metadata.fromCache&&!snap.metadata.hasPendingWrites)void compareShadow(entry,snap).catch(onError);},onError);
+  stopData=entry.session
+   ?entry.session.subscribe(emitData,reportError)
+   :onSnapshot(doc(db,'lojas',String(userId),'dados','operacao'),snap=>{
+     if(disposed)return;
+     emitData(snap);
+     if(entry.route.shadow&&!snap.metadata.fromCache&&!snap.metadata.hasPendingWrites)
+      void compareShadow(entry,snap).catch(reportError);
+    },reportError);
+  // Se o componente tiver desmontado durante a assinatura inicial, não abrir outra.
+  if(disposed){stopData?.();stopData=null;return;}
   stopControl=onSnapshot(doc(db,...v2ControlPath(userId)),snap=>{
-   if(snap.metadata.fromCache||snap.metadata.hasPendingWrites)return;
+   if(disposed||snap.metadata.fromCache||snap.metadata.hasPendingWrites)return;
    const next=snap.exists()?snap.data():null;
    if(JSON.stringify(next)!==JSON.stringify(entry.control)){
-    stopData?.();entry.session?.fail(v2Error('V2_ROUTE_CHANGED','Armazenamento mudou; recarregue o sistema antes de operar.'));
-    onError?.(v2Error('V2_ROUTE_CHANGED','Armazenamento mudou; recarregue o sistema antes de operar.'));
+    stopData?.();stopData=null;
+    entry.session?.fail(v2Error('V2_ROUTE_CHANGED','Armazenamento mudou; recarregue o sistema antes de operar.'));
+    reportError(v2Error('V2_ROUTE_CHANGED','Armazenamento mudou; recarregue o sistema antes de operar.'));
    }
-  },onError);
- }).catch(onError);
- return()=>{disposed=true;stopData?.();stopControl?.();};
+  },reportError);
+  if(disposed){stopControl?.();stopControl=null;}
+ }).catch(reportError);
+ return()=>{if(disposed)return;disposed=true;stopData?.();stopControl?.();stopData=null;stopControl=null;};
 }
 export function clearOperationalSession(db,userId){
- const entry=sessionMap(db).get(String(userId));entry?.session?.tailStop?.();sessionMap(db).delete(String(userId));
+ const entry=sessionMap(db).get(String(userId));entry?.session?.stopTail();sessionMap(db).delete(String(userId));
 }
 
 async function compareShadow(entry,snapshot){

@@ -490,16 +490,19 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
     abrirCheckoutAposValidacoes();
   };
 
+  // Handler atualizado via ref: uma única inscrição enquanto o PDV estiver montado.
+  const abrirFechamentoRef = useRef(abrirFechamento);
+  abrirFechamentoRef.current = abrirFechamento;
   useEffect(() => {
     const lidarAtalhos = (e) => {
       if (e.key === 'F10') {
         e.preventDefault();
-        abrirFechamento();
+        abrirFechamentoRef.current();
       }
     };
     window.addEventListener('keydown', lidarAtalhos);
     return () => window.removeEventListener('keydown', lidarAtalhos);
-  });
+  }, []);
 
   const adicionarPagamento = () => {
     const configForma = catalogoFormas.find(f => f.id === formaSelecionada) || catalogoFormas[0];

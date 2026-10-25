@@ -252,13 +252,16 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
     setModalFechamentoAberto(true);
   };
 
+  // O handler usa sempre o fechamento atual sem reinscrever o evento a cada tecla/render.
+  const abrirFechamentoRef = useRef(abrirFechamento);
+  abrirFechamentoRef.current = abrirFechamento;
   useEffect(() => {
     const lidarAtalhos = (e) => {
-      if (e.key === 'F10') { e.preventDefault(); abrirFechamento(); }
+      if (e.key === 'F10') { e.preventDefault(); abrirFechamentoRef.current(); }
     };
     window.addEventListener('keydown', lidarAtalhos);
     return () => window.removeEventListener('keydown', lidarAtalhos);
-  });
+  }, []);
 
   const adicionarPagamento = () => {
     const valorNum = parseFloat(String(valorLancamentoInput).replace(',', '.')) || 0;
