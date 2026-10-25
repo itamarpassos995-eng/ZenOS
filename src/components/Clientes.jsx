@@ -71,6 +71,23 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
     setModalClienteAberto(true);
   };
 
+  React.useEffect(() => {
+    const handleAbrirNovo = () => abrirCadastroNovoCliente();
+    const handleAbrirCliente = (e) => {
+      const cli = e?.detail;
+      if (cli) {
+        const cliAtual = (clientes || []).find(c => String(c.id) === String(cli.id)) || cli;
+        abrirEdicaoCliente(cliAtual);
+      }
+    };
+    window.addEventListener("zenos:abrir-novo-cliente", handleAbrirNovo);
+    window.addEventListener("zenos:abrir-cliente", handleAbrirCliente);
+    return () => {
+      window.removeEventListener("zenos:abrir-novo-cliente", handleAbrirNovo);
+      window.removeEventListener("zenos:abrir-cliente", handleAbrirCliente);
+    };
+  }, [clientes]);
+
   const salvarCliente = async () => {
     if (!formCliente.nome || !formCliente.nome.trim()) return setModalZen({ variante:'warning', titulo:tx('Nome obrigatório','Nombre obligatorio','Name required'), mensagem:tx('Informe o nome do cliente antes de salvar.','Informe el nombre del cliente antes de guardar.','Enter the customer name before saving.'), apenasConfirmar:true });
     const limiteNum = Math.max(0, parseFloat(String(formCliente.limiteCreditoBRL).replace(',', '.')) || 0);

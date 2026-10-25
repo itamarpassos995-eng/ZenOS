@@ -112,6 +112,7 @@ export function ZenSidebar({
 
 export function ZenTopbar({
   onAbrirMobile,
+  onAbrirIA,
   status,
   statusTitle,
   labelErroSincronizacao = 'Erro ao sincronizar',
@@ -137,6 +138,7 @@ export function ZenTopbar({
       <div className={cx('zen-sync-pill', `sync-${String(status || '').toLowerCase()}`)} title={statusTitle || status}><i/> <span>{labelSync}</span></div>
       <label className="zen-top-control"><span>🌐</span><select value={idioma} onChange={e => setIdioma(e.target.value)}><option value="pt">Português (PT)</option><option value="es">Español (ES)</option><option value="en">English (EN)</option></select></label>
       <label className="zen-top-control"><span>🇧🇷</span><select value={moeda} onChange={e => setMoeda(e.target.value)}><option value="BRL">BRL (R$)</option><option value="USD">USD ($)</option><option value="EUR">EUR (€)</option><option value="PYG">PYG (₲)</option></select><button onClick={onCambio} title={tx('Ajustar cotações','Ajustar cotizaciones','Adjust exchange rates')}>⚙</button></label>
+      <button className="zen-ia-topbar-btn" onClick={onAbrirIA} title={tx("Zen Assistente IA (Ctrl+K)","Zen Asistente IA (Ctrl+K)","Zen AI Assistant (Ctrl+K)")}><span>✨</span> <strong>Zen IA</strong></button>
       <button className="zen-theme-toggle" onClick={onAlternarTema} title={tx('Alternar tema','Cambiar tema','Toggle theme')}>{tema === 'dark' ? `☾ ${tx('Escuro','Oscuro','Dark')}` : `☀ ${tx('Claro','Claro','Light')}`}</button>
       <div className="zen-operator-chip"><span>{tx('Operador:','Operador:','Operator:')}</span><strong className={patente === 'gerencia' ? 'manager' : ''}>{operador || 'Admin'}</strong></div>
       <button className="zen-switch-user" onClick={onTrocarOperador}>{tx('Trocar Operador','Cambiar Operador','Switch Operator')}</button>
