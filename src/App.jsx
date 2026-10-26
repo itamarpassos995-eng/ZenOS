@@ -46,7 +46,7 @@ import { normalizarRegrasMargem } from './core/profitability';
 import { patenteEfetivaOperador } from './core/accessControl';
 import { derivarFilaFiscalSegura } from './core/fiscalUi';
 import { criarCredencialPin, operadorRequerTrocaPin, pinEhFraco } from './core/operatorPin';
-import { ZenSidebar, ZenTopbar, ZenHero, ZenKpiCard, ZenQuickCard } from './components/ZenVisualLayout';
+import { ZenNavigationLayout, ZenHero, ZenKpiCard, ZenQuickCard } from './components/ZenVisualLayout';
 import './zenos-dashboard.css';
 
 const CURRENT_SCHEMA_VERSION = 1;
@@ -136,8 +136,6 @@ export default function App() {
   const [cicloPlano, setCicloPlano] = useState('anual');
 
   const [ecraAtual, setEcraAtual] = useState('hub');
-  const [menuNavAberto, setMenuNavAberto] = useState(false);
-  const [sidebarCompacta, setSidebarCompacta] = useState(false);
   const [temaUi, setTemaUi] = useState('dark');
   const [idioma, setIdioma] = useState('pt');
   const [moeda, setMoeda] = useState('BRL');
@@ -1431,7 +1429,6 @@ export default function App() {
 
   const navegarPara = (id) => {
     setEcraAtual(id);
-    setMenuNavAberto(false);
   };
 
   const focarMeuTurno = () => {
@@ -1493,7 +1490,6 @@ export default function App() {
     const lidarComClique = () => {
       // Regra aprovada: o PDV pode abrir mesmo sem turno; recebimento continua sujeito às regras do PDV/caixa.
       setEcraAtual(id);
-      setMenuNavAberto(false);
     };
 
     return (
@@ -1746,43 +1742,38 @@ export default function App() {
         }
       `}</style>
       
-      <div className={`zen-shell ${sidebarCompacta ? 'sidebar-compact' : ''}`}>
-        <ZenSidebar
-          compacta={sidebarCompacta}
-          onToggleCompacta={() => setSidebarCompacta(v => !v)}
-          mobileAberta={menuNavAberto}
-          onFecharMobile={() => setMenuNavAberto(false)}
-          ecraAtual={ecraAtual}
-          grupos={gruposNavegacao}
-          perfilLoja={perfilLoja}
-          usuarioAutenticado={usuarioAutenticado}
-          patenteUsuario={patenteUsuario}
-          userId={userId}
-          onEditarPerfil={temPermissao('admin') ? () => { setPerfilRapidoErro(''); setPerfilRapidoRascunho(perfilLoja); setModalPerfilRapido(true); } : null}
-          editarPerfilLabel={tx('Editar nome e logo','Editar nombre y logo','Edit name and logo')}
-          onHome={() => navegarPara('hub')}
-          onSair={fazerLogout}
-          tx={tx}
-        />
-        <div className="zen-content">
-          <ZenTopbar
-            onAbrirMobile={() => setMenuNavAberto(true)}
-            onAbrirIA={() => setAssistenteIAAberto(true)}
-            status={statusSincronizacao}
-            statusTitle={erroSincronizacao || statusSincronizacao}
-            labelErroSincronizacao={tx('Erro ao sincronizar','Error al sincronizar','Sync error')}
-            idioma={idioma}
-            setIdioma={setIdioma}
-            moeda={moeda}
-            setMoeda={setMoeda}
-            onCambio={() => setModalCambioAberto(true)}
-            operador={operadorAtivo?.nome || 'Admin'}
-            patente={patenteUsuario}
-            onTrocarOperador={trocarOperador}
-            tema={temaUi}
-            onAlternarTema={alternarTemaUi}
-            tx={tx}
-          />
+      <ZenNavigationLayout
+        sidebarProps={{
+          ecraAtual,
+          grupos: gruposNavegacao,
+          perfilLoja,
+          usuarioAutenticado,
+          patenteUsuario,
+          userId,
+          onEditarPerfil: temPermissao('admin') ? () => { setPerfilRapidoErro(''); setPerfilRapidoRascunho(perfilLoja); setModalPerfilRapido(true); } : null,
+          editarPerfilLabel: tx('Editar nome e logo','Editar nombre y logo','Edit name and logo'),
+          onHome: () => navegarPara('hub'),
+          onSair: fazerLogout,
+          tx,
+        }}
+        topbarProps={{
+          onAbrirIA: () => setAssistenteIAAberto(true),
+          status: statusSincronizacao,
+          statusTitle: erroSincronizacao || statusSincronizacao,
+          labelErroSincronizacao: tx('Erro ao sincronizar','Error al sincronizar','Sync error'),
+          idioma,
+          setIdioma,
+          moeda,
+          setMoeda,
+          onCambio: () => setModalCambioAberto(true),
+          operador: operadorAtivo?.nome || 'Admin',
+          patente: patenteUsuario,
+          onTrocarOperador: trocarOperador,
+          tema: temaUi,
+          onAlternarTema: alternarTemaUi,
+          tx,
+        }}
+      >
 
           <main className="zen-main no-print">
         
@@ -1976,8 +1967,7 @@ export default function App() {
         {perfilRapidoErro && <div style={{margin:'-8px 0 14px',padding:'9px 10px',borderRadius:8,border:'1px solid #f43f5e',background:'#2e0a16',color:'#fda4af',fontSize:11,fontWeight:800}}>{perfilRapidoErro}</div>}
         <div style={{display:'flex',gap:10}}><button onClick={()=>setModalPerfilRapido(false)} style={{flex:1,padding:11,borderRadius:10,border:'1px solid #334155',background:'#020617',color:'#cbd5e1',fontWeight:900}}>{tx('Cancelar','Cancelar','Cancel')}</button><button onClick={salvarPerfilRapido} style={{flex:1,padding:11,borderRadius:10,border:'none',background:'#0284c7',color:'#fff',fontWeight:900}}>{tx('Salvar','Guardar','Save')}</button></div>
       </div></div>}
-        </div>
-      </div>
+      </ZenNavigationLayout>
     </div>
   );
 }
