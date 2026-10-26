@@ -2,6 +2,29 @@ import React, { useMemo, useState } from 'react';
 
 const cx = (...parts) => parts.filter(Boolean).join(' ');
 
+// O menu controla seu próprio estado: abrir/fechar não força um render do PDV,
+// do histórico nem dos painéis recebidos em `children`.
+export function ZenNavigationLayout({ sidebarProps, topbarProps, children }) {
+  const [mobileAberta, setMobileAberta] = useState(false);
+  const [compacta, setCompacta] = useState(false);
+
+  return (
+    <div className={cx('zen-shell', compacta && 'sidebar-compact')}>
+      <ZenSidebar
+        {...sidebarProps}
+        compacta={compacta}
+        mobileAberta={mobileAberta}
+        onToggleCompacta={() => setCompacta(valor => !valor)}
+        onFecharMobile={() => setMobileAberta(false)}
+      />
+      <div className="zen-content">
+        <ZenTopbar {...topbarProps} onAbrirMobile={() => setMobileAberta(true)} />
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export function ZenSidebar({
   compacta,
   onToggleCompacta,
