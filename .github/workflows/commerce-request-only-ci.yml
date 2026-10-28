@@ -1,10 +1,11 @@
-name: Commerce Request-Only Safety
+name: Commerce Request and Settings Safety
 on:
   pull_request:
     paths:
       - 'src/App.jsx'
       - 'src/components/CommerceSolicitacao.jsx'
       - 'src/components/CommerceSolicitacao.css'
+      - 'src/core/commerceConfig.js'
       - 'functions/src/index.js'
       - 'functions/src/commerceSolicitacaoCliente.js'
       - 'functions/src/commerceInteresseCore.js'
@@ -30,7 +31,7 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Packages for callable syntax
         run: npm install --prefix functions --package-lock=false --ignore-scripts --no-audit --no-fund
-      # Este gate protege EXCLUSIVAMENTE as alterações da solicitação Commerce.
+      # Este gate protege a solicitação Commerce e a nova tela de configurações.
       # Alterações P0 de caixa em App.jsx não são um pacote Commerce.
       - name: Detect Commerce request changes
         id: commerce_scope
@@ -38,7 +39,7 @@ jobs:
         run: |
           git fetch --no-tags origin main
           CHANGED="$(git diff --name-only origin/main...HEAD)"
-          if printf '%s\n' "$CHANGED" | grep -Eq '^(src/components/CommerceSolicitacao\\.|functions/src/(index\\.js|commerceSolicitacaoCliente\\.js|commerceInteresseCore\\.js)|functions/test/commerceInteresseCore\\.test\\.mjs|scripts/(recovery/commerce-request\\.ui\\.test\\.jsx|commerce-request-release-audit\\.mjs)|docs/commerce-request-only-release-20261019\\.md|\\.github/workflows/(commerce-request-only-ci|deploy-fiscal-functions)\\.yml)'; then
+          if printf '%s\n' "$CHANGED" | grep -Eq '^(src/components/CommerceSolicitacao\\.|src/core/commerceConfig\\.js$|functions/src/(index\\.js|commerceSolicitacaoCliente\\.js|commerceInteresseCore\\.js)|functions/test/commerceInteresseCore\\.test\\.mjs|scripts/(recovery/commerce-request\\.ui\\.test\\.jsx|commerce-request-release-audit\\.mjs)|docs/commerce-request-only-release-20261019\\.md|\\.github/workflows/(commerce-request-only-ci|deploy-fiscal-functions)\\.yml)'; then
             echo 'enabled=true' >> "$GITHUB_OUTPUT"
           elif git diff --unified=0 origin/main...HEAD -- src/App.jsx | grep -Eq '^[+-][^+-].*(CommerceSolicitacao|commerceSolicitacaoCliente|commerceInteresse|commerce-request|solicitacaoCommerce)'; then
             echo 'enabled=true' >> "$GITHUB_OUTPUT"
@@ -50,7 +51,7 @@ jobs:
         run: node scripts/commerce-request-release-audit.mjs
       - name: Pure request and auth tests
         run: node --test functions/test/commerceInteresseCore.test.mjs
-      - name: Frontend request tests
+      - name: Frontend request and settings tests
         run: npx vitest run --config vitest.recovery.config.js scripts/recovery/commerce-request.ui.test.jsx
       - name: Static syntax and production build
         run: |

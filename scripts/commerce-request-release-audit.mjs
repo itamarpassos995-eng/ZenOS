@@ -7,6 +7,7 @@ let changed;
 try{changed=run(['diff','--name-only','origin/main...HEAD']).split('\n').filter(Boolean);}catch(e){console.error('GATE_FAIL: não foi possível comparar com origin/main.');process.exit(2);}
 const allowed=new Set([
   'src/App.jsx','src/components/CommerceSolicitacao.jsx','src/components/CommerceSolicitacao.css',
+  'src/core/commerceConfig.js',
   'functions/src/index.js','functions/src/commerceInteresseCore.js',
   'functions/src/commerceSolicitacaoCliente.js','functions/test/commerceInteresseCore.test.mjs',
   'scripts/recovery/commerce-request.ui.test.jsx',
@@ -41,6 +42,12 @@ assert.ok(svc.includes("if(criar)tx.create(ref,doc)")&&svc.includes("action==='c
 const request=read('functions/src/commerceInteresseCore.js');
 assert.ok(request.includes("habilitado:false")&&request.includes("WRONG_TENANT")&&!request.includes("tx.update"));
 const portal=read('src/components/CommerceSolicitacao.jsx');
-assert.ok(portal.includes("Solicitar ativação")&&portal.includes("commerceSolicitacaoCliente"));
-console.log('COMMERCE_REQUEST_ONLY_GATE_OK: módulos V1/V2, PDV, fiscal, regras, Auth e caixas intactos.');
+assert.ok(portal.includes("Solicitar Ativação do Módulo")&&portal.includes("commerceSolicitacaoCliente"),
+  'GATE_FAIL: solicitação de ativação do módulo ausente');
+assert.ok(portal.includes("auth.currentUser?.uid !== lojaId")&&portal.includes("commerceConfig: configNormalizada")&&portal.includes("{ merge: true }"),
+  'GATE_FAIL: gravação de configurações sem isolamento da loja ou sem merge');
+const config=read('src/core/commerceConfig.js');
+assert.ok(config.includes('chaveCommerceConfigLocal')&&config.includes('normalizarCommerceConfig'),
+  'GATE_FAIL: configuração Commerce sem isolamento local por loja');
+console.log('COMMERCE_REQUEST_AND_SETTINGS_GATE_OK: módulos V1/V2, PDV, fiscal, regras, Auth e caixas intactos.');
 console.log('NOT_DEPLOYED: função e interface exigem deploy controlado em duas etapas.');
