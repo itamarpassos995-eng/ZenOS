@@ -6,6 +6,11 @@ on:
       - 'src/components/CommerceSolicitacao.jsx'
       - 'src/components/CommerceSolicitacao.css'
       - 'src/core/commerceConfig.js'
+      - 'src/main.jsx'
+      - 'src/components/CommerceVitrinePreview.jsx'
+      - 'src/components/CommerceVitrinePreview.css'
+      - 'scripts/recovery/commerce-preview.ui.test.jsx'
+      - 'vercel.json'
       - 'functions/src/index.js'
       - 'functions/src/commerceSolicitacaoCliente.js'
       - 'functions/src/commerceInteresseCore.js'
@@ -41,6 +46,8 @@ jobs:
           CHANGED="$(git diff --name-only origin/main...HEAD)"
           if printf '%s\n' "$CHANGED" | grep -Eq '^(src/components/CommerceSolicitacao\\.|src/core/commerceConfig\\.js$|functions/src/(index\\.js|commerceSolicitacaoCliente\\.js|commerceInteresseCore\\.js)|functions/test/commerceInteresseCore\\.test\\.mjs|scripts/(recovery/commerce-request\\.ui\\.test\\.jsx|commerce-request-release-audit\\.mjs)|docs/commerce-request-only-release-20261019\\.md|\\.github/workflows/(commerce-request-only-ci|deploy-fiscal-functions)\\.yml)'; then
             echo 'enabled=true' >> "$GITHUB_OUTPUT"
+          elif printf '%s\n' "$CHANGED" | grep -Eq '^(src/main\.jsx|src/components/CommerceVitrinePreview\.(jsx|css)|scripts/recovery/commerce-preview\.ui\.test\.jsx|vercel\.json)$'; then
+            echo 'enabled=true' >> "$GITHUB_OUTPUT"
           elif git diff --unified=0 origin/main...HEAD -- src/App.jsx | grep -Eq '^[+-][^+-].*(CommerceSolicitacao|commerceSolicitacaoCliente|commerceInteresse|commerce-request|solicitacaoCommerce)'; then
             echo 'enabled=true' >> "$GITHUB_OUTPUT"
           else
@@ -52,7 +59,7 @@ jobs:
       - name: Pure request and auth tests
         run: node --test functions/test/commerceInteresseCore.test.mjs
       - name: Frontend request and settings tests
-        run: npx vitest run --config vitest.recovery.config.js scripts/recovery/commerce-request.ui.test.jsx
+        run: npx vitest run --config vitest.recovery.config.js scripts/recovery/commerce-request.ui.test.jsx scripts/recovery/commerce-preview.ui.test.jsx
       - name: Static syntax and production build
         run: |
           node --check functions/src/commerceInteresseCore.js

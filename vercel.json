@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/loja/:lojaId",
+      "destination": "/index.html"
+    }
+  ]
+}

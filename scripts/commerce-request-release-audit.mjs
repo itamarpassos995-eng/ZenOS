@@ -8,6 +8,8 @@ try{changed=run(['diff','--name-only','origin/main...HEAD']).split('\n').filter(
 const allowed=new Set([
   'src/App.jsx','src/components/CommerceSolicitacao.jsx','src/components/CommerceSolicitacao.css',
   'src/core/commerceConfig.js',
+  'src/main.jsx','src/components/CommerceVitrinePreview.jsx','src/components/CommerceVitrinePreview.css',
+  'scripts/recovery/commerce-preview.ui.test.jsx','vercel.json',
   'functions/src/index.js','functions/src/commerceInteresseCore.js',
   'functions/src/commerceSolicitacaoCliente.js','functions/test/commerceInteresseCore.test.mjs',
   'scripts/recovery/commerce-request.ui.test.jsx',
@@ -49,5 +51,15 @@ assert.ok(portal.includes("auth.currentUser?.uid !== lojaId")&&portal.includes("
 const config=read('src/core/commerceConfig.js');
 assert.ok(config.includes('chaveCommerceConfigLocal')&&config.includes('normalizarCommerceConfig'),
   'GATE_FAIL: configuração Commerce sem isolamento local por loja');
+const preview=read('src/components/CommerceVitrinePreview.jsx');
+assert.ok(preview.includes('usuario.uid !== idDaLoja')&&preview.includes('getDoc(')&&
+  !preview.includes('setDoc(')&&!preview.includes('httpsCallable('),
+  'GATE_FAIL: prévia sem isolamento por loja ou com operações de escrita/ativação');
+const main=read('src/main.jsx');
+assert.ok(main.includes('CommerceVitrinePreview')&&main.includes('previewMatch'),
+  'GATE_FAIL: rota isolada da prévia ausente');
+assert.deepEqual(JSON.parse(read('vercel.json')).rewrites,
+  [{source:'/loja/:lojaId',destination:'/index.html'}],
+  'GATE_FAIL: reescritas Vercel além da rota específica de prévia');
 console.log('COMMERCE_REQUEST_AND_SETTINGS_GATE_OK: módulos V1/V2, PDV, fiscal, regras, Auth e caixas intactos.');
 console.log('NOT_DEPLOYED: função e interface exigem deploy controlado em duas etapas.');
