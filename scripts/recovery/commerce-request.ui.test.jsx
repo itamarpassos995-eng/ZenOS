@@ -1,4 +1,5 @@
 import React from 'react';
+import { readFileSync } from 'node:fs';
 import { test, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 
@@ -28,6 +29,16 @@ vi.mock('firebase/firestore', () => ({
 }));
 
 import CommerceSolicitacao from '../../src/components/CommerceSolicitacao';
+
+test('layout de celular usa a largura da vitrine, mesmo dentro do ZenOS em tela grande', () => {
+  const css = readFileSync('src/commerce.css', 'utf8');
+  expect(css).toMatch(/\.commerce-store\s*\{[^}]*container:\s*commerce-store\s*\/\s*inline-size/);
+  const mobileRules = css.split('@container commerce-store (max-width:640px) {')[1]?.split('@container commerce-store (max-width:350px)')[0];
+  expect(mobileRules).toBeTruthy();
+  expect(mobileRules).toMatch(/\.commerce-header-links\s*\{\s*display:none/);
+  expect(mobileRules).toMatch(/\.commerce-hero\s*\{[^}]*grid-template-columns:1fr/);
+  expect(mobileRules).toMatch(/\.commerce-cart-label\s*\{\s*display:none/);
+});
 
 const abrirAbaModulo = () => {
   fireEvent.click(screen.getByRole('button', { name: /Módulo & Licença/ }));
@@ -143,8 +154,12 @@ test('painéis retráteis atualizam a prévia ao vivo em celular e computador', 
   const { container } = render(<CommerceSolicitacao lojaId="loja-A" />);
 
   expect(container.querySelector('.commerce-mockup-wrapper.mobile')).not.toBeNull();
+  const areaRolavel = container.querySelector('.commerce-premium-scroll');
+  expect(areaRolavel).not.toBeNull();
+  expect(areaRolavel.hasAttribute('style')).toBe(false);
   fireEvent.click(screen.getByRole('button', { name: /Computador/ }));
   expect(container.querySelector('.commerce-mockup-wrapper.desktop')).not.toBeNull();
+  expect(container.querySelector('.commerce-premium-scroll')).toBe(areaRolavel);
 
   fireEvent.click(screen.getByRole('button', { name: /Recolher Tudo/ }));
   expect(screen.queryByPlaceholderText('Ex: Loja Modelo Tintas & Ferragens')).toBeNull();

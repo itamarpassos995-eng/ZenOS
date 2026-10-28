@@ -15,6 +15,13 @@ export default function CommerceVitrinePreview({ lojaIdRota }) {
   const [modo, setModo] = useState('full'); // 'full', 'desktop', 'mobile'
   const [recarregar, setRecarregar] = useState(0);
 
+  // A rota isolada da vitrine precisa da rolagem normal do documento.
+  // Desfazemos a classe ao desmontar para não afetar o painel operacional.
+  useEffect(() => {
+    document.documentElement.classList.add('commerce-document');
+    return () => document.documentElement.classList.remove('commerce-document');
+  }, []);
+
   // Ao voltar da edição, buscar a versão salva sem qualquer operação de escrita.
   useEffect(() => {
     const aoFocar = () => setRecarregar(n => n + 1);

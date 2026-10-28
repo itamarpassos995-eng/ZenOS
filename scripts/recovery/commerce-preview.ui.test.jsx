@@ -69,12 +69,20 @@ test('o link /loja/previa resolve apenas a loja do usuário autenticado', async 
 
 test('permite alternar a visualização entre computador e celular', async () => {
   const { container } = render(<CommerceVitrinePreview lojaIdRota="loja-A" />);
+  expect(document.documentElement.classList.contains('commerce-document')).toBe(true);
   await screen.findByRole('heading', { name: 'Sua loja, sua identidade' });
   fireEvent.click(screen.getByRole('button', { name: /Computador/ }));
   expect(container.querySelector('.commerce-device-frame.desktop')).not.toBeNull();
   fireEvent.click(screen.getByRole('button', { name: /Celular/ }));
   expect(container.querySelector('.commerce-device-frame.mobile')).not.toBeNull();
   expect(screen.getByRole('button', { name: /Celular/ }).className).toBe('active');
+});
+
+test('restaura a rolagem global depois de fechar a prévia independente', async () => {
+  const view = render(<CommerceVitrinePreview lojaIdRota="previa" />);
+  expect(document.documentElement.classList.contains('commerce-document')).toBe(true);
+  view.unmount();
+  expect(document.documentElement.classList.contains('commerce-document')).toBe(false);
 });
 
 test('informa quando as configurações ainda não foram salvas', async () => {

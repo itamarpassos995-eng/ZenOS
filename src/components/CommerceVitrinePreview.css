@@ -139,6 +139,8 @@
   background: radial-gradient(circle at 50% 0%, #172554 0%, #0f172a 60%, #020617 100%);
   min-height: calc(100vh - 45px);
   overflow-y: auto;
+  overscroll-behavior-y: auto;
+  touch-action: pan-y;
 }
 
 .commerce-device-frame {
@@ -174,6 +176,10 @@
 .commerce-frame-inner {
   flex: 1;
   overflow-y: auto;
+  overscroll-behavior-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  min-height: 0;
   max-height: 820px;
 }
 
