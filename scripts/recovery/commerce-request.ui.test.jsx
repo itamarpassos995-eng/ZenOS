@@ -137,3 +137,46 @@ test('salva as configurações somente no documento da loja autenticada com merg
   expect(options).toEqual({ merge: true });
   expect(mocks.callable.mock.calls.some(([args]) => args.action === 'solicitar')).toBe(false);
 });
+
+test('painéis retráteis atualizam a prévia ao vivo em celular e computador', async () => {
+  mocks.callable.mockResolvedValue({ data: { status: 'nao_solicitado', habilitado: false } });
+  const { container } = render(<CommerceSolicitacao lojaId="loja-A" />);
+
+  expect(container.querySelector('.commerce-mockup-wrapper.mobile')).not.toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: /Computador/ }));
+  expect(container.querySelector('.commerce-mockup-wrapper.desktop')).not.toBeNull();
+
+  fireEvent.click(screen.getByRole('button', { name: /Recolher Tudo/ }));
+  expect(screen.queryByPlaceholderText('Ex: Loja Modelo Tintas & Ferragens')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: /Apresentação da Loja/ }));
+  fireEvent.change(screen.getByPlaceholderText('Ex: Loja Modelo Tintas & Ferragens'), {
+    target: { value: 'Minha Vitrine' },
+  });
+  expect(container.querySelector('.mock-store-name')?.textContent).toContain('Minha Vitrine');
+
+  fireEvent.change(screen.getByPlaceholderText(/Promoção de Tintas/), {
+    target: { value: 'Entrega hoje' },
+  });
+  expect(container.querySelector('.mock-top-banner')?.textContent).toContain('Entrega hoje');
+  expect(mocks.setDoc).not.toHaveBeenCalled();
+});
+
+test('salvamento exibe confirmação visível na tela', async () => {
+  mocks.callable.mockResolvedValue({ data: { status: 'nao_solicitado', habilitado: false } });
+  render(<CommerceSolicitacao lojaId="loja-A" />);
+  fireEvent.click(screen.getByRole('button', { name: /Salvar Configurações/ }));
+
+  expect(await screen.findByText(/Configurações Salvas!/)).toBeTruthy();
+  expect(mocks.setDoc).toHaveBeenCalledTimes(1);
+});
+
+test('resposta inesperada não habilita o Commerce Premium', async () => {
+  mocks.callable.mockResolvedValue({ data: { status: 'aprovado', habilitado: true } });
+  render(<CommerceSolicitacao lojaId="loja-A" />);
+  abrirAbaModulo();
+
+  await screen.findByRole('alert');
+  expect(screen.queryByText('Aprovação registrada — ativação pendente')).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Solicitar Ativação do Módulo' })).toBeNull();
+  expect(mocks.setDoc).not.toHaveBeenCalled();
+});
