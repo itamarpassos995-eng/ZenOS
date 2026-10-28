@@ -9,6 +9,8 @@ const allowed=new Set([
   'src/App.jsx','src/components/CommerceSolicitacao.jsx','src/components/CommerceSolicitacao.css',
   'src/core/commerceConfig.js',
   'src/main.jsx','src/components/CommerceVitrinePreview.jsx','src/components/CommerceVitrinePreview.css',
+  'src/commerce.css','src/components/CommerceDialog.jsx','src/components/ZenCommerceStorefront.jsx',
+  'public/demo-mademoiselle-elegance.png',
   'scripts/recovery/commerce-preview.ui.test.jsx','vercel.json',
   'functions/src/index.js','functions/src/commerceInteresseCore.js',
   'functions/src/commerceSolicitacaoCliente.js','functions/test/commerceInteresseCore.test.mjs',
@@ -55,6 +57,14 @@ const preview=read('src/components/CommerceVitrinePreview.jsx');
 assert.ok(preview.includes('usuario.uid !== idDaLoja')&&preview.includes('getDoc(')&&
   !preview.includes('setDoc(')&&!preview.includes('httpsCallable('),
   'GATE_FAIL: prévia sem isolamento por loja ou com operações de escrita/ativação');
+const storefront=read('src/components/ZenCommerceStorefront.jsx');
+assert.ok(preview.includes('isLivePreview={true}')&&portal.includes('isLivePreview={true}')&&
+  storefront.includes('if (isLivePreview || busy) return;')&&
+  storefront.includes('if (isLivePreview) return;')&&
+  storefront.includes('disabled={isLivePreview || !p.disponivel}')&&
+  storefront.includes('{!isLivePreview && aberto && (')&&
+  !/\b(?:setDoc|updateDoc|httpsCallable|chamarLojaCommerce|criarCheckoutCommerce)\b/.test(storefront),
+  'GATE_FAIL: vitrine demonstrativa com carrinho, checkout ou operações comerciais acessíveis');
 const main=read('src/main.jsx');
 assert.ok(main.includes('CommerceVitrinePreview')&&main.includes('previewMatch'),
   'GATE_FAIL: rota isolada da prévia ausente');

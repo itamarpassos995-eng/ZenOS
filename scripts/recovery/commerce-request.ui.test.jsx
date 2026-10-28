@@ -152,12 +152,14 @@ test('painéis retráteis atualizam a prévia ao vivo em celular e computador', 
   fireEvent.change(screen.getByPlaceholderText('Ex: Loja Modelo Tintas & Ferragens'), {
     target: { value: 'Minha Vitrine' },
   });
-  expect(container.querySelector('.mock-store-name')?.textContent).toContain('Minha Vitrine');
+  expect(container.querySelector('.commerce-store .commerce-brand strong')?.textContent).toContain('Minha Vitrine');
 
   fireEvent.change(screen.getByPlaceholderText(/Promoção de Tintas/), {
     target: { value: 'Entrega hoje' },
   });
-  expect(container.querySelector('.mock-top-banner')?.textContent).toContain('Entrega hoje');
+  expect(container.querySelector('.commerce-store .commerce-announcement')?.textContent).toContain('Entrega hoje');
+  expect(container.querySelector('.commerce-store .commerce-preview-cart')).not.toBeNull();
+  expect(container.querySelector('.commerce-store .commerce-product .commerce-btn')?.disabled).toBe(true);
   expect(mocks.setDoc).not.toHaveBeenCalled();
 });
 

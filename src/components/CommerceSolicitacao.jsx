@@ -10,6 +10,7 @@ import {
 } from '../core/commerceConfig';
 import { notifyPersistenceStatus } from '../core/persistenceSafety';
 import ZenModal from './ZenModal';
+import ZenCommerceStorefront from './ZenCommerceStorefront';
 import './CommerceSolicitacao.css';
 
 const translation = {
@@ -37,7 +38,7 @@ const CORES_TEMA = [
   { id: '#0f172a', nome: 'Grafite' }
 ];
 
-export default function CommerceSolicitacao({ lojaId, perfilLoja = null, tx = (pt) => pt }) {
+export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produtos = [], tx = (pt) => pt }) {
   const [configCommerce, setConfigCommerce] = useState(() => lerCommerceConfigLocal(lojaId, perfilLoja));
   const [salvandoConfig, setSalvandoConfig] = useState(false);
   const [linkCopiado, setLinkCopiado] = useState(false);
@@ -864,170 +865,13 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, tx = (p
               )}
 
               {/* TELA DA LOJA VIRTUAL RENDERIZADA */}
-              <div className="commerce-mockup-screen">
-
-                {/* 1. Comunicado de Topo */}
-                {configCommerce.avisoTopo ? (
-                  <div
-                    className="mock-top-banner"
-                    style={{ backgroundColor: configCommerce.corTema || '#0284c7' }}
-                  >
-                    <span>📢 {configCommerce.avisoTopo}</span>
-                  </div>
-                ) : null}
-
-                {/* 2. Banner de Capa */}
-                <div
-                  className="mock-cover-banner"
-                  style={
-                    configCommerce.bannerUrl
-                      ? { backgroundImage: `url(${configCommerce.bannerUrl})` }
-                      : {
-                          background: `linear-gradient(135deg, ${configCommerce.corTema || '#0284c7'} 0%, #0b1120 100%)`
-                        }
-                  }
-                >
-                  {!configCommerce.bannerUrl && (
-                    <span className="mock-cover-empty-text">{configCommerce.nomeLoja || 'Minha Loja Online'}</span>
-                  )}
-                </div>
-
-                {/* 3. Cabeçalho da Loja com Logo Flutuante */}
-                <div className="mock-store-header">
-                  <div className="mock-logo-box">
-                    {configCommerce.logoUrl ? (
-                      <img src={configCommerce.logoUrl} alt="Logo" className="mock-logo-img" />
-                    ) : (
-                      <div
-                        className="mock-logo-placeholder"
-                        style={{ borderColor: configCommerce.corTema || '#0284c7' }}
-                      >
-                        🏪
-                      </div>
-                    )}
-                  </div>
-
-                  <h4 className="mock-store-name">
-                    {configCommerce.nomeLoja || tx('Nome da sua Loja', 'Nombre de la Tienda', 'Your Store Name')}
-                  </h4>
-
-                  {configCommerce.slogan && (
-                    <p className="mock-store-slogan">{configCommerce.slogan}</p>
-                  )}
-
-                  {/* Badges de Serviços */}
-                  <div className="mock-badges-row">
-                    <span className="mock-badge">
-                      🟢 {configCommerce.horarioFuncionamento ? configCommerce.horarioFuncionamento : tx('Aberto hoje', 'Abierto hoy', 'Open')}
-                    </span>
-                    {configCommerce.aceitaEntrega && (
-                      <span className="mock-badge">
-                        🛵 {tx('Entrega', 'Envío', 'Delivery')} {configCommerce.taxaEntrega ? `(${configCommerce.taxaEntrega})` : ''}
-                      </span>
-                    )}
-                    {configCommerce.aceitaRetirada && (
-                      <span className="mock-badge">
-                        🏪 {tx('Retirada no balcão', 'Retiro en local', 'Pickup')}
-                      </span>
-                    )}
-                    {configCommerce.chavePix && (
-                      <span className="mock-badge">
-                        ⚡ {tx('Pix Aceito', 'Pix Aceptado', 'Pix')}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Botão de Pedir no WhatsApp */}
-                  <div className="mock-action-row">
-                    <button
-                      type="button"
-                      className="mock-btn-whatsapp"
-                      style={{ backgroundColor: '#25d366' }}
-                    >
-                      💬 {tx('Fazer Pedido no WhatsApp', 'Pedir por WhatsApp', 'Order on WhatsApp')}
-                    </button>
-                  </div>
-
-                  {/* Sobre a Loja */}
-                  {configCommerce.descricao && (
-                    <div className="mock-about-card">
-                      <small>{tx('Sobre nós:', 'Sobre nosotros:', 'About:')}</small>
-                      <p>{configCommerce.descricao}</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* 4. Vitrine Demonstrativa de Produtos */}
-                <div className="mock-catalog-section">
-                  <div className="mock-search-bar">
-                    <span>🔍</span>
-                    <span>{tx('Buscar produtos no catálogo…', 'Buscar productos…', 'Search products…')}</span>
-                  </div>
-
-                  <div className="mock-category-tabs">
-                    <span className="mock-cat-tab active" style={{ backgroundColor: configCommerce.corTema || '#0284c7' }}>
-                      {tx('Mais Vendidos', 'Más Vendidos', 'Best Sellers')}
-                    </span>
-                    <span className="mock-cat-tab">{tx('Destaques', 'Destacados', 'Featured')}</span>
-                    <span className="mock-cat-tab">{tx('Ofertas', 'Ofertas', 'Offers')}</span>
-                  </div>
-
-                  <div className="mock-products-grid">
-                    <div className="mock-product-card">
-                      <div className="mock-product-thumb">
-                        <span className="mock-product-badge" style={{ backgroundColor: configCommerce.corTema || '#0284c7' }}>
-                          {tx('Destaque', 'Destacado', 'Featured')}
-                        </span>
-                        <span>📦</span>
-                      </div>
-                      <div className="mock-product-details">
-                        <strong>{tx('Produto Modelo 1', 'Producto Modelo 1', 'Sample Product 1')}</strong>
-                        <small>{tx('Alta qualidade e pronta entrega', 'Pronta entrega', 'In stock')}</small>
-                        <div className="mock-product-price-row">
-                          <span className="mock-price">R$ 89,90</span>
-                          <span className="mock-add-btn" style={{ backgroundColor: configCommerce.corTema || '#0284c7' }}>
-                            + {tx('Pedir', 'Pedir', 'Add')}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mock-product-card">
-                      <div className="mock-product-thumb">
-                        <span>✨</span>
-                      </div>
-                      <div className="mock-product-details">
-                        <strong>{tx('Produto Modelo 2', 'Producto Modelo 2', 'Sample Product 2')}</strong>
-                        <small>{tx('Mais procurado da categoria', 'Más buscado', 'Popular')}</small>
-                        <div className="mock-product-price-row">
-                          <span className="mock-price">R$ 49,90</span>
-                          <span className="mock-add-btn" style={{ backgroundColor: configCommerce.corTema || '#0284c7' }}>
-                            + {tx('Pedir', 'Pedir', 'Add')}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 5. Rodapé da Vitrine */}
-                <div className="mock-footer">
-                  {configCommerce.aceitaRetirada && configCommerce.enderecoRetirada && (
-                    <div className="mock-footer-row">
-                      📍 <strong>{tx('Retirada:', 'Retiro:', 'Pickup:')}</strong> {configCommerce.enderecoRetirada}
-                    </div>
-                  )}
-                  {configCommerce.aceitaEntrega && (
-                    <div className="mock-footer-row">
-                      🛵 <strong>{tx('Entrega:', 'Envío:', 'Delivery:')}</strong> {configCommerce.taxaEntrega || 'A combinar'} ({configCommerce.prazoEstimado || 'Sob consulta'})
-                    </div>
-                  )}
-                  <div className="mock-footer-brand">
-                    <span>{tx('Catálogo Oficial na Nuvem', 'Catálogo Oficial', 'Official Catalog')}</span>
-                    <small>ZenOS Commerce Platform</small>
-                  </div>
-                </div>
-
+              <div className="commerce-mockup-screen" style={{ background: '#f7f6f3', maxHeight: modoPrevia === 'mobile' ? '680px' : '580px', overflowY: 'auto' }}>
+                <ZenCommerceStorefront
+                  idPublico={lojaId}
+                  configCommerce={configCommerce}
+                  produtos={produtos}
+                  isLivePreview={true}
+                />
               </div>
             </div>
 
