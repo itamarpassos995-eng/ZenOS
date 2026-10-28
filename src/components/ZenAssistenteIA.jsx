@@ -154,6 +154,95 @@ export default function ZenAssistenteIA({
   };
 
   // DETECÇÃO INTELIGENTE DE PERÍODOS
+  // Reconhece intenções por significado e variações comuns de digitação, sem exigir frases exatas.
+  // Mantém as rotas atuais; o classificador só decide qual fluxo existente executar.
+  const distanciaEdicao = (a, b) => {
+    if (a === b) return 0;
+    if (!a) return b.length;
+    if (!b) return a.length;
+    let anterior = Array.from({ length: b.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= a.length; i += 1) {
+      const atual = [i];
+      for (let j = 1; j <= b.length; j += 1) {
+        atual[j] = Math.min(
+          anterior[j] + 1,
+          atual[j - 1] + 1,
+          anterior[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+        );
+      }
+      anterior = atual;
+    }
+    return anterior[b.length];
+  };
+
+  const tokenParecido = (token, conceito) => {
+    if (token === conceito || token.startsWith(conceito) || conceito.startsWith(token)) return true;
+    if (token.length < 5 || conceito.length < 5) return false;
+    const limite = Math.max(token.length, conceito.length) > 9 ? 2 : 1;
+    return Math.abs(token.length - conceito.length) <= limite && distanciaEdicao(token, conceito) <= limite;
+  };
+
+  const classificarIntencao = (texto) => {
+    const normalizado = normalizar(texto);
+    const palavras = normalizado.split(" ").filter(Boolean);
+    const temConceito = (conceitos) => palavras.some((palavra) => conceitos.some((conceito) => tokenParecido(palavra, conceito)));
+    const meioPagamentoExplicito = palavras.some((p) => ["pix", "cartao", "credito", "debito", "dinheiro", "especie", "ted", "boleto"].some((m) => p === m || p.startsWith(m)));
+    const sinais = {
+      pessoa: palavras.some((p) => ["vendedor", "vendedores", "vendedora", "atendente", "atendentes", "colaborador", "colaboradores", "funcionario", "funcionarios", "equipe", "time", "galera", "pessoal"].some((c) => p === c || p.startsWith(c))),
+      venda: temConceito(["vendeu", "venderam", "vendendo", "venda", "vendas", "vendemos", "vendemo", "vende", "faturou", "faturamento", "faturando", "movimento", "movimentou", "tirou", "fechou", "bateu", "produziu", "producao", "desempenho", "resultado", "comissao", "comissoes", "meta", "metas", "saiu"]),
+      ranking: temConceito(["ranking", "lider", "liderando", "frente", "primeiro", "campeao", "top", "melhor", "mais", "maior", "destaque", "tabela", "lista"]),
+      pagamento: meioPagamentoExplicito || (palavras.some((p) => ["pagamento", "pagamentos", "recebimento", "recebimentos"].includes(p)) && !normalizado.includes("vendas") && !normalizado.includes("faturamento")),
+      estoque: temConceito(["estoque", "mercadoria", "mercadorias", "produto", "produtos", "item", "itens"]),
+    };
+    const intents = {
+      vendedores: sinais.pessoa ? 50 + (sinais.venda ? 50 : 0) + (sinais.ranking ? 25 : 0) : 0,
+      pagamentos: sinais.pagamento ? 100 : 0,
+      vendas: sinais.venda && !sinais.pessoa && !sinais.pagamento ? 100 : 0,
+      produtos: 0,
+      reposicao: 0,
+      estoque: 0,
+      lucro: 0,
+      fiado: 0,
+    };
+
+    // "Cada um", "quem vendeu mais" e nomes próprios sem o termo vendedor também são claros.
+    if ((normalizado.includes("cada um") || normalizado.includes("cada qual") || normalizado.includes("cada pessoa") || normalizado.includes("por pessoa")) && sinais.venda) intents.vendedores = Math.max(intents.vendedores, 140);
+    if (normalizado.includes("time de vendas") || normalizado.includes("equipe de vendas") || normalizado.includes("nossos vendedores")) intents.vendedores = Math.max(intents.vendedores, 140);
+    const pessoaCadastradaNaFrase = (vendedoresCandidatos || []).some((v) => {
+      const primeiroNome = normalizar(v?.nome || "").split(" ")[0];
+      return primeiroNome.length >= 3 && palavras.some((palavra) => tokenParecido(palavra, primeiroNome));
+    });
+    if (sinais.venda && !sinais.pessoa && !pessoaCadastradaNaFrase && ["quem", "qual", "lider", "frente"].some((palavra) => normalizado.includes(palavra))) intents.vendedores += 60;
+    if (!sinais.pessoa && !pessoaCadastradaNaFrase && /quem vendeu mais|quem mais vendeu|qual vendedor|quem ta vendendo mais|quem esta vendendo mais/.test(normalizado)) intents.vendedores += 120;
+
+    // O nome de um vendedor é reconhecido contra o cadastro real, mesmo sem termo exato.
+    const pessoa = (vendedoresCandidatos || []).find((v) => {
+      const primeiroNome = normalizar(v?.nome || "").split(" ")[0];
+      return primeiroNome.length >= 3 && palavras.some((palavra) => tokenParecido(palavra, primeiroNome));
+    });
+    if (pessoa && sinais.venda) intents.vendedores += 130;
+
+    if (normalizado.includes("gaveta") || normalizado.includes("saldo do caixa") || normalizado.includes("saldo da gaveta")) intents.pagamentos = Math.max(intents.pagamentos, 120);
+    if (sinais.pagamento && sinais.venda && meioPagamentoExplicito) intents.vendas = 0;
+    if (sinais.pessoa && sinais.venda && sinais.pagamento) intents.vendedores = 0;
+    if (normalizado.includes("mais saiu") || normalizado.includes("mais vendido") || normalizado.includes("mais vende") || normalizado.includes("campeao") || normalizado.includes("top produto")) intents.produtos = 120;
+    if (normalizado.includes("repor") || normalizado.includes("reposicao") || normalizado.includes("acabando") || normalizado.includes("falta no estoque") || normalizado.includes("estoque baixo") || normalizado.includes("o que comprar")) intents.reposicao = 120;
+    if (sinais.estoque && (normalizado.includes("quanto vale") || normalizado.includes("valor") || normalizado.includes("custo") || normalizado.includes("inventario") || normalizado.includes("patrimonio"))) intents.estoque = 120;
+    if (["lucro", "margem", "rentabilidade", "cmv"].some((termo) => normalizado.includes(termo))) intents.lucro = 120;
+    if (["fiado", "devedor", "devendo", "divida", "cobranca", "contas a receber"].some((termo) => normalizado.includes(termo))) intents.fiado = 120;
+
+    // Uma forma de pagamento explícita evita confusão com a palavra "vendas".
+    if (sinais.pagamento && sinais.venda) intents.pagamentos += 30;
+    if (normalizado.includes("quem vendeu mais") || normalizado.includes("quem mais vendeu") || normalizado.includes("quem lidera") || normalizado.includes("quem esta liderando") || normalizado.includes("na frente nas vendas") || normalizado.includes("liderando as vendas")) {
+      intents.vendedores = Math.max(intents.vendedores, 160);
+      intents.vendas = 0;
+    }
+    if (normalizado.includes("quanto cada") && sinais.venda) intents.vendedores = Math.max(intents.vendedores, 140);
+    if (normalizado.includes("lucro") || normalizado.includes("margem") || normalizado.includes("rentabilidade") || normalizado.includes("cmv")) intents.lucro = Math.max(intents.lucro, 140);
+    const [intencao, score] = Object.entries(intents).sort((a, b) => b[1] - a[1])[0];
+    return { intencao: score > 0 ? intencao : "desconhecido", pessoa };
+  };
+
   const detectarPeriodo = (norm) => {
     if (norm.includes("ontem")) return { periodo: "ontem", rotulo: "Ontem" };
     if (
@@ -786,6 +875,7 @@ export default function ZenAssistenteIA({
 
     const tNorm = normalizar(texto);
     const { periodo, rotulo: rotuloPeriodo } = detectarPeriodo(tNorm);
+    const intencaoDetectada = classificarIntencao(texto);
 
     // =========================================================================
     // 1. ABERTURA / STATUS DO CAIXA
@@ -864,6 +954,7 @@ export default function ZenAssistenteIA({
     }
 
     const ehPerguntaVendedorGeral =
+      intencaoDetectada.intencao === "vendedores" ||
       tNorm === "vendedor" ||
       tNorm === "vendedores" ||
       tNorm === "equipe de vendas" ||
@@ -1024,6 +1115,7 @@ export default function ZenAssistenteIA({
     // 3. FORMAS DE PAGAMENTO (Pix, Dinheiro, Cartão, Fiado)
     // =========================================================================
     const ehPerguntaPagamento =
+      intencaoDetectada.intencao === "pagamentos" ||
       tNorm.includes("forma de pagamento") ||
       tNorm.includes("formas de pagamento") ||
       tNorm.includes("meios de pagamento") ||
@@ -1119,7 +1211,8 @@ export default function ZenAssistenteIA({
       tNorm.includes("lucramos") ||
       tNorm.includes("lucrou") ||
       tNorm.includes("margem de lucro") ||
-      tNorm.includes("rentabilidade")
+      tNorm.includes("rentabilidade") ||
+      intencaoDetectada.intencao === "lucro"
     ) {
       if (!temPermissao("vendas") && !ehGerente) {
         responderIA("🔒 Consulta de margem e lucro é exclusiva para gerência.");
@@ -1154,6 +1247,7 @@ export default function ZenAssistenteIA({
     if (
       tNorm.includes("mais vendido") ||
       tNorm.includes("mais vendida") ||
+      intencaoDetectada.intencao === "produtos" ||
       tNorm.includes("o que mais vendeu") ||
       tNorm.includes("top produtos") ||
       tNorm.includes("campeoes de venda") ||
@@ -1205,6 +1299,7 @@ export default function ZenAssistenteIA({
       tNorm.includes("repor") ||
       tNorm.includes("reposi") ||
       tNorm.includes("o que comprar") ||
+      intencaoDetectada.intencao === "reposicao" ||
       tNorm.includes("comprar mercadoria") ||
       tNorm.includes("estoque baixo") ||
       tNorm.includes("estoque acabando") ||
@@ -1340,7 +1435,8 @@ export default function ZenAssistenteIA({
       tNorm.includes("valor do estoque") ||
       tNorm.includes("quanto vale o estoque") ||
       tNorm.includes("total do estoque") ||
-      tNorm.includes("inventario")
+      tNorm.includes("inventario") ||
+      intencaoDetectada.intencao === "estoque"
     ) {
       if (!temPermissao("produtos")) {
         responderIA(`🔒 Seu operador não possui acesso ao módulo de Produtos e Estoque.`);
@@ -1381,7 +1477,8 @@ export default function ZenAssistenteIA({
       tNorm.includes("quem deve") ||
       tNorm.includes("saldo devedor") ||
       tNorm.includes("contas a receber") ||
-      tNorm.includes("cobranca")
+      tNorm.includes("cobranca") ||
+      intencaoDetectada.intencao === "fiado"
     ) {
       if (!temPermissao("clientes")) {
         responderIA(`🔒 Seu usuário não possui acesso ao módulo de **Clientes e Fiado**.`);
