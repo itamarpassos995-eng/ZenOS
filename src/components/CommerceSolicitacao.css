@@ -891,9 +891,13 @@
 .commerce-mockup-screen {
   background: #090e17;
   border-radius: 18px;
-  overflow: hidden;
-  max-height: 520px;
+  overflow-x: hidden;
   overflow-y: auto;
+  min-height: 0;
+  max-height: 520px;
+  overscroll-behavior-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   display: flex;
   flex-direction: column;
 }
@@ -901,6 +905,22 @@
 .commerce-mockup-wrapper.desktop .commerce-mockup-screen {
   border-radius: 0 0 10px 10px;
   max-height: 540px;
+}
+
+/* A vitrine premium pode rolar por dentro da moldura, mas não prende a rolagem
+   do ZenOS ao chegar ao início/fim. A altura acompanha a janela disponível. */
+.commerce-preview-column .commerce-premium-scroll {
+  background: #f7f6f3;
+  max-height: clamp(260px, calc(100dvh - 240px), 580px);
+  scrollbar-gutter: stable;
+}
+
+.commerce-preview-column .commerce-mockup-wrapper.mobile .commerce-premium-scroll {
+  max-height: clamp(260px, calc(100dvh - 220px), 680px);
+}
+
+@media (max-width: 1023px) {
+  .commerce-preview-column { position: static; }
 }
 
 /* COMPONENTES INTERNOS DO MOCKUP */

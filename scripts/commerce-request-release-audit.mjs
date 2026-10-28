@@ -57,6 +57,12 @@ const preview=read('src/components/CommerceVitrinePreview.jsx');
 assert.ok(preview.includes('usuario.uid !== idDaLoja')&&preview.includes('getDoc(')&&
   !preview.includes('setDoc(')&&!preview.includes('httpsCallable('),
   'GATE_FAIL: prévia sem isolamento por loja ou com operações de escrita/ativação');
+const scrollCss=read('src/components/CommerceSolicitacao.css');
+assert.ok(scrollCss.includes('.commerce-preview-column .commerce-premium-scroll')&&
+  scrollCss.includes('overscroll-behavior-y: auto')&&
+  portal.includes('commerce-mockup-screen commerce-premium-scroll')&&
+  preview.includes("classList.add('commerce-document')"),
+  'GATE_FAIL: rolagem da vitrine bloqueada ou fora do escopo Commerce');
 const storefront=read('src/components/ZenCommerceStorefront.jsx');
 assert.ok(preview.includes('isLivePreview={true}')&&portal.includes('isLivePreview={true}')&&
   storefront.includes('if (isLivePreview || busy) return;')&&

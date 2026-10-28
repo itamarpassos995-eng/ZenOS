@@ -865,7 +865,7 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
               )}
 
               {/* TELA DA LOJA VIRTUAL RENDERIZADA */}
-              <div className="commerce-mockup-screen" style={{ background: '#f7f6f3', maxHeight: modoPrevia === 'mobile' ? '680px' : '580px', overflowY: 'auto' }}>
+              <div className="commerce-mockup-screen commerce-premium-scroll">
                 <ZenCommerceStorefront
                   idPublico={lojaId}
                   configCommerce={configCommerce}
