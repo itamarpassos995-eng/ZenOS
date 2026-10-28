@@ -1,0 +1,137 @@
+.commerce-link-preview {
+  min-height: 100vh;
+  background: radial-gradient(circle at 50% 0%, #13324d 0%, #061321 45%, #020617 100%);
+  color: #f1f5f9;
+  font-family: inherit;
+  padding: clamp(20px, 4vw, 44px);
+  box-sizing: border-box;
+}
+
+.commerce-link-preview * { box-sizing: border-box; }
+
+.commerce-link-preview-header {
+  max-width: 1080px;
+  margin: 0 auto 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.commerce-preview-private-badge {
+  display: inline-block;
+  color: #a7f3d0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .11em;
+}
+
+.commerce-link-preview-header h1,
+.commerce-preview-access-card h1 {
+  font-size: clamp(26px, 4vw, 36px);
+  margin: 8px 0;
+  color: #fff;
+}
+
+.commerce-link-preview-header p,
+.commerce-preview-access-card p {
+  margin: 0;
+  color: #a6bdcd;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.commerce-link-preview-actions, .commerce-preview-access-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.commerce-link-preview-actions a,
+.commerce-link-preview-actions button,
+.commerce-preview-access-actions a,
+.commerce-preview-access-actions button {
+  background: #102b3f;
+  border: 1px solid #315a70;
+  border-radius: 10px;
+  color: #e2f9ff;
+  padding: 10px 15px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.commerce-link-preview-stage {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: clamp(12px, 3vw, 25px);
+  border: 1px solid #294355;
+  border-radius: 20px;
+  background: #091827;
+  display: grid;
+  gap: 18px;
+}
+
+.commerce-link-preview-stage .commerce-preview-topbar h2 {
+  margin: 0;
+  font-size: 18px;
+  color: #fff;
+}
+
+.commerce-link-preview-stage .commerce-mockup-wrapper.desktop {
+  max-width: 920px;
+  margin: 0 auto;
+}
+
+.commerce-link-preview-stage .commerce-mockup-wrapper.mobile {
+  width: 100%;
+  max-width: 390px;
+}
+
+.commerce-link-preview-stage .commerce-mockup-screen,
+.commerce-link-preview-stage .commerce-mockup-wrapper.desktop .commerce-mockup-screen {
+  max-height: none;
+  overflow: visible;
+}
+
+.commerce-link-preview-stage .mock-cover-banner { height: clamp(140px, 22vw, 240px); }
+.commerce-link-preview-stage .mock-store-header { padding: 24px; }
+.commerce-link-preview-stage .mock-store-name { font-size: clamp(20px, 3vw, 28px); }
+.commerce-link-preview-stage .mock-catalog-section { padding: 22px; }
+.commerce-link-preview-stage .mock-btn-whatsapp { cursor: not-allowed; opacity: .82; }
+.commerce-link-preview-stage .commerce-mockup-wrapper.mobile .mock-cover-banner { height: 112px; }
+.commerce-link-preview-stage .commerce-mockup-wrapper.mobile .mock-store-header,
+.commerce-link-preview-stage .commerce-mockup-wrapper.mobile .mock-catalog-section { padding: 14px; }
+
+.commerce-link-preview-notice {
+  max-width: 1080px;
+  margin: 0 auto 18px;
+  padding: 14px;
+  background: #1b2a39;
+  border: 1px solid #f59e0b;
+  border-radius: 12px;
+  color: #fcd34d;
+  font-size: 13px;
+}
+
+.commerce-preview-message { display: grid; place-items: center; }
+.commerce-preview-access-card {
+  width: min(100%, 490px);
+  background: #0b1c2b;
+  border: 1px solid #315265;
+  border-radius: 20px;
+  padding: 30px;
+  display: grid;
+  gap: 16px;
+}
+
+@media (max-width: 640px) {
+  .commerce-link-preview { padding: 16px 10px 28px; }
+  .commerce-link-preview-header { padding: 0 8px; }
+  .commerce-link-preview-stage { padding: 10px; }
+  .commerce-link-preview-stage .commerce-mockup-wrapper.desktop .mock-store-header,
+  .commerce-link-preview-stage .commerce-mockup-wrapper.desktop .mock-catalog-section { padding: 14px; }
+}
