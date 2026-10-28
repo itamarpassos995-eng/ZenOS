@@ -1948,6 +1948,10 @@ export default function App() {
         historicoVendas={historicoVendas}
         clientes={clientes}
         despesas={despesas}
+        setDespesas={setDespesas}
+        commitOperacaoNegocio={commitVendaCritica}
+        converterParaBRL={converterParaBRL}
+        converterDeBRL={converterDeBRL}
         caixaMovimentos={caixaMovimentos}
         sessoesCaixa={sessoesCaixa}
         sessaoAtiva={sessaoAtiva}

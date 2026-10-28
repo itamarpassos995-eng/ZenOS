@@ -26,6 +26,10 @@ export default function ZenAssistenteIA({
   historicoVendas = [],
   clientes = [],
   despesas = [],
+  setDespesas,
+  commitOperacaoNegocio,
+  converterParaBRL = (v) => Number(v) || 0,
+  converterDeBRL = (v) => Number(v) || 0,
   caixaMovimentos = [],
   sessoesCaixa = [],
   sessaoAtiva,
@@ -36,6 +40,7 @@ export default function ZenAssistenteIA({
   saldoSessaoFisicoBRL = 0,
 }) {
   const [inputTexto, setInputTexto] = useState("");
+  const [salvandoAcao, setSalvandoAcao] = useState(false);
   const [gravandoVoz, setGravandoVoz] = useState(false);
   const [mensagens, setMensagens] = useState([]);
   const fimMensagensRef = useRef(null);
@@ -876,6 +881,63 @@ export default function ZenAssistenteIA({
     const tNorm = normalizar(texto);
     const { periodo, rotulo: rotuloPeriodo } = detectarPeriodo(tNorm);
     const intencaoDetectada = classificarIntencao(texto);
+
+    // =========================================================================
+    // 0. COMANDO DE LANÇAMENTO DE DESPESA / CUSTOS
+    // =========================================================================
+    const palavrasNorm = tNorm.split(" ").filter(Boolean);
+    const verbosLancamento = ["lanca", "lancar", "lance", "cadastra", "cadastrar", "adiciona", "adicionar", "insere", "inserir", "coloca", "colocar", "bota", "botar", "registra", "registrar", "anota", "anotar", "grava", "gravar", "cria", "criar"];
+    const ehVerboLancamento = verbosLancamento.some((v) => palavrasNorm.some((p) => tokenParecido(p, v) || p === v || p.startsWith(v)));
+    const termosDespesaAlvo = ["aluguel", "condominio", "energia", "luz", "agua", "internet", "telefone", "fornecedor", "salario", "imposto", "custo", "custos", "despesa", "despesas", "gasto", "gastos", "contas"];
+    const temAlvoDespesa = termosDespesaAlvo.some((t) => tNorm.includes(t));
+    const temNumero = /\b\d+(?:[.,]\d+)?\b/.test(tNorm);
+
+    if (
+      (ehVerboLancamento && temAlvoDespesa) ||
+      (temAlvoDespesa && temNumero && (tNorm.includes("nos custos") || tNorm.includes("em custos") || tNorm.includes("nas despesas") || tNorm.includes("em despesas") || tNorm.includes("no custo") || tNorm.includes("na despesa")))
+    ) {
+      if (!temPermissao("financeiro") && !ehGerente) {
+        responderIA("🔒 Apenas usuários com permissão financeira ou gerência podem lançar custos e despesas no sistema.");
+        return;
+      }
+
+      const dados = extrairDadosDespesa(texto);
+      if (dados.valorBRL <= 0) {
+        responderIA(
+          `Identifiquei a intenção de lançar a despesa **${dados.descricao}**, mas não consegui identificar o valor com clareza.
+
+` +
+          `Dica: você pode digitar por exemplo: *"lança aluguel nos custos 2000 reais"* ou abrir a tela para preencher manualmente.`,
+          [{ label: "📋 Abrir Contas a Pagar", comando: "abrir despesas" }]
+        );
+        return;
+      }
+
+      responderIA(
+        `Preparei o lançamento da despesa para você:
+
+` +
+        `• **Descrição:** ${dados.descricao}
+` +
+        `• **Categoria:** ${dados.categoria}
+` +
+        `• **Valor:** ${fmt(dados.valorBRL)}
+` +
+        `• **Vencimento:** Hoje (${new Date().toLocaleDateString()})
+
+` +
+        `Deseja confirmar e gravar agora no Contas a Pagar?`,
+        [
+          { label: "📋 Abrir Contas a Pagar", comando: "abrir despesas" },
+          { label: "❌ Cancelar", comando: "cancelar" }
+        ],
+        {
+          tipo: "confirmar_despesa",
+          dadosDespesa: dados,
+        }
+      );
+      return;
+    }
 
     // =========================================================================
     // 1. ABERTURA / STATUS DO CAIXA
@@ -1800,6 +1862,7 @@ Com qual destas opções posso te ajudar?`;
         { label: "💰 Faturamento de hoje", comando: "quanto vendemos hoje" },
         { label: "➕ Cadastrar novo cliente", comando: "cadastrar cliente" },
         { label: "➕ Cadastrar novo produto", comando: "cadastrar produto" },
+        { label: "💸 Lançar despesa / custo", comando: "lancar despesa aluguel 2000" },
         { label: "👥 Quem deve fiado?", comando: "clientes com fiado" },
         { label: "🛒 Abrir PDV Balcão", comando: "abrir pdv" }
       ]
@@ -1900,6 +1963,43 @@ Com qual destas opções posso te ajudar?`;
                   {/* Renderização de cartões especiais */}
                   {msg.cartaoEspecial && (
                     <div className="zen-ia-card-grid">
+                      {/* CARTÃO: CONFIRMAÇÃO DE LANÇAMENTO DE DESPESA */}
+                      {msg.cartaoEspecial.tipo === "confirmar_despesa" && msg.cartaoEspecial.dadosDespesa && (
+                        <div style={{ marginTop: 10, display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                          <button
+                            className="zen-ia-action-btn"
+                            disabled={salvandoAcao}
+                            style={{
+                              background: "linear-gradient(135deg, #10b981, #059669)",
+                              borderColor: "#34d399",
+                              color: "#ffffff",
+                              fontWeight: 900,
+                              fontSize: "13px",
+                              padding: "10px 16px"
+                            }}
+                            onClick={() => executarSalvarDespesaDireta(msg.cartaoEspecial.dadosDespesa)}
+                          >
+                            {salvandoAcao ? "⏳ Gravando na Nuvem..." : "✅ Confirmar e Lançar Despesa"}
+                          </button>
+                          <button
+                            className="zen-ia-action-btn"
+                            style={{
+                              background: "rgba(255, 255, 255, 0.05)",
+                              borderColor: "rgba(255, 255, 255, 0.15)",
+                              color: "#cbd5e1",
+                              fontSize: "13px",
+                              padding: "10px 16px"
+                            }}
+                            onClick={() => {
+                              navegarPara("despesas");
+                              onFechar();
+                            }}
+                          >
+                            📋 Editar na tela de Despesas
+                          </button>
+                        </div>
+                      )}
+
                       {/* CARTÃO: ABRIR TURNO DE CAIXA */}
                       {msg.cartaoEspecial.tipo === "abrir_caixa" && (
                         <div style={{ marginTop: 8 }}>
