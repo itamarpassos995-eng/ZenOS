@@ -165,6 +165,14 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, tx = (p
 
   const salvarConfiguracoesLoja = async () => {
     if (!lojaId) return;
+    if (auth.currentUser?.uid !== lojaId) {
+      avisarZen(
+        'danger',
+        tx('Acesso não autorizado', 'Acceso no autorizado', 'Unauthorized access'),
+        helpError({ code: 'permission-denied' }, tx)
+      );
+      return;
+    }
     setSalvandoConfig(true);
     try {
       notifyPersistenceStatus({ status: 'SALVANDO', field: 'commerce_config' });
