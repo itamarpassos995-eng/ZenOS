@@ -26,6 +26,10 @@ export default function ZenAssistenteIA({
   historicoVendas = [],
   clientes = [],
   despesas = [],
+  setDespesas,
+  commitOperacaoNegocio,
+  converterParaBRL = (v) => Number(v) || 0,
+  converterDeBRL = (v) => Number(v) || 0,
   caixaMovimentos = [],
   sessoesCaixa = [],
   sessaoAtiva,
@@ -36,6 +40,8 @@ export default function ZenAssistenteIA({
   saldoSessaoFisicoBRL = 0,
 }) {
   const [inputTexto, setInputTexto] = useState("");
+  const [salvandoAcao, setSalvandoAcao] = useState(false);
+  const salvandoAcaoRef = useRef(false);
   const [gravandoVoz, setGravandoVoz] = useState(false);
   const [mensagens, setMensagens] = useState([]);
   const fimMensagensRef = useRef(null);
@@ -855,6 +861,197 @@ export default function ZenAssistenteIA({
     onFechar();
   };
 
+  // EXTRAÇÃO INTELIGENTE DE DADOS PARA LANÇAMENTO DE DESPESAS/CUSTOS
+  const extrairDadosDespesa = (textoOriginal) => {
+    const raw = (textoOriginal || "").trim();
+    const normalizar = (txt) => (txt || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const tNorm = normalizar(raw);
+
+    // 1. Extração do valor numérico (suporta formatos: 2000, 2.000, 2.000,50, 2000,50, 2000.50)
+    let valorEncontrado = 0;
+    let valorStrOriginal = "";
+    const regexValor = /(?:r\$|rs|gs|\$)?\s*((?:\d{1,3}(?:\.\d{3})+|\d+)(?:[.,]\d{1,2})?)\s*(?:reais|real|rs|gs|dolares|dolar)?/gi;
+    const matches = [...raw.matchAll(regexValor)];
+    for (const m of matches) {
+      const matchStr = m[1];
+      if (!matchStr) continue;
+      let cleanNum = matchStr;
+      if (cleanNum.includes(".") && cleanNum.includes(",")) {
+        cleanNum = cleanNum.replace(/\./g, "").replace(",", ".");
+      } else if (cleanNum.includes(",")) {
+        cleanNum = cleanNum.replace(",", ".");
+      }
+      const num = parseFloat(cleanNum);
+      if (!isNaN(num) && num > 0) {
+        valorEncontrado = num;
+        valorStrOriginal = m[0];
+        break;
+      }
+    }
+
+    const valorBRL = typeof converterParaBRL === "function" ? converterParaBRL(valorEncontrado, moeda) : valorEncontrado;
+
+    // 2. Detecção automática de categoria contábil
+    let categoria = "Outros";
+    if (
+      tNorm.includes("aluguel") ||
+      tNorm.includes("condominio") ||
+      tNorm.includes("luz") ||
+      tNorm.includes("energia") ||
+      tNorm.includes("agua") ||
+      tNorm.includes("internet") ||
+      tNorm.includes("telefone") ||
+      tNorm.includes("reforma") ||
+      tNorm.includes("manutencao")
+    ) {
+      categoria = "Infraestrutura";
+    } else if (
+      tNorm.includes("fornecedor") ||
+      tNorm.includes("mercadoria") ||
+      tNorm.includes("estoque")
+    ) {
+      categoria = "Fornecedor";
+    } else if (
+      tNorm.includes("salario") ||
+      tNorm.includes("comissao") ||
+      tNorm.includes("folha") ||
+      tNorm.includes("adiantamento") ||
+      tNorm.includes("pro-labore") ||
+      tNorm.includes("pro labore")
+    ) {
+      categoria = "Salários";
+    } else if (
+      tNorm.includes("imposto") ||
+      tNorm.includes("taxa") ||
+      tNorm.includes("tributo") ||
+      tNorm.includes("simples") ||
+      tNorm.includes("darf") ||
+      tNorm.includes("das")
+    ) {
+      categoria = "Impostos";
+    } else if (
+      tNorm.includes("marketing") ||
+      tNorm.includes("anuncio") ||
+      tNorm.includes("propaganda") ||
+      tNorm.includes("publicidade") ||
+      tNorm.includes("trafego")
+    ) {
+      categoria = "Marketing";
+    }
+
+    // 3. Limpeza semântica para gerar descrição legível
+    let desc = raw;
+    if (valorStrOriginal) {
+      desc = desc.replace(valorStrOriginal, " ");
+    }
+    const regexRemover = /\b(?:lan[cç][aá](?:r)?|lance|cadastr[aá](?:r)?|adicion[aá](?:r)?|inser(?:e|ir)|registr[aá](?:r)?|anot[aá](?:r)?|grav[aá](?:r)?|cri[aá](?:r)?|coloc[aá](?:r)?|bot[aá](?:r)?|nos custos|no custo|nas despesas|na despesa|em custos|em despesas|nos gastos|no gasto|contas a pagar|despesas?|custos?|gastos?|contas?|valor de|no valor de|valor|reais|real|r\$|rs|gs|de|do|da|dos|das|em|no|na|nos|nas|para|por)\b/gi;
+    desc = desc.replace(regexRemover, " ");
+    desc = desc.replace(/[^\w\sáéíóúâêîôûãõçÁÉÍÓÚÂÊÎÔÛÃÕÇ-]/gi, " ").replace(/\s+/g, " ").trim();
+
+    let descricaoFinal = "";
+    if (desc.length >= 2) {
+      descricaoFinal = desc.charAt(0).toUpperCase() + desc.slice(1);
+    } else {
+      if (categoria === "Infraestrutura") {
+        if (tNorm.includes("aluguel")) descricaoFinal = "Aluguel";
+        else if (tNorm.includes("luz") || tNorm.includes("energia")) descricaoFinal = "Energia Elétrica";
+        else if (tNorm.includes("agua")) descricaoFinal = "Água e Esgoto";
+        else if (tNorm.includes("internet")) descricaoFinal = "Internet / Telefonia";
+        else descricaoFinal = "Infraestrutura / Contas Fixas";
+      } else if (categoria === "Fornecedor") {
+        descricaoFinal = "Pagamento a Fornecedor";
+      } else if (categoria === "Salários") {
+        descricaoFinal = "Folha de Pagamento";
+      } else if (categoria === "Impostos") {
+        descricaoFinal = "Impostos e Taxas";
+      } else if (categoria === "Marketing") {
+        descricaoFinal = "Investimento em Marketing";
+      } else {
+        descricaoFinal = "Despesa Operacional";
+      }
+    }
+
+    return {
+      descricao: descricaoFinal,
+      categoria,
+      valorBRL,
+      dataVencimento: new Date().toISOString().slice(0, 10),
+    };
+  };
+
+  // PERSISTÊNCIA DIRETA E SEGURA DA DESPESA CONFIRMADA PELO CHAT
+  const executarSalvarDespesaDireta = async (dados) => {
+    if (salvandoAcaoRef.current) return;
+    if (!temPermissao("financeiro") && !ehGerente) {
+      responderIA("🔒 Apenas usuários com permissão financeira ou gerência podem lançar despesas.");
+      return;
+    }
+    if (!dados || !dados.valorBRL) {
+      responderIA("❌ Não foi possível identificar os dados da despesa para salvar.");
+      return;
+    }
+
+    salvandoAcaoRef.current = true;
+    setSalvandoAcao(true);
+    try {
+      if (typeof commitOperacaoNegocio !== "function" || typeof setDespesas !== "function") {
+        throw new Error("Serviço de confirmação de despesas indisponível.");
+      }
+      const novaDespesa = {
+        id: `DESP-${Date.now()}`,
+        descricao: dados.descricao || "Despesa",
+        categoria: dados.categoria || "Outros",
+        valorBRL: Number(dados.valorBRL) || 0,
+        dataVencimento: dados.dataVencimento || new Date().toISOString().slice(0, 10),
+        status: "pendente",
+        dataPagamento: null,
+        formaPagamento: null,
+        criadoPorIA: true,
+        dataCriacao: new Date().toISOString(),
+      };
+
+      const listaProposta = [novaDespesa, ...(Array.isArray(despesas) ? despesas : [])];
+
+      const confirmado = await commitOperacaoNegocio({
+        changes: [{ field: "despesas", value: listaProposta, storageSuffix: "despesas" }],
+      });
+      if (!confirmado?.cloudOk) {
+        throw confirmado?.error || new Error("A nuvem não confirmou a gravação da despesa.");
+      }
+      setDespesas(confirmado.values?.despesas || listaProposta);
+      // Consome o cartão confirmado para impedir um segundo lançamento acidental.
+      setMensagens((prev) => prev.map((msg) =>
+        msg.cartaoEspecial?.tipo === "confirmar_despesa" && msg.cartaoEspecial.dadosDespesa === dados
+          ? { ...msg, cartaoEspecial: null }
+          : msg
+      ));
+
+      responderIA(
+        `✅ **Despesa registrada com sucesso!**\n\n` +
+        `• **Descrição:** ${novaDespesa.descricao}\n` +
+        `• **Categoria:** ${novaDespesa.categoria}\n` +
+        `• **Valor:** ${fmt(novaDespesa.valorBRL)}\n` +
+        `• **Status:** Pendente em Contas a Pagar\n\n` +
+        `O lançamento já foi salvo com segurança e sincronizado na nuvem.`,
+        [
+          { label: "📋 Abrir Contas a Pagar", comando: "abrir despesas" },
+          { label: "💰 Faturamento de hoje", comando: "quanto vendemos hoje" }
+        ]
+      );
+    } catch (erro) {
+      responderIA(
+        `❌ **Não foi possível salvar a despesa:** ${erro?.message || "Erro de conexão ou sincronização com a nuvem."}`,
+        [
+          { label: "📋 Abrir Contas a Pagar", comando: "abrir despesas" },
+          { label: "🔄 Tentar Novamente", comando: `lancar ${dados.descricao} ${dados.valorBRL}` }
+        ]
+      );
+    } finally {
+      salvandoAcaoRef.current = false;
+      setSalvandoAcao(false);
+    }
+  };
+
   // PROCESSADOR CENTRAL DE LINGUAGEM NATURAL E COMANDOS
   const processarComando = (textoBruto) => {
     const texto = (textoBruto || "").trim();
@@ -876,6 +1073,63 @@ export default function ZenAssistenteIA({
     const tNorm = normalizar(texto);
     const { periodo, rotulo: rotuloPeriodo } = detectarPeriodo(tNorm);
     const intencaoDetectada = classificarIntencao(texto);
+
+    // =========================================================================
+    // 0. COMANDO DE LANÇAMENTO DE DESPESA / CUSTOS
+    // =========================================================================
+    const palavrasNorm = tNorm.split(" ").filter(Boolean);
+    const verbosLancamento = ["lanca", "lancar", "lance", "cadastra", "cadastrar", "adiciona", "adicionar", "insere", "inserir", "coloca", "colocar", "bota", "botar", "registra", "registrar", "anota", "anotar", "grava", "gravar", "cria", "criar"];
+    const ehVerboLancamento = verbosLancamento.some((v) => palavrasNorm.some((p) => tokenParecido(p, v) || p === v || p.startsWith(v)));
+    const termosDespesaAlvo = ["aluguel", "condominio", "energia", "luz", "agua", "internet", "telefone", "fornecedor", "salario", "imposto", "custo", "custos", "despesa", "despesas", "gasto", "gastos", "contas"];
+    const temAlvoDespesa = termosDespesaAlvo.some((t) => tNorm.includes(t));
+    const temNumero = /\b\d+(?:[.,]\d+)?\b/.test(tNorm);
+
+    if (
+      (ehVerboLancamento && temAlvoDespesa) ||
+      (temAlvoDespesa && temNumero && (tNorm.includes("nos custos") || tNorm.includes("em custos") || tNorm.includes("nas despesas") || tNorm.includes("em despesas") || tNorm.includes("no custo") || tNorm.includes("na despesa")))
+    ) {
+      if (!temPermissao("financeiro") && !ehGerente) {
+        responderIA("🔒 Apenas usuários com permissão financeira ou gerência podem lançar custos e despesas no sistema.");
+        return;
+      }
+
+      const dados = extrairDadosDespesa(texto);
+      if (dados.valorBRL <= 0) {
+        responderIA(
+          `Identifiquei a intenção de lançar a despesa **${dados.descricao}**, mas não consegui identificar o valor com clareza.
+
+` +
+          `Dica: você pode digitar por exemplo: *"lança aluguel nos custos 2000 reais"* ou abrir a tela para preencher manualmente.`,
+          [{ label: "📋 Abrir Contas a Pagar", comando: "abrir despesas" }]
+        );
+        return;
+      }
+
+      responderIA(
+        `Preparei o lançamento da despesa para você:
+
+` +
+        `• **Descrição:** ${dados.descricao}
+` +
+        `• **Categoria:** ${dados.categoria}
+` +
+        `• **Valor:** ${fmt(dados.valorBRL)}
+` +
+        `• **Vencimento:** Hoje (${new Date().toLocaleDateString()})
+
+` +
+        `Deseja confirmar e gravar agora no Contas a Pagar?`,
+        [
+          { label: "📋 Abrir Contas a Pagar", comando: "abrir despesas" },
+          { label: "❌ Cancelar", comando: "cancelar" }
+        ],
+        {
+          tipo: "confirmar_despesa",
+          dadosDespesa: dados,
+        }
+      );
+      return;
+    }
 
     // =========================================================================
     // 1. ABERTURA / STATUS DO CAIXA
@@ -1800,6 +2054,7 @@ Com qual destas opções posso te ajudar?`;
         { label: "💰 Faturamento de hoje", comando: "quanto vendemos hoje" },
         { label: "➕ Cadastrar novo cliente", comando: "cadastrar cliente" },
         { label: "➕ Cadastrar novo produto", comando: "cadastrar produto" },
+        { label: "💸 Lançar despesa / custo", comando: "lancar despesa aluguel 2000" },
         { label: "👥 Quem deve fiado?", comando: "clientes com fiado" },
         { label: "🛒 Abrir PDV Balcão", comando: "abrir pdv" }
       ]
@@ -1900,6 +2155,43 @@ Com qual destas opções posso te ajudar?`;
                   {/* Renderização de cartões especiais */}
                   {msg.cartaoEspecial && (
                     <div className="zen-ia-card-grid">
+                      {/* CARTÃO: CONFIRMAÇÃO DE LANÇAMENTO DE DESPESA */}
+                      {msg.cartaoEspecial.tipo === "confirmar_despesa" && msg.cartaoEspecial.dadosDespesa && (
+                        <div style={{ marginTop: 10, display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                          <button
+                            className="zen-ia-action-btn"
+                            disabled={salvandoAcao}
+                            style={{
+                              background: "linear-gradient(135deg, #10b981, #059669)",
+                              borderColor: "#34d399",
+                              color: "#ffffff",
+                              fontWeight: 900,
+                              fontSize: "13px",
+                              padding: "10px 16px"
+                            }}
+                            onClick={() => executarSalvarDespesaDireta(msg.cartaoEspecial.dadosDespesa)}
+                          >
+                            {salvandoAcao ? "⏳ Gravando na Nuvem..." : "✅ Confirmar e Lançar Despesa"}
+                          </button>
+                          <button
+                            className="zen-ia-action-btn"
+                            style={{
+                              background: "rgba(255, 255, 255, 0.05)",
+                              borderColor: "rgba(255, 255, 255, 0.15)",
+                              color: "#cbd5e1",
+                              fontSize: "13px",
+                              padding: "10px 16px"
+                            }}
+                            onClick={() => {
+                              navegarPara("despesas");
+                              onFechar();
+                            }}
+                          >
+                            📋 Editar na tela de Despesas
+                          </button>
+                        </div>
+                      )}
+
                       {/* CARTÃO: ABRIR TURNO DE CAIXA */}
                       {msg.cartaoEspecial.tipo === "abrir_caixa" && (
                         <div style={{ marginTop: 8 }}>
