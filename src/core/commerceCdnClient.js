@@ -88,7 +88,7 @@ export async function carregarCatalogoPublico(apelido, {fetchImpl=fetch, signal,
       if(raw.length>2_000_000)throw Error('catalogo-grande-demais');
       let page;
       try{page=JSON.parse(raw);}catch{throw Error('lote-invalido');}
-      if(page.versao!==2||page.publicacaoId!==result.publicacaoId||
+      if(page.versao!==2||page.slug!==slug||page.publicacaoId!==result.publicacaoId||
         page.lojaId!==result.idPublico||page.pagina!==pagina||
         !Array.isArray(page.produtos)||page.produtos.length>COMMERCE_TAMANHO_PAGINA||
         !page.produtosLoja||typeof page.produtosLoja!=='object')

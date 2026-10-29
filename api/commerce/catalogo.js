@@ -40,25 +40,27 @@ export default async function handler(req,res){
       origin.pathname!=='/'||origin.search||origin.hash)throw Error('origem-invalida');
   }catch{return res.status(503).json({erro:'catalogo-indisponivel'});}
   try{
-    const manifesto=await lerBlob(new URL('/commerce/catalogos/'+slug+'.json',origin));
-    if(!manifesto)return res.status(404).json({erro:'loja-nao-publicada'});
-    validarSnapshotPublico(manifesto,slug);
     const wantsPage=req.query?.pagina!==undefined||req.query?.versao!==undefined;
-    let data=manifesto;
+    let data;
     if(wantsPage){
       const numero=Number(req.query?.pagina);
       const version=req.query?.versao;
-      if(manifesto.versao!==2||!Number.isInteger(numero)||numero<1||
-        numero>manifesto.totalPaginas||!Number.isSafeInteger(numero)||
-        typeof version!=='string'||version!==manifesto.publicacaoId)
+      // Versões já publicadas são imutáveis; buscar um lote não recarrega o
+      // manifesto nem sofre corrida durante uma nova publicação.
+      if(!Number.isSafeInteger(numero)||numero<1||numero>125||
+        typeof version!=='string'||!/^[a-z0-9-]{8,48}$/.test(version))
         return res.status(400).json({erro:'pagina-invalida'});
       data=await lerBlob(new URL('/commerce/catalogos/'+slug+
         '/versoes/'+version+'/pagina-'+numero+'.json',origin));
-      if(!data||data.versao!==2||data.lojaId!==manifesto.lojaId||
+      if(!data||data.versao!==2||data.slug!==slug||
         data.publicacaoId!==version||data.pagina!==numero||
         !Array.isArray(data.produtos)||data.produtos.length>80||
         !data.produtosLoja||typeof data.produtosLoja!=='object')
         throw Error('lote-invalido');
+    }else{
+      data=await lerBlob(new URL('/commerce/catalogos/'+slug+'.json',origin));
+      if(!data)return res.status(404).json({erro:'loja-nao-publicada'});
+      validarSnapshotPublico(data,slug);
     }
     res.setHeader('Cache-Control','public, s-maxage=60, stale-while-revalidate=300');
     res.setHeader('X-Content-Type-Options','nosniff');

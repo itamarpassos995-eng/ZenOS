@@ -93,7 +93,7 @@ export function dividirCatalogoPublico(snapshot,publicacaoId,{tamanhoPagina=COMM
   for(let i=0;i<paginaTotal;i++){
     const lote=produtos.slice(i*tamanhoPagina,(i+1)*tamanhoPagina);
     const personalizacoes=Object.fromEntries(lote.map(p=>[p.id,config.produtosLoja?.[p.id]||{}]));
-    paginas.push({versao:2,lojaId:snapshot.lojaId,publicacaoId,pagina:i+1,
+    paginas.push({versao:2,lojaId:snapshot.lojaId,slug:config.slug,publicacaoId,pagina:i+1,
       produtos:lote,produtosLoja:personalizacoes});
   }
   return {
