@@ -174,6 +174,10 @@ export default function App() {
   const syncCamposRef = useRef(new Map());
   const [modalAppZen, setModalAppZen] = useState(null);
   const [assistenteIAAberto, setAssistenteIAAberto] = useState(false);
+  const [abrirFilaOnlineToken, setAbrirFilaOnlineToken] = useState(0);
+  // Total informado pela assinatura limitada que JÁ existe dentro do PDV.
+  // Não criar outra consulta Firestore para alimentar o cabeçalho.
+  const [pedidosOnlineConhecidos, setPedidosOnlineConhecidos] = useState(null);
 
   const avisarAppZen = ({ variante = 'info', titulo, mensagem, detalhes = [] }) =>
     setModalAppZen({ variante, titulo, mensagem, detalhes, apenasConfirmar: true });
@@ -1454,6 +1458,13 @@ export default function App() {
     setEcraAtual(id);
   };
 
+  const abrirPedidosLojaNoPdv = () => {
+    if (!temPermissao('pdv')) return;
+    // Ao abrir o PDV, a fila existente é exibida, sem montar outro listener.
+    setAbrirFilaOnlineToken(token => token + 1);
+    navegarPara('pdv');
+  };
+
   const focarMeuTurno = () => {
     navegarPara('hub');
     setTimeout(() => document.getElementById('zen-meu-turno')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60);
@@ -1780,7 +1791,8 @@ export default function App() {
           tx,
         }}
         topbarProps={{
-          onAbrirIA: () => setAssistenteIAAberto(true),
+          onAbrirPedidosLoja: temPermissao('pdv') ? abrirPedidosLojaNoPdv : undefined,
+          totalPedidosLoja: pedidosOnlineConhecidos,
           status: statusSincronizacao,
           statusTitle: erroSincronizacao || statusSincronizacao,
           labelErroSincronizacao: tx('Erro ao sincronizar','Error al sincronizar','Sync error'),
@@ -1865,7 +1877,9 @@ export default function App() {
           </div>
  )}
 
-        {ecraAtual === 'pdv' && <PDV perfilLoja={perfilLoja} taxasCambio={taxasCambio} registrarFinanceiro={registrarFinanceiro} commitOperacaoCritica={commitOperacaoCritica} commitVendaCritica={commitVendaCritica} recarregarDadosPDV={recarregarDadosPDV} vouchers={vouchers} setVouchers={setVouchers} userId={userId} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} patenteUsuario={patenteUsuario} idioma={idioma} regrasDesconto={regrasDesconto} vendedores={vendedores} operadorAtivo={operadorAtivo} sessaoAtiva={sessaoAtiva} />}
+        {ecraAtual === 'pdv' && <PDV abrirFilaOnlineToken={abrirFilaOnlineToken}
+          onPedidosOnlineAtualizados={total => setPedidosOnlineConhecidos(anterior => anterior === total ? anterior : total)}
+          perfilLoja={perfilLoja} taxasCambio={taxasCambio} registrarFinanceiro={registrarFinanceiro} commitOperacaoCritica={commitOperacaoCritica} commitVendaCritica={commitVendaCritica} recarregarDadosPDV={recarregarDadosPDV} vouchers={vouchers} setVouchers={setVouchers} userId={userId} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} patenteUsuario={patenteUsuario} idioma={idioma} regrasDesconto={regrasDesconto} vendedores={vendedores} operadorAtivo={operadorAtivo} sessaoAtiva={sessaoAtiva} />}
         {ecraAtual === 'compras' && <PDVCompras commitOperacaoNegocio={commitVendaCritica} registrarFinanceiro={registrarFinanceiro} saldoSessaoFisicoBRL={saldoSessaoFisicoBRL} userId={userId} produtos={produtos} setProdutos={setProdutos} fornecedores={fornecedores} setFornecedores={setFornecedores} despesas={despesas} setDespesas={setDespesas} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoCompras={historicoCompras} setHistoricoCompras={setHistoricoCompras} operadorAtivo={operadorAtivo} />}
         {ecraAtual === 'fornecedores' && <Fornecedores commitOperacaoNegocio={commitVendaCritica} fornecedores={fornecedores} setFornecedores={setFornecedores} moeda={moeda} tx={tx} />}
         {ecraAtual === 'mesas' && <Mesas commitOperacaoNegocio={commitVendaCritica} userId={userId} produtos={produtos} fmt={fmt} tx={tx} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} moeda={moeda} idioma={idioma} operadorAtivo={operadorAtivo} />}

@@ -28,3 +28,33 @@
   .zen-mobile-menu{touch-action:manipulation}
 }
 @media(max-width:720px){.zen-main{padding:10px}.zen-topbar{padding:8px 10px}.zen-topbar-mini-brand div{display:none}.zen-topbar-actions{max-width:calc(100vw - 72px)}.zen-theme-toggle span{display:none}.zen-hero-copy{padding:24px 20px}.zen-hero h1{font-size:28px}.zen-quick-grid{grid-template-columns:repeat(2,minmax(120px,1fr))}.zen-exec-grid{grid-template-columns:1fr 1fr}.zen-kpi-card{grid-template-columns:54px minmax(0,1fr) auto;padding:14px}.zen-kpi-icon{width:50px;height:50px}.zen-kpi-copy strong{font-size:22px}}
+
+/* Commerce: atalhos no cabeçalho sem duplicar Zen IA, que permanece flutuante. */
+.zen-commerce-topbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  position: relative;
+  background: linear-gradient(135deg,#075985,#0284c7);
+  color: #fff;
+  border: 1px solid #38bdf8;
+  border-radius: 11px;
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.zen-commerce-topbar-btn:hover,.zen-commerce-topbar-btn:focus-visible {
+  border-color:#bae6fd; background:#0369a1;
+}
+.zen-commerce-topbar-badge {
+  min-width:19px;height:19px;padding:0 5px;display:inline-grid;place-items:center;
+  border-radius:999px;background:#f43f5e;color:#fff;
+  font-size:10px;font-weight:900;line-height:1;
+}
+@media (max-width:750px){
+  .zen-commerce-topbar-btn {padding:9px;}
+  .zen-commerce-topbar-btn strong {display:none;}
+}

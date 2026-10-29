@@ -22,7 +22,7 @@ import { getOperationalSnapshot } from '../core/operationalRepository';
 import { autoriaDoDocumento, autoriaDoOperador, resolverAutoriaVenda } from '../core/salesAttribution';
 import { indexarProdutosPDV, indexarClientesPDV, buscarProdutosPDV, buscarClientesPDV } from '../core/pdvSearch';
 
-export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro, commitOperacaoCritica, commitVendaCritica, recarregarDadosPDV, vouchers = [], setVouchers, userId, produtos, setProdutos, clientes, setClientes, moeda, fmt, t, tx, converterDeBRL, converterParaBRL, historicoVendas, setHistoricoVendas, patenteUsuario, idioma, regrasDesconto, vendedores = [], operadorAtivo, sessaoAtiva }) {
+export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizados, perfilLoja, taxasCambio = {}, registrarFinanceiro, commitOperacaoCritica, commitVendaCritica, recarregarDadosPDV, vouchers = [], setVouchers, userId, produtos, setProdutos, clientes, setClientes, moeda, fmt, t, tx, converterDeBRL, converterParaBRL, historicoVendas, setHistoricoVendas, patenteUsuario, idioma, regrasDesconto, vendedores = [], operadorAtivo, sessaoAtiva }) {
   const [rascunhoInicial] = useState(() => lerRascunhoPDV(userId, operadorAtivo?.id));
   const [avisoRascunhoRecuperado, setAvisoRascunhoRecuperado] = useState(Boolean(rascunhoInicial?.itensVenda?.length));
   const [termoBusca, setTermoBusca] = useState('');
@@ -63,7 +63,11 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
   const operacaoEmAndamentoRef = useRef(false);
   const operacaoDocumentoRef = useRef(rascunhoInicial?.operacaoDocumento?.id ? rascunhoInicial.operacaoDocumento : { assinatura: null, id: null, instante: null });
 
-  const [modalResgateAberto, setModalResgateAberto] = useState(false);
+  const [modalResgateAberto, setModalResgateAberto] = useState(abrirFilaOnlineToken > 0);
+  // A ação do cabeçalho reaproveita a fila existente, sem nova assinatura.
+  useEffect(() => {
+    if (abrirFilaOnlineToken > 0) setModalResgateAberto(true);
+  }, [abrirFilaOnlineToken]);
   const [prePedidoEmAbertoId, setPrePedidoEmAbertoId] = useState(rascunhoInicial?.prePedidoEmAbertoId || null);
   const PAGINA_PEDIDOS_ONLINE = 50;
   const [pedidosRecentes, setPedidosRecentes] = useState([]);
@@ -77,6 +81,9 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
     [...pedidosRecentes, ...pedidosAnteriores].forEach(pedido => unicos.set(String(pedido.id), pedido));
     return [...unicos.values()].sort((a, b) => String(b.criadoEm || b.createdAt || '').localeCompare(String(a.criadoEm || a.createdAt || '')));
   }, [pedidosRecentes, pedidosAnteriores]);
+  useEffect(() => {
+    onPedidosOnlineAtualizados?.(pedidosRecentes.length);
+  }, [pedidosRecentes.length, onPedidosOnlineAtualizados]);
 
   // Prioriza os 50 pedidos pendentes mais recentes (com índice composto).
   // Enquanto o índice não estiver provisionado, há fallback seguro para
