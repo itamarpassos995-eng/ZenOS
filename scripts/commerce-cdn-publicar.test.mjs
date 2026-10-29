@@ -82,8 +82,8 @@ test('publicador repassa o token do proprietário somente às leituras pontuais'
 test('publisher é inerte em produção e quando não habilitado',async()=>{
   let count=0;
   const h=createPublishHandler({verify:async()=>{count++;return {uid:'loja-1'};},publish:async()=>{count++;}});
-  process.env.VERCEL_ENV='production';process.env.ZENOS_COMMERCE_PUBLISH_ENABLED='true';
-  const r=res();await h({method:'POST',headers:{authorization:'Bearer fake'}},r);
+  process.env.VERCEL_ENV='production';process.env.ZENOS_COMMERCE_PUBLISH_ENABLED='false';
+  const r=res();await h({method:'POST',headers:{authorization:'Bearer fake'},body:{produtos:store.produtos}},r);
   assert.equal(r.code,503);assert.equal(count,0);
   process.env.VERCEL_ENV='preview';delete process.env.ZENOS_COMMERCE_PUBLISH_ENABLED;
   const q=res();await h({method:'POST',headers:{authorization:'Bearer fake'}},q);
@@ -95,7 +95,7 @@ test('publisher exige dono com ID token verificável e URL validada',async()=>{
   const h=createPublishHandler({verify:async token=>{assert.equal(token,'fake');return {uid:'loja-1'};},
     publish:async owner=>{uid=owner;return {slug:'loja-teste',quantidadeProdutos:1};}});
   const no=res();await h({method:'POST',headers:{}},no);assert.equal(no.code,401);
-  const yes=res();await h({method:'POST',headers:{authorization:'Bearer fake'}},yes);
+  const yes=res();await h({method:'POST',headers:{authorization:'Bearer fake'},body:{produtos:store.produtos}},yes);
   assert.equal(yes.code,200);assert.equal(uid,'loja-1');
 });
 test('nunca lê listas ou caminhos arbitrários',()=>{
@@ -135,4 +135,17 @@ test('publicador recusa catálogo sem produtos em vez de apagar a vitrine',async
    produtosPublicos:[],load:async()=>{n++;throw Error('nao ler');}
  }),/produtos-publicos-invalidos/);
  assert.equal(n,0);
+});
+
+test('produção habilitada exige ID token e lista de produtos antes de publicar',async()=>{
+ process.env.VERCEL_ENV='production';process.env.ZENOS_COMMERCE_PUBLISH_ENABLED='true';
+ let calls=0;
+ const h=createPublishHandler({verify:async()=>({uid:'loja-1'}),
+   publish:async()=>{calls++;return {slug:'loja-teste'};}});
+ const missing=res();await h({method:'POST',headers:{authorization:'Bearer fake'},body:{}},missing);
+ assert.equal(missing.code,400);
+ assert.equal(calls,0);
+ const present=res();await h({method:'POST',headers:{authorization:'Bearer fake'},body:{produtos:store.produtos}},present);
+ assert.equal(present.code,200);
+ assert.equal(calls,1);
 });
