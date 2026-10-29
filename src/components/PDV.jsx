@@ -140,6 +140,52 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
     }
   };
 
+  const normalizarWhatsNumero = (tel) => {
+    if (!tel) return '';
+    const num = String(tel).replace(/\D/g, '');
+    if (!num) return '';
+    if (num.length === 10 || num.length === 11) return '55' + num;
+    return num;
+  };
+
+  const enviarAvisoWhatsApp = (e, pedido, tipoAviso) => {
+    e.stopPropagation();
+    const numWhats = normalizarWhatsNumero(pedido.clienteTelefone);
+    if (!numWhats) {
+      mostrarZen('warning', tx('Telefone inválido','Teléfono inválido','Invalid phone'), tx('O cliente não informou um número de WhatsApp com DDD.','El cliente no informó un número con código de área.','Customer did not provide a valid area code and number.'));
+      return;
+    }
+
+    let texto = '';
+    const nomeLoja = perfilRecibo?.nomeFantasia || perfilRecibo?.nomeLoja || 'nossa loja';
+
+    if (tipoAviso === 'separando') {
+      texto = `Olá, *${pedido.clienteNome}*! 👋\n\nAqui é da *${nomeLoja}*. Seu pedido *${pedido.id}* já está sendo preparado e separado pela nossa equipe! 📦✨\nQualquer dúvida ou novidade avisamos você por aqui.`;
+    } else if (tipoAviso === 'pronto_saiu') {
+      if (pedido.tipoEntrega === 'entrega') {
+        const end = pedido.endereco ? `${pedido.endereco.rua}, Nº ${pedido.endereco.numero} (${pedido.endereco.bairro})` : 'seu endereço';
+        texto = `Olá, *${pedido.clienteNome}*! 🛵💨\n\nBoas notícias da *${nomeLoja}*: seu pedido *${pedido.id}* acabou de sair para entrega com destino a:\n📍 *${end}*.\n\nFique atento(a) para receber!`;
+      } else {
+        texto = `Olá, *${pedido.clienteNome}*! 🛍️✨\n\nBoas notícias da *${nomeLoja}*: seu pedido *${pedido.id}* já está embalado e prontinho para retirada no balcão da loja! Pode passar para buscar quando quiser.`;
+      }
+    }
+
+    const url = `https://wa.me/${numWhats}?text=${encodeURIComponent(texto)}`;
+    try {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (_) {}
+
+    if (userId && pedido.id) {
+      try {
+        const docRef = doc(db, 'lojas', String(userId), 'pedidos_online', String(pedido.id));
+        updateDoc(docRef, {
+          statusAtendimento: tipoAviso,
+          atualizadoEm: new Date().toISOString()
+        }).catch(err => console.warn('Erro ao atualizar status do pedido:', err));
+      } catch (_) {}
+    }
+  };
+
   const cancelarPedidoOnline = async (e, pedidoId) => {
     e.stopPropagation();
     if (!userId || !pedidoId) return;
@@ -1225,56 +1271,159 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
                     </span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {pedidosOnline.map(ped => (
-                      <div
-                        key={ped.id}
-                        onClick={() => carregarPedidoOnline(ped)}
-                        role="button"
-                        tabIndex={0}
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          padding: '14px 16px',
-                          background: 'linear-gradient(135deg, #0c2340, #031427)',
-                          border: '1px solid #0284c7',
-                          borderRadius: '12px',
-                          cursor: 'pointer',
-                          boxShadow: '0 4px 12px rgba(2, 132, 199, 0.25)'
-                        }}
-                      >
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span style={{ background: '#0284c7', color: '#fff', fontSize: '10px', fontWeight: 900, padding: '2px 6px', borderRadius: '4px' }}>
-                              ONLINE
-                            </span>
-                            <strong style={{ color: '#fff', fontSize: '15px' }}>{ped.clienteNome}</strong>
+                    {pedidosOnline.map(ped => {
+                      const isEntrega = ped.tipoEntrega === 'entrega';
+                      const statusAviso = ped.statusAtendimento || 'pendente';
+                      const formaPagtoRotulo = {
+                        pix: '💠 PIX',
+                        cartao: '💳 Cartão',
+                        dinheiro: `💵 Dinheiro${ped.trocoPara ? ' (Troco p/ R$ ' + ped.trocoPara + ')' : ''}`
+                      }[ped.formaPagamento] || '';
+
+                      return (
+                        <div
+                          key={ped.id}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '10px',
+                            padding: '16px',
+                            background: 'linear-gradient(135deg, #0c2340, #031427)',
+                            border: '1px solid #0284c7',
+                            borderRadius: '14px',
+                            boxShadow: '0 4px 16px rgba(2, 132, 199, 0.25)'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px' }}>
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                <span style={{ background: '#0284c7', color: '#fff', fontSize: '10px', fontWeight: 900, padding: '2px 8px', borderRadius: '4px' }}>
+                                  ONLINE {ped.id}
+                                </span>
+                                <strong style={{ color: '#fff', fontSize: '16px' }}>{ped.clienteNome}</strong>
+
+                                {statusAviso === 'separando' && (
+                                  <span style={{ background: '#d97706', color: '#fff', fontSize: '10px', fontWeight: 800, padding: '2px 6px', borderRadius: '4px' }}>
+                                    👨‍🍳 Em Separação
+                                  </span>
+                                )}
+                                {statusAviso === 'pronto_saiu' && (
+                                  <span style={{ background: '#059669', color: '#fff', fontSize: '10px', fontWeight: 800, padding: '2px 6px', borderRadius: '4px' }}>
+                                    {isEntrega ? '🛵 A Caminho' : '🛍️ Pronto p/ Retirada'}
+                                  </span>
+                                )}
+                              </div>
+
+                              <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                <div>📱 <strong style={{ color: '#cbd5e1' }}>{ped.clienteTelefone}</strong> • {ped.itens?.length || 0} {tx('itens','ítems','items')} • {ped.dataHora}</div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '2px' }}>
+                                  <span style={{ background: isEntrega ? '#1e293b' : '#064e3b', color: isEntrega ? '#38bdf8' : '#34d399', fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '6px', border: `1px solid ${isEntrega ? '#0284c7' : '#059669'}` }}>
+                                    {isEntrega ? (
+                                      `🛵 Entrega: ${ped.endereco?.rua || ''}, Nº ${ped.endereco?.numero || ''} - ${ped.endereco?.bairro || ''}${ped.endereco?.complemento ? ' (' + ped.endereco.complemento + ')' : ''}`
+                                    ) : (
+                                      `🛍️ Retirada no balcão`
+                                    )}
+                                  </span>
+
+                                  {formaPagtoRotulo && (
+                                    <span style={{ background: '#1e1b4b', color: '#c084fc', fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '6px', border: '1px solid #6366f1' }}>
+                                      {formaPagtoRotulo}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {ped.observacao && (
+                                  <span style={{ color: '#f59e0b', fontStyle: 'italic', marginTop: '4px', background: 'rgba(245, 158, 11, 0.1)', padding: '4px 8px', borderRadius: '6px', border: '1px dashed rgba(245, 158, 11, 0.3)' }}>
+                                    Obs: "{ped.observacao}"
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div style={{ textAlign: 'right' }}>
+                              <div style={{ fontWeight: 900, color: '#38bdf8', fontSize: '18px' }}>{fmt(ped.totalBRL)}</div>
+                            </div>
                           </div>
-                          <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
-                            📱 {ped.clienteTelefone} • {ped.itens?.length || 0} {tx('itens','ítems','items')} • {ped.dataHora}
-                            {ped.observacao && (
-                              <span style={{ display: 'block', color: '#f59e0b', fontStyle: 'italic', marginTop: '2px' }}>
-                                Obs: "{ped.observacao}"
-                              </span>
-                            )}
+
+                          {/* BOTÕES DE AÇÃO RÁPIDA: AVISOS WHATSAPP E FINALIZAÇÃO NO PDV */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', paddingTop: '10px', borderTop: '1px solid rgba(2, 132, 199, 0.25)', flexWrap: 'wrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                              <button
+                                type="button"
+                                onClick={(e) => enviarAvisoWhatsApp(e, ped, 'separando')}
+                                title="Avisar cliente no WhatsApp que o pedido começou a ser preparado"
+                                style={{
+                                  background: statusAviso === 'separando' ? '#d97706' : '#1e293b',
+                                  border: '1px solid #d97706',
+                                  color: '#fff',
+                                  borderRadius: '8px',
+                                  fontSize: '11px',
+                                  fontWeight: 800,
+                                  padding: '6px 10px',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                              >
+                                👨‍🍳 {tx('Avisar Separação','Avisar Preparación','Notify Prep')}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={(e) => enviarAvisoWhatsApp(e, ped, 'pronto_saiu')}
+                                title={isEntrega ? 'Avisar cliente que o pedido saiu para entrega' : 'Avisar cliente que o pedido está pronto para retirada'}
+                                style={{
+                                  background: statusAviso === 'pronto_saiu' ? '#059669' : '#1e293b',
+                                  border: '1px solid #059669',
+                                  color: '#fff',
+                                  borderRadius: '8px',
+                                  fontSize: '11px',
+                                  fontWeight: 800,
+                                  padding: '6px 10px',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                              >
+                                {isEntrega ? `🛵 ${tx('Avisar Saída','Avisar Salida','Notify Out')}` : `🛍️ ${tx('Avisar Pronto','Avisar Listo','Notify Ready')}`}
+                              </button>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <button
+                                type="button"
+                                onClick={() => carregarPedidoOnline(ped)}
+                                style={{
+                                  background: 'linear-gradient(135deg, #10b981, #059669)',
+                                  border: 'none',
+                                  color: '#fff',
+                                  borderRadius: '8px',
+                                  padding: '8px 14px',
+                                  fontSize: '12px',
+                                  fontWeight: 900,
+                                  cursor: 'pointer',
+                                  boxShadow: '0 2px 8px rgba(16, 185, 129, 0.4)'
+                                }}
+                              >
+                                🛒 {tx('Abrir no Caixa →','Abrir en Caja →','Open in POS →')}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={(e) => cancelarPedidoOnline(e, ped.id)}
+                                title={tx('Cancelar pedido','Cancelar pedido','Cancel order')}
+                                style={{ background: 'transparent', border: '1px solid #475569', color: '#94a3b8', borderRadius: '6px', fontSize: '11px', padding: '6px 10px', cursor: 'pointer' }}
+                              >
+                                ✕
+                              </button>
+                            </div>
                           </div>
                         </div>
-                        <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                          <div style={{ fontWeight: 900, color: '#38bdf8', fontSize: '16px' }}>{fmt(ped.totalBRL)}</div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ fontSize: '10px', color: '#34d399', fontWeight: 800 }}>{tx('Abrir no Caixa →','Abrir en Caja →','Open in POS →')}</span>
-                            <button
-                              type="button"
-                              onClick={(e) => cancelarPedidoOnline(e, ped.id)}
-                              title={tx('Cancelar pedido','Cancelar pedido','Cancel order')}
-                              style={{ background: 'transparent', border: '1px solid #475569', color: '#94a3b8', borderRadius: '6px', fontSize: '10px', padding: '2px 6px', cursor: 'pointer' }}
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
