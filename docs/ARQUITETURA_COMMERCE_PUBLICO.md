@@ -14,7 +14,7 @@ Manter o **Firestore como fonte oficial** e o **PDV integralmente intacto**. Pub
 
 ## Etapas obrigatórias
 1. **Esta branch:** contrato puro de snapshot e validação + cliente de leitura de JSON por API pública. Sem autenticação Firebase no transporte, sem fallback para Firestore; testes isolados. Nenhum endpoint ativo, checkout ou deploy de código. Não faz publicação automática.
-2. **Backend isolado:** conectar Blob pública com variáveis restritas; endpoints autenticados para publicar e não autenticados para ler; versão/cache/alias. A conexão requer homologação de custo e segurança.
+2. **Backend isolado:** Blob pública já está conectada. O GET /api/commerce/catalogo?slug= existe **somente na branch**, não consulta Firebase e lê JSON do domínio Blob validado por ZENOS_COMMERCE_CDN_ORIGIN. Sem origem configurada devolve 503. Falta implementar PUBLICAÇÃO AUTENTICADA (acesso pontual aos dados oficiais, revisão de dados pessoais, upload separado de fotos), antes de utilizar o endpoint.
 3. **Pedidos:** criar API protegida, confirmar dados oficiais com acesso mínimo, gravar idempotentemente pedidos no destino já utilizado pelo PDV e validar todo o fluxo.
 4. **Piloto Zênite Atacadão:** testar janela anônima, celular, cache, 1/2/3 fotos, preços, alteração de estoque, escolha de entrega/pagamento, pedidos e WhatsApp. Medir leituras antes/depois.
 5. **Liberação gradual:** recurso habilitado por loja somente após testes; sem fallback automático que passe a consultar Firestore a cada visita.
