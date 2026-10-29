@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { normalizarProduto, normalizarCliente } from '../data';
 import { aplicarVendaAoEstoque, obterEstoqueProduto, preverBaixaEstoqueProduto } from '../core/inventory';
 import { db } from '../firebase';
-import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit, startAfter, getDocs, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { criarEventoEstoque, registrarEventosEstoque } from '../core/stockAudit';
 import { ajustarSkuPorTipoProdutoRapido, ehEncomendaUsoUnico, gerarSkuProdutoBalcao } from '../core/orderItems';
 import { classificarMargem } from '../core/profitability';
@@ -65,28 +65,65 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
 
   const [modalResgateAberto, setModalResgateAberto] = useState(false);
   const [prePedidoEmAbertoId, setPrePedidoEmAbertoId] = useState(rascunhoInicial?.prePedidoEmAbertoId || null);
-  const [pedidosOnline, setPedidosOnline] = useState([]);
+  const PAGINA_PEDIDOS_ONLINE = 50;
+  const [pedidosRecentes, setPedidosRecentes] = useState([]);
+  const [pedidosAnteriores, setPedidosAnteriores] = useState([]);
+  const [cursorPedidos, setCursorPedidos] = useState(null);
+  const [maisPedidosDisponiveis, setMaisPedidosDisponiveis] = useState(false);
+  const [carregandoMaisPedidos, setCarregandoMaisPedidos] = useState(false);
+  const pedidosOnline = useMemo(() => {
+    const unicos = new Map();
+    [...pedidosRecentes, ...pedidosAnteriores].forEach(pedido => unicos.set(String(pedido.id), pedido));
+    return [...unicos.values()].sort((a, b) => String(b.criadoEm || b.createdAt || '').localeCompare(String(a.criadoEm || a.createdAt || '')));
+  }, [pedidosRecentes, pedidosAnteriores]);
 
+  // O PDV acompanha somente os 50 pedidos pendentes mais recentes.
+  // Pedidos antigos são paginados exclusivamente ao solicitar "Carregar mais".
   useEffect(() => {
     if (!userId) return;
-    try {
-      const refCol = collection(db, 'lojas', String(userId), 'pedidos_online');
-      const q = query(refCol, where('estado', '==', 'pendente'));
-      const unsub = onSnapshot(q, snap => {
-        const lista = [];
-        snap.forEach(d => {
-          lista.push({ ...d.data(), id: d.id });
-        });
-        lista.sort((a, b) => new Date(b.criadoEm || b.createdAt || 0) - new Date(a.criadoEm || a.createdAt || 0));
-        setPedidosOnline(lista);
-      }, err => {
-        console.warn('[PDV] Listener pedidos_online:', err);
-      });
-      return () => unsub();
-    } catch (err) {
-      console.warn('[PDV] Erro ao conectar pedidos_online:', err);
-    }
+    setPedidosRecentes([]);
+    setPedidosAnteriores([]);
+    setCursorPedidos(null);
+    setMaisPedidosDisponiveis(false);
+    const refCol = collection(db, 'lojas', String(userId), 'pedidos_online');
+    const q = query(refCol, where('estado', '==', 'pendente'), orderBy('criadoEm', 'desc'), limit(PAGINA_PEDIDOS_ONLINE));
+    const unsub = onSnapshot(q, snap => {
+      setPedidosRecentes(snap.docs.map(d => ({ ...d.data(), id: d.id })));
+      setPedidosAnteriores([]);
+      setCursorPedidos(snap.docs.at(-1) || null);
+      setMaisPedidosDisponiveis(snap.size === PAGINA_PEDIDOS_ONLINE);
+    }, err => {
+      console.warn('[PDV] Listener limitado de pedidos_online:', err);
+    });
+    return () => unsub();
   }, [userId]);
+
+  const carregarMaisPedidosOnline = async () => {
+    if (!userId || !cursorPedidos || !maisPedidosDisponiveis || carregandoMaisPedidos) return;
+    setCarregandoMaisPedidos(true);
+    try {
+      const q = query(
+        collection(db, 'lojas', String(userId), 'pedidos_online'),
+        where('estado', '==', 'pendente'),
+        orderBy('criadoEm', 'desc'),
+        startAfter(cursorPedidos),
+        limit(PAGINA_PEDIDOS_ONLINE),
+      );
+      const snap = await getDocs(q);
+      const adicionais = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+      setPedidosAnteriores(atuais => {
+        const unicos = new Map();
+        [...atuais, ...adicionais].forEach(p => unicos.set(String(p.id), p));
+        return [...unicos.values()];
+      });
+      setCursorPedidos(snap.docs.at(-1) || null);
+      setMaisPedidosDisponiveis(snap.size === PAGINA_PEDIDOS_ONLINE);
+    } catch (err) {
+      console.warn('[PDV] Falha ao paginar pedidos_online:', err);
+    } finally {
+      setCarregandoMaisPedidos(false);
+    }
+  };
 
   const carregarPedidoOnline = (pedido) => {
     if (!pedido || !Array.isArray(pedido.itens) || !pedido.itens.length) return;
@@ -1424,6 +1461,12 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
                         </div>
                       );
                     })}
+                    {maisPedidosDisponiveis && (
+                      <button type="button" onClick={carregarMaisPedidosOnline} disabled={carregandoMaisPedidos}
+                        style={{ background:'#0c2340', color:'#7dd3fc', border:'1px solid #0284c7', borderRadius:10, padding:12, fontWeight:800, cursor:carregandoMaisPedidos?'wait':'pointer' }}>
+                        {carregandoMaisPedidos ? tx('Carregando…','Cargando…','Loading…') : tx('Carregar mais pedidos','Cargar más pedidos','Load more orders')}
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
