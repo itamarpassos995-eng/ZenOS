@@ -8,6 +8,7 @@ import './CommerceVitrinePreview.css';
 import '../commerce.css';
 
 export default function CommerceVitrinePreview({ lojaIdRota }) {
+  const isPublicLink = Boolean(lojaIdRota && lojaIdRota !== 'previa');
   const [situacao, setSituacao] = useState('autenticando');
   const [config, setConfig] = useState(null);
   const [semConfiguracao, setSemConfiguracao] = useState(false);
@@ -39,11 +40,16 @@ export default function CommerceVitrinePreview({ lojaIdRota }) {
       auth,
       (usuario) => {
         const atual = ++versao;
+
+        // Visitante público sem login: tenta login anônimo para obter permissão de leitura
         if (!usuario) {
-          if (lojaIdRota && lojaIdRota !== 'previa') {
-            try {
-              signInAnonymously(auth).catch(() => {});
-            } catch (_) {}
+          if (isPublicLink) {
+            signInAnonymously(auth).catch((err) => {
+              console.warn('[ZenOS Commerce] Login anônimo indisponível:', err?.code || err?.message);
+              if (ativo && atual === versao) {
+                setSituacao('erro-auth');
+              }
+            });
             return;
           }
           setConfig(null);
@@ -73,7 +79,7 @@ export default function CommerceVitrinePreview({ lojaIdRota }) {
             if (!ativo || atual !== versao) return;
 
             setLojaIdEfetivo(idDaLoja);
-            const souDono = Boolean(usuario && usuario.uid === idDaLoja);
+            const souDono = Boolean(usuario && !usuario.isAnonymous && usuario.uid === idDaLoja);
             setEhProprietario(souDono);
 
             if (!ativo || atual !== versao) return;
@@ -83,12 +89,18 @@ export default function CommerceVitrinePreview({ lojaIdRota }) {
               ? snapLoja.data().produtos
               : [];
 
+            if (!dadosConfig && !snapLoja?.exists() && isPublicLink) {
+              setSituacao('nao-encontrada');
+              return;
+            }
+
             setConfig(normalizarCommerceConfig(dadosConfig || {}, null, idDaLoja));
             setSemConfiguracao(!dadosConfig);
             setProdutosLoja(produtos);
             setSituacao('pronto');
-          } catch {
+          } catch (err) {
             if (!ativo || atual !== versao) return;
+            console.error('[ZenOS Commerce] Erro ao carregar vitrine:', err);
             setConfig(null);
             setSituacao('erro');
           }
@@ -107,16 +119,60 @@ export default function CommerceVitrinePreview({ lojaIdRota }) {
       versao++;
       cancelar();
     };
-  }, [lojaIdRota, recarregar]);
+  }, [lojaIdRota, isPublicLink, recarregar]);
 
   if (situacao !== 'pronto') {
+    // Se for link público para clientes, exibe visual limpo e sem jargões internos
+    if (isPublicLink) {
+      if (situacao === 'autenticando' || situacao === 'carregando') {
+        return (
+          <main className="commerce-public-loading">
+            <div className="commerce-loading-card">
+              <div className="commerce-spinner" />
+              <p>Carregando loja online…</p>
+            </div>
+          </main>
+        );
+      }
+
+      if (situacao === 'nao-encontrada') {
+        return (
+          <main className="commerce-public-loading">
+            <div className="commerce-loading-card">
+              <span className="commerce-loading-icon">🛍️</span>
+              <h2>Loja não encontrada</h2>
+              <p>O link que você acessou não corresponde a nenhuma vitrine ativa no momento.</p>
+              <button type="button" className="btn-refresh-public" onClick={() => setRecarregar(n => n + 1)}>
+                Tentar novamente
+              </button>
+            </div>
+          </main>
+        );
+      }
+
+      if (situacao === 'erro-auth') {
+        return (
+          <main className="commerce-public-loading">
+            <div className="commerce-loading-card">
+              <span className="commerce-loading-icon">⚠️</span>
+              <h2>Acesso temporariamente indisponível</h2>
+              <p>O acesso de visitantes públicos está sendo inicializado. Se você é o lojista, verifique se o Login Anônimo está ativado no Firebase Authentication.</p>
+              <button type="button" className="btn-refresh-public" onClick={() => setRecarregar(n => n + 1)}>
+                Tentar novamente
+              </button>
+            </div>
+          </main>
+        );
+      }
+    }
+
     const mensagem = {
       autenticando: 'Verificando o acesso à vitrine…',
       carregando: 'Carregando as configurações da sua loja…',
       login: 'Entre na sua conta ZenOS para visualizar a vitrine da sua loja.',
       proibido: 'Este link pertence a outra loja. Entre com a conta correspondente.',
       erro: 'Não foi possível ler as configurações. Verifique sua conexão e tente novamente.'
-    }[situacao];
+    }[situacao] || 'Carregando…';
 
     return (
       <main className="commerce-link-preview commerce-preview-message">
