@@ -27,11 +27,12 @@ test('publisher só usa três caminhos diretos e nunca os dados de custo',async(
   const paths=[];let published;
   const result=await publicarCatalogoCore('loja-1',{
     load:async path=>{paths.push(path.join('/'));return mockData('loja-1')(path);},
+    produtosPublicos:store.produtos,
     migrate:async snapshot=>snapshot,
     put:async(path,body)=>{published={path,body};return 'https://exemplo.com/catalogo.json';},
     at:()=> '2026-10-29T12:00:00.000Z'
   });
-  assert.deepEqual(paths,['lojas/loja-1/dados/configuracoes','lojas/loja-1','lojas_slugs/loja-teste']);
+  assert.deepEqual(paths,['lojas/loja-1/dados/configuracoes','lojas_slugs/loja-teste']);
   assert.equal(result.slug,'loja-teste');
   assert.equal(result.quantidadeProdutos,1);
   assert.equal(published.path,'commerce/catalogos/loja-teste.json');
@@ -43,6 +44,7 @@ test('publisher recusa slug pertencente a outra loja sem gravar Blob',async()=>{
   let writes=0;
   await assert.rejects(publicarCatalogoCore('loja-1',{
     load:async path=>path[0]==='lojas_slugs'?{lojaId:'outra-loja'}:mockData('loja-1')(path),
+    produtosPublicos:store.produtos,
     migrate:async x=>x,put:async()=>{writes++;},
   }),/apelido-nao-confirmado/);
   assert.equal(writes,0);
@@ -66,7 +68,7 @@ test('publicador repassa o token do proprietário somente às leituras pontuais'
   const calls=[];
   const expected='firebase-owner-token';
   await publicarCatalogoCore('loja-1',{
-    authToken:expected,
+    authToken:expected,produtosPublicos:store.produtos,
     load:async(path,opts)=>{
       calls.push({path:path.join('/'),token:opts.token});
       if(path.join('/').startsWith('lojas_slugs/'))return {lojaId:'loja-1'};
@@ -74,7 +76,7 @@ test('publicador repassa o token do proprietário somente às leituras pontuais'
     },
     migrate:async x=>x,put:async()=> 'https://exemplo.com/c.json',
   });
-  assert.equal(calls.length,3);
+  assert.equal(calls.length,2);
   assert.ok(calls.every(x=>x.token===expected));
 });
 test('publisher é inerte em produção e quando não habilitado',async()=>{
@@ -108,4 +110,29 @@ test('Blob usa store-id sem prefixo e flags REST oficiais',async()=>{
  assert.match(code,/'x-vercel-blob-store-id':'fKepXWjAeW2ueMrB'/);
  assert.match(code,/'x-allow-overwrite':'1'/);
  assert.match(code,/'x-add-random-suffix':'0'/);
+});
+
+test('publicador não faz leitura de estoque nem coleção para catálogo vindo do V2',async()=>{
+ let paths=[];let payload;
+ const products=[{id:'p1',nome:'Tinta V2',precoBRL:50,estoque:3,custoBRL:25,fornecedor:'SEGREDO'}];
+ const result=await publicarCatalogoCore('loja-1',{
+   produtosPublicos:products,
+   load:async segments=>{
+     paths.push(segments.join('/'));
+     return segments[0]==='lojas_slugs'?{lojaId:'loja-1'}:config;
+   },
+   migrate:async s=>s,
+   put:async(_path,body)=>{payload=body;return 'https://exemplo.com/json';},
+ });
+ assert.equal(result.quantidadeProdutos,1);
+ assert.deepEqual(paths,['lojas/loja-1/dados/configuracoes','lojas_slugs/loja-teste']);
+ assert.ok(payload.includes('Tinta V2'));
+ assert.ok(!payload.includes('SEGREDO'));
+});
+test('publicador recusa catálogo sem produtos em vez de apagar a vitrine',async()=>{
+ let n=0;
+ await assert.rejects(publicarCatalogoCore('loja-1',{
+   produtosPublicos:[],load:async()=>{n++;throw Error('nao ler');}
+ }),/produtos-publicos-invalidos/);
+ assert.equal(n,0);
 });

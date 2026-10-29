@@ -462,12 +462,23 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
       const response = await fetch('/api/commerce/publicar', {
         method: 'POST',
         headers: { Authorization: 'Bearer ' + bearer, 'Content-Type': 'application/json' },
-        body: '{}',
+        body: JSON.stringify({
+          // A lista do PDV já está carregada pelo repositório operacional (inclusive V2).
+          // Enviar somente campos públicos, nunca custo, fornecedor, clientes ou histórico.
+          produtos: produtos.map((p) => ({
+            id: p.id, nome: p.nome, precoBRL: p.precoBRL, preco: p.preco,
+            precoVenda: p.precoVenda, precoUnitario: p.precoUnitario,
+            estoque: p.estoque, grupo: p.grupo, categoria: p.categoria,
+            descricao: p.descricao, detalhes: p.detalhes,
+            imagem: typeof p.imagem === 'string' && p.imagem.startsWith('https://') ? p.imagem : '',
+            fotoUrl: typeof p.fotoUrl === 'string' && p.fotoUrl.startsWith('https://') ? p.fotoUrl : '',
+          })),
+        }),
       });
       const resultado = await response.json().catch(() => ({}));
       if (!response.ok || resultado.status !== 'publicado') throw new Error(resultado.erro || 'publicacao-indisponivel');
       avisarZen('success', 'Catálogo publicado',
-        'A vitrine de homologação foi atualizada na CDN. Os produtos do ZenOS não foram modificados.');
+        'O endereço de sua loja está atualizado. Os produtos do ZenOS não foram modificados.');
     } catch (erro) {
       avisarZen('danger', 'Publicação não realizada',
         'Não foi possível publicar a vitrine na CDN. Confira o link e as configurações salvas.', [erro.message]);
@@ -1698,7 +1709,7 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
             <button type="button" className="btn-zen-secondary btn-sm"
               disabled={salvandoConfig || publicandoCdn}
               onClick={publicarCatalogoCdn}>
-              {publicandoCdn ? 'Publicando catálogo…' : '☁ Publicar vitrine de homologação'}
+              {publicandoCdn ? 'Publicando catálogo…' : '☁ Publicar Loja Online'}
             </button>
           )}
           <button
