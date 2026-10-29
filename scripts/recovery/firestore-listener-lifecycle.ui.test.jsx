@@ -1,5 +1,5 @@
 import {test,expect,vi,beforeEach} from 'vitest';
-const fake=vi.hoisted(()=>({listeners:[],readControl:null}));
+const fake=vi.hoisted(()=>({listeners:[],readControl:null,cachedHead:null,cachedPages:null}));
 vi.mock('firebase/firestore',()=>({
  doc:(...parts)=>({kind:'doc',parts}),
  collection:(...parts)=>({kind:'collection',parts}),
@@ -10,6 +10,8 @@ vi.mock('firebase/firestore',()=>({
  limit:value=>({kind:'limit',value}),
  startAfter:(...parts)=>({kind:'startAfter',parts}),
  getDocsFromServer:vi.fn(async()=>({docs:[],size:0})),
+ getDocsFromCache:vi.fn(async q=>fake.cachedPages?fake.cachedPages(q):{docs:[],size:0}),
+ getDocFromCache:vi.fn(async()=>fake.cachedHead||{exists:()=>false}),
  getDocFromServer:vi.fn(async()=>fake.readControl?fake.readControl():{exists:()=>false}),
  onSnapshot:vi.fn((_,onData,onError)=>{
    const item={onData,onError,active:true,stops:0};
@@ -17,12 +19,13 @@ vi.mock('firebase/firestore',()=>({
    return()=>{item.active=false;item.stops++;};
  }),
 }));
+import {getDocsFromServer,getDocsFromCache} from 'firebase/firestore';
 import {V2Session,subscribeOperationalSnapshot} from '../../src/core/operationalRepository.js';
 const flush=async()=>{for(let i=0;i<8;i++)await Promise.resolve();};
 const meta={fromCache:false,hasPendingWrites:false};
 const blank={metadata:meta,docs:[],size:0};
 const full={metadata:meta,size:100,docs:Array.from({length:100},(_,i)=>({data:()=>({sequence:i+1,patches:[],revisions:{}})}))};
-beforeEach(()=>{fake.listeners.length=0;fake.readControl=null;});
+beforeEach(()=>{vi.clearAllMocks();fake.listeners.length=0;fake.readControl=null;fake.cachedHead=null;fake.cachedPages=null;});
 test('dois consumidores V2 usam um listener e último cancelamento encerra apenas uma vez',()=>{
  const s=new V2Session({},'loja',{generation:'g'});
  const a=s.subscribe(()=>{},()=>{});
@@ -78,4 +81,24 @@ test('listeners V1 e controle são cancelados e callbacks tardios não chegam ao
  fake.listeners[1].onError(Error('callback tardio'));
  expect(received).toHaveBeenCalledTimes(1);
  expect(errors).not.toHaveBeenCalled();
+});
+
+test('V2 reutiliza página completa do cache sem recarregar produtos do servidor',async()=>{
+ const headData={schema:2,state:'ready',sourceChecksum:'origem',sequence:1,
+  fieldManifest:{produtos:{kind:'array',collection:'produtos',count:1}},
+  fieldCounts:{produtos:1},fieldRevisions:{}};
+ const snap={exists:()=>true,data:()=>headData};
+ fake.cachedHead=snap;
+ fake.readControl=()=>snap;
+ fake.cachedPages=q=>{
+  const col=q.parts[0]?.parts||[];
+  return col.includes('produtos')
+   ? {docs:[{id:'p1',data:()=>({legacyField:'produtos',data:{id:'p1',nome:'Produto'},deleted:false})}],size:1}
+   : {docs:[],size:0};
+ };
+ const s=new V2Session({},'loja-cache',{generation:'g',sourceChecksum:'origem'});
+ await s.load();
+ expect(s.materialize().produtos).toHaveLength(1);
+ expect(getDocsFromCache).toHaveBeenCalled();
+ expect(getDocsFromServer).not.toHaveBeenCalled();
 });
