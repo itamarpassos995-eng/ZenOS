@@ -156,7 +156,8 @@ export default function ZenCommerceStorefront({
   configCommerce = null,
   produtos = [],
   isLivePreview = true,
-  checkoutViaWhatsApp = false
+  checkoutViaWhatsApp = false,
+  checkoutPrivado = false
 }) {
   // Prévia privada: nunca recuperar carrinho anterior nem dados de cliente.
   const [sessaoInicial] = useState(() => isLivePreview ? { carrinho: {}, chave: 'preview' } : recuperarSessao(idPublico));
@@ -292,6 +293,38 @@ export default function ZenCommerceStorefront({
         `\n\n_Aguardando confirmação de disponibilidade e atendimento._`
       );
       const whatsUrl = numeroWhats ? `https://wa.me/${numeroWhats}?text=${textoMensagem}` : '';
+
+      if (checkoutPrivado) {
+        let result;
+        try {
+          const response = await fetch('/api/commerce/inbox', {
+            method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({
+              slug:cfg.slug,requestId:chave,
+              cliente:{nome:cliente.nome,telefone:cliente.telefone,
+                observacao:cliente.observacao},
+              entrega,pagamento,
+              itens:itens.map(item=>({id:item.produtoId||item.skuPublico,
+                quantidade:item.quantidade}))
+            })
+          });
+          result = await response.json().catch(()=>({}));
+          if (!response.ok || result.status!=='registrado') {
+            // Nunca mostrar pedido como registrado quando o backend falha.
+            setErro('O pedido NÃO foi registrado no ZenOS. Tente novamente ou envie pelo WhatsApp.');
+            return;
+          }
+          setRecibo({
+            id:result.id,totalCentavos:result.totalCentavos,
+            whatsappUrl:whatsUrl,registradoNoSistema:true,
+            tipoEntrega:entrega.tipo,formaPagamento:pagamento.forma
+          });
+          return;
+        } catch {
+          setErro('Não foi possível registrar o pedido. Nenhuma compra foi confirmada.');
+          return;
+        }
+      }
 
       // Contingência opcional: pedido enviado pelo próprio consumidor no WhatsApp,
       // sem gravar Firestore e SEM declarar recepção automática pelo PDV.
@@ -821,13 +854,16 @@ export default function ZenCommerceStorefront({
           {recibo ? (
             <div className="commerce-receipt" role="status">
               <span className="commerce-empty-icon"><Icon name="check" /></span>
-              <h3>{recibo.aguardaEnvioManual ? 'Seu pedido está pronto para enviar' : 'Seu pedido foi recebido'}</h3>
+              <h3>{recibo.aguardaEnvioManual ? 'Seu pedido está pronto para enviar' :
+                recibo.registradoNoSistema ? 'Pedido enviado à loja!' : 'Seu pedido foi recebido'}</h3>
               <p>
                 Pedido <strong>{recibo.id}</strong> · Subtotal: {moeda(recibo.totalCentavos)}
               </p>
               <p>
                 {recibo.aguardaEnvioManual
                   ? 'Confirme o envio da mensagem no WhatsApp. Este pedido não foi registrado automaticamente no PDV; a loja confirmará o atendimento pela conversa.'
+                  : recibo.registradoNoSistema
+                    ? 'O pedido está na fila de atendimento do estabelecimento. Preços, estoque e pagamento serão confirmados pelo atendente.'
                   : recibo.isSimulacao
                     ? 'Demonstração de pedido concluída com sucesso! Na vitrine online, o pedido envia os dados diretamente para o WhatsApp da sua loja.'
                     : 'Agora converse com a loja para confirmar disponibilidade, entrega e pagamento.'}

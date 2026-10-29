@@ -49,7 +49,9 @@ function CommerceCdnHomologacao(){
     return <main className="commerce-public-view" data-commerce-cdn-homologacao="true">
       <ZenCommerceStorefront idPublico={data.idPublico} configCommerce={data.configCommerce}
         produtos={data.produtos} isLivePreview={import.meta.env.VITE_ZENOS_CDN_WHATSAPP_CHECKOUT !== 'true'}
-        checkoutViaWhatsApp={import.meta.env.VITE_ZENOS_CDN_WHATSAPP_CHECKOUT === 'true'}/>
+        checkoutViaWhatsApp={import.meta.env.VITE_ZENOS_CDN_WHATSAPP_CHECKOUT === 'true' &&
+          import.meta.env.VITE_ZENOS_PRIVATE_ORDERS_ENABLED !== 'true'}
+        checkoutPrivado={import.meta.env.VITE_ZENOS_PRIVATE_ORDERS_ENABLED === 'true'}/>
     </main>;
   }
   return <main className="commerce-public-loading"><div className="commerce-loading-card" role="status">

@@ -35,6 +35,7 @@ import FiscalErrorBoundary from './components/FiscalErrorBoundary';
 const CommerceSolicitacao = React.lazy(() => import('./components/CommerceSolicitacao'));
 import ZenModal from './components/ZenModal';
 import ZenAssistenteIA from './components/ZenAssistenteIA';
+import CommerceOrderInbox from './components/CommerceOrderInbox';
 import { normalizarPerfilLoja, lerPerfilLojaLocal, salvarPerfilLojaLocal, limparPerfilLojaLocal } from './core/storeProfile';
 import { assinarLivroFinanceiro, registrarLancamentoFinanceiro, consultarLivroFinanceiroSessaoServidor } from './core/financialLedger';
 import { planejarReconciliacoesFiado } from './core/creditReconciliation.js';
@@ -178,7 +179,16 @@ export default function App() {
   // Total informado pela assinatura limitada que JÁ existe dentro do PDV.
   // Não criar outra consulta Firestore para alimentar o cabeçalho.
   const [pedidosOnlineConhecidos, setPedidosOnlineConhecidos] = useState(null);
-  useEffect(() => { setPedidosOnlineConhecidos(null); }, [userId]);
+  const [totalPedidosPrivados, setTotalPedidosPrivados] = useState(0);
+  const [inboxPrivadoAberto, setInboxPrivadoAberto] = useState(false);
+  const [pedidoPrivadoSolicitado, setPedidoPrivadoSolicitado] = useState(null);
+  const usaFilaPrivada = import.meta.env.VITE_ZENOS_PRIVATE_ORDERS_ENABLED === 'true';
+  useEffect(() => {
+    setPedidosOnlineConhecidos(null);
+    setTotalPedidosPrivados(0);
+    setPedidoPrivadoSolicitado(null);
+    setInboxPrivadoAberto(false);
+  }, [userId]);
 
   const avisarAppZen = ({ variante = 'info', titulo, mensagem, detalhes = [] }) =>
     setModalAppZen({ variante, titulo, mensagem, detalhes, apenasConfirmar: true });
@@ -1461,8 +1471,19 @@ export default function App() {
 
   const abrirPedidosLojaNoPdv = () => {
     if (!temPermissao('pdv')) return;
-    // Ao abrir o PDV, a fila existente é exibida, sem montar outro listener.
+    if (usaFilaPrivada) {
+      // A lista de pedidos vem exclusivamente da Vercel, não do Firestore.
+      setInboxPrivadoAberto(true);
+      return;
+    }
+    // Fluxo legado permanece disponível enquanto a fila privada não é habilitada.
     setAbrirFilaOnlineToken(token => token + 1);
+    navegarPara('pdv');
+  };
+  const carregarPedidoPrivadoNoPdv = pedido => {
+    if (!temPermissao('pdv')) return;
+    setPedidoPrivadoSolicitado({pedido,token:Date.now()+'-'+Math.random()});
+    setInboxPrivadoAberto(false);
     navegarPara('pdv');
   };
 
@@ -1793,7 +1814,8 @@ export default function App() {
         }}
         topbarProps={{
           onAbrirPedidosLoja: temPermissao('pdv') ? abrirPedidosLojaNoPdv : undefined,
-          totalPedidosLoja: pedidosOnlineConhecidos,
+          totalPedidosLoja: usaFilaPrivada ? totalPedidosPrivados +
+            (pedidosOnlineConhecidos || 0) : pedidosOnlineConhecidos,
           status: statusSincronizacao,
           statusTitle: erroSincronizacao || statusSincronizacao,
           labelErroSincronizacao: tx('Erro ao sincronizar','Error al sincronizar','Sync error'),
@@ -1879,6 +1901,9 @@ export default function App() {
  )}
 
         {ecraAtual === 'pdv' && <PDV abrirFilaOnlineToken={abrirFilaOnlineToken}
+          pedidoPrivadoSolicitado={pedidoPrivadoSolicitado}
+          onPedidoPrivadoRecebido={token => setPedidoPrivadoSolicitado(atual =>
+            atual?.token===token ? null : atual)}
           onPedidosOnlineAtualizados={total => setPedidosOnlineConhecidos(anterior => anterior === total ? anterior : total)}
           perfilLoja={perfilLoja} taxasCambio={taxasCambio} registrarFinanceiro={registrarFinanceiro} commitOperacaoCritica={commitOperacaoCritica} commitVendaCritica={commitVendaCritica} recarregarDadosPDV={recarregarDadosPDV} vouchers={vouchers} setVouchers={setVouchers} userId={userId} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} patenteUsuario={patenteUsuario} idioma={idioma} regrasDesconto={regrasDesconto} vendedores={vendedores} operadorAtivo={operadorAtivo} sessaoAtiva={sessaoAtiva} />}
         {ecraAtual === 'compras' && <PDVCompras commitOperacaoNegocio={commitVendaCritica} registrarFinanceiro={registrarFinanceiro} saldoSessaoFisicoBRL={saldoSessaoFisicoBRL} userId={userId} produtos={produtos} setProdutos={setProdutos} fornecedores={fornecedores} setFornecedores={setFornecedores} despesas={despesas} setDespesas={setDespesas} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoCompras={historicoCompras} setHistoricoCompras={setHistoricoCompras} operadorAtivo={operadorAtivo} />}
@@ -1974,6 +1999,18 @@ export default function App() {
         </div>
       )}
     
+      {usaFilaPrivada && userId && temPermissao('pdv') && (
+        <CommerceOrderInbox lojaId={userId} aberto={inboxPrivadoAberto}
+          onFechar={() => setInboxPrivadoAberto(false)}
+          onContagem={setTotalPedidosPrivados}
+          onCarregarNoPdv={carregarPedidoPrivadoNoPdv}
+          onAbrirFilaAntiga={() => {
+            setInboxPrivadoAberto(false);
+            setAbrirFilaOnlineToken(token => token + 1);
+            navegarPara('pdv');
+          }}
+        />
+      )}
       <ZenAssistenteIA
         aberto={assistenteIAAberto}
         onAbrir={() => setAssistenteIAAberto(true)}
