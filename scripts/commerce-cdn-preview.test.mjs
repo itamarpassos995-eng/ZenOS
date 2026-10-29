@@ -21,8 +21,9 @@ test('preview CDN é entrada independente sem App Firebase Auth ou listeners',()
 test('rota pública alternativa permanece isolada da rota original e só habilita WhatsApp explicitamente',()=>{
  const rules=JSON.parse(readFileSync('vercel.json','utf8'));
  assert.deepEqual(rules.rewrites,[
-  {source:'/vitrine/:lojaId',destination:'/commerce-homologacao.html'},
-  {source:'/loja/:lojaId',destination:'/index.html'}
+  {source:'/loja/previa',destination:'/index.html'},
+  {source:'/loja/:lojaId',destination:'/commerce-homologacao.html'},
+  {source:'/vitrine/:lojaId',destination:'/commerce-homologacao.html'}
  ]);
  const src=readFileSync('src/components/ZenCommerceStorefront.jsx','utf8');
  assert.match(src,/checkoutViaWhatsApp = false/);
@@ -31,4 +32,12 @@ test('rota pública alternativa permanece isolada da rota original e só habilit
  const publicPage=readFileSync('src/commerce-homologacao-main.jsx','utf8');
  assert.match(publicPage,/VITE_ZENOS_CDN_WHATSAPP_CHECKOUT/);
  assert.match(publicPage,/checkoutViaWhatsApp=/);
+});
+
+test('link oficial permite apelido editável sem login Firebase para catálogo publicado',()=>{
+ const src=readFileSync('src/commerce-homologacao-main.jsx','utf8');
+ assert.match(src,/\(\?:loja\|vitrine\)/);
+ assert.match(src,/import\('\.\/components\/CommerceVitrinePreview'\)/);
+ assert.match(src,/err\?\.message==='loja-nao-publicada'/);
+ assert.match(src,/status:'pronto'/);
 });
