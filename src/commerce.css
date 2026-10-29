@@ -10,7 +10,10 @@ html.commerce-document.commerce-dialog-open { overflow-y:hidden; }
 .commerce-store :focus-visible { outline:3px solid #c18c39; outline-offset:4px; }
 .commerce-icon { width:20px; height:20px; flex:none; }
 .commerce-shell { width:min(1240px,100%); margin-inline:auto; padding-inline:clamp(18px,4vw,48px); }
-.commerce-test-note { padding:6px 18px; color:#705320; background:#f5ead6; text-align:center; font-size:11px; font-weight:700; letter-spacing:.06em; }
+/* O selo de homologação não aparece na vitrine pública. */
+.commerce-public-more { display:flex; gap:14px; align-items:center; justify-content:center; flex-direction:column; padding:28px 0 8px; text-align:center; }
+.commerce-public-more span { font-size:13px; color:#64748b; }
+.commerce-public-more .commerce-btn { width:auto; min-width:190px; }
 .commerce-announcement { background:var(--c-primary); color:#fff; text-align:center; padding:8px 18px; font-size:11px; letter-spacing:.04em; }
 .commerce-store .commerce-header { display:block; margin:0; background:#fff; border-bottom:1px solid #e4e7e5; }
 .commerce-header-row { min-height:100px; display:flex; align-items:center; justify-content:space-between; gap:24px; }

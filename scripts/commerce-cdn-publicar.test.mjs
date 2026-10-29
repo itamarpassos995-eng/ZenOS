@@ -24,21 +24,27 @@ const mockData=owner=>async path=>{
 function res(){return {code:200,headers:{},setHeader(k,v){this.headers[k]=v;return this;},
   status(c){this.code=c;return this;},json(v){this.value=v;return this;}};}
 test('publisher só usa três caminhos diretos e nunca os dados de custo',async()=>{
-  const paths=[];let published;
+  const paths=[];const published=[];
   const result=await publicarCatalogoCore('loja-1',{
     load:async path=>{paths.push(path.join('/'));return mockData('loja-1')(path);},
     produtosPublicos:store.produtos,
     migrate:async snapshot=>snapshot,
-    put:async(path,body)=>{published={path,body};return 'https://exemplo.com/catalogo.json';},
+    put:async(path,body)=>{published.push({path,body});return 'https://exemplo.com/catalogo.json';},
     at:()=> '2026-10-29T12:00:00.000Z'
   });
   assert.deepEqual(paths,['lojas/loja-1/dados/configuracoes','lojas_slugs/loja-teste']);
   assert.equal(result.slug,'loja-teste');
   assert.equal(result.quantidadeProdutos,1);
-  assert.equal(published.path,'commerce/catalogos/loja-teste.json');
-  assert.ok(!published.body.includes('DADO_PRIVADO'));
-  assert.ok(!published.body.includes('NUNCA_PUBLICAR'));
-  assert.equal(JSON.parse(published.body).config.produtosLoja.p1.nomeLoja,'Tinta Suprema');
+  assert.equal(published.at(-1).path,'commerce/catalogos/loja-teste.json');
+  assert.equal(published.length,2);
+  const pagina=JSON.parse(published[0].body);
+  const manifesto=JSON.parse(published[1].body);
+  assert.equal(manifesto.versao,2);
+  assert.equal(pagina.produtos.length,1);
+  assert.equal(pagina.produtosLoja.p1.nomeLoja,'Tinta Suprema');
+  assert.equal(manifesto.publicacaoId,pagina.publicacaoId);
+  assert.ok(!JSON.stringify(published).includes('DADO_PRIVADO'));
+  assert.ok(!JSON.stringify(published).includes('NUNCA_PUBLICAR'));
 });
 test('publisher recusa slug pertencente a outra loja sem gravar Blob',async()=>{
   let writes=0;
@@ -113,7 +119,7 @@ test('Blob usa store-id sem prefixo e flags REST oficiais',async()=>{
 });
 
 test('publicador não faz leitura de estoque nem coleção para catálogo vindo do V2',async()=>{
- let paths=[];let payload;
+ let paths=[];const payload=[];
  const products=[{id:'p1',nome:'Tinta V2',precoBRL:50,estoque:3,custoBRL:25,fornecedor:'SEGREDO'}];
  const result=await publicarCatalogoCore('loja-1',{
    produtosPublicos:products,
@@ -122,12 +128,12 @@ test('publicador não faz leitura de estoque nem coleção para catálogo vindo 
      return segments[0]==='lojas_slugs'?{lojaId:'loja-1'}:config;
    },
    migrate:async s=>s,
-   put:async(_path,body)=>{payload=body;return 'https://exemplo.com/json';},
+   put:async(_path,body)=>{payload.push(body);return 'https://exemplo.com/json';},
  });
  assert.equal(result.quantidadeProdutos,1);
  assert.deepEqual(paths,['lojas/loja-1/dados/configuracoes','lojas_slugs/loja-teste']);
- assert.ok(payload.includes('Tinta V2'));
- assert.ok(!payload.includes('SEGREDO'));
+ assert.ok(payload.some(x=>x.includes('Tinta V2')));
+ assert.ok(!payload.some(x=>x.includes('SEGREDO')));
 });
 test('publicador recusa catálogo sem produtos em vez de apagar a vitrine',async()=>{
  let n=0;
@@ -148,4 +154,39 @@ test('produção habilitada exige ID token e lista de produtos antes de publicar
  const present=res();await h({method:'POST',headers:{authorization:'Bearer fake'},body:{produtos:store.produtos}},present);
  assert.equal(present.code,200);
  assert.equal(calls,1);
+});
+
+test('lotes de 1200 produtos são todos enviados antes do manifesto',async()=>{
+ const produtos=Array.from({length:1200},(_,i)=>({
+   id:'p'+i,nome:'Produto '+i,grupo:'Tintas',precoBRL:99,estoque:8
+ }));
+ const saved=[];
+ const result=await publicarCatalogoCore('loja-1',{
+   produtosPublicos:produtos,
+   load:async seg=>seg[0]==='lojas_slugs'?{lojaId:'loja-1'}:config,
+   migrate:async snap=>snap,
+   put:async(path,body)=>{saved.push({path,body});return 'https://exemplo.com/x';}
+ });
+ assert.equal(result.quantidadeProdutos,1200);
+ assert.equal(result.totalPaginas,15);
+ assert.equal(saved.length,16);
+ assert.equal(saved.at(-1).path,'commerce/catalogos/loja-teste.json');
+ assert.equal(JSON.parse(saved.at(-1).body).totalProdutos,1200);
+ assert.deepEqual(saved.slice(0,-1).map(x=>JSON.parse(x.body).pagina).sort((a,b)=>a-b),
+   Array.from({length:15},(_,i)=>i+1));
+});
+test('falha de upload mantém manifesto anterior sem atualização',async()=>{
+ const p=Array.from({length:180},(_,i)=>({id:'p'+i,nome:'Produto '+i,precoBRL:99,estoque:8}));
+ const writes=[];
+ await assert.rejects(publicarCatalogoCore('loja-1',{
+   produtosPublicos:p,
+   load:async seg=>seg[0]==='lojas_slugs'?{lojaId:'loja-1'}:config,
+   migrate:async snap=>snap,
+   put:async path=>{
+     writes.push(path);
+     if(path.includes('pagina-2.json'))throw Error('upload-interrompido');
+     return 'https://exemplo.com/x';
+   }
+ }),/upload-interrompido/);
+ assert.ok(!writes.includes('commerce/catalogos/loja-teste.json'));
 });

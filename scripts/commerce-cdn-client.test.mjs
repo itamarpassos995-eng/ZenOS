@@ -38,3 +38,35 @@ test('impõe limite de 2 MB e falha fechada',async()=>{
     ok:true,headers:{get:()=>String(3_000_000)},text:async()=>{throw Error('não pode ser lido');}
   })}),/catalogo-grande-demais/);
 });
+
+test('cliente carrega 1200 produtos em 15 lotes sem Firestore',async()=>{
+ const todos=Array.from({length:1200},(_,i)=>({id:'p'+i,nome:'Produto '+i,precoBRL:30,estoque:1}));
+ const meta={versao:2,lojaId:'loja-123',publicacaoId:'abc12345-001',
+   totalProdutos:1200,totalPaginas:15,publicadoEm:'2026-10-29T00:00:00Z',
+   config:{slug:'loja-teste',nomeLoja:'Loja Teste',produtosLoja:{}}};
+ const requests=[];
+ const fetchImpl=async(url,options)=>{
+   requests.push({url,credentials:options.credentials});
+   const numero=Number(new URL(url,'https://zenos.app.br').searchParams.get('pagina')||0);
+   if(!numero)return response(meta);
+   const lotes=todos.slice((numero-1)*80,numero*80);
+   return response({versao:2,lojaId:'loja-123',slug:'loja-teste',
+     publicacaoId:meta.publicacaoId,pagina:numero,produtos:lotes,
+     produtosLoja:Object.fromEntries(lotes.map(p=>[p.id,{ativo:true}]))});
+ };
+ const data=await carregarCatalogoPublico('loja-teste',{fetchImpl});
+ assert.equal(data.produtos.length,1200);
+ assert.equal(data.produtos.at(-1).id,'p1199');
+ assert.equal(Object.keys(data.configCommerce.produtosLoja).length,1200);
+ assert.equal(requests.length,16);
+ assert.ok(requests.every(r=>r.credentials==='omit'));
+});
+test('lote incompleto falha sem apresentar catálogo parcial',async()=>{
+ const m={versao:2,lojaId:'loja-123',publicacaoId:'abc12345-001',totalProdutos:80,totalPaginas:1,
+   config:{slug:'loja-teste',nomeLoja:'Loja Teste'}};
+ await assert.rejects(carregarCatalogoPublico('loja-teste',{
+   fetchImpl:async url=>url.includes('pagina=')
+     ?response({versao:2,lojaId:'loja-123',slug:'loja-teste',publicacaoId:m.publicacaoId,
+       pagina:1,produtos:[],produtosLoja:{}}):response(m)
+ }),/catalogo-incompleto/);
+});

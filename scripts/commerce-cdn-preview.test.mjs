@@ -41,3 +41,19 @@ test('link oficial permite apelido editável sem login Firebase para catálogo p
  assert.match(src,/err\?\.message==='loja-nao-publicada'/);
  assert.match(src,/status:'pronto'/);
 });
+
+test('loja pública não exibe faixa de homologação e usa cards progressivos',()=>{
+ const storefront=readFileSync('src/components/ZenCommerceStorefront.jsx','utf8');
+ assert.doesNotMatch(storefront,/HOMOLOGAÇÃO · Esta é uma loja de teste/);
+ assert.match(storefront,/filtrados\.slice\(0,quantidadeVisivel\)/);
+ assert.match(storefront,/Ver mais produtos/);
+ assert.doesNotMatch(storefront,/\.slice\(0, 48\)/);
+});
+
+test('painel permite configurar produtos além dos primeiros 100',()=>{
+ const admin=readFileSync('src/components/CommerceSolicitacao.jsx','utf8');
+ assert.match(admin,/filtrados\.slice\(0, limiteProdutosPainel\)/);
+ assert.match(admin,/setLimiteProdutosPainel\(v => v \+ 100\)/);
+ assert.match(admin,/Carregar mais produtos/);
+ assert.doesNotMatch(admin,/filtrados\.slice\(0, 100\)/);
+});
