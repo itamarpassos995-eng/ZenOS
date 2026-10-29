@@ -1,6 +1,8 @@
 /* ZenOS Commerce CDN: apenas contrato de publicação, sem Firestore ou rede. */
 const texto=(v,n=240)=>String(v??'').trim().slice(0,n);
 const numero=v=>Number.isFinite(Number(v))?Number(v):0;
+export const COMMERCE_MAX_PRODUTOS=10000;
+export const COMMERCE_TAMANHO_PAGINA=80;
 const imagem=v=>{
   const s=texto(v,1500000);
   return /^(https:\/\/[^\s]+|data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+)$/.test(s)?s:'';
@@ -8,13 +10,13 @@ const imagem=v=>{
 export function criarSnapshotCommercePublico({lojaId,config={},produtos=[],publicadoEm}){
   const uid=texto(lojaId,128);
   if(!uid||uid.includes('/')||uid.includes('..'))throw Error('loja-id-invalido');
-  if(!Array.isArray(produtos))throw Error('produtos-invalidos');
+  if(!Array.isArray(produtos)||produtos.length>COMMERCE_MAX_PRODUTOS)throw Error('produtos-invalidos');
   const c=config&&typeof config==='object'?config:{};
   const ajustes=c.produtosLoja&&typeof c.produtosLoja==='object'?c.produtosLoja:{};
   const desconto=Math.max(0,Math.min(100,numero(c.descontoGeralPorcentagem)));
   const visiveis=[],personalizacoes={};
   for(const p of produtos){
-    if(visiveis.length>=48)break;
+    if(visiveis.length>=COMMERCE_MAX_PRODUTOS)throw Error('limite-produtos-excedido');
     if(!p||!p.nome)continue;
     const id=texto(p.id,128);
     if(!id||id.includes('/'))continue;
@@ -74,4 +76,30 @@ export function conferirCarrinhoContraSnapshot(snapshot,itens){
     resumo.push({id,quantidade:q,precoUnitarioCentavos:centavos,subtotalCentavos:centavos*q});
   }
   return {itens:resumo,totalCentavos};
+}
+
+/**
+ * Publicação atômica do catálogo: os lotes imutáveis são enviados antes do
+ * manifesto. Um visitante recebe a versão antiga até o novo manifesto existir.
+ * Nenhuma leitura Firestore é necessária para abrir ou paginar o catálogo.
+ */
+export function dividirCatalogoPublico(snapshot,publicacaoId,{tamanhoPagina=COMMERCE_TAMANHO_PAGINA}={}){
+  if(!snapshot||snapshot.versao!==1||!Array.isArray(snapshot.produtos))throw Error('catalogo-invalido');
+  if(!/^[a-z0-9-]{8,48}$/.test(String(publicacaoId)))throw Error('versao-publicacao-invalida');
+  if(!Number.isInteger(tamanhoPagina)||tamanhoPagina<1||tamanhoPagina>100)throw Error('pagina-invalida');
+  const {produtos,config}=snapshot;
+  const paginaTotal=Math.max(1,Math.ceil(produtos.length/tamanhoPagina));
+  const paginas=[];
+  for(let i=0;i<paginaTotal;i++){
+    const lote=produtos.slice(i*tamanhoPagina,(i+1)*tamanhoPagina);
+    const personalizacoes=Object.fromEntries(lote.map(p=>[p.id,config.produtosLoja?.[p.id]||{}]));
+    paginas.push({versao:2,lojaId:snapshot.lojaId,publicacaoId,pagina:i+1,
+      produtos:lote,produtosLoja:personalizacoes});
+  }
+  return {
+    manifesto:{versao:2,lojaId:snapshot.lojaId,publicadoEm:snapshot.publicadoEm,
+      publicacaoId,totalProdutos:produtos.length,totalPaginas:paginaTotal,
+      config:{...config,produtosLoja:{}}},
+    paginas
+  };
 }

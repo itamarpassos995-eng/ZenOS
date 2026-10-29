@@ -170,6 +170,10 @@ export default function ZenCommerceStorefront({
   const [loja, setLoja] = useState(lojaDerivada);
   const [filtro, setFiltro] = useState('');
   const [categoria, setCategoria] = useState('');
+  // Renderização progressiva: busca e categorias continuam sobre o catálogo inteiro,
+  // mas o DOM mostra 48 cards de cada vez, mesmo com milhares de produtos.
+  const [quantidadeVisivel, setQuantidadeVisivel] = useState(48);
+  useEffect(() => { setQuantidadeVisivel(48); }, [filtro,categoria,idPublico]);
   const [carrinho, setCarrinho] = useState(sessaoInicial.carrinho);
   const [detalhe, setDetalhe] = useState(null);
   const [foto, setFoto] = useState(0);
@@ -408,10 +412,7 @@ export default function ZenCommerceStorefront({
 
   return (
     <main className="commerce-store" style={vars}>
-      {/* 1. TOPO: HOMOLOGAÇÃO & ANÚNCIO */}
-      <div className="commerce-test-note">
-        HOMOLOGAÇÃO · Esta é uma loja de teste
-      </div>
+      {/* Topo da loja: sem identificação interna de testes. */}
       {cfg.textoTopo && (
         <div className="commerce-announcement">
           {cfg.textoTopo}
@@ -592,7 +593,7 @@ export default function ZenCommerceStorefront({
           )}
 
           <div className="commerce-public-grid">
-            {filtrados.map(p => (
+            {filtrados.slice(0,quantidadeVisivel).map(p => (
               <article key={p.skuPublico} className="commerce-product">
                 <button
                   type="button"
@@ -643,6 +644,16 @@ export default function ZenCommerceStorefront({
               </article>
             ))}
           </div>
+
+          {filtrados.length > quantidadeVisivel && (
+            <div className="commerce-public-more">
+              <span>Mostrando {Math.min(quantidadeVisivel,filtrados.length)} de {filtrados.length} produtos</span>
+              <button type="button" className="commerce-btn commerce-btn-secondary"
+                onClick={() => setQuantidadeVisivel(v => v + 48)}>
+                Ver mais produtos <Icon name="arrow" />
+              </button>
+            </div>
+          )}
 
           {!filtrados.length && (
             <div className="commerce-empty">
