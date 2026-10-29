@@ -157,8 +157,19 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     }
   };
 
-  const carregarPedidoOnline = (pedido) => {
+  const carregarPedidoOnline = async (pedido) => {
     if (!pedido || !Array.isArray(pedido.itens) || !pedido.itens.length) return;
+    // Nunca substituir venda já digitada com um clique na notificação.
+    if (itensVenda.length > 0 && String(prePedidoEmAbertoId || '') !== String(pedido.id)) {
+      const autorizado = await pedirConfirmacaoZen({
+        titulo: tx('Carrinho em andamento','Carrito en curso','Checkout in progress'),
+        mensagem: tx('Já existe uma venda em andamento. Confirme para substituir os itens pelo pedido online.',
+          'Ya hay una venta en curso. Confirme para cargar el pedido online.',
+          'A sale is in progress. Confirm before replacing it with the online order.'),
+        confirmarTexto: tx('Carregar pedido','Cargar pedido','Load order')
+      });
+      if (!autorizado) return;
+    }
     try {
       const novosItens = pedido.itens.map((item, idx) => {
         const prodExistente = (produtos || []).find(p =>

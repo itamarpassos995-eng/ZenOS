@@ -162,7 +162,7 @@ export function ZenTopbar({
       <div className={cx('zen-sync-pill', `sync-${String(status || '').toLowerCase()}`)} title={statusTitle || status}><i/> <span>{labelSync}</span></div>
       <label className="zen-top-control"><span>🌐</span><select value={idioma} onChange={e => setIdioma(e.target.value)}><option value="pt">Português (PT)</option><option value="es">Español (ES)</option><option value="en">English (EN)</option></select></label>
       <label className="zen-top-control"><span>🇧🇷</span><select value={moeda} onChange={e => setMoeda(e.target.value)}><option value="BRL">BRL (R$)</option><option value="USD">USD ($)</option><option value="EUR">EUR (€)</option><option value="PYG">PYG (₲)</option></select><button onClick={onCambio} title={tx('Ajustar cotações','Ajustar cotizaciones','Adjust exchange rates')}>⚙</button></label>
-      <button type="button" className="zen-commerce-topbar-btn" onClick={onAbrirPedidosLoja}
+      {onAbrirPedidosLoja && <button type="button" className="zen-commerce-topbar-btn" onClick={onAbrirPedidosLoja}
         title={tx('Abrir pedidos da loja online no PDV','Abrir pedidos de la tienda online en caja','Open online store orders in POS')}
         aria-label={tx('Pedidos da loja online','Pedidos de la tienda online','Online store orders')}>
         <span aria-hidden="true">🛒</span>
@@ -170,7 +170,7 @@ export function ZenTopbar({
         {totalPedidosLoja > 0 && <span className="zen-commerce-topbar-badge" aria-live="polite">
           {totalPedidosLoja > 50 ? '50+' : totalPedidosLoja}
         </span>}
-      </button>
+      </button>}
       <button className="zen-theme-toggle" onClick={onAlternarTema} title={tx('Alternar tema','Cambiar tema','Toggle theme')}>{tema === 'dark' ? `☾ ${tx('Escuro','Oscuro','Dark')}` : `☀ ${tx('Claro','Claro','Light')}`}</button>
       <div className="zen-operator-chip"><span>{tx('Operador:','Operador:','Operator:')}</span><strong className={patente === 'gerencia' ? 'manager' : ''}>{operador || 'Admin'}</strong></div>
       <button className="zen-switch-user" onClick={onTrocarOperador}>{tx('Trocar Operador','Cambiar Operador','Switch Operator')}</button>

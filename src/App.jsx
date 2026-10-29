@@ -178,6 +178,7 @@ export default function App() {
   // Total informado pela assinatura limitada que JÁ existe dentro do PDV.
   // Não criar outra consulta Firestore para alimentar o cabeçalho.
   const [pedidosOnlineConhecidos, setPedidosOnlineConhecidos] = useState(null);
+  useEffect(() => { setPedidosOnlineConhecidos(null); }, [userId]);
 
   const avisarAppZen = ({ variante = 'info', titulo, mensagem, detalhes = [] }) =>
     setModalAppZen({ variante, titulo, mensagem, detalhes, apenasConfirmar: true });
