@@ -85,17 +85,21 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
     setPedidosAnteriores([]);
     setCursorPedidos(null);
     setMaisPedidosDisponiveis(false);
-    const refCol = collection(db, 'lojas', String(userId), 'pedidos_online');
-    const q = query(refCol, where('estado', '==', 'pendente'), orderBy('criadoEm', 'desc'), limit(PAGINA_PEDIDOS_ONLINE));
-    const unsub = onSnapshot(q, snap => {
-      setPedidosRecentes(snap.docs.map(d => ({ ...d.data(), id: d.id })));
-      setPedidosAnteriores([]);
-      setCursorPedidos(snap.docs.at(-1) || null);
-      setMaisPedidosDisponiveis(snap.size === PAGINA_PEDIDOS_ONLINE);
-    }, err => {
-      console.warn('[PDV] Listener limitado de pedidos_online:', err);
-    });
-    return () => unsub();
+    try {
+      const refCol = collection(db, 'lojas', String(userId), 'pedidos_online');
+      const q = query(refCol, where('estado', '==', 'pendente'), orderBy('criadoEm', 'desc'), limit(PAGINA_PEDIDOS_ONLINE));
+      const unsub = onSnapshot(q, snap => {
+        setPedidosRecentes(snap.docs.map(d => ({ ...d.data(), id: d.id })));
+        setPedidosAnteriores([]);
+        setCursorPedidos(snap.docs.at(-1) || null);
+        setMaisPedidosDisponiveis(snap.size === PAGINA_PEDIDOS_ONLINE);
+      }, err => {
+        console.warn('[PDV] Listener limitado de pedidos_online:', err);
+      });
+      return () => unsub();
+    } catch (err) {
+      console.warn('[PDV] Não foi possível inicializar pedidos_online:', err);
+    }
   }, [userId]);
 
   const carregarMaisPedidosOnline = async () => {
