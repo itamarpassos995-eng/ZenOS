@@ -13,17 +13,20 @@ Manter o **Firestore como fonte oficial** e o **PDV integralmente intacto**. Pub
 - Evitar publicação em cada alteração de estoque: usar controle de frequência e estratégia de indisponibilidade; verificar preço/estoque oficiais na confirmação.
 
 ## Etapas obrigatórias
-1. **Esta branch:** contrato puro de snapshot e validação, testes sem Firebase. Nenhum endpoint ligado, compra ou deploy de infraestrutura. Não faz publicação automática.
+1. **Esta branch:** contrato puro de snapshot e validação + cliente de leitura de JSON por API pública. Sem autenticação Firebase no transporte, sem fallback para Firestore; testes isolados. Nenhum endpoint ativo, checkout ou deploy de código. Não faz publicação automática.
 2. **Backend isolado:** conectar Blob pública com variáveis restritas; endpoints autenticados para publicar e não autenticados para ler; versão/cache/alias. A conexão requer homologação de custo e segurança.
 3. **Pedidos:** criar API protegida, confirmar dados oficiais com acesso mínimo, gravar idempotentemente pedidos no destino já utilizado pelo PDV e validar todo o fluxo.
 4. **Piloto Zênite Atacadão:** testar janela anônima, celular, cache, 1/2/3 fotos, preços, alteração de estoque, escolha de entrega/pagamento, pedidos e WhatsApp. Medir leituras antes/depois.
 5. **Liberação gradual:** recurso habilitado por loja somente após testes; sem fallback automático que passe a consultar Firestore a cada visita.
 
 ## Condições pendentes
-- A Vercel não tinha store Blob conectado ao ZenOS na auditoria de 29/10/2026.
+- Store público **criado e conectado**: `zenos-commerce-catalogos-publicos` (`store_fKepXWjAeW2ueMrB`), região `gru1`, projeto `zen-os`. A loja ainda não foi publicada. O token de serviço permanece somente no ambiente de servidor.
 - É necessária auditoria dos acessos de serviço, das regras reais e do fluxo de pedidos.
 - Eventual uso e tráfego de Blob/Vercel têm cobrança conforme o plano; acompanhar faturamento.
 - O código desta etapa **não ativa a vitrine pública nova** nem remove o acesso atual. Não fazer merge como se já fosse uma solução completa.
+
+## Reaproveitamento visual
+O cliente HTTP isolado retorna `{ idPublico, configCommerce, produtos }` com o mesmo contrato de propriedades do componente aprovado `ZenCommerceStorefront`. Nenhum componente de configuração, personalização, checkout ou PDV foi alterado. Antes do switch público, o novo endpoint deve estar funcional com catálogo publicado e os pedidos aceitos pela API segura. A homologação não deve colocar botões de compra operacionais sem o backend de pedidos.
 
 ## Regra permanente
 **Não aumentar leituras, não reinstalar listeners, não modificar a persistência, não expor dados privados e não degradar o PDV.**
