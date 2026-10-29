@@ -108,9 +108,8 @@ export function montarLojaAPartirDeConfig(configCommerce = {}, produtos = [], lo
           : (cfgP.imagemLoja ? [cfgP.imagemLoja] : (p.imagem || p.fotoUrl ? [p.imagem || p.fotoUrl] : []));
 
         const fotoProduto = fotosConfig[0] || '';
-        const imagensMapeadas = fotosConfig.length > 0
-          ? fotosConfig.map((url, i) => ({ id: `f-${p.id || idx}-${i}`, url, miniaturaUrl: url }))
-          : (idx === 0 ? [{ id: 'f-demo', url: '/demo-mademoiselle-elegance.png', miniaturaUrl: '/demo-mademoiselle-elegance.png' }] : []);
+        // Produtos reais sem imagem devem ficar sem foto até o lojista cadastrar uma.
+        const imagensMapeadas = fotosConfig.map((url, i) => ({ id: `f-${p.id || idx}-${i}`, url, miniaturaUrl: url }));
 
         return {
           skuPublico: String(p.id || `p-${idx + 1}`),
@@ -121,29 +120,12 @@ export function montarLojaAPartirDeConfig(configCommerce = {}, produtos = [], lo
           tagPromo: cfgP.tagPromo || (temPromocao ? `-${Math.round((1 - precoPromo / precoNormal) * 100)}%` : null),
           destaque: Boolean(cfgP.destaque),
           disponivel: Number(p.estoque ?? 1) > 0,
-          imagemUrl: fotoProduto || (idx === 0 ? '/demo-mademoiselle-elegance.png' : ''),
+          imagemUrl: fotoProduto,
           descricao: cfgP.descricaoLoja || p.descricao || p.detalhes || '',
           quantidadeMaxima: Math.max(1, Number(p.estoque || 10)),
           imagens: imagensMapeadas
         };
       });
-  }
-
-  // Se nenhum produto tiver foto, garantimos o produto clássico da demonstração
-  if (produtosValidos.length === 0) {
-    catalogo = [
-      {
-        skuPublico: 'demo-mademoiselle',
-        nome: 'Body Splash Mademoiselle Élégance',
-        categoria: 'PERFUMARIA',
-        precoCentavos: 8990,
-        disponivel: true,
-        imagemUrl: '/demo-mademoiselle-elegance.png',
-        descricao: 'Fragrância inspirada em Coco Mademoiselle. Perfumação corporal feminina com notas de laranja, rosa, patchouli e baunilha.',
-        quantidadeMaxima: 10,
-        imagens: [{ id: 'f-1', url: '/demo-mademoiselle-elegance.png' }]
-      }
-    ];
   }
 
   return {
@@ -268,7 +250,8 @@ export default function ZenCommerceStorefront({
 
   const enviarPedido = async e => {
     e.preventDefault();
-    if (busy) return;
+    // Segurança adicional: a prévia administrativa nunca registra pedido.
+    if (isLivePreview || busy) return;
     setBusy(true);
     setErro('');
 
@@ -512,9 +495,6 @@ export default function ZenCommerceStorefront({
                   <img src={destaque.imagemUrl} alt="" />
                   <figcaption>
                     {destaque.nome}
-                    <small style={{ display: 'block', color: '#7b8788', fontSize: '10px', marginTop: 2 }}>
-                      Produto de demonstração
-                    </small>
                   </figcaption>
                 </figure>
               ) : (

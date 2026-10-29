@@ -6,12 +6,16 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 const mocks = vi.hoisted(() => ({
   usuario: { uid: 'loja-A' },
   onAuthStateChanged: vi.fn(),
+  signInAnonymously: vi.fn(),
   doc: vi.fn(),
   getDoc: vi.fn(),
 }));
 
 vi.mock('../../src/firebase', () => ({ auth: {}, db: {} }));
-vi.mock('firebase/auth', () => ({ onAuthStateChanged: mocks.onAuthStateChanged }));
+vi.mock('firebase/auth', () => ({
+  onAuthStateChanged: mocks.onAuthStateChanged,
+  signInAnonymously: mocks.signInAnonymously,
+}));
 vi.mock('firebase/firestore', () => ({ doc: mocks.doc, getDoc: mocks.getDoc }));
 
 import CommerceVitrinePreview from '../../src/components/CommerceVitrinePreview';
@@ -34,6 +38,7 @@ beforeEach(() => {
     callback(mocks.usuario);
     return () => {};
   });
+  mocks.signInAnonymously.mockResolvedValue({ user: { uid: 'anonimo' } });
   mocks.doc.mockImplementation((_db, ...partes) => partes.join('/'));
   mocks.getDoc.mockResolvedValue({
     exists: () => true,
@@ -57,21 +62,36 @@ test('carrega a vitrine da própria loja com dados salvos e sem ações de compr
   expect(screen.queryByRole('link', { name: /Atendimento/ })).toBeNull();
   expect(container.querySelector('.commerce-cart-row')).toBeNull();
   expect(container.querySelector('.commerce-product-price')).toBeNull();
-  expect(container.querySelector('.commerce-product .commerce-btn')?.disabled).toBe(true);
+  expect(container.querySelector('.commerce-product')).toBeNull();
+  expect(container.querySelector('.commerce-empty h3')?.textContent).toBe('Nossa seleção está chegando');
   expect(container.querySelector('.commerce-preview-cart')).not.toBeNull();
 });
 
-test('bloqueia visitantes não autenticados antes de ler o Firestore', () => {
+test('visitante não autenticado inicia login anônimo sem consultar loja antes da autenticação', () => {
   mocks.usuario = null;
   render(<CommerceVitrinePreview lojaIdRota="loja-A" />);
-  expect(screen.getByText(/Entre na sua conta ZenOS/)).toBeTruthy();
+  expect(screen.getByText(/Verificando o acesso à vitrine/)).toBeTruthy();
+  expect(mocks.signInAnonymously).toHaveBeenCalled();
   expect(mocks.getDoc).not.toHaveBeenCalled();
 });
 
-test('não consulta nem exibe dados de outra loja', () => {
-  render(<CommerceVitrinePreview lojaIdRota="loja-B" />);
-  expect(screen.getByText(/Este link pertence a outra loja/)).toBeTruthy();
-  expect(mocks.getDoc).not.toHaveBeenCalled();
+test('vitrine pública consulta somente a loja solicitada, sem ler dados da conta conectada', async () => {
+  mocks.getDoc.mockImplementation(async path => {
+    if (path === 'lojas/loja-B/dados/configuracoes') return {
+      exists: () => true,
+      data: () => ({ commerceConfig: { nomeLoja: 'Loja Pública B' } }),
+    };
+    if (path === 'lojas/loja-B') return {
+      exists: () => true,
+      data: () => ({ produtos: [{ id: 'b-1', nome: 'Produto da Loja B', preco: 12, estoque: 2 }] }),
+    };
+    throw Error('Consulta fora da loja solicitada: ' + path);
+  });
+  const { container } = render(<CommerceVitrinePreview lojaIdRota="loja-B" />);
+  await screen.findByRole('heading', { name: 'Produto da Loja B' });
+  expect(container.querySelector('.commerce-brand strong')?.textContent).toBe('Loja Pública B');
+  expect(mocks.getDoc).toHaveBeenCalledTimes(2);
+  expect(mocks.doc).not.toHaveBeenCalledWith({}, 'lojas', 'loja-A', 'dados', 'configuracoes');
 });
 
 test('o link /loja/previa resolve apenas a loja do usuário autenticado', async () => {
@@ -126,6 +146,28 @@ test('reproduz logo, banner e produto do lojista sem liberar WhatsApp ou carrinh
   expect(screen.queryByRole('button', { name: /Carrinho/ })).toBeNull();
   expect(container.querySelector('.commerce-cart-row')).toBeNull();
   expect(mocks.doc).toHaveBeenCalledWith({}, 'lojas', 'loja-A');
+});
+
+test('primeiro produto sem foto não recebe imagem demonstrativa na prévia', async () => {
+  mocks.getDoc.mockImplementation(async path => path === 'lojas/loja-A/dados/configuracoes' ? {
+    exists: () => true,
+    data: () => ({ commerceConfig: { produtosLoja: { 'p-1': { ativo: true } } } }),
+  } : {
+    exists: () => true,
+    data: () => ({ produtos: [
+      { id: 'p-1', nome: 'Meia cana de Forro PVC', preco: 38, estoque: 10 },
+      { id: 'p-2', nome: 'Outro produto com foto', preco: 20, estoque: 2, fotoUrl: '/foto-correta.webp' },
+    ] }),
+  });
+  const { container } = render(<CommerceVitrinePreview lojaIdRota="loja-A" />);
+  await screen.findByRole('heading', { name: 'Meia cana de Forro PVC' });
+
+  const cards = container.querySelectorAll('.commerce-product');
+  expect(cards).toHaveLength(2);
+  expect(cards[0].querySelector('.commerce-product-image img')).toBeNull();
+  expect(cards[1].querySelector('.commerce-product-image img')?.getAttribute('src')).toBe('/foto-correta.webp');
+  expect(container.querySelector('.commerce-store')?.textContent).not.toContain('Mademoiselle');
+  expect(mocks.getDoc).toHaveBeenCalledTimes(2);
 });
 
 test('galeria com várias fotos navega na prévia somente leitura', async () => {
