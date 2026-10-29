@@ -47,11 +47,27 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
 
   // Controle das seções retráteis / rebatíveis
   const [secoesAbertas, setSecoesAbertas] = useState({
-    apresentacao: true,
-    imagens: true,
+    apresentacao: false,
+    produtos: true,
+    imagens: false,
     atendimento: false,
     entregas: false,
     modulo: false,
+  });
+
+  // Estados da Gestão de Produtos na Loja (Fase 2)
+  const [buscaProduto, setBuscaProduto] = useState('');
+  const [filtroProdutosTab, setFiltroProdutosTab] = useState('todos');
+  const [pctDescontoLote, setPctDescontoLote] = useState('15');
+  const [produtoModalEdicao, setProdutoModalEdicao] = useState(null);
+  const [formProdCustom, setFormProdCustom] = useState({
+    nomeLoja: '',
+    precoPromoBRL: '',
+    tagPromo: 'OFERTA',
+    descricaoLoja: '',
+    imagemLoja: '',
+    destaque: false,
+    ativo: true,
   });
 
   // Estados da solicitação original do módulo
@@ -82,11 +98,144 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
   const alternarTodasSecoes = (abrir) => {
     setSecoesAbertas({
       apresentacao: abrir,
+      produtos: abrir,
       imagens: abrir,
       atendimento: abrir,
       entregas: abrir,
       modulo: abrir,
     });
+  };
+
+  // Funções de Gestão de Produtos para a Loja Virtual
+  const alternarAtivoProduto = (produtoId) => {
+    const mapa = { ...(configCommerce.produtosLoja || {}) };
+    const cfgAtual = mapa[produtoId] || {};
+    const produto = (produtos || []).find(p => p?.id === produtoId);
+    const ativoAtual = cfgAtual.ativo !== undefined ? cfgAtual.ativo : Number(produto?.estoque ?? 0) > 0;
+    const novoStatus = !ativoAtual;
+    mapa[produtoId] = { ...cfgAtual, ativo: novoStatus };
+    atualizarCampo('produtosLoja', mapa);
+  };
+
+  const alternarDestaqueProduto = (produtoId) => {
+    const mapa = { ...(configCommerce.produtosLoja || {}) };
+    const cfgAtual = mapa[produtoId] || {};
+    const novoDestaque = !cfgAtual.destaque;
+    mapa[produtoId] = { ...cfgAtual, destaque: novoDestaque, ativo: true };
+    atualizarCampo('produtosLoja', mapa);
+  };
+
+  const alterarPrecoPromoRapido = (produtoId, valor) => {
+    const mapa = { ...(configCommerce.produtosLoja || {}) };
+    const cfgAtual = mapa[produtoId] || {};
+    mapa[produtoId] = { ...cfgAtual, precoPromoBRL: valor };
+    atualizarCampo('produtosLoja', mapa);
+  };
+
+  const ativarTodosComEstoque = () => {
+    const mapa = { ...(configCommerce.produtosLoja || {}) };
+    let total = 0;
+    (produtos || []).forEach(p => {
+      if (!p || !p.id) return;
+      if (Number(p.estoque ?? 0) > 0) {
+        mapa[p.id] = { ...(mapa[p.id] || {}), ativo: true };
+        total++;
+      }
+    });
+    atualizarCampo('produtosLoja', mapa);
+    avisarZen('success', tx('Produtos Ativados', 'Productos Activados', 'Products Activated'), `${total} ${tx('produtos com estoque foram colocados na loja!', 'productos con stock agregados a la tienda.', 'products in stock added to the store.')}`);
+  };
+
+  const desativarTodosProdutos = () => {
+    const mapa = { ...(configCommerce.produtosLoja || {}) };
+    (produtos || []).forEach(p => {
+      if (!p || !p.id) return;
+      mapa[p.id] = { ...(mapa[p.id] || {}), ativo: false };
+    });
+    atualizarCampo('produtosLoja', mapa);
+  };
+
+  const aplicarDescontoEmLote = () => {
+    const pct = Math.max(1, Math.min(95, Number(pctDescontoLote || 15)));
+    const mapa = { ...(configCommerce.produtosLoja || {}) };
+    let aplicados = 0;
+
+    (produtos || []).forEach(p => {
+      if (!p || !p.id) return;
+      const precoNormal = Number(p.precoBRL ?? p.preco ?? p.precoVenda ?? 0);
+      if (precoNormal > 0) {
+        const promo = (Math.round((precoNormal * (1 - pct / 100)) * 100) / 100).toFixed(2);
+        mapa[p.id] = {
+          ...(mapa[p.id] || {}),
+          precoPromoBRL: promo,
+          tagPromo: `-${pct}%`,
+          ativo: mapa[p.id]?.ativo !== false,
+        };
+        aplicados++;
+      }
+    });
+
+    setConfigCommerce(prev => ({
+      ...prev,
+      produtosLoja: mapa,
+      descontoGeralPorcentagem: pct,
+    }));
+
+    avisarZen('success', tx('Promoção em Massa Aplicada', 'Promoción en Masa Aplicada', 'Bulk Promo Applied'), `${aplicados} ${tx(`produtos receberam ${pct}% de desconto promocional na vitrine!`, `productos recibieron ${pct}% de descuento.`, `products received ${pct}% promotional discount.`)}`);
+  };
+
+  const limparDescontosEmLote = () => {
+    const mapa = { ...(configCommerce.produtosLoja || {}) };
+    Object.keys(mapa).forEach(id => {
+      if (mapa[id]) {
+        const { precoPromoBRL, tagPromo, ...demaisConfiguracoes } = mapa[id];
+        mapa[id] = demaisConfiguracoes;
+      }
+    });
+    setConfigCommerce(prev => ({
+      ...prev,
+      produtosLoja: mapa,
+      descontoGeralPorcentagem: 0,
+    }));
+    avisarZen('info', tx('Promoções Removidas', 'Promociones Removidas', 'Promos Cleared'), tx('Preços promocionais foram removidos de todos os produtos.', 'Precios promocionales removidos.', 'Promo prices cleared.'));
+  };
+
+  const abrirModalEdicao = (p) => {
+    const cfgP = (configCommerce.produtosLoja || {})[p.id] || {};
+    setProdutoModalEdicao(p);
+    setFormProdCustom({
+      nomeLoja: cfgP.nomeLoja || p.nome || '',
+      precoPromoBRL: cfgP.precoPromoBRL || '',
+      tagPromo: cfgP.tagPromo || 'OFERTA',
+      descricaoLoja: cfgP.descricaoLoja || p.descricao || '',
+      imagemLoja: cfgP.imagemLoja || p.imagem || p.fotoUrl || '',
+      destaque: Boolean(cfgP.destaque),
+      ativo: cfgP.ativo !== false,
+    });
+  };
+
+  const salvarModalEdicao = () => {
+    if (!produtoModalEdicao) return;
+    const mapa = {
+      ...(configCommerce.produtosLoja || {}),
+      [produtoModalEdicao.id]: {
+        ...((configCommerce.produtosLoja || {})[produtoModalEdicao.id] || {}),
+        ...formProdCustom,
+      },
+    };
+    atualizarCampo('produtosLoja', mapa);
+    setProdutoModalEdicao(null);
+  };
+
+  const lidarUploadFotoProduto = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const compactada = await comprimirImagem(file, 800, 800, 0.8);
+      setFormProdCustom(prev => ({ ...prev, imagemLoja: compactada }));
+    } catch (err) {
+      console.warn('Erro ao processar foto:', err);
+    }
   };
 
   // Carregar dados de configuração do Firestore
@@ -465,6 +614,276 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
                       />
                     </div>
                   </div>
+                </div>
+              )}
+            </div>
+
+            {/* SEÇÃO DE PRODUTOS NA VITRINE & PROMOÇÕES (FASE 2) */}
+            <div className={`commerce-accordion-card ${secoesAbertas.produtos ? 'open' : 'closed'}`}>
+              <button
+                type="button"
+                className="commerce-accordion-header"
+                onClick={() => alternarSecao('produtos')}
+                aria-expanded={secoesAbertas.produtos}
+              >
+                <div className="commerce-accordion-title-wrap">
+                  <span className="commerce-accordion-icon">📦</span>
+                  <div className="commerce-accordion-texts">
+                    <strong>{tx('Produtos na Loja & Promoções', 'Productos en Tienda y Promociones', 'Storefront Products & Deals')}</strong>
+                    <small>
+                      {(() => {
+                        const mapa = configCommerce.produtosLoja || {};
+                        const ativos = (produtos || []).filter(p => p && (mapa[p.id]?.ativo ?? (Number(p.estoque ?? 0) > 0))).length;
+                        return `${ativos} de ${(produtos || []).length} produtos ativos na vitrine`;
+                      })()}
+                    </small>
+                  </div>
+                </div>
+                <span className="commerce-accordion-chevron">{secoesAbertas.produtos ? '▲' : '▼'}</span>
+              </button>
+
+              {secoesAbertas.produtos && (
+                <div className="commerce-accordion-body commerce-products-panel">
+
+                  {/* 1. BARRA DE AÇÕES EM MASSA (MÍNIMO DE CLIQUES) */}
+                  <div className="commerce-bulk-actions-box">
+                    <span className="commerce-bulk-label">⚡ {tx('Ações em 1 Clique:', 'Acciones en 1 Clic:', '1-Click Actions:')}</span>
+                    <div className="commerce-bulk-buttons">
+                      <button
+                        type="button"
+                        className="commerce-btn-bulk-active"
+                        onClick={ativarTodosComEstoque}
+                        title={tx('Ativa todos os produtos com saldo em estoque', 'Activa todos con stock', 'Activate all in stock')}
+                      >
+                        ✓ {tx('Ativar Todos com Estoque', 'Activar Todos con Stock', 'Activate All in Stock')}
+                      </button>
+                      <button
+                        type="button"
+                        className="commerce-btn-bulk-hide"
+                        onClick={desativarTodosProdutos}
+                      >
+                        ✕ {tx('Ocultar Todos', 'Ocultar Todos', 'Hide All')}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 2. FERRAMENTA DE PREÇO PROMOCIONAL EM LOTE */}
+                  <div className="commerce-bulk-promo-box">
+                    <div className="commerce-bulk-promo-header">
+                      <strong>🏷️ {tx('Promoção Geral com Preço Riscado', 'Promoción General con Precio Tachado', 'Storewide Strikethrough Discount')}</strong>
+                      <small>{tx('Aplica um preço promocional à vitrine (ex.: de R$ 100 por R$ 85), sem alterar o preço do balcão.', 'Aplica un precio promocional a la vitrina sin cambiar el precio de mostrador.', 'Applies storefront promo pricing without changing counter prices.')}</small>
+                    </div>
+                    <div className="commerce-bulk-promo-row">
+                      <div className="commerce-bulk-promo-input-wrap">
+                        <input
+                          type="number"
+                          min="1"
+                          max="90"
+                          value={pctDescontoLote}
+                          onChange={(e) => setPctDescontoLote(e.target.value)}
+                          className="commerce-input-pct"
+                          placeholder="15"
+                        />
+                        <span>% OFF</span>
+                      </div>
+                      <button
+                        type="button"
+                        className="commerce-btn-apply-bulk-promo"
+                        onClick={aplicarDescontoEmLote}
+                      >
+                        {tx('Aplicar % a Todos', 'Aplicar % a Todos', 'Apply % to All')}
+                      </button>
+                      <button
+                        type="button"
+                        className="commerce-btn-clear-promo"
+                        onClick={limparDescontosEmLote}
+                      >
+                        {tx('Limpar Promoções', 'Quitar Promociones', 'Clear Promos')}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 3. BARRA DE BUSCA E ABAS DE FILTRO */}
+                  <div className="commerce-prod-filter-bar">
+                    <input
+                      type="text"
+                      className="commerce-prod-search-input"
+                      value={buscaProduto}
+                      onChange={(e) => setBuscaProduto(e.target.value)}
+                      placeholder={tx('🔍 Buscar produto por nome ou SKU…', '🔍 Buscar producto…', '🔍 Search products…')}
+                    />
+
+                    <div className="commerce-prod-tabs">
+                      {(() => {
+                        const mapa = configCommerce.produtosLoja || {};
+                        const lista = produtos || [];
+                        const total = lista.length;
+                        const ativos = lista.filter(p => mapa[p.id]?.ativo ?? (Number(p.estoque ?? 0) > 0)).length;
+                        const comPromo = lista.filter(p => mapa[p.id]?.precoPromoBRL).length;
+                        const destaques = lista.filter(p => mapa[p.id]?.destaque).length;
+
+                        return (
+                          <>
+                            <button
+                              type="button"
+                              className={`commerce-prod-tab-btn ${filtroProdutosTab === 'todos' ? 'active' : ''}`}
+                              onClick={() => setFiltroProdutosTab('todos')}
+                            >
+                              {tx('Todos', 'Todos', 'All')} ({total})
+                            </button>
+                            <button
+                              type="button"
+                              className={`commerce-prod-tab-btn ${filtroProdutosTab === 'ativos' ? 'active' : ''}`}
+                              onClick={() => setFiltroProdutosTab('ativos')}
+                            >
+                              🟢 {tx('Na Loja', 'En Tienda', 'In Store')} ({ativos})
+                            </button>
+                            <button
+                              type="button"
+                              className={`commerce-prod-tab-btn ${filtroProdutosTab === 'promo' ? 'active' : ''}`}
+                              onClick={() => setFiltroProdutosTab('promo')}
+                            >
+                              🏷️ {tx('Em Promoção', 'En Promoción', 'On Sale')} ({comPromo})
+                            </button>
+                            <button
+                              type="button"
+                              className={`commerce-prod-tab-btn ${filtroProdutosTab === 'destaque' ? 'active' : ''}`}
+                              onClick={() => setFiltroProdutosTab('destaque')}
+                            >
+                              ⭐ {tx('Destaques', 'Destacados', 'Featured')} ({destaques})
+                            </button>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* 4. LISTA RÁPIDA DE PRODUTOS */}
+                  <div className="commerce-prod-table-wrap">
+                    {(() => {
+                      const mapa = configCommerce.produtosLoja || {};
+                      const termo = buscaProduto.toLowerCase().trim();
+
+                      const filtrados = (produtos || []).filter(p => {
+                        if (!p || !p.nome) return false;
+                        if (termo && !p.nome.toLowerCase().includes(termo) && !String(p.sku || '').toLowerCase().includes(termo)) {
+                          return false;
+                        }
+
+                        const cfgP = mapa[p.id] || {};
+                        const isAtivo = cfgP.ativo !== undefined ? cfgP.ativo : Number(p.estoque ?? 0) > 0;
+
+                        if (filtroProdutosTab === 'ativos') return isAtivo;
+                        if (filtroProdutosTab === 'promo') return Boolean(cfgP.precoPromoBRL);
+                        if (filtroProdutosTab === 'destaque') return Boolean(cfgP.destaque);
+                        return true;
+                      });
+
+                      if (filtrados.length === 0) {
+                        return (
+                          <div className="commerce-prod-empty-box">
+                            <span>📦</span>
+                            <p>{tx('Nenhum produto encontrado neste filtro.', 'Ningún producto encontrado.', 'No products found.')}</p>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="commerce-prod-list">
+                          {filtrados.slice(0, 100).map(p => {
+                            const cfgP = mapa[p.id] || {};
+                            const isAtivo = cfgP.ativo !== undefined ? cfgP.ativo : Number(p.estoque ?? 0) > 0;
+                            const isDestaque = Boolean(cfgP.destaque);
+                            const precoNormal = Number(p.precoBRL ?? p.preco ?? p.precoVenda ?? 0);
+                            const precoPromo = cfgP.precoPromoBRL || '';
+                            const fotoThumb = cfgP.imagemLoja || p.imagem || p.fotoUrl || '';
+
+                            return (
+                              <div key={p.id} className={`commerce-prod-row ${isAtivo ? 'active' : 'inactive'}`}>
+                                {/* Foto e Identificação */}
+                                <div className="commerce-prod-row-main">
+                                  <div className="commerce-prod-thumb">
+                                    {fotoThumb ? (
+                                      <img src={fotoThumb} alt={p.nome} />
+                                    ) : (
+                                      <span className="thumb-placeholder">📦</span>
+                                    )}
+                                  </div>
+                                  <div className="commerce-prod-texts">
+                                    <div className="commerce-prod-name-row">
+                                      <strong>{cfgP.nomeLoja || p.nome}</strong>
+                                      {isDestaque && <span className="badge-destaque-tag">⭐ DESTAQUE</span>}
+                                      {precoPromo && <span className="badge-promo-tag">{cfgP.tagPromo || 'OFERTA'}</span>}
+                                    </div>
+                                    <small>
+                                      SKU: {p.sku || p.id} • {p.grupo || p.categoria || 'Geral'} • Estoque: {p.estoque ?? 0}
+                                    </small>
+                                  </div>
+                                </div>
+
+                                {/* Preço de Balcão vs Preço Promocional */}
+                                <div className="commerce-prod-prices-col">
+                                  <div className="price-balcao">
+                                    <span className="price-label">Balcão:</span>
+                                    <strong className={precoPromo ? 'riscado' : ''}>
+                                      R$ {precoNormal.toFixed(2).replace('.', ',')}
+                                    </strong>
+                                  </div>
+
+                                  <div className="price-promo-input-group">
+                                    <span className="price-label">Promoção:</span>
+                                    <div className="input-promo-wrap">
+                                      <span className="currency-prefix">R$</span>
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        placeholder="0,00"
+                                        value={precoPromo}
+                                        onChange={(e) => alterarPrecoPromoRapido(p.id, e.target.value)}
+                                        className="input-promo-quick"
+                                        title={tx('Preço promocional riscado na vitrine', 'Precio de oferta', 'Discounted promo price')}
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Controles Rápidos: Na Loja, Destaque e Personalizar */}
+                                <div className="commerce-prod-actions-col">
+                                  <button
+                                    type="button"
+                                    className={`btn-toggle-store ${isAtivo ? 'active' : ''}`}
+                                    onClick={() => alternarAtivoProduto(p.id)}
+                                    title={isAtivo ? tx('Clique para ocultar da vitrine', 'Clic para ocultar', 'Click to hide') : tx('Clique para ativar na vitrine', 'Clic para activar', 'Click to activate')}
+                                  >
+                                    {isAtivo ? '🟢 Na Loja' : '⚪ Oculto'}
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    className={`btn-toggle-star ${isDestaque ? 'active' : ''}`}
+                                    onClick={() => alternarDestaqueProduto(p.id)}
+                                    title={isDestaque ? tx('Item em destaque na vitrine', 'Destacado', 'Featured') : tx('Marcar como destaque', 'Marcar destacado', 'Set as featured')}
+                                  >
+                                    {isDestaque ? '⭐' : '☆'}
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    className="btn-custom-product"
+                                    onClick={() => abrirModalEdicao(p)}
+                                    title={tx('Personalizar fotos e descrição para a loja', 'Personalizar', 'Customize')}
+                                  >
+                                    ✏️
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </div>
+
                 </div>
               )}
             </div>
@@ -882,6 +1301,163 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
         </div>
 
       </div>
+
+      {/* MODAL PARA PERSONALIZAR PRODUTO NA LOJA */}
+      {produtoModalEdicao && (
+        <div className="commerce-prod-modal-overlay">
+          <div className="commerce-prod-modal-card">
+            <div className="commerce-prod-modal-header">
+              <div className="modal-title-box">
+                <span className="modal-kicker">🌐 LOJA ONLINE</span>
+                <h3>{tx('Personalizar Produto para a Vitrine', 'Personalizar Producto para Vitrina', 'Customize Product for Storefront')}</h3>
+              </div>
+              <button
+                type="button"
+                className="commerce-modal-close-btn"
+                onClick={() => setProdutoModalEdicao(null)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="commerce-prod-modal-body">
+              <div className="commerce-field">
+                <label>{tx('Nome do Produto na Vitrine', 'Nombre en Vitrina', 'Storefront Name')}</label>
+                <input
+                  type="text"
+                  value={formProdCustom.nomeLoja}
+                  onChange={(e) => setFormProdCustom(prev => ({ ...prev, nomeLoja: e.target.value }))}
+                  placeholder={produtoModalEdicao.nome}
+                />
+              </div>
+
+              {/* FOTO EM ALTA RESOLUÇÃO PARA A LOJA */}
+              <div className="commerce-media-block" style={{ marginTop: 12 }}>
+                <span className="commerce-media-label">📸 {tx('Foto de Alta Qualidade para a Loja', 'Foto de Alta Calidad', 'High Quality Photo')}</span>
+                <div className="commerce-prod-photo-row">
+                  <div className="commerce-prod-modal-thumb">
+                    {formProdCustom.imagemLoja ? (
+                      <img src={formProdCustom.imagemLoja} alt="Preview" />
+                    ) : (
+                      <span className="thumb-empty">Sem foto</span>
+                    )}
+                  </div>
+                  <div className="commerce-media-actions">
+                    <label className="commerce-btn-file">
+                      📁 {tx('Enviar Foto da Loja', 'Subir Foto', 'Upload Photo')}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={lidarUploadFotoProduto}
+                      />
+                    </label>
+                    {formProdCustom.imagemLoja && (
+                      <button
+                        type="button"
+                        className="commerce-btn-remove-media"
+                        onClick={() => setFormProdCustom(prev => ({ ...prev, imagemLoja: '' }))}
+                      >
+                        {tx('Remover', 'Quitar', 'Remove')}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* PREÇO NORMAL VS PREÇO PROMOCIONAL */}
+              <div className="commerce-prod-modal-prices-grid">
+                <div className="commerce-field">
+                  <label>{tx('Preço Normal de Balcão (R$)', 'Precio Normal', 'Normal Price')}</label>
+                  <input
+                    type="text"
+                    disabled
+                    value={`R$ ${(Number(produtoModalEdicao.precoBRL ?? produtoModalEdicao.preco ?? 0)).toFixed(2).replace('.', ',')}`}
+                    style={{ opacity: 0.7 }}
+                  />
+                </div>
+
+                <div className="commerce-field">
+                  <label>{tx('Preço Promocional na Loja (R$)', 'Precio Promocional', 'Promo Price')}</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="Ex: 89.90"
+                    value={formProdCustom.precoPromoBRL}
+                    onChange={(e) => setFormProdCustom(prev => ({ ...prev, precoPromoBRL: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              {/* SELO / ETIQUETA PROMOCIONAL */}
+              <div className="commerce-field">
+                <label>{tx('Etiqueta / Selo (Opcional)', 'Etiqueta de Oferta', 'Promo Tag')}</label>
+                <div className="commerce-tag-options">
+                  {['OFERTA', 'PROMOÇÃO', 'LANÇAMENTO', 'MAIS VENDIDO', 'DESTAQUE'].map(tag => (
+                    <button
+                      key={tag}
+                      type="button"
+                      className={`commerce-tag-chip ${formProdCustom.tagPromo === tag ? 'active' : ''}`}
+                      onClick={() => setFormProdCustom(prev => ({ ...prev, tagPromo: tag }))}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* DESCRIÇÃO COMERCIAL */}
+              <div className="commerce-field">
+                <label>{tx('Descrição Detalhada para o Cliente', 'Descripción para Clientes', 'Storefront Description')}</label>
+                <textarea
+                  rows={3}
+                  value={formProdCustom.descricaoLoja}
+                  onChange={(e) => setFormProdCustom(prev => ({ ...prev, descricaoLoja: e.target.value }))}
+                  placeholder={tx('Ex: Produto de alta durabilidade, ideal para acabamento fino. Pronta entrega.', 'Descripción del producto...', 'Commercial description...')}
+                />
+              </div>
+
+              {/* TOGGLES */}
+              <div className="commerce-modal-toggles-row">
+                <label className="commerce-modal-check">
+                  <input
+                    type="checkbox"
+                    checked={formProdCustom.ativo}
+                    onChange={(e) => setFormProdCustom(prev => ({ ...prev, ativo: e.target.checked }))}
+                  />
+                  <span>🟢 {tx('Publicar na Loja Online', 'Publicar en la Tienda', 'Show in Storefront')}</span>
+                </label>
+
+                <label className="commerce-modal-check">
+                  <input
+                    type="checkbox"
+                    checked={formProdCustom.destaque}
+                    onChange={(e) => setFormProdCustom(prev => ({ ...prev, destaque: e.target.checked }))}
+                  />
+                  <span>⭐ {tx('Colocar em Destaque na Página Inicial', 'Destacar en Inicio', 'Feature on Homepage')}</span>
+                </label>
+              </div>
+
+            </div>
+
+            <div className="commerce-prod-modal-footer">
+              <button
+                type="button"
+                className="commerce-btn-modal-cancel"
+                onClick={() => setProdutoModalEdicao(null)}
+              >
+                {tx('Cancelar', 'Cancelar', 'Cancel')}
+              </button>
+              <button
+                type="button"
+                className="commerce-btn-modal-save"
+                onClick={salvarModalEdicao}
+              >
+                ✓ {tx('Confirmar Alterações', 'Confirmar Cambios', 'Confirm Changes')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* BARRA FIXA DE SALVAR */}
       <footer className="commerce-footer-bar">

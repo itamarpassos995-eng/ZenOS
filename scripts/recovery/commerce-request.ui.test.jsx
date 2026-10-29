@@ -1,7 +1,7 @@
 import React from 'react';
 import { readFileSync } from 'node:fs';
 import { test, expect, vi, afterEach, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react';
 
 const mocks = vi.hoisted(() => ({
   currentUser: { uid: 'loja-A' },
@@ -131,6 +131,7 @@ test('carrega a configuração da loja no Firestore', async () => {
   });
 
   render(<CommerceSolicitacao lojaId="loja-A" />);
+  fireEvent.click(screen.getByRole('button', { name: /Apresentação da Loja/ }));
   expect(await screen.findByDisplayValue('Loja na Nuvem')).toBeTruthy();
   expect(mocks.getDoc).toHaveBeenCalledWith('lojas/loja-A/dados/configuracoes');
   expect(mocks.setDoc).not.toHaveBeenCalled();
@@ -139,6 +140,7 @@ test('carrega a configuração da loja no Firestore', async () => {
 test('salva as configurações somente no documento da loja autenticada com merge', async () => {
   mocks.callable.mockResolvedValue({ data: { status: 'nao_solicitado', habilitado: false } });
   render(<CommerceSolicitacao lojaId="loja-A" />);
+  fireEvent.click(screen.getByRole('button', { name: /Apresentação da Loja/ }));
 
   fireEvent.change(screen.getByPlaceholderText('Ex: Loja Modelo Tintas & Ferragens'), {
     target: { value: 'Loja Exemplo' },
@@ -181,6 +183,40 @@ test('painéis retráteis atualizam a prévia ao vivo em celular e computador', 
   expect(container.querySelector('.commerce-store .commerce-preview-cart')).not.toBeNull();
   expect(container.querySelector('.commerce-store .commerce-product .commerce-btn')?.disabled).toBe(true);
   expect(mocks.setDoc).not.toHaveBeenCalled();
+});
+
+test('ocultar um produto preserva os outros e ocultar todos não mostra produto demonstrativo', () => {
+  const produtos = [
+    { id: 'p-1', nome: 'Produto Azul', preco: 100, estoque: 3 },
+    { id: 'p-2', nome: 'Produto Verde', preco: 50, estoque: 4 },
+  ];
+  const { container } = render(<CommerceSolicitacao lojaId="loja-A" produtos={produtos} />);
+  expect(container.querySelectorAll('.commerce-store .commerce-product')).toHaveLength(2);
+
+  const linhaAzul = screen.getAllByText('Produto Azul')[0].closest('.commerce-prod-row');
+  fireEvent.click(within(linhaAzul).getByRole('button', { name: /Na Loja/ }));
+  expect(container.querySelectorAll('.commerce-store .commerce-product')).toHaveLength(1);
+  expect(container.querySelector('.commerce-store .commerce-product h3')?.textContent).toBe('Produto Verde');
+
+  fireEvent.click(screen.getByRole('button', { name: /Ocultar Todos/ }));
+  expect(container.querySelectorAll('.commerce-store .commerce-product')).toHaveLength(0);
+  expect(container.querySelector('.commerce-store')?.textContent).not.toContain('Mademoiselle');
+  expect(mocks.setDoc).not.toHaveBeenCalled();
+});
+
+test('desconto em lote atualiza somente a vitrine local até clicar em salvar', () => {
+  const produtos = [{ id: 'p-1', nome: 'Produto Teste', preco: 100, estoque: 2 }];
+  const { container } = render(<CommerceSolicitacao lojaId="loja-A" produtos={produtos} />);
+  fireEvent.click(screen.getByRole('button', { name: /Aplicar % a Todos/ }));
+
+  expect(container.querySelector('.commerce-store .commerce-price-original')?.textContent).toContain('100,00');
+  expect(container.querySelector('.commerce-store .commerce-product-price.promo')?.textContent).toContain('85,00');
+  expect(produtos[0].preco).toBe(100);
+  expect(mocks.setDoc).not.toHaveBeenCalled();
+
+  fireEvent.click(screen.getByRole('button', { name: /Limpar Promoções/ }));
+  expect(container.querySelector('.commerce-store .commerce-product-price.promo')).toBeNull();
+  expect(container.querySelector('.commerce-store .commerce-product-price')?.textContent).toContain('100,00');
 });
 
 test('salvamento exibe confirmação visível na tela', async () => {

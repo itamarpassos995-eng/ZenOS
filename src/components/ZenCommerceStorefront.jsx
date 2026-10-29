@@ -75,29 +75,53 @@ export function montarLojaAPartirDeConfig(configCommerce = {}, produtos = [], lo
   ];
 
   const produtosValidos = Array.isArray(produtos) ? produtos.filter(p => p && p.nome) : [];
+  const mapaProdutosLoja = configCommerce?.produtosLoja || {};
+  const descontoGeral = Number(configCommerce?.descontoGeralPorcentagem || 0);
+
   let catalogo = [];
 
   if (produtosValidos.length > 0) {
-    catalogo = produtosValidos.slice(0, 24).map((p, idx) => {
-      const precoNumerico = Number(p.preco || p.precoVenda || p.precoUnitario || 0);
-      return {
-        skuPublico: String(p.id || `p-${idx + 1}`),
-        nome: p.nome,
-        categoria: p.categoria || 'Geral',
-        precoCentavos: Math.round(precoNumerico * 100),
-        disponivel: Number(p.estoque ?? 1) > 0,
-        imagemUrl: p.imagem || p.fotoUrl || (idx === 0 ? '/demo-mademoiselle-elegance.png' : ''),
-        descricao: p.descricao || p.detalhes || '',
-        quantidadeMaxima: Math.max(1, Number(p.estoque || 10)),
-        imagens: (p.imagem || p.fotoUrl)
-          ? [{ id: 'f-1', url: p.imagem || p.fotoUrl }]
-          : (idx === 0 ? [{ id: 'f-demo', url: '/demo-mademoiselle-elegance.png' }] : [])
-      };
-    });
+    catalogo = produtosValidos
+      .filter((p) => {
+        if (!p || !p.nome) return false;
+        const cfgP = mapaProdutosLoja[p.id];
+        return cfgP?.ativo !== undefined ? cfgP.ativo : Number(p.estoque ?? 0) > 0;
+      })
+      .slice(0, 48)
+      .map((p, idx) => {
+        const cfgP = mapaProdutosLoja[p.id] || {};
+        const precoNormal = Number(p.precoBRL ?? p.preco ?? p.precoVenda ?? p.precoUnitario ?? 0);
+
+        let precoPromo = cfgP.precoPromoBRL ? Number(cfgP.precoPromoBRL) : null;
+        if (!precoPromo && descontoGeral > 0 && precoNormal > 0) {
+          precoPromo = Math.round((precoNormal * (1 - descontoGeral / 100)) * 100) / 100;
+        }
+
+        const temPromocao = precoPromo && precoPromo > 0 && precoPromo < precoNormal;
+        const precoFinalCentavos = Math.round((temPromocao ? precoPromo : precoNormal) * 100);
+        const precoDeCentavos = temPromocao ? Math.round(precoNormal * 100) : null;
+
+        const fotoProduto = cfgP.imagemLoja || p.imagem || p.fotoUrl || '';
+
+        return {
+          skuPublico: String(p.id || `p-${idx + 1}`),
+          nome: cfgP.nomeLoja || p.nome,
+          categoria: (p.grupo || p.categoria || 'Geral').toUpperCase(),
+          precoCentavos: precoFinalCentavos,
+          precoDeCentavos: precoDeCentavos,
+          tagPromo: cfgP.tagPromo || (temPromocao ? `-${Math.round((1 - precoPromo / precoNormal) * 100)}%` : null),
+          destaque: Boolean(cfgP.destaque),
+          disponivel: Number(p.estoque ?? 1) > 0,
+          imagemUrl: fotoProduto || (idx === 0 ? '/demo-mademoiselle-elegance.png' : ''),
+          descricao: cfgP.descricaoLoja || p.descricao || p.detalhes || '',
+          quantidadeMaxima: Math.max(1, Number(p.estoque || 10)),
+          imagens: fotoProduto ? [{ id: 'f-1', url: fotoProduto }] : (idx === 0 ? [{ id: 'f-demo', url: '/demo-mademoiselle-elegance.png' }] : [])
+        };
+      });
   }
 
-  // Se nenhum produto tiver foto, garantimos o produto clássico e elegante da demonstração
-  if (catalogo.length === 0 || !catalogo.some(p => p.imagemUrl)) {
+  // Se nenhum produto tiver foto, garantimos o produto clássico da demonstração
+  if (produtosValidos.length === 0) {
     catalogo = [
       {
         skuPublico: 'demo-mademoiselle',
@@ -481,11 +505,24 @@ export default function ZenCommerceStorefront({
                   onClick={() => abrirProduto(p)}
                 >
                   {p.imagemUrl ? <img src={p.imagemUrl} alt={p.nome} loading="lazy" /> : <span>◇</span>}
+                  {p.destaque && <span className="commerce-badge-destaque">★ DESTAQUE</span>}
                 </button>
                 <div className="commerce-product-details">
                   <small>{p.categoria}</small>
                   <h3>{p.nome}</h3>
-                  {cfg.mostrarPreco && <strong className="commerce-product-price">{moeda(p.precoCentavos)}</strong>}
+                  {cfg.mostrarPreco && (
+                    <div className="commerce-product-price-row">
+                      {p.precoDeCentavos && p.precoDeCentavos > p.precoCentavos ? (
+                        <div className="commerce-price-promo-wrap">
+                          <span className="commerce-price-original">{moeda(p.precoDeCentavos)}</span>
+                          <strong className="commerce-product-price promo">{moeda(p.precoCentavos)}</strong>
+                          <span className="commerce-badge-promo">{p.tagPromo || 'OFERTA'}</span>
+                        </div>
+                      ) : (
+                        <strong className="commerce-product-price">{moeda(p.precoCentavos)}</strong>
+                      )}
+                    </div>
+                  )}
                   <button
                     type="button"
                     className="commerce-btn"
@@ -595,7 +632,19 @@ export default function ZenCommerceStorefront({
             </div>
           )}
           <p style={{ marginTop: 16 }}>{detalhe.descricao || detalhe.categoria}</p>
-          {cfg.mostrarPreco && <strong className="commerce-product-price">{moeda(detalhe.precoCentavos)}</strong>}
+          {cfg.mostrarPreco && (
+            <div className="commerce-product-price-row" style={{ marginTop: 12 }}>
+              {detalhe.precoDeCentavos && detalhe.precoDeCentavos > detalhe.precoCentavos ? (
+                <div className="commerce-price-promo-wrap">
+                  <span className="commerce-price-original">{moeda(detalhe.precoDeCentavos)}</span>
+                  <strong className="commerce-product-price promo">{moeda(detalhe.precoCentavos)}</strong>
+                  <span className="commerce-badge-promo">{detalhe.tagPromo || 'OFERTA'}</span>
+                </div>
+              ) : (
+                <strong className="commerce-product-price">{moeda(detalhe.precoCentavos)}</strong>
+              )}
+            </div>
+          )}
           <button
             type="button"
             className="commerce-btn"
