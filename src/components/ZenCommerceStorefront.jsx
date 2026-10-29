@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { db } from '../firebase';
+import { doc, setDoc } from 'firebase/firestore';
 import CommerceDialog from './CommerceDialog';
 import '../commerce.css';
 
@@ -254,27 +256,69 @@ export default function ZenCommerceStorefront({
 
   const enviarPedido = async e => {
     e.preventDefault();
-    if (isLivePreview || busy) return;
+    if (busy) return;
     setBusy(true);
     setErro('');
 
     try {
-      const idSimulado = 'ZN-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+      const idPedido = 'ON-' + Math.random().toString(36).substring(2, 8).toUpperCase();
       const numeroWhats = loja?.whatsapp || '';
       const textoMensagem = encodeURIComponent(
-        `Olá! Gostaria de confirmar meu pedido na vitrine *${cfg.nomeLoja}*:\n\n` +
+        `Olá! Enviei o pedido *${idPedido}* pela vitrine *${cfg.nomeLoja}*:\n\n` +
         itens.map(i => `• ${i.quantidade}x ${i.nome} (${moeda(i.precoCentavos)})`).join('\n') +
         `\n\n*Total:* ${moeda(total)}\n*Cliente:* ${cliente.nome}\n*Telefone:* ${cliente.telefone}` +
-        (cliente.observacao ? `\n*Obs:* ${cliente.observacao}` : '')
+        (cliente.observacao ? `\n*Obs:* ${cliente.observacao}` : '') +
+        `\n\n_Aguardando confirmação de disponibilidade e pagamento._`
       );
       const whatsUrl = numeroWhats ? `https://wa.me/${numeroWhats}?text=${textoMensagem}` : '';
 
+      // Registrar pedido na nuvem do ZenOS para aparecer instantaneamente no PDV
+      if (idPublico && idPublico !== 'previa') {
+        try {
+          const pedidoDoc = {
+            id: idPedido,
+            origem: 'commerce',
+            clienteNome: cliente.nome,
+            clienteTelefone: cliente.telefone,
+            observacao: cliente.observacao || '',
+            totalBRL: total / 100,
+            totalCentavos: total,
+            dataHora: new Date().toLocaleString('pt-BR'),
+            criadoEm: new Date().toISOString(),
+            estado: 'pendente',
+            tipoDocumento: 'pre_pedido',
+            itens: itens.map((i, idx) => ({
+              id: `${idPedido}-${idx}`,
+              produtoId: i.produtoId || i.skuPublico,
+              sku: i.skuPublico,
+              nome: i.nome,
+              quantidade: i.quantidade,
+              qtd: String(i.quantidade),
+              precoUnitarioBRL: i.precoCentavos / 100,
+              precoPraticadoBRL: i.precoCentavos / 100,
+              precoTexto: (i.precoCentavos / 100).toFixed(2),
+              subtotalBRL: (i.precoCentavos * i.quantidade) / 100
+            }))
+          };
+          await setDoc(doc(db, 'lojas', String(idPublico), 'pedidos_online', idPedido), pedidoDoc);
+        } catch (errSave) {
+          console.warn('[Commerce] Erro ao gravar pedido na nuvem:', errSave);
+        }
+      }
+
       setRecibo({
-        id: idSimulado,
+        id: idPedido,
         totalCentavos: total,
         whatsappUrl: whatsUrl,
-        isSimulacao: isLivePreview || !numeroWhats
+        isSimulacao: isLivePreview && !idPublico
       });
+
+      // Se houver WhatsApp configurado e não for prévia isolada, abre conversa
+      if (whatsUrl && !isLivePreview) {
+        try {
+          window.open(whatsUrl, '_blank', 'noopener,noreferrer');
+        } catch (_) {}
+      }
     } catch (err) {
       setErro('Não foi possível processar o pedido. Tente novamente.');
     } finally {

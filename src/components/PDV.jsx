@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { normalizarProduto, normalizarCliente } from '../data';
 import { aplicarVendaAoEstoque, obterEstoqueProduto, preverBaixaEstoqueProduto } from '../core/inventory';
 import { db } from '../firebase';
+import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { criarEventoEstoque, registrarEventosEstoque } from '../core/stockAudit';
 import { ajustarSkuPorTipoProdutoRapido, ehEncomendaUsoUnico, gerarSkuProdutoBalcao } from '../core/orderItems';
 import { classificarMargem } from '../core/profitability';
@@ -64,6 +65,95 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
 
   const [modalResgateAberto, setModalResgateAberto] = useState(false);
   const [prePedidoEmAbertoId, setPrePedidoEmAbertoId] = useState(rascunhoInicial?.prePedidoEmAbertoId || null);
+  const [pedidosOnline, setPedidosOnline] = useState([]);
+
+  useEffect(() => {
+    if (!userId) return;
+    try {
+      const refCol = collection(db, 'lojas', String(userId), 'pedidos_online');
+      const q = query(refCol, where('estado', '==', 'pendente'));
+      const unsub = onSnapshot(q, snap => {
+        const lista = [];
+        snap.forEach(d => {
+          lista.push({ ...d.data(), id: d.id });
+        });
+        lista.sort((a, b) => new Date(b.criadoEm || b.createdAt || 0) - new Date(a.criadoEm || a.createdAt || 0));
+        setPedidosOnline(lista);
+      }, err => {
+        console.warn('[PDV] Listener pedidos_online:', err);
+      });
+      return () => unsub();
+    } catch (err) {
+      console.warn('[PDV] Erro ao conectar pedidos_online:', err);
+    }
+  }, [userId]);
+
+  const carregarPedidoOnline = (pedido) => {
+    if (!pedido || !Array.isArray(pedido.itens) || !pedido.itens.length) return;
+    try {
+      const novosItens = pedido.itens.map((item, idx) => {
+        const prodExistente = (produtos || []).find(p =>
+          String(p.id) === String(item.produtoId || item.id) ||
+          (item.sku && String(p.sku) === String(item.sku))
+        );
+        const preco = Number(item.precoUnitarioBRL || item.precoBRL || (item.precoCentavos ? item.precoCentavos / 100 : 0)) ||
+                      Number(prodExistente?.preco1BRL || prodExistente?.precoBRL || 0);
+        const qtd = String(item.qtd || item.quantidade || 1);
+
+        if (prodExistente) {
+          const { imagem, imagens, fotos, galeria, ...leve } = prodExistente;
+          return {
+            ...leve,
+            id: `ON-${pedido.id}-${idx}`,
+            produtoOriginalId: prodExistente.id,
+            produtoOriginalSku: prodExistente.sku,
+            qtd,
+            precoPraticadoBRL: preco,
+            precoTexto: converterDeBRL(preco, moeda).toFixed(2)
+          };
+        }
+
+        return {
+          id: `ON-${pedido.id}-${idx}`,
+          produtoOriginalId: null,
+          produtoOriginalSku: item.sku || 'ONLINE',
+          sku: item.sku || 'ONLINE',
+          nome: item.nome || 'Item Loja Online',
+          qtd,
+          precoPraticadoBRL: preco,
+          precoTexto: converterDeBRL(preco, moeda).toFixed(2),
+          custoBRL: 0
+        };
+      });
+
+      setItensVenda(novosItens);
+      setPagamentosLancados([]);
+      const identCliente = `${pedido.clienteNome || 'Cliente Online'}${pedido.clienteTelefone ? ' (' + pedido.clienteTelefone + ')' : ''}`;
+      setNomeClienteVulso(identCliente);
+      setDescontoTexto('0');
+      setPrePedidoEmAbertoId(pedido.id);
+      operacaoDocumentoRef.current = { assinatura: null, id: null, instante: null };
+      setModalResgateAberto(false);
+      mostrarZen('info', tx('Pedido Online Carregado!','¡Pedido Online Cargado!','Online Order Loaded!'), tx(`Pedido de ${pedido.clienteNome || 'Cliente'} carregado no caixa. Confira e finalize a venda.`,'Pedido cargado en caja. Verifique y finalice.','Order loaded into register. Verify and complete sale.'));
+    } catch (err) {
+      mostrarZen('danger', 'Erro ao carregar pedido online', 'Não foi possível carregar o pedido.', [err?.message]);
+    }
+  };
+
+  const cancelarPedidoOnline = async (e, pedidoId) => {
+    e.stopPropagation();
+    if (!userId || !pedidoId) return;
+    try {
+      const docRef = doc(db, 'lojas', String(userId), 'pedidos_online', String(pedidoId));
+      await updateDoc(docRef, {
+        estado: 'cancelado',
+        canceladoEm: new Date().toISOString()
+      });
+      mostrarZen('info', tx('Pedido cancelado','Pedido cancelado','Order cancelled'), tx('O pedido online foi removido da fila.','El pedido fue removido de la fila.','The online order was removed from queue.'));
+    } catch (err) {
+      mostrarZen('danger', 'Erro ao cancelar', 'Não foi possível atualizar o pedido.', [err?.message]);
+    }
+  };
 
   useEffect(() => {
     if (!itensVenda.length && !prePedidoEmAbertoId) {
@@ -1036,6 +1126,16 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
       if (typeof setHistoricoVendas === 'function') {
         setHistoricoVendas(valoresConfirmados.historicoVendas || historicoProposto);
       }
+      if (prePedidoEmAbertoId && userId) {
+        try {
+          const docRef = doc(db, 'lojas', String(userId), 'pedidos_online', String(prePedidoEmAbertoId));
+          await updateDoc(docRef, {
+            estado: 'finalizado',
+            finalizadoEm: new Date().toISOString(),
+            vendaFinalId: vendaId
+          });
+        } catch (_) {}
+      }
       apagarRascunhoPDV(userId, operadorAtivo?.id);
       setVendaConcluidaObj(novaVenda);
       setVendaSucesso(true);
@@ -1116,7 +1216,70 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
             </div>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {historicoVendas.filter(v => v.estado === 'pendente' || v.estado === 'orcamento').length === 0 ? (
+              {/* SEÇÃO PEDIDOS DA LOJA ONLINE */}
+              {pedidosOnline.length > 0 && (
+                <div style={{ marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 900, color: '#38bdf8', letterSpacing: '1px', textTransform: 'uppercase' }}>
+                      🌐 {tx('Pedidos da Loja Online','Pedidos de la Tienda Online','Online Store Orders')} ({pedidosOnline.length})
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {pedidosOnline.map(ped => (
+                      <div
+                        key={ped.id}
+                        onClick={() => carregarPedidoOnline(ped)}
+                        role="button"
+                        tabIndex={0}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          padding: '14px 16px',
+                          background: 'linear-gradient(135deg, #0c2340, #031427)',
+                          border: '1px solid #0284c7',
+                          borderRadius: '12px',
+                          cursor: 'pointer',
+                          boxShadow: '0 4px 12px rgba(2, 132, 199, 0.25)'
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ background: '#0284c7', color: '#fff', fontSize: '10px', fontWeight: 900, padding: '2px 6px', borderRadius: '4px' }}>
+                              ONLINE
+                            </span>
+                            <strong style={{ color: '#fff', fontSize: '15px' }}>{ped.clienteNome}</strong>
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
+                            📱 {ped.clienteTelefone} • {ped.itens?.length || 0} {tx('itens','ítems','items')} • {ped.dataHora}
+                            {ped.observacao && (
+                              <span style={{ display: 'block', color: '#f59e0b', fontStyle: 'italic', marginTop: '2px' }}>
+                                Obs: "{ped.observacao}"
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                          <div style={{ fontWeight: 900, color: '#38bdf8', fontSize: '16px' }}>{fmt(ped.totalBRL)}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '10px', color: '#34d399', fontWeight: 800 }}>{tx('Abrir no Caixa →','Abrir en Caja →','Open in POS →')}</span>
+                            <button
+                              type="button"
+                              onClick={(e) => cancelarPedidoOnline(e, ped.id)}
+                              title={tx('Cancelar pedido','Cancelar pedido','Cancel order')}
+                              style={{ background: 'transparent', border: '1px solid #475569', color: '#94a3b8', borderRadius: '6px', fontSize: '10px', padding: '2px 6px', cursor: 'pointer' }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {pedidosOnline.length === 0 && historicoVendas.filter(v => v.estado === 'pendente' || v.estado === 'orcamento').length === 0 ? (
                 <div style={{ textAlign: 'center', color: '#475569', padding: '40px', backgroundColor: '#020617', borderRadius: '12px', border: '1px solid #1e293b' }}>{tx('Nenhum pré-pedido ou orçamento disponível.','Ningún pre-pedido o presupuesto disponible.','No available pre-orders or quotes.')}</div>
               ) : (
                 <>
@@ -1311,8 +1474,47 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
             <button disabled={processandoTransacao} onClick={() => { if(itensVenda.length===0) return; concluirTransacao('pre_pedido'); }} style={{ flex: 1, minWidth: '90px', padding: '12px', background: '#021e15', border: '1px solid #10b981', color: '#34d399', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', fontSize: '12px' }}>
               📝 Pré-Pedido
             </button>
-            <button onClick={() => setModalResgateAberto(true)} style={{ flex: 1, minWidth: '90px', padding: '12px', background: 'linear-gradient(135deg, #5b21b6, #4c1d95)', border: '1px solid #7c3aed', color: '#ddd6fe', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', fontSize: '12px' }}>
+            <button
+              onClick={() => setModalResgateAberto(true)}
+              style={{
+                position: 'relative',
+                flex: 1,
+                minWidth: '90px',
+                padding: '12px',
+                background: pedidosOnline.length > 0 ? 'linear-gradient(135deg, #0284c7, #0369a1)' : 'linear-gradient(135deg, #5b21b6, #4c1d95)',
+                border: `1px solid ${pedidosOnline.length > 0 ? '#38bdf8' : '#7c3aed'}`,
+                color: pedidosOnline.length > 0 ? '#ffffff' : '#ddd6fe',
+                borderRadius: '10px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                fontSize: '12px',
+                boxShadow: pedidosOnline.length > 0 ? '0 0 16px rgba(56, 189, 248, 0.45)' : 'none'
+              }}
+            >
               📥 Resgatar
+              {pedidosOnline.length > 0 && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: '-6px',
+                    right: '-6px',
+                    background: '#f43f5e',
+                    color: '#fff',
+                    fontSize: '10px',
+                    fontWeight: 900,
+                    width: '20px',
+                    height: '20px',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    border: '2px solid #0b1120',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.4)'
+                  }}
+                >
+                  {pedidosOnline.length}
+                </span>
+              )}
             </button>
           </div>
           

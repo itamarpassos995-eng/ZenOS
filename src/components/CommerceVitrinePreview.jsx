@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { normalizarCommerceConfig } from '../core/commerceConfig';
@@ -14,6 +14,7 @@ export default function CommerceVitrinePreview({ lojaIdRota }) {
   const [produtosLoja, setProdutosLoja] = useState([]);
   const [modo, setModo] = useState('full'); // 'full', 'desktop', 'mobile'
   const [recarregar, setRecarregar] = useState(0);
+  const [ehProprietario, setEhProprietario] = useState(false);
 
   // A rota isolada da vitrine precisa da rolagem normal do documento.
   // Desfazemos a classe ao desmontar para não afetar o painel operacional.
@@ -38,17 +39,20 @@ export default function CommerceVitrinePreview({ lojaIdRota }) {
       (usuario) => {
         const atual = ++versao;
         if (!usuario) {
+          if (lojaIdRota && lojaIdRota !== 'previa') {
+            try {
+              signInAnonymously(auth).catch(() => {});
+            } catch (_) {}
+            return;
+          }
           setConfig(null);
           setSituacao('login');
           return;
         }
 
         const idDaLoja = lojaIdRota === 'previa' ? usuario.uid : (lojaIdRota || usuario.uid);
-        if (!idDaLoja || usuario.uid !== idDaLoja) {
-          setConfig(null);
-          setSituacao('proibido');
-          return;
-        }
+        const souDono = Boolean(usuario && usuario.uid === idDaLoja);
+        setEhProprietario(souDono);
 
         setSituacao('carregando');
         void (async () => {
@@ -112,6 +116,19 @@ export default function CommerceVitrinePreview({ lojaIdRota }) {
             {situacao === 'erro' && <button type="button" onClick={() => setRecarregar(n => n + 1)}>Tentar novamente</button>}
           </div>
         </div>
+      </main>
+    );
+  }
+
+  if (!ehProprietario) {
+    return (
+      <main className="commerce-public-view">
+        <ZenCommerceStorefront
+          idPublico={lojaIdRota}
+          configCommerce={config}
+          produtos={produtosLoja}
+          isLivePreview={false}
+        />
       </main>
     );
   }
