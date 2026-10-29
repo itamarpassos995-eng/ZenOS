@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import {
   normalizarCommerceConfig,
@@ -82,7 +82,9 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
   const fileLogoRef = useRef(null);
   const fileBannerRef = useRef(null);
 
-  const slugAtivo = (configCommerce.slug || lojaId || '').trim();
+  const slugAtivo = (configCommerce.slug && configCommerce.slug !== sanitizarSlugLoja(lojaId)
+    ? configCommerce.slug
+    : lojaId || '').trim();
   const urlVitrine = typeof window !== 'undefined'
     ? `${window.location.origin}/loja/${slugAtivo}`
     : `https://zenos-ac6b2.web.app/loja/${slugAtivo}`;
@@ -470,29 +472,45 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
         return;
       }
 
-      await setDoc(
-        doc(db, 'lojas', lojaId, 'dados', 'configuracoes'),
-        {
-          commerceConfig: configNormalizada,
-          updatedAtClient: new Date().toISOString(),
-          updatedAtServer: serverTimestamp(),
-        },
-        { merge: true }
-      );
+      const configuracoesRef = doc(db, 'lojas', lojaId, 'dados', 'configuracoes');
+      const dadosConfiguracoes = {
+        commerceConfig: configNormalizada,
+        updatedAtClient: new Date().toISOString(),
+        updatedAtServer: serverTimestamp(),
+      };
+      const apelido = configNormalizada.slug && configNormalizada.slug !== sanitizarSlugLoja(lojaId)
+        ? configNormalizada.slug
+        : '';
 
-            if (configNormalizada.slug) {
-        try {
-          await setDoc(
-            doc(db, 'lojas_slugs', configNormalizada.slug),
-            {
-              lojaId,
-              slug: configNormalizada.slug,
-              nomeLoja: configNormalizada.nomeLoja || '',
-              updatedAtServer: serverTimestamp(),
-            },
-            { merge: true }
-          );
-        } catch (_) {}
+      if (apelido) {
+        if (apelido === 'previa') {
+          throw Object.assign(new Error('Este apelido é reservado.'), { code: 'commerce/slug-taken' });
+        }
+        // Cadastro e reserva do apelido na mesma transação. Nunca sobrescrever outra loja.
+        await runTransaction(db, async (tx) => {
+          const apelidoRef = doc(db, 'lojas_slugs', apelido);
+          const lojaExistenteRef = doc(db, 'lojas', apelido);
+          const [registroAtual, lojaExistente] = await Promise.all([
+            tx.get(apelidoRef),
+            tx.get(lojaExistenteRef),
+          ]);
+          if ((registroAtual.exists() && registroAtual.data()?.lojaId !== lojaId)
+            || (lojaExistente.exists() && apelido !== lojaId)) {
+            throw Object.assign(new Error('Este link personalizado já pertence a outra loja.'), {
+              code: 'commerce/slug-taken',
+            });
+          }
+          tx.set(apelidoRef, {
+            lojaId,
+            slug: apelido,
+            nomeLoja: configNormalizada.nomeLoja || '',
+            updatedAtServer: serverTimestamp(),
+          }, { merge: true });
+          tx.set(configuracoesRef, dadosConfiguracoes, { merge: true });
+        });
+      } else {
+        // O link padrão continua por UID, sem escrita adicional nem leituras extras.
+        await setDoc(configuracoesRef, dadosConfiguracoes, { merge: true });
       }
       salvarCommerceConfigLocal(lojaId, configNormalizada);
       notifyPersistenceStatus({ status: 'SINCRONIZADO', field: 'commerce_config' });
@@ -509,6 +527,14 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
     } catch (err) {
       console.error('[Commerce] Falha ao salvar configurações:', err);
       notifyPersistenceStatus({ status: 'ERRO', field: 'commerce_config', error: err?.message });
+      if (err?.code === 'commerce/slug-taken') {
+        avisarZen('warning',
+          tx('Link Indisponível', 'Enlace No Disponible', 'Link Unavailable'),
+          tx('Este apelido está reservado ou pertence a outra loja. Escolha um diferente.',
+            'Este apodo está reservado o pertenece a otra tienda. Elija otro.',
+            'This slug is reserved or belongs to another store. Choose another.'));
+        return;
+      }
       avisarZen(
         'danger',
         tx('Erro ao Salvar', 'Error al Guardar', 'Save Error'),

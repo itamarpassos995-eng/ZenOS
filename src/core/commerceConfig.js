@@ -44,10 +44,12 @@ export const normalizarCommerceConfig = (dados = {}, perfilLoja = null, lojaId =
     logoUrl: c.logoUrl || perfilLoja?.logoLoja || '',
     bannerUrl: c.bannerUrl || '',
     corTema: c.corTema || '#0284c7',
-    slug: sanitizarSlugLoja(c.slug || c.nomeLoja || lojaId || ''),
     produtosLoja: (c.produtosLoja && typeof c.produtosLoja === 'object') ? c.produtosLoja : {},
     descontoGeralPorcentagem: Number(c.descontoGeralPorcentagem || 0),
     ...c,
+    // Não registrar automaticamente um apelido sem o lojista escolhê-lo.
+    // Aplicar a normalização depois de ...c para evitar que dados antigos a substituam.
+    slug: sanitizarSlugLoja(c.slug || ''),
   };
 };
 
