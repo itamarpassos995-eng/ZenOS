@@ -33,6 +33,11 @@ import CommerceSolicitacao from '../../src/components/CommerceSolicitacao';
 test('layout de celular usa a largura da vitrine, mesmo dentro do ZenOS em tela grande', () => {
   const css = readFileSync('src/commerce.css', 'utf8');
   expect(css).toMatch(/\.commerce-store\s*\{[^}]*container:\s*commerce-store\s*\/\s*inline-size/);
+  // Campos do formulário administrativo não podem receber o fundo branco da vitrine.
+  expect(css).toMatch(/\.commerce-store\s+\.commerce-field\s*\{/);
+  expect(css).not.toMatch(/(?:^|\n)\.commerce-field\s*\{/);
+  const cssDoPainel = readFileSync('src/components/CommerceSolicitacao.css', 'utf8');
+  expect(cssDoPainel).toMatch(/\.commerce-mockup-wrapper\.mobile\s*\{[^}]*width:\s*100%;[^}]*max-width:\s*360px;/);
   const mobileRules = css.split('@container commerce-store (max-width:640px) {')[1]?.split('@container commerce-store (max-width:350px)')[0];
   expect(mobileRules).toBeTruthy();
   expect(mobileRules).toMatch(/\.commerce-header-links\s*\{\s*display:none/);
