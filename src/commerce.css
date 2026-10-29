@@ -111,7 +111,7 @@ html.commerce-document.commerce-dialog-open { overflow-y:hidden; }
 .commerce-order-summary strong { font-size:24px; font-weight:750; letter-spacing:-.5px; }
 .commerce-form { display:grid; gap:15px; border:0; padding:0; margin-top:22px; }
 .commerce-form label { display:grid; gap:7px; font-size:11px; font-weight:650; }
-.commerce-field { min-width:0; width:100%; min-height:45px; padding:11px 13px; border:1px solid #d7dfda; border-radius:8px; background:#fff; color:#162d38; font:inherit; }
+.commerce-store .commerce-field { min-width:0; width:100%; min-height:45px; padding:11px 13px; border:1px solid #d7dfda; border-radius:8px; background:#fff; color:#162d38; font:inherit; }
 .commerce-form textarea { resize:vertical; min-height:85px; }
 .commerce-form .commerce-consent { display:flex; align-items:flex-start; gap:10px; font-size:11px; font-weight:400; color:#6c7c76; }
 .commerce-consent input { width:17px; height:17px; flex:none; margin-top:2px; accent-color:#193d4e; }

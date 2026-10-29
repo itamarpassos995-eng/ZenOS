@@ -814,6 +814,9 @@
 }
 
 .commerce-mockup-wrapper.mobile {
+  /* A vitrine interna usa container queries e não fornece largura intrínseca.
+     A moldura precisa ocupar uma largura definida para não virar uma faixa. */
+  width: 100%;
   max-width: 360px;
   margin: 0 auto;
   border-radius: 28px;
