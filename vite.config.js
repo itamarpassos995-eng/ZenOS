@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { createHash, pbkdf2Sync } from 'node:crypto'
+import { resolve } from 'node:path'
 
 const PIN_ITERATIONS = 120000
 
@@ -56,6 +57,14 @@ function zenosHomologacaoPinBridge() {
 }
 
 export default defineConfig(({ mode }) => ({
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(process.cwd(), 'index.html'),
+        commerceHomologacao: resolve(process.cwd(), 'commerce-homologacao.html'),
+      },
+    },
+  },
   plugins: [
     react(),
     mode === 'homologacao' ? zenosHomologacaoPinBridge() : null,

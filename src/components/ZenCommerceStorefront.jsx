@@ -1,6 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { db } from '../firebase';
-import { doc, setDoc } from 'firebase/firestore';
 import CommerceDialog from './CommerceDialog';
 import '../commerce.css';
 
@@ -330,6 +328,9 @@ export default function ZenCommerceStorefront({
               subtotalBRL: (i.precoCentavos * i.quantidade) / 100
             }))
           };
+          const [{ db }, { doc, setDoc }] = await Promise.all([
+            import('../firebase'), import('firebase/firestore')
+          ]);
           await setDoc(doc(db, 'lojas', String(idPublico), 'pedidos_online', idPedido), pedidoDoc);
         } catch (errSave) {
           console.warn('[Commerce] Erro ao gravar pedido na nuvem:', errSave);

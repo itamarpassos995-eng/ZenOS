@@ -8,11 +8,16 @@ on:
       - 'api/commerce/_lib/commerceGoogle.js'
       - 'api/commerce/publicar.js'
       - 'api/commerce/pedido.js'
+      - 'commerce-homologacao.html'
+      - 'src/commerce-homologacao-main.jsx'
+      - 'src/components/ZenCommerceStorefront.jsx'
+      - 'vite.config.js'
       - 'scripts/commerce-cdn-homologacao.test.mjs'
       - 'scripts/commerce-cdn-client.test.mjs'
       - 'scripts/commerce-cdn-api.test.mjs'
       - 'scripts/commerce-cdn-publicar.test.mjs'
       - 'scripts/commerce-cdn-pedido.test.mjs'
+      - 'scripts/commerce-cdn-preview.test.mjs'
       - 'docs/ARQUITETURA_COMMERCE_PUBLICO.md'
       - '.github/workflows/commerce-cdn-homologacao-ci.yml'
   workflow_dispatch:
@@ -28,7 +33,7 @@ jobs:
           node-version: '22'
           cache: npm
       - name: Testar contrato puro sem Firestore
-        run: node --test scripts/commerce-cdn-homologacao.test.mjs scripts/commerce-cdn-client.test.mjs scripts/commerce-cdn-api.test.mjs scripts/commerce-cdn-publicar.test.mjs scripts/commerce-cdn-pedido.test.mjs
+        run: node --test scripts/commerce-cdn-homologacao.test.mjs scripts/commerce-cdn-client.test.mjs scripts/commerce-cdn-api.test.mjs scripts/commerce-cdn-publicar.test.mjs scripts/commerce-cdn-pedido.test.mjs scripts/commerce-cdn-preview.test.mjs
       - name: Compilar frontend atual sem alterar produção
         run: |
           npm ci --ignore-scripts --no-audit --no-fund

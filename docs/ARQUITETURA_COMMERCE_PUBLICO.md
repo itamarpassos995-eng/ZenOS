@@ -47,3 +47,9 @@ O cliente HTTP isolado retorna `{ idPublico, configCommerce, produtos }` com o m
 - Preço, promoções, estoque e disponibilidade recalculados do servidor. Carrinho com ID de produto/quantidade; valores enviados pelo navegador ignorados. Pedidos repetidos recebem o mesmo ID, sem duplicar escrita; falha na gravação devolve erro, nunca falso sucesso.
 - A leitura oficial usa credencial de serviço `ZENOS_COMMERCE_SERVICE_ACCOUNT_JSON` **ainda não provisionada**. O endpoint não deve ser habilitado em produção antes da auditoria das permissões do serviço e do teste com o PDV.
 - Necessário criar a ligação de UI com o Turnstile e modo CDN, e testar a recepção de pedidos em ambiente isolado. Não habilitar checkout público sem essa etapa.
+
+## Prévia HTML isolada, mesmo componente visual
+- Arquivo `commerce-homologacao.html?slug=<apelido>` gera uma entrada Vite independente; importa o **ZenCommerceStorefront original**, mesmo CSS, mesma personalização, fotos e cards. O painel `CommerceSolicitacao.jsx` não foi alterado.
+- Não importa `App.jsx`, Firebase ou Authentication. O módulo de checkout legado usa importação dinâmica do Firebase **somente se o usuário conclui compra na loja antiga**; nunca é carregado na nova prévia CDN.
+- A prévia é **somente leitura** (`isLivePreview=true`): botões de compra inativos até homologar Turnstile/checkout. Não confundir com loja completa em produção.
+- Página marcada noindex/nofollow, sem alterar rotas originais; `vite.config.js` inclui segunda entrada preservando `index.html` principal.
