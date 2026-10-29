@@ -88,7 +88,7 @@ export class V2Session {
    this.values[value.field]=value.value;
   },{cacheOnly});
  }
- assertComplete(manifest,counts){
+ assertComplete(manifest,counts,{requireValues=false}={}){
   for(const [field,meta] of Object.entries(manifest)){
    if(meta.kind==='array'){
     const expected=Number(counts?.[field]??meta.count);
@@ -96,7 +96,7 @@ export class V2Session {
     const actual=[...(records?.values()||[])].filter(v=>!v.deleted).length;
     if(!Number.isSafeInteger(expected)||expected<0||actual!==expected)
      throw v2Error('V2_COUNT_MISMATCH','Contagem da cópia difere do manifesto confirmado.');
-   }else if(!Object.prototype.hasOwnProperty.call(this.values,field)){
+   }else if(requireValues&&!Object.prototype.hasOwnProperty.call(this.values,field)){
     throw v2Error('V2_CACHE_INCOMPLETE','Campo operacional não está disponível no cache.');
    }
   }
@@ -123,7 +123,7 @@ export class V2Session {
    try{
     this.sequence=previousSequence;this.revisions={...(cached.fieldRevisions||{})};
     await this.hydrateCollections(manifest,{cacheOnly:true});
-    this.assertComplete(manifest,cached.fieldCounts);
+    this.assertComplete(manifest,cached.fieldCounts,{requireValues:true});
     if(this.sequence<remoteSequence)await this.catchUp();
     const end=await getDocFromServer(headRef);
     if(!end.exists()||end.data().state!=='ready')throw v2Error('V2_NOT_READY','Cópia V2 indisponível.');
