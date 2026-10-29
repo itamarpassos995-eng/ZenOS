@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/vitrine/:lojaId",
+      "destination": "/commerce-homologacao.html"
+    },
+    {
       "source": "/loja/:lojaId",
       "destination": "/index.html"
     }

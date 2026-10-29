@@ -156,7 +156,8 @@ export default function ZenCommerceStorefront({
   lojaInicial = null,
   configCommerce = null,
   produtos = [],
-  isLivePreview = true
+  isLivePreview = true,
+  checkoutViaWhatsApp = false
 }) {
   // Prévia privada: nunca recuperar carrinho anterior nem dados de cliente.
   const [sessaoInicial] = useState(() => isLivePreview ? { carrinho: {}, chave: 'preview' } : recuperarSessao(idPublico));
@@ -288,6 +289,20 @@ export default function ZenCommerceStorefront({
         `\n\n_Aguardando confirmação de disponibilidade e atendimento._`
       );
       const whatsUrl = numeroWhats ? `https://wa.me/${numeroWhats}?text=${textoMensagem}` : '';
+
+      // Contingência opcional: pedido enviado pelo próprio consumidor no WhatsApp,
+      // sem gravar Firestore e SEM declarar recepção automática pelo PDV.
+      // O checkout original continua inalterado quando esta opção não está ligada.
+      if (checkoutViaWhatsApp) {
+        if (!whatsUrl) {
+          setErro('WhatsApp da loja não configurado. Entre em contato com o estabelecimento.');
+          return;
+        }
+        try { window.open(whatsUrl, '_blank', 'noopener,noreferrer'); } catch (_) {}
+        setRecibo({ id: idPedido, totalCentavos: total, whatsappUrl: whatsUrl,
+          aguardaEnvioManual: true, tipoEntrega: entrega.tipo, formaPagamento: pagamento.forma });
+        return;
+      }
 
       // Registrar pedido na nuvem do ZenOS para aparecer instantaneamente no PDV
       if (idPublico && idPublico !== 'previa') {
@@ -796,14 +811,16 @@ export default function ZenCommerceStorefront({
           {recibo ? (
             <div className="commerce-receipt" role="status">
               <span className="commerce-empty-icon"><Icon name="check" /></span>
-              <h3>Seu pedido foi recebido</h3>
+              <h3>{recibo.aguardaEnvioManual ? 'Seu pedido está pronto para enviar' : 'Seu pedido foi recebido'}</h3>
               <p>
                 Pedido <strong>{recibo.id}</strong> · Subtotal: {moeda(recibo.totalCentavos)}
               </p>
               <p>
-                {recibo.isSimulacao
-                  ? 'Demonstração de pedido concluída com sucesso! Na vitrine online, o pedido envia os dados diretamente para o WhatsApp da sua loja.'
-                  : 'Agora converse com a loja para confirmar disponibilidade, entrega e pagamento.'}
+                {recibo.aguardaEnvioManual
+                  ? 'Confirme o envio da mensagem no WhatsApp. Este pedido não foi registrado automaticamente no PDV; a loja confirmará o atendimento pela conversa.'
+                  : recibo.isSimulacao
+                    ? 'Demonstração de pedido concluída com sucesso! Na vitrine online, o pedido envia os dados diretamente para o WhatsApp da sua loja.'
+                    : 'Agora converse com a loja para confirmar disponibilidade, entrega e pagamento.'}
               </p>
               {recibo.whatsappUrl ? (
                 <a className="commerce-btn" href={recibo.whatsappUrl} target="_blank" rel="noopener noreferrer">
@@ -1027,7 +1044,7 @@ export default function ZenCommerceStorefront({
                 </label>
                 <button type="submit" className="commerce-btn" disabled={total <= 0}>
                   <Icon name="check" />
-                  {busy ? 'Processando pedido…' : 'Confirmar pedido e continuar pelo WhatsApp'}
+                  {busy ? 'Processando pedido…' : checkoutViaWhatsApp ? 'Enviar pedido pelo WhatsApp' : 'Confirmar pedido e continuar pelo WhatsApp'}
                 </button>
               </fieldset>
             </form>

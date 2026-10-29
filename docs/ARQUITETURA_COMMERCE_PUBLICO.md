@@ -60,3 +60,8 @@ O cliente HTTP isolado retorna `{ idPublico, configCommerce, produtos }` com o m
 - No painel Comércio da prévia, salvar configurações com apelido próprio e clicar **Publicar vitrine de homologação**. O servidor valida o proprietário com o login atual e gera o JSON público em Blob.
 - Endpoint GET e frontend HTML disponíveis somente em preview; Vercel protege automaticamente URLs temporárias por SSO. Nunca expor URL temporária protegida como link para clientes finais.
 - Antes da entrega com compra integrada, ainda faltam autenticação de serviço e política de antiabuso, teste de ponta a ponta de um pedido e liberação controlada em produção. Não habilitar checkout sem isso.
+
+## Contingência de entrega em data urgente (opcional, piloto)
+- Uma rota **alternativa** `/vitrine/:lojaId` usa a entrada isolada CDN sem tocar na rota original `/loja/:lojaId`.
+- Com `VITE_ZENOS_CDN_WHATSAPP_CHECKOUT=true` no build, o cliente pode usar o **mesmo carrinho e checkout** para preparar um pedido de WhatsApp. O navegador abre o WhatsApp e explica que **não é pedido automaticamente registrado no PDV**. Não altera o fluxo original; por padrão fica desativado.
+- Esta contingência não substitui a integração automática, que segue bloqueada até autenticação de serviço, antifraude e homologação de pedidos no PDV.
