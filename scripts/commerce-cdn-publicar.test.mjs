@@ -101,3 +101,11 @@ test('nunca lê listas ou caminhos arbitrários',()=>{
     'https://firestore.googleapis.com/v1/projects/zenos-ac6b2/databases/(default)/documents/lojas/loja-1/dados/configuracoes');
   assert.throws(()=>documentUrl('lojas','../outros'),/caminho-firestore-invalido/);
 });
+
+test('Blob usa store-id sem prefixo e flags REST oficiais',async()=>{
+ const {readFileSync}=await import('node:fs');
+ const code=readFileSync('api/commerce/_lib/commerceGoogle.js','utf8');
+ assert.match(code,/'x-vercel-blob-store-id':'fKepXWjAeW2ueMrB'/);
+ assert.match(code,/'x-allow-overwrite':'1'/);
+ assert.match(code,/'x-add-random-suffix':'0'/);
+});

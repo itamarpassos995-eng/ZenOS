@@ -34,7 +34,7 @@ O cliente HTTP isolado retorna `{ idPublico, configCommerce, produtos }` com o m
 ## Publicador em homologação
 - Endpoint POST `/api/commerce/publicar` disponível somente se `VERCEL_ENV=preview` e `ZENOS_COMMERCE_PUBLISH_ENABLED=true`. Sem isso responde 503, inclusive produção.
 - Bearer **Firebase ID token do proprietário** validado por assinatura RS256/Google JWK, emissor e audience do projeto oficial; contas anônimas bloqueadas.
-- Conta de serviço Vercel `ZENOS_COMMERCE_SERVICE_ACCOUNT_JSON` ainda **não configurada**. Conceder papel mínimo e apenas a esta função de homologação; nunca expor a chave no frontend ou no GitHub.
+- A publicação agora usa o **Firebase ID token do proprietário**, validado no servidor, também como autorização das três leituras REST pontuais do Firestore. Não precisa de conta de serviço para publicar. Checkout continua exigindo credencial de servidor separada.
 - Três leituras diretas por publicação (loja, configurações, registro do apelido); sem listener, query de coleção ou novas leituras por visita. Nenhum dado financeiro/privado deve ir ao snapshot.
 - Fotos legadas em data URI são convertidas para objetos da Blob pública com hash do conteúdo e limites de quantidade/bytes. Se limite excedido, a publicação falha fechada sem publicar catálogo parcial. As fotos da configuração permanecem preservadas.
 - O publicador usa API HTTP de Blob `x-api-version: 13` e token servidor `BLOB_READ_WRITE_TOKEN`. Versão deve ser revisada antes de produção; preferir SDK oficial e cache com versionamento antes da migração definitiva.
@@ -53,3 +53,10 @@ O cliente HTTP isolado retorna `{ idPublico, configCommerce, produtos }` com o m
 - Não importa `App.jsx`, Firebase ou Authentication. O módulo de checkout legado usa importação dinâmica do Firebase **somente se o usuário conclui compra na loja antiga**; nunca é carregado na nova prévia CDN.
 - A prévia é **somente leitura** (`isLivePreview=true`): botões de compra inativos até homologar Turnstile/checkout. Não confundir com loja completa em produção.
 - Página marcada noindex/nofollow, sem alterar rotas originais; `vite.config.js` inclui segunda entrada preservando `index.html` principal.
+
+## Operação do piloto de hoje
+- Store Blob configurado em Vercel: `fKepXWjAeW2ueMrB.public.blob.vercel-storage.com`.
+- Env isoladas no branch de preview: `ZENOS_COMMERCE_PUBLISH_ENABLED=true`, `ZENOS_COMMERCE_CDN_ORIGIN=https://fKepXWjAeW2ueMrB.public.blob.vercel-storage.com`, `VITE_ZENOS_CDN_PUBLISH_ENABLED=true`.
+- No painel Comércio da prévia, salvar configurações com apelido próprio e clicar **Publicar vitrine de homologação**. O servidor valida o proprietário com o login atual e gera o JSON público em Blob.
+- Endpoint GET e frontend HTML disponíveis somente em preview; Vercel protege automaticamente URLs temporárias por SSO. Nunca expor URL temporária protegida como link para clientes finais.
+- Antes da entrega com compra integrada, ainda faltam autenticação de serviço e política de antiabuso, teste de ponta a ponta de um pedido e liberação controlada em produção. Não habilitar checkout sem isso.
