@@ -54,9 +54,12 @@ const config=read('src/core/commerceConfig.js');
 assert.ok(config.includes('chaveCommerceConfigLocal')&&config.includes('normalizarCommerceConfig'),
   'GATE_FAIL: configuração Commerce sem isolamento local por loja');
 const preview=read('src/components/CommerceVitrinePreview.jsx');
-assert.ok(preview.includes('usuario.uid !== idDaLoja')&&preview.includes('getDoc(')&&
+assert.ok(preview.includes('const souDono = Boolean(usuario && usuario.uid === idDaLoja)')&&
+  preview.includes('if (!ehProprietario)')&&preview.includes('isLivePreview={false}')&&
+  preview.includes('isLivePreview={true}')&&
+  preview.includes("getDoc(doc(db, 'lojas', idDaLoja, 'dados', 'configuracoes'))")&&
   !preview.includes('setDoc(')&&!preview.includes('httpsCallable('),
-  'GATE_FAIL: prévia sem isolamento por loja ou com operações de escrita/ativação');
+  'GATE_FAIL: prévia privada/vitrine pública sem isolamento por loja ou com operações de escrita/ativação');
 const scrollCss=read('src/components/CommerceSolicitacao.css');
 assert.ok(scrollCss.includes('.commerce-preview-column .commerce-premium-scroll')&&
   scrollCss.includes('overscroll-behavior-y: auto')&&
@@ -69,8 +72,10 @@ assert.ok(preview.includes('isLivePreview={true}')&&portal.includes('isLivePrevi
   storefront.includes('if (isLivePreview) return;')&&
   storefront.includes('disabled={isLivePreview || !p.disponivel}')&&
   storefront.includes('{!isLivePreview && aberto && (')&&
-  !/\b(?:setDoc|updateDoc|httpsCallable|chamarLojaCommerce|criarCheckoutCommerce)\b/.test(storefront),
-  'GATE_FAIL: vitrine demonstrativa com carrinho, checkout ou operações comerciais acessíveis');
+  storefront.includes("if (idPublico && idPublico !== 'previa')")&&
+  storefront.includes("await setDoc(doc(db, 'lojas', String(idPublico), 'pedidos_online', idPedido), pedidoDoc);")&&
+  !/\b(?:updateDoc|httpsCallable|chamarLojaCommerce|criarCheckoutCommerce)\b/.test(storefront),
+  'GATE_FAIL: prévia com carrinho/checkout ou pedido público fora do escopo da loja');
 const main=read('src/main.jsx');
 assert.ok(main.includes('CommerceVitrinePreview')&&main.includes('previewMatch'),
   'GATE_FAIL: rota isolada da prévia ausente');

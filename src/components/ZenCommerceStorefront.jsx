@@ -250,7 +250,8 @@ export default function ZenCommerceStorefront({
 
   const enviarPedido = async e => {
     e.preventDefault();
-    if (busy) return;
+    // Segurança adicional: a prévia administrativa nunca registra pedido.
+    if (isLivePreview || busy) return;
     setBusy(true);
     setErro('');
 
