@@ -71,45 +71,66 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
   const [cursorPedidos, setCursorPedidos] = useState(null);
   const [maisPedidosDisponiveis, setMaisPedidosDisponiveis] = useState(false);
   const [carregandoMaisPedidos, setCarregandoMaisPedidos] = useState(false);
+  const [modoConsultaPedidos, setModoConsultaPedidos] = useState('recentes');
   const pedidosOnline = useMemo(() => {
     const unicos = new Map();
     [...pedidosRecentes, ...pedidosAnteriores].forEach(pedido => unicos.set(String(pedido.id), pedido));
     return [...unicos.values()].sort((a, b) => String(b.criadoEm || b.createdAt || '').localeCompare(String(a.criadoEm || a.createdAt || '')));
   }, [pedidosRecentes, pedidosAnteriores]);
 
-  // O PDV acompanha somente os 50 pedidos pendentes mais recentes.
-  // Pedidos antigos são paginados exclusivamente ao solicitar "Carregar mais".
+  // Prioriza os 50 pedidos pendentes mais recentes (com índice composto).
+  // Enquanto o índice não estiver provisionado, há fallback seguro para
+  // páginas limitadas por ID, sem esconder pedidos antigos ou baixar toda a coleção.
   useEffect(() => {
     if (!userId) return;
+    let ativo = true;
+    let cancelar = () => {};
     setPedidosRecentes([]);
     setPedidosAnteriores([]);
     setCursorPedidos(null);
     setMaisPedidosDisponiveis(false);
-    try {
-      const refCol = collection(db, 'lojas', String(userId), 'pedidos_online');
-      const q = query(refCol, where('estado', '==', 'pendente'), orderBy('criadoEm', 'desc'), limit(PAGINA_PEDIDOS_ONLINE));
-      const unsub = onSnapshot(q, snap => {
-        setPedidosRecentes(snap.docs.map(d => ({ ...d.data(), id: d.id })));
-        setPedidosAnteriores([]);
-        setCursorPedidos(snap.docs.at(-1) || null);
-        setMaisPedidosDisponiveis(snap.size === PAGINA_PEDIDOS_ONLINE);
-      }, err => {
-        console.warn('[PDV] Listener limitado de pedidos_online:', err);
-      });
-      return () => unsub();
-    } catch (err) {
-      console.warn('[PDV] Não foi possível inicializar pedidos_online:', err);
-    }
+    setModoConsultaPedidos('recentes');
+    const iniciar = (modo) => {
+      try {
+        const refCol = collection(db, 'lojas', String(userId), 'pedidos_online');
+        const filtros = [where('estado', '==', 'pendente')];
+        if (modo === 'recentes') filtros.push(orderBy('criadoEm', 'desc'));
+        const q = query(refCol, ...filtros, limit(PAGINA_PEDIDOS_ONLINE));
+        cancelar = onSnapshot(q, snap => {
+          if (!ativo) return;
+          setModoConsultaPedidos(modo);
+          setPedidosRecentes(snap.docs.map(d => ({ ...d.data(), id:d.id })));
+          setPedidosAnteriores([]);
+          setCursorPedidos(snap.docs.at(-1) || null);
+          setMaisPedidosDisponiveis(snap.size === PAGINA_PEDIDOS_ONLINE);
+        }, err => {
+          if (!ativo) return;
+          if (modo === 'recentes' && err?.code === 'failed-precondition' && /index/i.test(String(err?.message))) {
+            // Esta loja ainda não tem o índice composto: manter o fluxo operacional
+            // disponível com paginação e índice simples automaticamente existente.
+            console.warn('[PDV] Índice de pedidos pendente; ativando paginação alternativa.');
+            iniciar('alternativo');
+          } else {
+            console.warn('[PDV] Erro ao consultar pedidos_online:', err);
+          }
+        });
+      } catch (err) {
+        console.warn('[PDV] Não foi possível inicializar pedidos_online:', err);
+      }
+    };
+    iniciar('recentes');
+    return () => { ativo = false; cancelar(); };
   }, [userId]);
 
   const carregarMaisPedidosOnline = async () => {
     if (!userId || !cursorPedidos || !maisPedidosDisponiveis || carregandoMaisPedidos) return;
     setCarregandoMaisPedidos(true);
     try {
+      const filtros = [where('estado', '==', 'pendente')];
+      if (modoConsultaPedidos === 'recentes') filtros.push(orderBy('criadoEm', 'desc'));
       const q = query(
         collection(db, 'lojas', String(userId), 'pedidos_online'),
-        where('estado', '==', 'pendente'),
-        orderBy('criadoEm', 'desc'),
+        ...filtros,
         startAfter(cursorPedidos),
         limit(PAGINA_PEDIDOS_ONLINE),
       );
