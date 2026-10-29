@@ -2003,6 +2003,8 @@ export default function App() {
         <CommerceOrderInbox lojaId={userId} aberto={inboxPrivadoAberto}
           onFechar={() => setInboxPrivadoAberto(false)}
           onContagem={setTotalPedidosPrivados}
+          onAbrir={() => setInboxPrivadoAberto(true)}
+          obterToken={() => auth.currentUser?.getIdToken()}
           onCarregarNoPdv={carregarPedidoPrivadoNoPdv}
           onAbrirFilaAntiga={() => {
             setInboxPrivadoAberto(false);

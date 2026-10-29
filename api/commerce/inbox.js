@@ -30,7 +30,9 @@ function headers(extra={}){
 async function apiFetch(path,{method='GET',body,extra={}}={}){
   const res=await fetch(API+path,{method,headers:headers(extra),body,signal:AbortSignal.timeout(10000)});
   if(!res.ok){const err=Error('fila-armazenamento-indisponivel');err.status=res.status;throw err;}
-  return res.json();
+  if(res.status===204)return {};
+  const raw=await res.text();
+  return raw?JSON.parse(raw):{};
 }
 async function privatePut(path,content,{overwrite=false}={}){
   const res=await fetch(API+'/?pathname='+encodeURIComponent(path),{

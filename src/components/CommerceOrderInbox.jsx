@@ -3,7 +3,7 @@ import React,{useCallback,useEffect,useRef,useState} from 'react';
 // Central de pedidos fora do Firestore. O token Firebase Auth existente só
 // autentica o proprietário; nenhum getDoc/getDocs/onSnapshot é usado.
 export default function CommerceOrderInbox({
-  lojaId,aberto,onFechar,onContagem,onCarregarNoPdv,onAbrirFilaAntiga,obterToken
+  lojaId,aberto,onFechar,onAbrir,onContagem,onCarregarNoPdv,onAbrirFilaAntiga,obterToken
 }){
   const [pedidos,setPedidos]=useState([]);
   const [falha,setFalha]=useState('');
@@ -16,6 +16,7 @@ export default function CommerceOrderInbox({
   tokenGetter.current=obterToken;
   const atualizar=useCallback(async()=>{
     if(!lojaId)return;
+    setCarregando(true);
     try{
       const bearer=await tokenGetter.current?.();
       if(!bearer)throw Error('Sessão indisponível');
@@ -36,9 +37,9 @@ export default function CommerceOrderInbox({
       setFalha('');
       onContagem?.(list.length);
     }catch{
-      setFalha('A fila de pedidos está indisponível. Nenhum pedido foi confirmado.');
+      setFalha('A fila de pedidos está indisponível. Não foi possível conferir as novas solicitações.');
       onContagem?.(0);
-    }
+    }finally{setCarregando(false);}
   },[lojaId,onContagem]);
   useEffect(()=>{
     knownRef.current=null;setPedidos([]);onContagem?.(0);
@@ -78,7 +79,7 @@ export default function CommerceOrderInbox({
 
   return <>
     {!!novoAviso&&!aberto&&
-      <button type="button" onClick={()=>{setNovoAviso('');onFechar?.('abrir');}}
+      <button type="button" onClick={()=>{setNovoAviso('');onAbrir?.();}}
         style={{position:'fixed',zIndex:3000,right:18,bottom:90,padding:'12px 18px',
           color:'#fff',background:'#0369a1',border:'1px solid #7dd3fc',
           borderRadius:12,boxShadow:'0 12px 36px #0007',cursor:'pointer'}}>
