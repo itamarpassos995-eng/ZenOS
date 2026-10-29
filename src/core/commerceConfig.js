@@ -1,3 +1,13 @@
+export const sanitizarSlugLoja = (texto = '') => {
+  return String(texto || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
+};
+
 import { zenosStorage } from './storage';
 
 export const commerceConfigPadrao = {
@@ -34,10 +44,12 @@ export const normalizarCommerceConfig = (dados = {}, perfilLoja = null, lojaId =
     logoUrl: c.logoUrl || perfilLoja?.logoLoja || '',
     bannerUrl: c.bannerUrl || '',
     corTema: c.corTema || '#0284c7',
-    slug: (c.slug || lojaId || '').trim(),
     produtosLoja: (c.produtosLoja && typeof c.produtosLoja === 'object') ? c.produtosLoja : {},
     descontoGeralPorcentagem: Number(c.descontoGeralPorcentagem || 0),
     ...c,
+    // Não registrar automaticamente um apelido sem o lojista escolhê-lo.
+    // Aplicar a normalização depois de ...c para evitar que dados antigos a substituam.
+    slug: sanitizarSlugLoja(c.slug || ''),
   };
 };
 

@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import {
   normalizarCommerceConfig,
+  sanitizarSlugLoja,
   lerCommerceConfigLocal,
   salvarCommerceConfigLocal,
   comprimirImagem
@@ -81,9 +82,12 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
   const fileLogoRef = useRef(null);
   const fileBannerRef = useRef(null);
 
+  const slugAtivo = (configCommerce.slug && configCommerce.slug !== sanitizarSlugLoja(lojaId)
+    ? configCommerce.slug
+    : lojaId || '').trim();
   const urlVitrine = typeof window !== 'undefined'
-    ? `${window.location.origin}/loja/${lojaId || ''}`
-    : `https://zenos-ac6b2.web.app/loja/${lojaId || ''}`;
+    ? `${window.location.origin}/loja/${slugAtivo}`
+    : `https://zenos-ac6b2.web.app/loja/${slugAtivo}`;
 
   const avisarZen = (variante, titulo, mensagem, detalhes = []) => {
     setModalZen({ variante, titulo, mensagem, detalhes, apenasConfirmar: true });
@@ -468,16 +472,46 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
         return;
       }
 
-      await setDoc(
-        doc(db, 'lojas', lojaId, 'dados', 'configuracoes'),
-        {
-          commerceConfig: configNormalizada,
-          updatedAtClient: new Date().toISOString(),
-          updatedAtServer: serverTimestamp(),
-        },
-        { merge: true }
-      );
+      const configuracoesRef = doc(db, 'lojas', lojaId, 'dados', 'configuracoes');
+      const dadosConfiguracoes = {
+        commerceConfig: configNormalizada,
+        updatedAtClient: new Date().toISOString(),
+        updatedAtServer: serverTimestamp(),
+      };
+      const apelido = configNormalizada.slug && configNormalizada.slug !== sanitizarSlugLoja(lojaId)
+        ? configNormalizada.slug
+        : '';
 
+      if (apelido) {
+        if (apelido === 'previa') {
+          throw Object.assign(new Error('Este apelido é reservado.'), { code: 'commerce/slug-taken' });
+        }
+        // Cadastro e reserva do apelido na mesma transação. Nunca sobrescrever outra loja.
+        await runTransaction(db, async (tx) => {
+          const apelidoRef = doc(db, 'lojas_slugs', apelido);
+          const lojaExistenteRef = doc(db, 'lojas', apelido);
+          const [registroAtual, lojaExistente] = await Promise.all([
+            tx.get(apelidoRef),
+            tx.get(lojaExistenteRef),
+          ]);
+          if ((registroAtual.exists() && registroAtual.data()?.lojaId !== lojaId)
+            || (lojaExistente.exists() && apelido !== lojaId)) {
+            throw Object.assign(new Error('Este link personalizado já pertence a outra loja.'), {
+              code: 'commerce/slug-taken',
+            });
+          }
+          tx.set(apelidoRef, {
+            lojaId,
+            slug: apelido,
+            nomeLoja: configNormalizada.nomeLoja || '',
+            updatedAtServer: serverTimestamp(),
+          }, { merge: true });
+          tx.set(configuracoesRef, dadosConfiguracoes, { merge: true });
+        });
+      } else {
+        // O link padrão continua por UID, sem escrita adicional nem leituras extras.
+        await setDoc(configuracoesRef, dadosConfiguracoes, { merge: true });
+      }
       salvarCommerceConfigLocal(lojaId, configNormalizada);
       notifyPersistenceStatus({ status: 'SINCRONIZADO', field: 'commerce_config' });
 
@@ -493,6 +527,14 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
     } catch (err) {
       console.error('[Commerce] Falha ao salvar configurações:', err);
       notifyPersistenceStatus({ status: 'ERRO', field: 'commerce_config', error: err?.message });
+      if (err?.code === 'commerce/slug-taken') {
+        avisarZen('warning',
+          tx('Link Indisponível', 'Enlace No Disponible', 'Link Unavailable'),
+          tx('Este apelido está reservado ou pertence a outra loja. Escolha um diferente.',
+            'Este apodo está reservado o pertenece a otra tienda. Elija otro.',
+            'This slug is reserved or belongs to another store. Choose another.'));
+        return;
+      }
       avisarZen(
         'danger',
         tx('Erro ao Salvar', 'Error al Guardar', 'Save Error'),
@@ -634,6 +676,46 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
 
               {secoesAbertas.apresentacao && (
                 <div className="commerce-accordion-body">
+                                    <div className="commerce-field">
+                    <label>{tx('Link Personalizado da Loja (Apelido)', 'Enlace Personalizado (Apodo)', 'Custom Store Link (Slug)')}</label>
+                    <div style={{ display: 'flex', alignItems: 'center', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden' }}>
+                      <span style={{ padding: '0.5rem 0.75rem', color: '#64748b', fontSize: '0.875rem', fontWeight: 600, borderRight: '1px solid #cbd5e1', whiteSpace: 'nowrap' }}>
+                        {typeof window !== 'undefined' ? window.location.host : 'zenos.app.br'}/loja/
+                      </span>
+                      <input
+                        type="text"
+                        style={{ border: 'none', background: 'transparent', outline: 'none', padding: '0.5rem 0.75rem', flex: 1, minWidth: '120px', fontSize: '0.9rem' }}
+                        value={configCommerce.slug || ''}
+                        placeholder="ex: minha-loja"
+                        onChange={(e) => atualizarCampo('slug', sanitizarSlugLoja(e.target.value))}
+                      />
+                    </div>
+                    <small style={{ color: '#64748b', fontSize: '0.8rem', marginTop: '0.25rem', display: 'block' }}>
+                      {tx(
+                        'Link direto para enviar aos seus clientes pelo WhatsApp ou redes sociais.',
+                        'Enlace directo para enviar a sus clientes por WhatsApp o redes sociales.',
+                        'Direct link to send to your customers via WhatsApp or social media.'
+                      )}
+                    </small>
+                    <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="btn-zen-secondary btn-sm"
+                        onClick={copiarLinkVitrine}
+                      >
+                        📋 {linkCopiado ? tx('Link Copiado!', '¡Enlace Copiado!', 'Link Copied!') : tx('Copiar Link', 'Copiar Enlace', 'Copy Link')}
+                      </button>
+                      <a
+                        href={urlVitrine}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-zen-secondary btn-sm"
+                      >
+                        🔗 {tx('Abrir Loja', 'Abrir Tienda', 'Open Store')}
+                      </a>
+                    </div>
+                  </div>
+
                   <div className="commerce-field">
                     <label>{tx('Nome da Loja na Vitrine *', 'Nombre de la Tienda en Vitrina *', 'Storefront Name *')}</label>
                     <input
