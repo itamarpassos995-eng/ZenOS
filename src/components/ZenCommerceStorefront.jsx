@@ -195,6 +195,18 @@ export default function ZenCommerceStorefront({
   const [banner, setBanner] = useState(0);
   const [aberto, setAberto] = useState(false);
   const [cliente, setCliente] = useState({ nome: '', telefone: '', observacao: '', aceiteContato: false });
+  const [entrega, setEntrega] = useState({
+    tipo: 'retirada', // 'retirada' ou 'entrega'
+    rua: '',
+    numero: '',
+    bairro: '',
+    complemento: '',
+    cidade: ''
+  });
+  const [pagamento, setPagamento] = useState({
+    forma: 'pix', // 'pix', 'cartao', 'dinheiro'
+    trocoPara: ''
+  });
   const [recibo, setRecibo] = useState(null);
   const [chave, setChave] = useState(sessaoInicial.chave);
   const [erro, setErro] = useState('');
@@ -260,15 +272,39 @@ export default function ZenCommerceStorefront({
     setBusy(true);
     setErro('');
 
+    // Validação de endereço se for entrega em domicílio
+    if (entrega.tipo === 'entrega') {
+      if (!entrega.rua.trim() || !entrega.numero.trim() || !entrega.bairro.trim()) {
+        setErro('Por favor, informe a Rua, o Número e o Bairro para entrega.');
+        setBusy(false);
+        return;
+      }
+    }
+
     try {
       const idPedido = 'ON-' + Math.random().toString(36).substring(2, 8).toUpperCase();
       const numeroWhats = loja?.whatsapp || '';
+
+      const infoEntregaTexto = entrega.tipo === 'entrega'
+        ? `🛵 *Entrega em domicílio:* ${entrega.rua.trim()}, Nº ${entrega.numero.trim()} - Bairro ${entrega.bairro.trim()}${entrega.complemento ? ' (' + entrega.complemento.trim() + ')' : ''}`
+        : `🛍️ *Retirada na loja*`;
+
+      const rotuloPagamento = {
+        pix: '💠 PIX',
+        cartao: '💳 Cartão (no ato da entrega/retirada)',
+        dinheiro: `💵 Dinheiro${pagamento.trocoPara ? ' (Troco para R$ ' + pagamento.trocoPara + ')' : ''}`
+      }[pagamento.forma] || 'A combinar';
+
       const textoMensagem = encodeURIComponent(
         `Olá! Enviei o pedido *${idPedido}* pela vitrine *${cfg.nomeLoja}*:\n\n` +
         itens.map(i => `• ${i.quantidade}x ${i.nome} (${moeda(i.precoCentavos)})`).join('\n') +
-        `\n\n*Total:* ${moeda(total)}\n*Cliente:* ${cliente.nome}\n*Telefone:* ${cliente.telefone}` +
+        `\n\n*Total:* ${moeda(total)}\n` +
+        `*Cliente:* ${cliente.nome}\n` +
+        `*Telefone:* ${cliente.telefone}\n` +
+        `${infoEntregaTexto}\n` +
+        `*Pagamento:* ${rotuloPagamento}` +
         (cliente.observacao ? `\n*Obs:* ${cliente.observacao}` : '') +
-        `\n\n_Aguardando confirmação de disponibilidade e pagamento._`
+        `\n\n_Aguardando confirmação de disponibilidade e atendimento._`
       );
       const whatsUrl = numeroWhats ? `https://wa.me/${numeroWhats}?text=${textoMensagem}` : '';
 
@@ -281,6 +317,17 @@ export default function ZenCommerceStorefront({
             clienteNome: cliente.nome,
             clienteTelefone: cliente.telefone,
             observacao: cliente.observacao || '',
+            tipoEntrega: entrega.tipo,
+            endereco: entrega.tipo === 'entrega' ? {
+              rua: entrega.rua.trim(),
+              numero: entrega.numero.trim(),
+              bairro: entrega.bairro.trim(),
+              complemento: (entrega.complemento || '').trim(),
+              cidade: (entrega.cidade || '').trim()
+            } : null,
+            formaPagamento: pagamento.forma,
+            trocoPara: pagamento.forma === 'dinheiro' ? (pagamento.trocoPara || '') : '',
+            statusAtendimento: 'pendente',
             totalBRL: total / 100,
             totalCentavos: total,
             dataHora: new Date().toLocaleString('pt-BR'),
@@ -310,7 +357,9 @@ export default function ZenCommerceStorefront({
         id: idPedido,
         totalCentavos: total,
         whatsappUrl: whatsUrl,
-        isSimulacao: isLivePreview && !idPublico
+        isSimulacao: isLivePreview && !idPublico,
+        tipoEntrega: entrega.tipo,
+        formaPagamento: pagamento.forma
       });
 
       // Se houver WhatsApp configurado e não for prévia isolada, abre conversa
@@ -785,6 +834,8 @@ export default function ZenCommerceStorefront({
                   setCarrinho({});
                   setRecibo(null);
                   setCliente({ nome: '', telefone: '', observacao: '', aceiteContato: false });
+                  setEntrega({ tipo: 'retirada', rua: '', numero: '', bairro: '', complemento: '', cidade: '' });
+                  setPagamento({ forma: 'pix', trocoPara: '' });
                   setChave(typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'sess-' + Date.now());
                 }}
               >
@@ -864,6 +915,114 @@ export default function ZenCommerceStorefront({
                     onChange={e => setCliente({ ...cliente, telefone: e.target.value })}
                   />
                 </label>
+
+                {/* OPÇÃO DE ENTREGA */}
+                <div>
+                  <span className="commerce-section-title">Como deseja receber?</span>
+                  <div className="commerce-options-grid">
+                    <button
+                      type="button"
+                      className={`commerce-option-pill ${entrega.tipo === 'retirada' ? 'active' : ''}`}
+                      onClick={() => setEntrega({ ...entrega, tipo: 'retirada' })}
+                    >
+                      <span>🛍️</span> Retirar na Loja
+                    </button>
+                    <button
+                      type="button"
+                      className={`commerce-option-pill ${entrega.tipo === 'entrega' ? 'active' : ''}`}
+                      onClick={() => setEntrega({ ...entrega, tipo: 'entrega' })}
+                    >
+                      <span>🛵</span> Entrega em Domicílio
+                    </button>
+                  </div>
+                </div>
+
+                {entrega.tipo === 'entrega' && (
+                  <div className="commerce-address-card">
+                    <label style={{ margin: 0 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>Rua / Avenida *</span>
+                      <input
+                        className="commerce-field"
+                        required
+                        placeholder="Nome da sua rua ou avenida"
+                        value={entrega.rua}
+                        onChange={e => setEntrega({ ...entrega, rua: e.target.value })}
+                      />
+                    </label>
+                    <div className="commerce-address-row">
+                      <label style={{ margin: 0 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>Bairro *</span>
+                        <input
+                          className="commerce-field"
+                          required
+                          placeholder="Bairro"
+                          value={entrega.bairro}
+                          onChange={e => setEntrega({ ...entrega, bairro: e.target.value })}
+                        />
+                      </label>
+                      <label style={{ margin: 0 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>Número *</span>
+                        <input
+                          className="commerce-field"
+                          required
+                          placeholder="Nº"
+                          value={entrega.numero}
+                          onChange={e => setEntrega({ ...entrega, numero: e.target.value })}
+                        />
+                      </label>
+                    </div>
+                    <label style={{ margin: 0 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#475569' }}>Complemento / Referência (opcional)</span>
+                      <input
+                        className="commerce-field"
+                        placeholder="Ex: Apto 12, Bloco B ou Próximo à praça"
+                        value={entrega.complemento}
+                        onChange={e => setEntrega({ ...entrega, complemento: e.target.value })}
+                      />
+                    </label>
+                  </div>
+                )}
+
+                {/* OPÇÃO DE PAGAMENTO */}
+                <div>
+                  <span className="commerce-section-title">Forma de pagamento preferida:</span>
+                  <div className="commerce-options-grid">
+                    <button
+                      type="button"
+                      className={`commerce-option-pill ${pagamento.forma === 'pix' ? 'active' : ''}`}
+                      onClick={() => setPagamento({ ...pagamento, forma: 'pix' })}
+                    >
+                      <span>💠</span> PIX
+                    </button>
+                    <button
+                      type="button"
+                      className={`commerce-option-pill ${pagamento.forma === 'cartao' ? 'active' : ''}`}
+                      onClick={() => setPagamento({ ...pagamento, forma: 'cartao' })}
+                    >
+                      <span>💳</span> Cartão
+                    </button>
+                    <button
+                      type="button"
+                      className={`commerce-option-pill ${pagamento.forma === 'dinheiro' ? 'active' : ''}`}
+                      onClick={() => setPagamento({ ...pagamento, forma: 'dinheiro' })}
+                    >
+                      <span>💵</span> Dinheiro
+                    </button>
+                  </div>
+                </div>
+
+                {pagamento.forma === 'dinheiro' && (
+                  <label style={{ marginTop: 2, marginBottom: 8 }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: '#475569' }}>Precisa de troco para quanto? (opcional)</span>
+                    <input
+                      className="commerce-field"
+                      placeholder="Ex: 50,00 ou 100,00"
+                      value={pagamento.trocoPara}
+                      onChange={e => setPagamento({ ...pagamento, trocoPara: e.target.value })}
+                    />
+                  </label>
+                )}
+
                 <label>
                   Quer deixar alguma observação?
                   <textarea

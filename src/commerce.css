@@ -363,3 +363,74 @@ html.commerce-document.commerce-dialog-open { overflow-y:hidden; }
   border-color: #0284c7;
   outline: 2px solid rgba(2, 132, 199, 0.35);
 }
+
+/* ============================================================
+   FASE 4: OPÇÕES DE ENTREGA, PAGAMENTO E ENDEREÇO
+   ============================================================ */
+
+.commerce-section-title {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 14px 0 6px 0;
+}
+
+.commerce-options-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.commerce-option-pill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.commerce-option-pill:hover {
+  border-color: #0284c7;
+  color: #0284c7;
+}
+
+.commerce-option-pill.active {
+  border-color: #0284c7;
+  background: #f0f9ff;
+  color: #0284c7;
+  box-shadow: 0 0 0 1px #0284c7 inset;
+}
+
+.commerce-address-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  background: #f8fafc;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px dashed #cbd5e1;
+}
+
+.commerce-address-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 8px;
+}
+
+@media (max-width: 480px) {
+  .commerce-address-row {
+    grid-template-columns: 1fr;
+  }
+}
