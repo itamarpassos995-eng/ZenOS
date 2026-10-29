@@ -42,6 +42,7 @@ const CORES_TEMA = [
 export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produtos = [], tx = (pt) => pt }) {
   const [configCommerce, setConfigCommerce] = useState(() => lerCommerceConfigLocal(lojaId, perfilLoja));
   const [salvandoConfig, setSalvandoConfig] = useState(false);
+  const [publicandoCdn, setPublicandoCdn] = useState(false);
   const [linkCopiado, setLinkCopiado] = useState(false);
   const [modalZen, setModalZen] = useState(null);
   const [modoPrevia, setModoPrevia] = useState('mobile'); // 'mobile' | 'desktop'
@@ -441,6 +442,37 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
       );
     } finally {
       e.target.value = '';
+    }
+  };
+
+  const publicarCatalogoCdn = async () => {
+    if (publicandoCdn || salvandoConfig) return;
+    const usuario = auth.currentUser;
+    if (!usuario || usuario.uid !== lojaId || usuario.isAnonymous) {
+      avisarZen('warning', 'Acesso restrito', 'Entre com a conta proprietária para publicar a loja.');
+      return;
+    }
+    if (!configCommerce.slug) {
+      avisarZen('warning', 'Link personalizado', 'Escolha e salve o apelido da sua loja antes de publicar.');
+      return;
+    }
+    setPublicandoCdn(true);
+    try {
+      const bearer = await usuario.getIdToken();
+      const response = await fetch('/api/commerce/publicar', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + bearer, 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+      const resultado = await response.json().catch(() => ({}));
+      if (!response.ok || resultado.status !== 'publicado') throw new Error(resultado.erro || 'publicacao-indisponivel');
+      avisarZen('success', 'Catálogo publicado',
+        'A vitrine de homologação foi atualizada na CDN. Os produtos do ZenOS não foram modificados.');
+    } catch (erro) {
+      avisarZen('danger', 'Publicação não realizada',
+        'Não foi possível publicar a vitrine na CDN. Confira o link e as configurações salvas.', [erro.message]);
+    } finally {
+      setPublicandoCdn(false);
     }
   };
 
@@ -1662,6 +1694,13 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
             <strong>{tx('Configurações da Loja Online', 'Configuraciones de la Tienda Online', 'Online Store Settings')}</strong>
             <span>{tx('Todas as alterações ficam salvas com segurança no ZenOS Cloud.', 'Los cambios se guardan de forma segura.', 'Changes are securely saved to ZenOS Cloud.')}</span>
           </div>
+          {import.meta.env.VITE_ZENOS_CDN_PUBLISH_ENABLED === 'true' && (
+            <button type="button" className="btn-zen-secondary btn-sm"
+              disabled={salvandoConfig || publicandoCdn}
+              onClick={publicarCatalogoCdn}>
+              {publicandoCdn ? 'Publicando catálogo…' : '☁ Publicar vitrine de homologação'}
+            </button>
+          )}
           <button
             type="button"
             className="commerce-btn-save-main"

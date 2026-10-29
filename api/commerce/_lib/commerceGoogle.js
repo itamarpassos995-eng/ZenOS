@@ -94,10 +94,11 @@ export async function putPublicBlob(pathname,body,{fetchImpl=fetch,contentType='
   const res=await fetchImpl('https://vercel.com/api/blob/?pathname='+encodeURIComponent(pathname),{
     method:'PUT',headers:{
       'authorization':'Bearer '+token,
-      'x-vercel-blob-store-id':'store_fKepXWjAeW2ueMrB',
+      'x-vercel-blob-store-id':'fKepXWjAeW2ueMrB',
       'x-api-version':'13',
-      'x-api-blob-request-id':'zenos-'+createHash('sha256').update(pathname+Date.now()).digest('hex').slice(0,26),
-      'x-vercel-blob-access':'public','x-add-random-suffix':'false','x-allow-overwrite':'true',
+      'x-api-blob-request-id':'fKepXWjAeW2ueMrB:'+Date.now()+':'+createHash('sha256').update(pathname+Date.now()).digest('hex').slice(0,16),
+      'x-api-blob-request-attempt':'0',
+      'x-vercel-blob-access':'public','x-add-random-suffix':'0','x-allow-overwrite':'1',
       'x-cache-control-max-age':String(maxAge),'x-content-type':contentType,
     },body:bytes,signal:AbortSignal.timeout(15000)
   });

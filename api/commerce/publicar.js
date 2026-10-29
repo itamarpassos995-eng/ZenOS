@@ -2,17 +2,17 @@ import { criarSnapshotCommercePublico, conferirCarrinhoContraSnapshot } from '..
 import { normalizarApelidoPublico } from '../../src/core/commerceCdnClient.js';
 import { verifyOwnerFirebaseIdToken, getOfficialDocument, migrarFotosPublicas, putPublicBlob } from './_lib/commerceGoogle.js';
 
-export async function publicarCatalogoCore(uid,{load=getOfficialDocument,migrate=migrarFotosPublicas,put=putPublicBlob,at=()=>new Date().toISOString()}={}){
+export async function publicarCatalogoCore(uid,{authToken,load=getOfficialDocument,migrate=migrarFotosPublicas,put=putPublicBlob,at=()=>new Date().toISOString()}={}){
   if(!uid||typeof uid!=='string'||uid.length>128||uid.includes('/'))throw Error('identidade-invalida');
   // Somente três leituras pontuais; nenhuma busca de coleções, onSnapshot ou listener.
   const [settings,shop]=await Promise.all([
-    load(['lojas',uid,'dados','configuracoes']),
-    load(['lojas',uid]),
+    load(['lojas',uid,'dados','configuracoes'],{token:authToken}),
+    load(['lojas',uid],{token:authToken}),
   ]);
   if(!settings?.commerceConfig||!shop||!Array.isArray(shop.produtos))throw Error('loja-sem-configuracoes');
   const slug=normalizarApelidoPublico(settings.commerceConfig.slug);
   if(slug==='previa')throw Error('apelido-reservado');
-  const owner=await load(['lojas_slugs',slug]);
+  const owner=await load(['lojas_slugs',slug],{token:authToken});
   if(owner?.lojaId!==uid)throw Error('apelido-nao-confirmado');
   const snapshot=criarSnapshotCommercePublico({lojaId:uid,config:settings.commerceConfig,
     produtos:shop.produtos,publicadoEm:at()});
@@ -37,7 +37,9 @@ export function createPublishHandler({verify=verifyOwnerFirebaseIdToken,publish=
       return res.status(413).json({erro:'requisicao-grande-demais'});
     try{
       const owner=await verify(bearer[1]);
-      const result=await publish(owner.uid);
+      // O mesmo ID token autenticado governa as regras reais de leitura do Firestore.
+      // Não exige credencial de serviço e só lê na publicação solicitada pelo proprietário.
+      const result=await publish(owner.uid,{authToken:bearer[1]});
       return res.status(200).json({status:'publicado',...result});
     }catch(error){
       const message=String(error?.message||'erro');

@@ -62,6 +62,21 @@ test('migração retira fotos base64 do JSON e mantém URL pública',async()=>{
   assert.equal(snapshot.produtos[0].fotoUrl,snapshot.config.logoUrl);
   assert.equal(snapshot.config.produtosLoja.p1.imagensLoja[1],'https://exemplo.com/2.jpg');
 });
+test('publicador repassa o token do proprietário somente às leituras pontuais',async()=>{
+  const calls=[];
+  const expected='firebase-owner-token';
+  await publicarCatalogoCore('loja-1',{
+    authToken:expected,
+    load:async(path,opts)=>{
+      calls.push({path:path.join('/'),token:opts.token});
+      if(path.join('/').startsWith('lojas_slugs/'))return {lojaId:'loja-1'};
+      return path.length===4?config:store;
+    },
+    migrate:async x=>x,put:async()=> 'https://exemplo.com/c.json',
+  });
+  assert.equal(calls.length,3);
+  assert.ok(calls.every(x=>x.token===expected));
+});
 test('publisher é inerte em produção e quando não habilitado',async()=>{
   let count=0;
   const h=createPublishHandler({verify:async()=>{count++;return {uid:'loja-1'};},publish:async()=>{count++;}});
