@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { traducoes, moedasConfig, normalizarProduto, normalizarCliente, produtosIniciais, clientesIniciais } from './data';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, collection, query, where, getDocsFromServer, getDoc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { doc, collection, query, where, getDocsFromServer, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { inspectLocalSchemaVersion, PERSISTENCE_STATUS_EVENT, notifyPersistenceStatus } from './core/persistenceSafety';
 import { persistV1OperationFieldSafe, persistV1BusinessOperationSafe, recordSyncMetric } from './core/productionSync';
 import { cloneSyncValue, hasLocalSyncChange, syncValuesEqual } from './core/syncMerge';
@@ -664,35 +664,58 @@ export default function App() {
       notifyPersistenceStatus({status:'ERRO',field: 'operacao_realtime',error:err?.message || 'Falha na sincronização operacional.'});
     });
 
-    const unsubConfig = onSnapshot(refConfig, (snap) => {
-      if (!active) return;
-      if (snap.metadata?.fromCache || snap.metadata?.hasPendingWrites) return;
-      recordSyncMetric('snapshotReads', 'configuracoes');
-      if (!snap.exists()) {
-        const pf = normalizarPerfilLoja({});
-        setPerfilLoja(pf);
-        setPerfilRapidoRascunho(pf);
-        limparPerfilLojaLocal(userId);
-        setTaxasCambio({ ...TAXAS_CAMBIO_PADRAO });
-        setTaxasInput({ ...TAXAS_INPUT_PADRAO });
-        return;
+    // Configurações mudam pouco: leitura pontual na abertura e na volta do foco.
+    // Sem listener permanente. No mesmo terminal, as ações de gravação já
+    // aplicam o estado local somente após confirmação no servidor.
+    let configuracaoEmAndamento = false;
+    let ultimaVerificacaoConfig = 0;
+    const atualizarConfig = async () => {
+      if (!active || configuracaoEmAndamento || Date.now() - ultimaVerificacaoConfig < 30_000) return;
+      configuracaoEmAndamento = true;
+      ultimaVerificacaoConfig = Date.now();
+      try {
+        const snap = await getDoc(refConfig);
+        if (!active || snap.metadata?.fromCache || snap.metadata?.hasPendingWrites) return;
+        recordSyncMetric('snapshotReads', 'configuracoes');
+        if (!snap.exists()) {
+          const pf = normalizarPerfilLoja({});
+          setPerfilLoja(pf);
+          setPerfilRapidoRascunho(pf);
+          limparPerfilLojaLocal(userId);
+          setTaxasCambio({ ...TAXAS_CAMBIO_PADRAO });
+          setTaxasInput({ ...TAXAS_INPUT_PADRAO });
+          return;
+        }
+        const config = snap.data() || {};
+        const pf = normalizarPerfilLoja(config.perfilLoja || {});
+        setPerfilLoja(prev => syncValuesEqual(prev, pf) ? prev : pf);
+        setPerfilRapidoRascunho(prev => syncValuesEqual(prev, pf) ? prev : pf);
+        salvarPerfilLojaLocal(userId, pf);
+        if (config.taxasCambio) {
+          const taxas = normalizarTaxasCambio(config.taxasCambio);
+          setTaxasCambio(prev => syncValuesEqual(prev, taxas) ? prev : taxas);
+          setTaxasInput(taxasInputAPartirDasTaxas(taxas));
+        }
+      } catch (err) {
+        if (!active) return;
+        console.error('[ZenOS][Config] consulta:', err);
+        notifyPersistenceStatus({status:'ERRO',field:'configuracoes_consulta',error:err?.message || 'Falha ao conferir configurações da loja.'});
+      } finally {
+        configuracaoEmAndamento = false;
       }
-      const config = snap.data() || {};
-      const pf = normalizarPerfilLoja(config.perfilLoja || {});
-      setPerfilLoja(prev => syncValuesEqual(prev, pf) ? prev : pf);
-      setPerfilRapidoRascunho(prev => syncValuesEqual(prev, pf) ? prev : pf);
-      salvarPerfilLojaLocal(userId, pf);
-      if (config.taxasCambio) {
-        const taxas = normalizarTaxasCambio(config.taxasCambio);
-        setTaxasCambio(prev => syncValuesEqual(prev, taxas) ? prev : taxas);
-        setTaxasInput(taxasInputAPartirDasTaxas(taxas));
-      }
-    }, err => {
-      if (!active) return;
-      console.error('[ZenOS][Realtime] configuração:', err);
-      notifyPersistenceStatus({status:'ERRO',field: 'configuracoes_realtime',error:err?.message || 'Falha na sincronização de configuração.'});
-    });
-    return () => { active = false; unsubOperacao(); unsubConfig(); };
+    };
+    const aoRetomarAba = () => {
+      if (document.visibilityState === 'visible') void atualizarConfig();
+    };
+    void atualizarConfig();
+    window.addEventListener('focus', aoRetomarAba);
+    document.addEventListener('visibilitychange', aoRetomarAba);
+    return () => {
+      active = false;
+      unsubOperacao();
+      window.removeEventListener('focus', aoRetomarAba);
+      document.removeEventListener('visibilitychange', aoRetomarAba);
+    };
   }, [userId]);
 
   // Livro completo só nas telas de auditoria/contas, nunca ao entrar no PDV.
