@@ -30,3 +30,12 @@ O cliente HTTP isolado retorna `{ idPublico, configCommerce, produtos }` com o m
 
 ## Regra permanente
 **Não aumentar leituras, não reinstalar listeners, não modificar a persistência, não expor dados privados e não degradar o PDV.**
+
+## Publicador em homologação
+- Endpoint POST `/api/commerce/publicar` disponível somente se `VERCEL_ENV=preview` e `ZENOS_COMMERCE_PUBLISH_ENABLED=true`. Sem isso responde 503, inclusive produção.
+- Bearer **Firebase ID token do proprietário** validado por assinatura RS256/Google JWK, emissor e audience do projeto oficial; contas anônimas bloqueadas.
+- Conta de serviço Vercel `ZENOS_COMMERCE_SERVICE_ACCOUNT_JSON` ainda **não configurada**. Conceder papel mínimo e apenas a esta função de homologação; nunca expor a chave no frontend ou no GitHub.
+- Três leituras diretas por publicação (loja, configurações, registro do apelido); sem listener, query de coleção ou novas leituras por visita. Nenhum dado financeiro/privado deve ir ao snapshot.
+- Fotos legadas em data URI são convertidas para objetos da Blob pública com hash do conteúdo e limites de quantidade/bytes. Se limite excedido, a publicação falha fechada sem publicar catálogo parcial. As fotos da configuração permanecem preservadas.
+- O publicador usa API HTTP de Blob `x-api-version: 13` e token servidor `BLOB_READ_WRITE_TOKEN`. Versão deve ser revisada antes de produção; preferir SDK oficial e cache com versionamento antes da migração definitiva.
+- Alteração de apelido: antes da produção, implementar revogação/expiração dos aliases antigos para impedir vitrines obsoletas.

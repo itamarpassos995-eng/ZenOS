@@ -5,9 +5,12 @@ on:
       - 'src/core/commercePublicCatalog.js'
       - 'src/core/commerceCdnClient.js'
       - 'api/commerce/catalogo.js'
+      - 'api/commerce/_lib/commerceGoogle.js'
+      - 'api/commerce/publicar.js'
       - 'scripts/commerce-cdn-homologacao.test.mjs'
       - 'scripts/commerce-cdn-client.test.mjs'
       - 'scripts/commerce-cdn-api.test.mjs'
+      - 'scripts/commerce-cdn-publicar.test.mjs'
       - 'docs/ARQUITETURA_COMMERCE_PUBLICO.md'
       - '.github/workflows/commerce-cdn-homologacao-ci.yml'
   workflow_dispatch:
@@ -23,7 +26,7 @@ jobs:
           node-version: '22'
           cache: npm
       - name: Testar contrato puro sem Firestore
-        run: node --test scripts/commerce-cdn-homologacao.test.mjs scripts/commerce-cdn-client.test.mjs scripts/commerce-cdn-api.test.mjs
+        run: node --test scripts/commerce-cdn-homologacao.test.mjs scripts/commerce-cdn-client.test.mjs scripts/commerce-cdn-api.test.mjs scripts/commerce-cdn-publicar.test.mjs
       - name: Compilar frontend atual sem alterar produção
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
