@@ -20,6 +20,8 @@ export const commerceConfigPadrao = {
   mostrarPreco: true,
   chavePix: '',
   slug: '',
+  produtosLoja: {},
+  descontoGeralPorcentagem: 0,
 };
 
 export const normalizarCommerceConfig = (dados = {}, perfilLoja = null, lojaId = '') => {
@@ -33,6 +35,8 @@ export const normalizarCommerceConfig = (dados = {}, perfilLoja = null, lojaId =
     bannerUrl: c.bannerUrl || '',
     corTema: c.corTema || '#0284c7',
     slug: (c.slug || lojaId || '').trim(),
+    produtosLoja: (c.produtosLoja && typeof c.produtosLoja === 'object') ? c.produtosLoja : {},
+    descontoGeralPorcentagem: Number(c.descontoGeralPorcentagem || 0),
     ...c,
   };
 };
