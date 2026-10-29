@@ -29,6 +29,11 @@ const allowed=new Set([
   'scripts/commerce-cdn-api.test.mjs','scripts/commerce-cdn-client.test.mjs',
   'scripts/commerce-cdn-homologacao.test.mjs','scripts/commerce-cdn-pedido.test.mjs',
   'scripts/commerce-cdn-preview.test.mjs','scripts/commerce-cdn-publicar.test.mjs',
+  // Inbox privada no Vercel, sem novas leituras Firestore.
+  'api/commerce/inbox.js','src/components/CommerceOrderInbox.jsx',
+  'docs/COMMERCE_FILA_PRIVADA.md','scripts/commerce-private-inbox.test.mjs',
+  '.github/workflows/commerce-private-inbox-ci.yml','src/components/PDV.jsx',
+  'scripts/commerce-topbar-pdv.test.mjs',
 ]);
 assert.ok(changed.every(p=>allowed.has(p)),'GATE_FAIL: alteração fora do pacote de solicitação: '+changed.filter(x=>!allowed.has(x)).join(', '));
 const read=path=>fs.readFileSync(path,'utf8');
@@ -47,10 +52,28 @@ for(const marker of [
  assert.ok(appBefore.includes(marker)&&appAfter.includes(marker),'GATE_FAIL: operação protegida ausente: '+marker);
 }
 const forbiddenFiles=['src/firebase.js','src/core/productionSync.js','src/core/operationalRepository.js',
- 'src/components/PDV.jsx','src/components/Clientes.jsx','src/components/Fiscal.jsx',
+ 'src/components/Clientes.jsx','src/components/Fiscal.jsx',
  'functions/src/fiscalSolicitacaoCliente.js','functions/src/fiscalAdministracao.js','functions/src/firebaseAdmin.js',
  'firestore.emulator.rules','firebase.json'];
 assert.ok(forbiddenFiles.every(p=>!changed.includes(p)),'GATE_FAIL: arquivo operacional ou Firebase alterado.');
+// A alteração de PDV só pode importar a solicitação da inbox pelo mesmo
+// resgate já existente. A ASSINATURA e a PAGINAÇÃO devem ser byte a byte iguais.
+const pdvAntes=run(['show','origin/main:src/components/PDV.jsx']);
+const pdvAgora=read('src/components/PDV.jsx');
+const trechoFila=s=>s.slice(s.indexOf('  // Prioriza os 50 pedidos pendentes mais recentes'),
+ s.indexOf('  const carregarMaisPedidosOnline ='));
+assert.equal(trechoFila(pdvAgora),trechoFila(pdvAntes),
+  'GATE_FAIL: consulta/assinatura de pedidos no PDV foi modificada');
+for(const source of [pdvAntes,pdvAgora]){
+  assert.ok(source.includes("where('estado', '==', 'pendente')")&&
+    source.includes('limit(PAGINA_PEDIDOS_ONLINE)')&&
+    source.includes('startAfter(cursorPedidos)'),
+    'GATE_FAIL: filtros e limites da fila foram alterados');
+}
+assert.ok(pdvAgora.includes('pedidoPrivadoSolicitado')&&
+  pdvAgora.includes('carregarPedidoOnline(pedidoPrivadoSolicitado.pedido)')&&
+  pdvAgora.includes('if (!autorizado) return false'),
+  'GATE_FAIL: resgate sem confirmação segura');
 const svc=read('functions/src/commerceSolicitacaoCliente.js');
 assert.ok(svc.includes("if(criar)tx.create(ref,doc)")&&svc.includes("action==='consultar'")&&svc.includes("resolverLoja")===false);
 const request=read('functions/src/commerceInteresseCore.js');

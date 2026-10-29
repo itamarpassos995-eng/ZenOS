@@ -52,7 +52,12 @@ test('nenhum arquivo de persistência Firestore nem regras foi modificado',()=>{
  const allowed=new Set([
    'src/App.jsx','src/components/PDV.jsx','src/components/ZenVisualLayout.jsx',
    'src/zenos-dashboard.css','scripts/commerce-topbar-pdv.test.mjs',
-   '.github/workflows/commerce-topbar-pdv-ci.yml'
+   '.github/workflows/commerce-topbar-pdv-ci.yml',
+   'api/commerce/inbox.js','src/components/CommerceOrderInbox.jsx',
+   'src/components/ZenCommerceStorefront.jsx','src/commerce-homologacao-main.jsx',
+   'docs/COMMERCE_FILA_PRIVADA.md','scripts/commerce-private-inbox.test.mjs',
+   '.github/workflows/commerce-private-inbox-ci.yml',
+   'scripts/commerce-request-release-audit.mjs'
  ]);
  assert.deepEqual(changed.filter(path=>!allowed.has(path)),[]);
 });
