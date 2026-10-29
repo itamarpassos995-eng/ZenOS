@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {criarSnapshotCommercePublico,conferirCarrinhoContraSnapshot} from '../src/core/commercePublicCatalog.js';
+import {criarSnapshotCommercePublico,conferirCarrinhoContraSnapshot,dividirCatalogoPublico,COMMERCE_MAX_PRODUTOS} from '../src/core/commercePublicCatalog.js';
 const lojaId='uid-zenos-teste';
 const config={nomeLoja:'Loja Teste',slug:'loja-teste',habilitado:true,
   whatsapp:'556799999999',descontoGeralPorcentagem:10,
@@ -26,9 +26,22 @@ test('preserva somente dados públicos',()=>{
 test('loja desativada não publica produtos',()=>assert.deepEqual(criar({...config,habilitado:false}).produtos,[]));
 test('bloqueia identificador inválido',()=>assert.throws(
   ()=>criarSnapshotCommercePublico({lojaId:'../x',config,produtos}),/loja-id-invalido/));
-test('limita catálogo a 48 itens',()=>{
-  const p=Array.from({length:60},(_,i)=>({id:String(i),nome:'Produto',preco:1,estoque:3}));
-  assert.equal(criar(config,p).produtos.length,48);
+test('catálogo com 1200 produtos não perde itens e é dividido em lotes',()=>{
+  const p=Array.from({length:1200},(_,i)=>({id:'produto-'+i,nome:'Produto '+i,preco:1,estoque:3}));
+  const snapshot=criar(config,p);
+  assert.equal(snapshot.produtos.length,1200);
+  const {manifesto,paginas}=dividirCatalogoPublico(snapshot,'abc12345-001');
+  assert.equal(manifesto.versao,2);
+  assert.equal(manifesto.totalProdutos,1200);
+  assert.equal(manifesto.totalPaginas,15);
+  assert.equal(paginas.length,15);
+  assert.equal(paginas.flatMap(x=>x.produtos).length,1200);
+  assert.equal(paginas.at(-1).produtos.at(-1).id,'produto-1199');
+  assert.deepEqual(manifesto.config.produtosLoja,{});
+});
+test('rejeita catálogos acima do limite de segurança sem truncar silenciosamente',()=>{
+  const many=Array.from({length:COMMERCE_MAX_PRODUTOS+1},(_,i)=>({id:String(i),nome:'Produto',preco:1,estoque:3}));
+  assert.throws(()=>criar(config,many),/produtos-invalidos/);
 });
 test('recálculo não confia em preço fornecido pelo navegador',()=>{
   assert.equal(conferirCarrinhoContraSnapshot(criar(),[{id:'p-1',quantidade:2,preco:0.01}]).totalCentavos,7000);

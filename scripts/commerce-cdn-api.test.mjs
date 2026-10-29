@@ -52,3 +52,28 @@ test('rejeita catálogo que não corresponde ao apelido',async()=>{
   const r=res();await handler({method:'GET',query:{slug:'loja-teste'}},r);
   assert.equal(r.code,503);
 });
+
+test('lote de catálogo é servido por versão imutável sem reler manifesto',async()=>{
+ process.env.ZENOS_COMMERCE_CDN_ORIGIN=origin;
+ let requested;
+ const version='abc12345-001';
+ globalThis.fetch=async url=>{
+   requested=String(url);
+   return upstream({versao:2,lojaId:'zenos-shop-1',slug:'loja-teste',
+     publicacaoId:version,pagina:2,produtos:[],produtosLoja:{}});
+ };
+ const r=res();await handler({method:'GET',
+   query:{slug:'loja-teste',pagina:'2',versao:version}},r);
+ assert.equal(r.code,200);
+ assert.equal(r.value.pagina,2);
+ assert.equal(requested,origin+'/commerce/catalogos/loja-teste/versoes/'+version+'/pagina-2.json');
+});
+test('não aceita solicitação de lote com versão inválida',async()=>{
+ process.env.ZENOS_COMMERCE_CDN_ORIGIN=origin;
+ let requests=0;
+ globalThis.fetch=async()=>{requests++;throw Error('não consultar');};
+ const r=res();await handler({method:'GET',
+   query:{slug:'loja-teste',pagina:'1',versao:'../outra-loja'}},r);
+ assert.equal(r.code,400);
+ assert.equal(requests,0);
+});
