@@ -676,15 +676,18 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
 
               {secoesAbertas.apresentacao && (
                 <div className="commerce-accordion-body">
-                                    <div className="commerce-field">
-                    <label>{tx('Link Personalizado da Loja (Apelido)', 'Enlace Personalizado (Apodo)', 'Custom Store Link (Slug)')}</label>
-                    <div style={{ display: 'flex', alignItems: 'center', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden' }}>
-                      <span style={{ padding: '0.5rem 0.75rem', color: '#64748b', fontSize: '0.875rem', fontWeight: 600, borderRight: '1px solid #cbd5e1', whiteSpace: 'nowrap' }}>
+                  <div className="commerce-field commerce-slug-field">
+                    <label htmlFor="commerce-slug-input">{tx('Link Personalizado da Loja (Apelido)', 'Enlace Personalizado (Apodo)', 'Custom Store Link (Slug)')}</label>
+                    <div className="commerce-slug-control">
+                      <span className="commerce-slug-prefix">
                         {typeof window !== 'undefined' ? window.location.host : 'zenos.app.br'}/loja/
                       </span>
                       <input
+                        id="commerce-slug-input"
+                        className="commerce-slug-input"
                         type="text"
-                        style={{ border: 'none', background: 'transparent', outline: 'none', padding: '0.5rem 0.75rem', flex: 1, minWidth: '120px', fontSize: '0.9rem' }}
+                        autoComplete="off"
+                        spellCheck={false}
                         value={configCommerce.slug || ''}
                         placeholder="ex: minha-loja"
                         onChange={(e) => atualizarCampo('slug', sanitizarSlugLoja(e.target.value))}

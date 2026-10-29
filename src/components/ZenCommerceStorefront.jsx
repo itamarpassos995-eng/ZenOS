@@ -586,15 +586,17 @@ export default function ZenCommerceStorefront({
                 >
                   {p.imagemUrl ? <img src={p.imagemUrl} alt={p.nome} loading="lazy" /> : <span>◇</span>}
                   {p.destaque && <span className="commerce-badge-destaque">★ DESTAQUE</span>}
-                  {p.imagens?.length > 1 && (
-                    <span className="commerce-badge-multi-fotos" title={`${p.imagens.length} fotos disponíveis`}>
-                      📷 {p.imagens.length}
+                  {p.imagens?.length > 0 && (
+                    <span className="commerce-card-photo-dots" aria-hidden="true">
+                      {p.imagens.map((imagem, i) => (
+                        <span key={imagem.id || i} className={i === 0 ? 'commerce-card-photo-dot active' : 'commerce-card-photo-dot'} />
+                      ))}
                     </span>
                   )}
                 </button>
                 <div className="commerce-product-details">
                   <small>{p.categoria}</small>
-                  <h3>{p.nome}</h3>
+                  <h3 title={p.nome}>{p.nome}</h3>
                   {cfg.mostrarPreco && (
                     <div className="commerce-product-price-row">
                       {p.precoDeCentavos && p.precoDeCentavos > p.precoCentavos ? (

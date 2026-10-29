@@ -203,6 +203,27 @@ test('produto real sem foto não recebe foto demonstrativa nem aparece com image
   expect(mocks.setDoc).not.toHaveBeenCalled();
 });
 
+
+test('layout mantém botões alinhados em cards com ou sem foto e nomes diferentes', () => {
+  const css = readFileSync('src/commerce.css', 'utf8');
+  expect(css).toMatch(/\.commerce-product\s*\{[^}]*display:flex;[^}]*flex-direction:column;[^}]*height:100%/);
+  expect(css).toMatch(/\.commerce-product-details\s*\{[^}]*display:flex;[^}]*flex-direction:column;[^}]*flex:1/);
+  expect(css).toMatch(/\.commerce-product \.commerce-btn\s*\{[^}]*margin-top:auto;/);
+  expect(css).toMatch(/\.commerce-product-price-row\s*\{[^}]*min-height:52px;/);
+  expect(css).not.toContain('.commerce-badge-multi-fotos {');
+});
+
+test('campo de apelido tem texto escuro legível no fundo claro', () => {
+  const css = readFileSync('src/components/CommerceSolicitacao.css', 'utf8');
+  expect(css).toMatch(/\.commerce-field input\.commerce-slug-input\s*\{[^}]*color:#0f172a;/);
+  const { container } = render(<CommerceSolicitacao lojaId="loja-A" />);
+  fireEvent.click(screen.getByRole('button', { name: /Apresentação da Loja/ }));
+  const input = container.querySelector('#commerce-slug-input');
+  expect(input).not.toBeNull();
+  fireEvent.change(input, { target: { value: 'Minha Loja Nova' } });
+  expect(input.value).toBe('minha-loja-nova');
+  expect(mocks.setDoc).not.toHaveBeenCalled();
+});
 test('ocultar um produto preserva os outros e ocultar todos não mostra produto demonstrativo', () => {
   const produtos = [
     { id: 'p-1', nome: 'Produto Azul', preco: 100, estoque: 3 },
@@ -247,7 +268,7 @@ test('galeria preserva fotos existentes e permite trocar a capa sem gravar no PD
   const { container } = render(<CommerceSolicitacao lojaId="loja-A" produtos={[
     { id: 'p-1', nome: 'Produto com Fotos', preco: 79.9, estoque: 2 },
   ]} />);
-  await waitFor(() => expect(container.querySelector('.commerce-badge-multi-fotos')?.textContent).toContain('2'));
+  await waitFor(() => expect(container.querySelectorAll('.commerce-card-photo-dots .commerce-card-photo-dot')).toHaveLength(2));
   expect(container.querySelector('.commerce-store .commerce-product-image img')?.getAttribute('src')).toBe('/primeira.jpg');
 
   fireEvent.click(screen.getByTitle('Personalizar fotos e descrição para a loja'));
