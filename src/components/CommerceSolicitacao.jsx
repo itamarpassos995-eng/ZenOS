@@ -60,6 +60,8 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
   // Estados da Gestão de Produtos na Loja (Fase 2)
   const [buscaProduto, setBuscaProduto] = useState('');
   const [filtroProdutosTab, setFiltroProdutosTab] = useState('todos');
+  const [limiteProdutosPainel, setLimiteProdutosPainel] = useState(100);
+  useEffect(() => setLimiteProdutosPainel(100), [buscaProduto,filtroProdutosTab]);
   const [pctDescontoLote, setPctDescontoLote] = useState('15');
   const [produtoModalEdicao, setProdutoModalEdicao] = useState(null);
   const [formProdCustom, setFormProdCustom] = useState({
@@ -1016,7 +1018,7 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
 
                       return (
                         <div className="commerce-prod-list">
-                          {filtrados.slice(0, 100).map(p => {
+                          {filtrados.slice(0, limiteProdutosPainel).map(p => {
                             const cfgP = mapa[p.id] || {};
                             const isAtivo = cfgP.ativo !== undefined ? cfgP.ativo : Number(p.estoque ?? 0) > 0;
                             const isDestaque = Boolean(cfgP.destaque);
@@ -1111,6 +1113,15 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
                               </div>
                             );
                           })}
+                          {filtrados.length > limiteProdutosPainel && (
+                            <div className="commerce-public-more">
+                              <span>Exibindo {Math.min(limiteProdutosPainel,filtrados.length)} de {filtrados.length} produtos</span>
+                              <button type="button" className="commerce-btn commerce-btn-secondary"
+                                onClick={() => setLimiteProdutosPainel(v => v + 100)}>
+                                Carregar mais produtos
+                              </button>
+                            </div>
+                          )}
                         </div>
                       );
                     })()}

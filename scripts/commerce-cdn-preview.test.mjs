@@ -49,3 +49,11 @@ test('loja pública não exibe faixa de homologação e usa cards progressivos',
  assert.match(storefront,/Ver mais produtos/);
  assert.doesNotMatch(storefront,/\.slice\(0, 48\)/);
 });
+
+test('painel permite configurar produtos além dos primeiros 100',()=>{
+ const admin=readFileSync('src/components/CommerceSolicitacao.jsx','utf8');
+ assert.match(admin,/filtrados\.slice\(0, limiteProdutosPainel\)/);
+ assert.match(admin,/setLimiteProdutosPainel\(v => v \+ 100\)/);
+ assert.match(admin,/Carregar mais produtos/);
+ assert.doesNotMatch(admin,/filtrados\.slice\(0, 100\)/);
+});
