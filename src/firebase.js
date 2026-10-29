@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, connectAuthEmulator } from "firebase/auth";
-import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator } from "firebase/firestore";
 import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
 import { getAnalytics } from "firebase/analytics";
 import { ZENOS_RUNTIME } from './core/runtimeEnvironment';
@@ -32,7 +32,14 @@ const firebaseConfig = ZENOS_RUNTIME.isHomologacao
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+// Cache persistente compartilhado entre abas. Deve ser inicializado antes de qualquer leitura.
+// O SDK ainda consulta o servidor quando a aplicação precisa de dados atualizados;
+ // somente leituras explicitamente feitas do cache dispensam faturamento remoto.
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager(),
+  }),
+});
 
 if (ZENOS_RUNTIME.isHomologacao) {
   connectAuthEmulator(

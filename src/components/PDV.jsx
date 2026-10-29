@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { normalizarProduto, normalizarCliente } from '../data';
 import { aplicarVendaAoEstoque, obterEstoqueProduto, preverBaixaEstoqueProduto } from '../core/inventory';
 import { db } from '../firebase';
-import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit, startAfter, getDocs, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { criarEventoEstoque, registrarEventosEstoque } from '../core/stockAudit';
 import { ajustarSkuPorTipoProdutoRapido, ehEncomendaUsoUnico, gerarSkuProdutoBalcao } from '../core/orderItems';
 import { classificarMargem } from '../core/profitability';
@@ -65,28 +65,90 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
 
   const [modalResgateAberto, setModalResgateAberto] = useState(false);
   const [prePedidoEmAbertoId, setPrePedidoEmAbertoId] = useState(rascunhoInicial?.prePedidoEmAbertoId || null);
-  const [pedidosOnline, setPedidosOnline] = useState([]);
+  const PAGINA_PEDIDOS_ONLINE = 50;
+  const [pedidosRecentes, setPedidosRecentes] = useState([]);
+  const [pedidosAnteriores, setPedidosAnteriores] = useState([]);
+  const [cursorPedidos, setCursorPedidos] = useState(null);
+  const [maisPedidosDisponiveis, setMaisPedidosDisponiveis] = useState(false);
+  const [carregandoMaisPedidos, setCarregandoMaisPedidos] = useState(false);
+  const [modoConsultaPedidos, setModoConsultaPedidos] = useState('recentes');
+  const pedidosOnline = useMemo(() => {
+    const unicos = new Map();
+    [...pedidosRecentes, ...pedidosAnteriores].forEach(pedido => unicos.set(String(pedido.id), pedido));
+    return [...unicos.values()].sort((a, b) => String(b.criadoEm || b.createdAt || '').localeCompare(String(a.criadoEm || a.createdAt || '')));
+  }, [pedidosRecentes, pedidosAnteriores]);
 
+  // Prioriza os 50 pedidos pendentes mais recentes (com índice composto).
+  // Enquanto o índice não estiver provisionado, há fallback seguro para
+  // páginas limitadas por ID, sem esconder pedidos antigos ou baixar toda a coleção.
   useEffect(() => {
     if (!userId) return;
-    try {
-      const refCol = collection(db, 'lojas', String(userId), 'pedidos_online');
-      const q = query(refCol, where('estado', '==', 'pendente'));
-      const unsub = onSnapshot(q, snap => {
-        const lista = [];
-        snap.forEach(d => {
-          lista.push({ ...d.data(), id: d.id });
+    let ativo = true;
+    let cancelar = () => {};
+    setPedidosRecentes([]);
+    setPedidosAnteriores([]);
+    setCursorPedidos(null);
+    setMaisPedidosDisponiveis(false);
+    setModoConsultaPedidos('recentes');
+    const iniciar = (modo) => {
+      try {
+        const refCol = collection(db, 'lojas', String(userId), 'pedidos_online');
+        const filtros = [where('estado', '==', 'pendente')];
+        if (modo === 'recentes') filtros.push(orderBy('criadoEm', 'desc'));
+        const q = query(refCol, ...filtros, limit(PAGINA_PEDIDOS_ONLINE));
+        cancelar = onSnapshot(q, snap => {
+          if (!ativo) return;
+          setModoConsultaPedidos(modo);
+          setPedidosRecentes(snap.docs.map(d => ({ ...d.data(), id:d.id })));
+          setPedidosAnteriores([]);
+          setCursorPedidos(snap.docs.at(-1) || null);
+          setMaisPedidosDisponiveis(snap.size === PAGINA_PEDIDOS_ONLINE);
+        }, err => {
+          if (!ativo) return;
+          if (modo === 'recentes' && err?.code === 'failed-precondition' && /index/i.test(String(err?.message))) {
+            // Esta loja ainda não tem o índice composto: manter o fluxo operacional
+            // disponível com paginação e índice simples automaticamente existente.
+            console.warn('[PDV] Índice de pedidos pendente; ativando paginação alternativa.');
+            iniciar('alternativo');
+          } else {
+            console.warn('[PDV] Erro ao consultar pedidos_online:', err);
+          }
         });
-        lista.sort((a, b) => new Date(b.criadoEm || b.createdAt || 0) - new Date(a.criadoEm || a.createdAt || 0));
-        setPedidosOnline(lista);
-      }, err => {
-        console.warn('[PDV] Listener pedidos_online:', err);
-      });
-      return () => unsub();
-    } catch (err) {
-      console.warn('[PDV] Erro ao conectar pedidos_online:', err);
-    }
+      } catch (err) {
+        console.warn('[PDV] Não foi possível inicializar pedidos_online:', err);
+      }
+    };
+    iniciar('recentes');
+    return () => { ativo = false; cancelar(); };
   }, [userId]);
+
+  const carregarMaisPedidosOnline = async () => {
+    if (!userId || !cursorPedidos || !maisPedidosDisponiveis || carregandoMaisPedidos) return;
+    setCarregandoMaisPedidos(true);
+    try {
+      const filtros = [where('estado', '==', 'pendente')];
+      if (modoConsultaPedidos === 'recentes') filtros.push(orderBy('criadoEm', 'desc'));
+      const q = query(
+        collection(db, 'lojas', String(userId), 'pedidos_online'),
+        ...filtros,
+        startAfter(cursorPedidos),
+        limit(PAGINA_PEDIDOS_ONLINE),
+      );
+      const snap = await getDocs(q);
+      const adicionais = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+      setPedidosAnteriores(atuais => {
+        const unicos = new Map();
+        [...atuais, ...adicionais].forEach(p => unicos.set(String(p.id), p));
+        return [...unicos.values()];
+      });
+      setCursorPedidos(snap.docs.at(-1) || null);
+      setMaisPedidosDisponiveis(snap.size === PAGINA_PEDIDOS_ONLINE);
+    } catch (err) {
+      console.warn('[PDV] Falha ao paginar pedidos_online:', err);
+    } finally {
+      setCarregandoMaisPedidos(false);
+    }
+  };
 
   const carregarPedidoOnline = (pedido) => {
     if (!pedido || !Array.isArray(pedido.itens) || !pedido.itens.length) return;
@@ -1424,6 +1486,12 @@ export default function PDV({ perfilLoja, taxasCambio = {}, registrarFinanceiro,
                         </div>
                       );
                     })}
+                    {maisPedidosDisponiveis && (
+                      <button type="button" onClick={carregarMaisPedidosOnline} disabled={carregandoMaisPedidos}
+                        style={{ background:'#0c2340', color:'#7dd3fc', border:'1px solid #0284c7', borderRadius:10, padding:12, fontWeight:800, cursor:carregandoMaisPedidos?'wait':'pointer' }}>
+                        {carregandoMaisPedidos ? tx('Carregando…','Cargando…','Loading…') : tx('Carregar mais pedidos','Cargar más pedidos','Load more orders')}
+                      </button>
+                    )}
                   </div>
                 </div>
               )}

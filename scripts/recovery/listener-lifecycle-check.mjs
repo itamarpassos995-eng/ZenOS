@@ -6,7 +6,9 @@ const ledger=read('src/core/financialLedger.js'),tables=read('src/core/tablesV1.
 const mesas=read('src/components/Mesas.jsx');
 assert.match(app,/let authSequence = 0/);
 assert.match(app,/mounted = false; authSequence\+\+; unsubscribe\(\)/);
-assert.match(app,/active = false; unsubOperacao\(\); unsubConfig\(\)/);
+assert.match(app,/unsubOperacao\(\)/);
+assert.match(app,/window.removeEventListener\('focus', aoRetomarAba\)/);
+assert.doesNotMatch(app,/onSnapshot\(refConfig/);
 assert.match(app,/ativo = false; cancelar\(\)/);
 assert.match(mesas,/ativo = false; unsub\(\)/);
 assert.match(ledger,/return onSnapshot\(collection/);
@@ -19,4 +21,10 @@ for(const p of ['src/components/PDV.jsx','src/components/PDVCompras.jsx']){
  assert.match(source,/abrirFechamentoRef.current = abrirFechamento/);
  assert.match(source,/window.removeEventListener\('keydown', lidarAtalhos\)/);
 }
-console.log('PASS: lifecycle, cleanup, login epochs and unbounded financial safety retained.');
+const firebase=read('src/firebase.js'),pdv=read('src/components/PDV.jsx');
+assert.match(firebase,/persistentLocalCache\(/);
+assert.match(firebase,/persistentMultipleTabManager\(/);
+assert.match(repo,/getDocsFromCache\(/);
+assert.match(repo,/const PAGE=50/);
+assert.match(pdv,/limit\(PAGINA_PEDIDOS_ONLINE\)/);
+console.log('PASS: lifecycle, cache, bounded orders, cleanup and authoritative financial safety retained.');

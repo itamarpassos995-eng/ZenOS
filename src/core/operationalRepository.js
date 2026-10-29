@@ -1,4 +1,4 @@
-import {doc,collection,getDocFromServer,getDocsFromServer,onSnapshot,query,orderBy,documentId,limit,startAfter,where} from 'firebase/firestore';
+import {doc,collection,getDocFromServer,getDocFromCache,getDocsFromServer,getDocsFromCache,onSnapshot,query,orderBy,documentId,limit,startAfter,where} from 'firebase/firestore';
 import {resolveV2ReadMode} from './v2ReadMode.js';
 import {V2_TAIL_WINDOW_SIZE,shouldRearmV2Tail} from './v2TailWindow.js';
 import {V2_COLLECTIONS,encodeV2Id,entityIdV2,v2ControlPath,v2RootPath,v2Error,stableV2Json,hashV2} from './operationalV2Schema.js';
@@ -7,16 +7,28 @@ const sessions=new WeakMap();
 const sessionMap=db=>{if(!sessions.has(db))sessions.set(db,new Map());return sessions.get(db);};
 export const getShadowReadStatus=(db,userId)=>sessionMap(db).get(String(userId))?.shadowStatus||null;
 export const peekV2Session=(db,userId)=>db&&sessionMap(db).get(String(userId))?.session||null;
-const PAGE=200,MAX_DOCUMENTS=20000;
+const PAGE=50,MAX_DOCUMENTS=20000;
 const asSnapshot=data=>({exists:()=>true,data:()=>data,metadata:{fromCache:false,hasPendingWrites:false}});
+const cacheCheckpointKey=(db,userId,generation)=>'zenos_v2_cache_checkpoint:'+String(db?.app?.options?.projectId||'unknown')+':'+String(userId)+':'+String(generation);
+const readCacheCheckpoint=(db,userId,generation)=>{
+ try{return JSON.parse(localStorage.getItem(cacheCheckpointKey(db,userId,generation))||'null');}
+ catch{return null;}
+};
+const writeCacheCheckpoint=(db,userId,generation,data)=>{
+ try{localStorage.setItem(cacheCheckpointKey(db,userId,generation),JSON.stringify(data));}
+ catch{/* Armazenamento local indisponível: na próxima abertura usará o servidor. */}
+};
 
 export class V2Session {
  constructor(db,userId,control){this.db=db;this.userId=String(userId);this.control=control;this.generation=control.generation;
   this.root=v2RootPath(userId,control.generation);this.records=new Map();this.values={};this.sequence=0;this.revisions={};this.listeners=new Set();this.tailStop=null;this.tailEpoch=0;this.failed=null;}
- async paged(path,consume){let cursor=null,count=0;
+ async paged(path,consume,{cacheOnly=false}={}){let cursor=null;
   do{const q=query(collection(this.db,...path),orderBy(documentId()),...(cursor?[startAfter(cursor)]:[]),limit(PAGE));
-   const page=await getDocsFromServer(q);count+=page.size;this.reads=(this.reads||0)+page.size;
-   if(this.reads>MAX_DOCUMENTS)throw v2Error('V2_READ_BUDGET','Leitura inicial excedeu o limite de documentos.');
+   const page=await (cacheOnly?getDocsFromCache(q):getDocsFromServer(q));
+   if(!cacheOnly){
+    this.reads=(this.reads||0)+page.size;
+    if(this.reads>MAX_DOCUMENTS)throw v2Error('V2_READ_BUDGET','Leitura inicial excedeu o limite de documentos.');
+   }
    page.docs.forEach(consume);cursor=page.size===PAGE?page.docs.at(-1):null;
   }while(cursor);
  }
@@ -65,37 +77,112 @@ export class V2Session {
   this.catchUpCheckPromise=pending;
   try{return await pending;}finally{if(this.catchUpCheckPromise===pending)this.catchUpCheckPromise=null;}
  }
- async load(){
-  const head=await getDocFromServer(doc(this.db,...this.root));
-  if(!head.exists()||head.data().schema!==2||head.data().state!=='ready')throw v2Error('V2_NOT_READY','Cópia V2 ainda não foi certificada.');
-  if(head.data().sourceChecksum!==this.control.sourceChecksum)throw v2Error('V2_SOURCE_MISMATCH','Origem da cópia não corresponde à ativação.');
-  this.sequence=Number(head.data().sequence||0);this.revisions={...(head.data().fieldRevisions||{})};this.reads=0;
-  const manifest=head.data().fieldManifest;this.manifest=manifest;
-  if(!manifest||!Object.keys(manifest).length)throw v2Error('V2_MANIFEST','Manifesto V2 ausente.');
-  // Sequential bounded pages avoid many simultaneous full-catalog queries.
+ // A carga inicial usa primeiro a cópia persistida, mas somente quando a
+ // geração, o manifesto e as contagens conferem. Dados incompletos nunca
+ // são usados como base para operações financeiras.
+ async hydrateCollections(manifest,{cacheOnly=false}={}){
+  this.records=new Map();this.values={};this.legacyFieldVersions=new Map();
   for(const [field,meta] of Object.entries(manifest)){
-   if(meta.kind==='array'){
-    if(!V2_COLLECTIONS[field]||meta.collection!==V2_COLLECTIONS[field])throw v2Error('V2_UNKNOWN_FIELD',`Campo V2 não integrado: ${field}.`);
-    const records=new Map();this.records.set(field,records);
-    await this.paged([...this.root,meta.collection],snap=>{
-     const value=snap.data();if(value.legacyField!==field||value.data===undefined)throw v2Error('V2_ENTITY_SCHEMA','Registro V2 inválido.');
-     if(encodeV2Id(entityIdV2(field,value.data))!==snap.id)throw v2Error('V2_ENTITY_ID','ID V2 difere do legado.');
-     records.set(snap.id,{...value,routeId:snap.id});
-    });
-   }
+   if(meta.kind!=='array')continue;
+   if(!V2_COLLECTIONS[field]||meta.collection!==V2_COLLECTIONS[field])throw v2Error('V2_UNKNOWN_FIELD',`Campo V2 não integrado: ${field}.`);
+   const records=new Map();this.records.set(field,records);
+   await this.paged([...this.root,meta.collection],snap=>{
+    const value=snap.data();if(value.legacyField!==field||value.data===undefined)throw v2Error('V2_ENTITY_SCHEMA','Registro V2 inválido.');
+    if(encodeV2Id(entityIdV2(field,value.data))!==snap.id)throw v2Error('V2_ENTITY_ID','ID V2 difere do legado.');
+    records.set(snap.id,{...value,routeId:snap.id});
+   },{cacheOnly});
   }
   await this.paged([...this.root,'legacy_fields'],snap=>{
    const value=snap.data();if(typeof value.field!=='string'||value.value===undefined)throw v2Error('V2_VALUE_SCHEMA','Campo legado inválido.');
    this.values[value.field]=value.value;
-  });
-  await this.catchUp();
-  const end=await getDocFromServer(doc(this.db,...this.root));
-  if(Number(end.data()?.sequence||0)!==this.sequence)await this.catchUp();
-  if(Number(end.data()?.sequence||0)===this.sequence){
-   const counts=end.data().fieldCounts||Object.fromEntries(Object.entries(manifest).filter(([,m])=>m.kind==='array').map(([f,m])=>[f,m.count]));
-   for(const [field,count] of Object.entries(counts))if([...this.records.get(field)?.values()||[]].filter(v=>!v.deleted).length!==count)throw v2Error('V2_COUNT_MISMATCH','Contagem da cópia difere do manifesto confirmado.');
+   this.legacyFieldVersions.set(value.field,Number(value.version||0));
+  },{cacheOnly});
+ }
+ assertComplete(manifest,counts,{requireValues=false}={}){
+  for(const [field,meta] of Object.entries(manifest)){
+   if(meta.kind==='array'){
+    const expected=Number(counts?.[field]??meta.count);
+    const records=this.records.get(field);
+    const actual=[...(records?.values()||[])].filter(v=>!v.deleted).length;
+    if(!Number.isSafeInteger(expected)||expected<0||actual!==expected)
+     throw v2Error('V2_COUNT_MISMATCH','Contagem da cópia difere do manifesto confirmado.');
+   }else if(requireValues&&!Object.prototype.hasOwnProperty.call(this.values,field)){
+    throw v2Error('V2_CACHE_INCOMPLETE','Campo operacional não está disponível no cache.');
+   }
   }
+ }
+ async load(){
+  const headRef=doc(this.db,...this.root);
+  // Ler o head em cache ANTES da checagem remota: a consulta ao servidor
+  // atualizaria a versão local e apagaria a sequência de referência antiga.
+  const cachedHead=await getDocFromCache(headRef).catch(()=>null);
+  const head=await getDocFromServer(headRef);
+  if(!head.exists()||head.data().schema!==2||head.data().state!=='ready')throw v2Error('V2_NOT_READY','Cópia V2 ainda não foi certificada.');
+  if(head.data().sourceChecksum!==this.control.sourceChecksum)throw v2Error('V2_SOURCE_MISMATCH','Origem da cópia não corresponde à ativação.');
+  const authoritative=head.data(),manifest=authoritative.fieldManifest;
+  if(!manifest||!Object.keys(manifest).length)throw v2Error('V2_MANIFEST','Manifesto V2 ausente.');
+  this.manifest=manifest;this.reads=0;
+  // O head do IndexedDB pode ter uma sequência MAIS NOVA que os documentos
+  // das coleções (porque catchUp aplica recibos apenas na memória). Nunca
+  // inferir a versão das páginas cacheadas a partir do head atualizado.
+  const cached=cachedHead?.exists()?cachedHead.data():null;
+  const checkpoint=readCacheCheckpoint(this.db,this.userId,this.generation);
+  const previousSequence=Number(checkpoint?.sequence),remoteSequence=Number(authoritative.sequence);
+  const reuseCache=!!cached&&cached.schema===2&&cached.state==='ready'&&!!checkpoint
+   &&checkpoint.sourceChecksum===this.control.sourceChecksum
+   &&checkpoint.manifest===stableV2Json(manifest)
+   &&Number.isSafeInteger(previousSequence)&&previousSequence>=0
+   &&Number.isSafeInteger(remoteSequence)&&previousSequence<=remoteSequence;
+  if(reuseCache){
+   try{
+    this.sequence=previousSequence;this.revisions={...(checkpoint.revisions||{})};
+    await this.hydrateCollections(manifest,{cacheOnly:true});
+    this.assertComplete(manifest,checkpoint.fieldCounts,{requireValues:true});
+    // Outra aba pode ter atualizado parte das páginas sem alterar este checkpoint.
+    // Uma mistura de versões não pode ser usada para estoque e caixa.
+    const hasNewerRecord=[...this.records.values()].some(records=>[...records.values()]
+      .some(value=>Number(value.version||0)>previousSequence));
+    const hasNewerField=[...this.legacyFieldVersions.values()].some(version=>version>previousSequence);
+    if(hasNewerRecord||hasNewerField)
+      throw v2Error('V2_CACHE_MIXED','Cache contém registros de gerações de leitura diferentes.');
+    if(this.sequence<remoteSequence)await this.catchUp();
+    const end=await getDocFromServer(headRef);
+    if(!end.exists()||end.data().state!=='ready')throw v2Error('V2_NOT_READY','Cópia V2 indisponível.');
+    const finalSequence=Number(end.data().sequence);
+    if(this.sequence<finalSequence)await this.catchUp();
+    if(this.sequence!==finalSequence||!Number.isSafeInteger(finalSequence))
+     throw v2Error('V2_NOT_CAUGHT_UP','Não foi possível conferir operações pendentes no servidor.');
+    this.assertComplete(manifest,end.data().fieldCounts);
+    if(stableV2Json(this.revisions)!==stableV2Json(end.data().fieldRevisions||{}))
+     throw v2Error('V2_REVISION_MISMATCH','Revisões da cópia divergentes.');
+    return this;
+   }catch(error){
+    // Cache parcial ou fora de sincronia: nunca liberar o PDV com dados incompletos.
+    // Reconstruir pelo caminho autoritativo já existente, sem alterar a produção.
+    this.records=new Map();this.values={};this.reads=0;
+    console.warn('[ZenOS][V2] Cache incompleto; recarregando dados certificados:',error?.code||error?.message);
+   }
+  }
+  this.sequence=Number(authoritative.sequence||0);this.revisions={...(authoritative.fieldRevisions||{})};
+  await this.hydrateCollections(manifest);
+  await this.catchUp();
+  const end=await getDocFromServer(headRef);
+  if(Number(end.data()?.sequence||0)!==this.sequence)await this.catchUp();
+  if(Number(end.data()?.sequence||0)===this.sequence)this.assertComplete(manifest,end.data().fieldCounts);
   if(this.sequence<Number(end.data()?.sequence||0))throw v2Error('V2_NOT_CAUGHT_UP','Não foi possível sincronizar todas as operações.');
+  // Só fixar a versão das páginas persistidas quando nenhuma operação
+  // avançou o head durante a carga: evita reutilizar um cache misturado.
+  if(Number(end.data()?.sequence)===Number(authoritative.sequence)
+    &&stableV2Json(end.data()?.fieldManifest)===stableV2Json(manifest)
+    &&stableV2Json(end.data()?.fieldRevisions||{})===stableV2Json(authoritative.fieldRevisions||{})){
+    writeCacheCheckpoint(this.db,this.userId,this.generation,{
+      sequence:Number(authoritative.sequence),
+      sourceChecksum:this.control.sourceChecksum,
+      manifest:stableV2Json(manifest),
+      fieldCounts:{...(end.data()?.fieldCounts||{})},
+      revisions:{...(authoritative.fieldRevisions||{})},
+    });
+  }
   return this;
  }
  // Invalida também callbacks/microtasks de uma assinatura já cancelada.
