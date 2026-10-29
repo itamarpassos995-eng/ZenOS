@@ -445,8 +445,8 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
     }
   };
 
-  const publicarCatalogoCdn = async () => {
-    if (publicandoCdn || salvandoConfig) return;
+  const publicarCatalogoCdn = async ({ silencioso = false } = {}) => {
+    if (publicandoCdn || (salvandoConfig && !silencioso)) return false;
     const usuario = auth.currentUser;
     if (!usuario || usuario.uid !== lojaId || usuario.isAnonymous) {
       avisarZen('warning', 'Acesso restrito', 'Entre com a conta proprietária para publicar a loja.');
@@ -477,11 +477,13 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
       });
       const resultado = await response.json().catch(() => ({}));
       if (!response.ok || resultado.status !== 'publicado') throw new Error(resultado.erro || 'publicacao-indisponivel');
-      avisarZen('success', 'Catálogo publicado',
+      if (!silencioso) avisarZen('success', 'Catálogo publicado',
         'O endereço de sua loja está atualizado. Os produtos do ZenOS não foram modificados.');
+      return true;
     } catch (erro) {
-      avisarZen('danger', 'Publicação não realizada',
+      if (!silencioso) avisarZen('danger', 'Publicação não realizada',
         'Não foi possível publicar a vitrine na CDN. Confira o link e as configurações salvas.', [erro.message]);
+      return false;
     } finally {
       setPublicandoCdn(false);
     }
@@ -558,11 +560,24 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
       salvarCommerceConfigLocal(lojaId, configNormalizada);
       notifyPersistenceStatus({ status: 'SINCRONIZADO', field: 'commerce_config' });
 
+      // Publicação somente após gravar a configuração e o apelido no ZenOS Cloud.
+      // Não altera listener, cache ou repositório operacional.
+      const cdnPublicado = import.meta.env.VITE_ZENOS_CDN_PUBLISH_ENABLED === 'true' && apelido
+        ? await publicarCatalogoCdn({ silencioso: true })
+        : null;
       avisarZen(
-        'success',
-        tx('Configurações Salvas!', '¡Configuraciones Guardadas!', 'Settings Saved!'),
+        cdnPublicado === false ? 'warning' : 'success',
+        cdnPublicado === true
+          ? tx('Loja salva e publicada!', '¡Tienda guardada y publicada!', 'Store saved and published!')
+          : cdnPublicado === false
+            ? tx('Configurações salvas, publicação pendente', 'Configuración guardada, publicación pendiente', 'Settings saved, publishing pending')
+            : tx('Configurações Salvas!', '¡Configuraciones Guardadas!', 'Settings Saved!'),
         tx(
-          'As configurações da sua loja online foram sincronizadas com sucesso no ZenOS Cloud.',
+          cdnPublicado === true
+            ? 'As configurações foram salvas e o catálogo foi atualizado no link personalizado.'
+            : cdnPublicado === false
+              ? 'Configurações salvas, mas o catálogo ainda não foi publicado. Use Publicar Loja Online para tentar novamente.'
+              : 'As configurações da sua loja online foram sincronizadas com sucesso no ZenOS Cloud.',
           'Las configuraciones se guardaron con éxito en la nube.',
           'Your online store settings were successfully synchronized to ZenOS Cloud.'
         )
