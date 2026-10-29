@@ -86,7 +86,7 @@ export async function getOfficialDocument(pathSegments,{fetchImpl=fetch,token}={
   return decodeDocument(await res.json());
 }
 export async function putPublicBlob(pathname,body,{fetchImpl=fetch,contentType='application/json',maxAge=60}={}){
-  if(!/^commerce\/(?:catalogos\/[a-z0-9-]+\.json|fotos\/[a-zA-Z0-9_-]+\/[a-f0-9]{64}\.(?:png|jpg|webp))$/.test(pathname))throw Error('blob-caminho-invalido');
+  if(!/^commerce\/(?:catalogos\/[a-z0-9-]+\.json|catalogos\/[a-z0-9-]+\/versoes\/[a-z0-9-]{8,48}\/pagina-[1-9]\d{0,3}\.json|fotos\/[a-zA-Z0-9_-]+\/[a-f0-9]{64}\.(?:png|jpg|webp))$/.test(pathname))throw Error('blob-caminho-invalido');
   const token=process.env.BLOB_READ_WRITE_TOKEN;
   if(!token)throw Error('blob-credencial-indisponivel');
   const bytes=Buffer.isBuffer(body)?body:Buffer.from(body);

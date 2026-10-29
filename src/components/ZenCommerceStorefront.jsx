@@ -87,7 +87,6 @@ export function montarLojaAPartirDeConfig(configCommerce = {}, produtos = [], lo
         const cfgP = mapaProdutosLoja[p.id];
         return cfgP?.ativo !== undefined ? cfgP.ativo : Number(p.estoque ?? 0) > 0;
       })
-      .slice(0, 48)
       .map((p, idx) => {
         const cfgP = mapaProdutosLoja[p.id] || {};
         const precoNormal = Number(p.precoBRL ?? p.preco ?? p.precoVenda ?? p.precoUnitario ?? 0);
