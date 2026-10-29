@@ -116,7 +116,7 @@ export class V2Session {
   const previousSequence=Number(cached?.sequence),remoteSequence=Number(authoritative.sequence);
   const reuseCache=!!cached&&cached.schema===2&&cached.state==='ready'
    &&cached.sourceChecksum===this.control.sourceChecksum
-   &&JSON.stringify(cached.fieldManifest)===JSON.stringify(manifest)
+   &&stableV2Json(cached.fieldManifest)===stableV2Json(manifest)
    &&Number.isSafeInteger(previousSequence)&&previousSequence>=0
    &&Number.isSafeInteger(remoteSequence)&&previousSequence<=remoteSequence;
   if(reuseCache){
@@ -132,7 +132,7 @@ export class V2Session {
     if(this.sequence!==finalSequence||!Number.isSafeInteger(finalSequence))
      throw v2Error('V2_NOT_CAUGHT_UP','Não foi possível conferir operações pendentes no servidor.');
     this.assertComplete(manifest,end.data().fieldCounts);
-    if(JSON.stringify(this.revisions)!==JSON.stringify(end.data().fieldRevisions||{}))
+    if(stableV2Json(this.revisions)!==stableV2Json(end.data().fieldRevisions||{}))
      throw v2Error('V2_REVISION_MISMATCH','Revisões da cópia divergentes.');
     return this;
    }catch(error){
