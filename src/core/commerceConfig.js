@@ -1,3 +1,13 @@
+export const sanitizarSlugLoja = (texto = '') => {
+  return String(texto || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
+};
+
 import { zenosStorage } from './storage';
 
 export const commerceConfigPadrao = {
@@ -34,7 +44,7 @@ export const normalizarCommerceConfig = (dados = {}, perfilLoja = null, lojaId =
     logoUrl: c.logoUrl || perfilLoja?.logoLoja || '',
     bannerUrl: c.bannerUrl || '',
     corTema: c.corTema || '#0284c7',
-    slug: (c.slug || lojaId || '').trim(),
+    slug: sanitizarSlugLoja(c.slug || c.nomeLoja || lojaId || ''),
     produtosLoja: (c.produtosLoja && typeof c.produtosLoja === 'object') ? c.produtosLoja : {},
     descontoGeralPorcentagem: Number(c.descontoGeralPorcentagem || 0),
     ...c,

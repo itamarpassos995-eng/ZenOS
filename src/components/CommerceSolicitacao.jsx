@@ -4,6 +4,7 @@ import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import {
   normalizarCommerceConfig,
+  sanitizarSlugLoja,
   lerCommerceConfigLocal,
   salvarCommerceConfigLocal,
   comprimirImagem
@@ -81,9 +82,10 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
   const fileLogoRef = useRef(null);
   const fileBannerRef = useRef(null);
 
+  const slugAtivo = (configCommerce.slug || lojaId || '').trim();
   const urlVitrine = typeof window !== 'undefined'
-    ? `${window.location.origin}/loja/${lojaId || ''}`
-    : `https://zenos-ac6b2.web.app/loja/${lojaId || ''}`;
+    ? `${window.location.origin}/loja/${slugAtivo}`
+    : `https://zenos-ac6b2.web.app/loja/${slugAtivo}`;
 
   const avisarZen = (variante, titulo, mensagem, detalhes = []) => {
     setModalZen({ variante, titulo, mensagem, detalhes, apenasConfirmar: true });
@@ -478,6 +480,20 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
         { merge: true }
       );
 
+            if (configNormalizada.slug) {
+        try {
+          await setDoc(
+            doc(db, 'lojas_slugs', configNormalizada.slug),
+            {
+              lojaId,
+              slug: configNormalizada.slug,
+              nomeLoja: configNormalizada.nomeLoja || '',
+              updatedAtServer: serverTimestamp(),
+            },
+            { merge: true }
+          );
+        } catch (_) {}
+      }
       salvarCommerceConfigLocal(lojaId, configNormalizada);
       notifyPersistenceStatus({ status: 'SINCRONIZADO', field: 'commerce_config' });
 
@@ -634,6 +650,46 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
 
               {secoesAbertas.apresentacao && (
                 <div className="commerce-accordion-body">
+                                    <div className="commerce-field">
+                    <label>{tx('Link Personalizado da Loja (Apelido)', 'Enlace Personalizado (Apodo)', 'Custom Store Link (Slug)')}</label>
+                    <div style={{ display: 'flex', alignItems: 'center', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden' }}>
+                      <span style={{ padding: '0.5rem 0.75rem', color: '#64748b', fontSize: '0.875rem', fontWeight: 600, borderRight: '1px solid #cbd5e1', whiteSpace: 'nowrap' }}>
+                        {typeof window !== 'undefined' ? window.location.host : 'zenos.app.br'}/loja/
+                      </span>
+                      <input
+                        type="text"
+                        style={{ border: 'none', background: 'transparent', outline: 'none', padding: '0.5rem 0.75rem', flex: 1, minWidth: '120px', fontSize: '0.9rem' }}
+                        value={configCommerce.slug || ''}
+                        placeholder="ex: minha-loja"
+                        onChange={(e) => atualizarCampo('slug', sanitizarSlugLoja(e.target.value))}
+                      />
+                    </div>
+                    <small style={{ color: '#64748b', fontSize: '0.8rem', marginTop: '0.25rem', display: 'block' }}>
+                      {tx(
+                        'Link direto para enviar aos seus clientes pelo WhatsApp ou redes sociais.',
+                        'Enlace directo para enviar a sus clientes por WhatsApp o redes sociales.',
+                        'Direct link to send to your customers via WhatsApp or social media.'
+                      )}
+                    </small>
+                    <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="btn-zen-secondary btn-sm"
+                        onClick={copiarLinkVitrine}
+                      >
+                        📋 {linkCopiado ? tx('Link Copiado!', '¡Enlace Copiado!', 'Link Copied!') : tx('Copiar Link', 'Copiar Enlace', 'Copy Link')}
+                      </button>
+                      <a
+                        href={urlVitrine}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-zen-secondary btn-sm"
+                      >
+                        🔗 {tx('Abrir Loja', 'Abrir Tienda', 'Open Store')}
+                      </a>
+                    </div>
+                  </div>
+
                   <div className="commerce-field">
                     <label>{tx('Nome da Loja na Vitrine *', 'Nombre de la Tienda en Vitrina *', 'Storefront Name *')}</label>
                     <input

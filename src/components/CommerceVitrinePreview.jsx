@@ -15,6 +15,7 @@ export default function CommerceVitrinePreview({ lojaIdRota }) {
   const [modo, setModo] = useState('full'); // 'full', 'desktop', 'mobile'
   const [recarregar, setRecarregar] = useState(0);
   const [ehProprietario, setEhProprietario] = useState(false);
+  const [lojaIdEfetivo, setLojaIdEfetivo] = useState(lojaIdRota);
 
   // A rota isolada da vitrine precisa da rolagem normal do documento.
   // Desfazemos a classe ao desmontar para não afetar o painel operacional.
@@ -50,17 +51,30 @@ export default function CommerceVitrinePreview({ lojaIdRota }) {
           return;
         }
 
-        const idDaLoja = lojaIdRota === 'previa' ? usuario.uid : (lojaIdRota || usuario.uid);
-        const souDono = Boolean(usuario && usuario.uid === idDaLoja);
-        setEhProprietario(souDono);
+        let idDaLoja = lojaIdRota === 'previa' ? usuario.uid : (lojaIdRota || usuario.uid);
 
         setSituacao('carregando');
         void (async () => {
           try {
-            const [snapConfig, snapLoja] = await Promise.all([
-              getDoc(doc(db, 'lojas', idDaLoja, 'dados', 'configuracoes')),
-              getDoc(doc(db, 'lojas', idDaLoja)).catch(() => null)
-            ]);
+            let snapConfig = await getDoc(doc(db, 'lojas', idDaLoja, 'dados', 'configuracoes')).catch(() => null);
+            let snapLoja = await getDoc(doc(db, 'lojas', idDaLoja)).catch(() => null);
+
+            // Se não encontrou direto por UID, verifica se é um slug registrado
+            if (!snapConfig || !snapConfig.exists()) {
+              const snapSlug = await getDoc(doc(db, 'lojas_slugs', idDaLoja)).catch(() => null);
+              if (snapSlug && snapSlug.exists() && snapSlug.data()?.lojaId) {
+                const idReal = snapSlug.data().lojaId;
+                idDaLoja = idReal;
+                snapConfig = await getDoc(doc(db, 'lojas', idReal, 'dados', 'configuracoes')).catch(() => null);
+                snapLoja = await getDoc(doc(db, 'lojas', idReal)).catch(() => null);
+              }
+            }
+
+            if (!ativo || atual !== versao) return;
+
+            setLojaIdEfetivo(idDaLoja);
+            const souDono = Boolean(usuario && usuario.uid === idDaLoja);
+            setEhProprietario(souDono);
 
             if (!ativo || atual !== versao) return;
 
@@ -124,7 +138,7 @@ export default function CommerceVitrinePreview({ lojaIdRota }) {
     return (
       <main className="commerce-public-view">
         <ZenCommerceStorefront
-          idPublico={lojaIdRota}
+          idPublico={lojaIdEfetivo}
           configCommerce={config}
           produtos={produtosLoja}
           isLivePreview={false}
@@ -190,7 +204,7 @@ export default function CommerceVitrinePreview({ lojaIdRota }) {
         {modo === 'full' ? (
           <div className="commerce-full-viewport">
             <ZenCommerceStorefront
-              idPublico={lojaIdRota}
+              idPublico={lojaIdEfetivo}
               configCommerce={config}
               produtos={produtosLoja}
               isLivePreview={true}
@@ -217,7 +231,7 @@ export default function CommerceVitrinePreview({ lojaIdRota }) {
             )}
             <div className="commerce-frame-inner">
               <ZenCommerceStorefront
-                idPublico={lojaIdRota}
+                idPublico={lojaIdEfetivo}
                 configCommerce={config}
                 produtos={produtosLoja}
                 isLivePreview={true}
