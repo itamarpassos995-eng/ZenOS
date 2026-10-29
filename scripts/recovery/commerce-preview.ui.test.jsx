@@ -70,7 +70,7 @@ test('carrega a vitrine da própria loja com dados salvos e sem ações de compr
 test('visitante não autenticado inicia login anônimo sem consultar loja antes da autenticação', () => {
   mocks.usuario = null;
   render(<CommerceVitrinePreview lojaIdRota="loja-A" />);
-  expect(screen.getByText(/Verificando o acesso à vitrine/)).toBeTruthy();
+  expect(screen.getByText(/Carregando loja online/)).toBeTruthy();
   expect(mocks.signInAnonymously).toHaveBeenCalled();
   expect(mocks.getDoc).not.toHaveBeenCalled();
 });
@@ -118,10 +118,30 @@ test('restaura a rolagem global depois de fechar a prévia independente', async 
   expect(document.documentElement.classList.contains('commerce-document')).toBe(false);
 });
 
-test('informa quando as configurações ainda não foram salvas', async () => {
+test('link público inexistente exibe mensagem limpa sem detalhes internos', async () => {
   mocks.getDoc.mockResolvedValue({ exists: () => false });
   render(<CommerceVitrinePreview lojaIdRota="loja-A" />);
-  expect(await screen.findByText(/Ainda não há configurações da vitrine salvas/)).toBeTruthy();
+  expect(await screen.findByRole('heading', { name: 'Loja não encontrada' })).toBeTruthy();
+  expect(screen.queryByText(/PRÉVIA PRIVADA/)).toBeNull();
+  expect(screen.getByRole('button', { name: 'Tentar novamente' })).toBeTruthy();
+});
+
+test('falha de login anônimo oferece nova tentativa sem acessar o Firestore', async () => {
+  mocks.usuario = null;
+  mocks.signInAnonymously.mockRejectedValue({ code: 'auth/operation-not-allowed' });
+  render(<CommerceVitrinePreview lojaIdRota="loja-A" />);
+  expect(await screen.findByRole('heading', { name: 'Acesso temporariamente indisponível' })).toBeTruthy();
+  expect(mocks.getDoc).not.toHaveBeenCalled();
+  expect(screen.getByRole('button', { name: 'Tentar novamente' })).toBeTruthy();
+});
+
+test('sessão anônima nunca recebe privilégios de proprietário da loja', async () => {
+  mocks.usuario = { uid: 'loja-A', isAnonymous: true };
+  const { container } = render(<CommerceVitrinePreview lojaIdRota="loja-A" />);
+  await screen.findByRole('heading', { name: 'Sua loja, sua identidade' });
+  expect(container.querySelector('.commerce-preview-cart')).toBeNull();
+  expect(container.querySelector('.commerce-public-view')).not.toBeNull();
+  expect(mocks.getDoc).toHaveBeenCalledWith('lojas/loja-A/dados/configuracoes');
 });
 
 test('reproduz logo, banner e produto do lojista sem liberar WhatsApp ou carrinho', async () => {

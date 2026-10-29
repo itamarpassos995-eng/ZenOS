@@ -54,7 +54,7 @@ const config=read('src/core/commerceConfig.js');
 assert.ok(config.includes('chaveCommerceConfigLocal')&&config.includes('normalizarCommerceConfig'),
   'GATE_FAIL: configuração Commerce sem isolamento local por loja');
 const preview=read('src/components/CommerceVitrinePreview.jsx');
-assert.ok(preview.includes('const souDono = Boolean(usuario && usuario.uid === idDaLoja)')&&
+assert.ok(preview.includes('const souDono = Boolean(usuario && !usuario.isAnonymous && usuario.uid === idDaLoja)')&&
   preview.includes('if (!ehProprietario)')&&preview.includes('isLivePreview={false}')&&
   preview.includes('isLivePreview={true}')&&
   preview.includes("getDoc(doc(db, 'lojas', idDaLoja, 'dados', 'configuracoes'))")&&
