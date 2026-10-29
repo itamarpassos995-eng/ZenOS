@@ -185,7 +185,11 @@ test('galeria com várias fotos navega na prévia somente leitura', async () => 
   });
   const { container } = render(<CommerceVitrinePreview lojaIdRota="loja-A" />);
   await screen.findByRole('heading', { name: 'Produto Galeria' });
-  expect(container.querySelector('.commerce-badge-multi-fotos')?.textContent).toContain('3');
+  const indicadores = container.querySelectorAll('.commerce-card-photo-dots .commerce-card-photo-dot');
+  expect(indicadores).toHaveLength(3);
+  expect(indicadores[0].classList.contains('active')).toBe(true);
+  expect(container.querySelector('.commerce-badge-multi-fotos')).toBeNull();
+  expect(container.querySelector('.commerce-product-image')?.textContent).not.toContain('📷');
 
   fireEvent.click(screen.getByRole('button', { name: 'Ver Produto Galeria' }));
   expect(container.querySelector('.commerce-full-image')?.getAttribute('src')).toBe('/foto-a.jpg');

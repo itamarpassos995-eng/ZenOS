@@ -2113,3 +2113,58 @@
 .commerce-prod-thumb {
   position: relative;
 }
+
+/* Link personalizado: campo claro precisa de texto e cursor escuros no painel dark. */
+.commerce-slug-control {
+  display:flex;
+  align-items:stretch;
+  min-width:0;
+  overflow:hidden;
+  border:1px solid #cbd5e1;
+  border-radius:10px;
+  background:#f8fafc;
+}
+.commerce-slug-control:focus-within {
+  border-color:#0284c7;
+  box-shadow:0 0 0 2px rgba(2,132,199,.20);
+}
+.commerce-slug-prefix {
+  display:flex;
+  align-items:center;
+  flex:0 0 auto;
+  max-width:60%;
+  padding:9px 11px;
+  border-right:1px solid #cbd5e1;
+  color:#475569;
+  font-size:12px;
+  font-weight:650;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.commerce-field input.commerce-slug-input {
+  flex:1 1 0;
+  width:100%;
+  min-width:0;
+  margin:0;
+  padding:9px 11px;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  color:#0f172a;
+  -webkit-text-fill-color:#0f172a;
+  caret-color:#0284c7;
+  font-size:14px;
+  font-weight:650;
+  outline:none;
+}
+.commerce-field input.commerce-slug-input::placeholder {
+  color:#64748b;
+  -webkit-text-fill-color:#64748b;
+  opacity:1;
+}
+@media (max-width:600px) {
+  .commerce-slug-control { flex-wrap:wrap; }
+  .commerce-slug-prefix { flex:1 1 100%; max-width:100%; border-right:0; border-bottom:1px solid #cbd5e1; }
+  .commerce-field input.commerce-slug-input { flex:1 1 100%; }
+}

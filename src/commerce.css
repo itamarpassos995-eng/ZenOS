@@ -77,16 +77,16 @@ html.commerce-document.commerce-dialog-open { overflow-y:hidden; }
 .commerce-categories button { min-height:40px; padding:8px 15px; font-size:11px; font-weight:650; border:1px solid #dfe4e1; border-radius:25px; color:var(--c-primary); background:transparent; cursor:pointer; }
 .commerce-categories button[aria-pressed=true] { background:var(--c-primary); color:#fff; border-color:var(--c-primary); }
 .commerce-public-grid { display:grid; grid-template-columns:repeat(var(--commerce-columns,4),minmax(0,1fr)); gap:18px; }
-.commerce-product { color:#162d38; min-width:0; border:1px solid #e1e6e2; border-radius:13px; background:#fff; overflow:clip; transition:box-shadow .2s,transform .2s; }
+.commerce-product { display:flex; flex-direction:column; height:100%; color:#162d38; min-width:0; border:1px solid #e1e6e2; border-radius:13px; background:#fff; overflow:clip; transition:box-shadow .2s,transform .2s; }
 .commerce-product:hover { transform:translateY(-3px); box-shadow:0 14px 30px #193d4e0b; }
 .commerce-product-image { position:relative; display:grid; place-items:center; width:100%; padding:16px; aspect-ratio:1; border:0; background:#f0f1ec; cursor:pointer; }
 .commerce-product-image img { height:100%; width:100%; object-fit:contain; }
 .commerce-product-image>span { font-size:50px; color:#abb9b3; font-family:Georgia,serif; }
-.commerce-product-details { padding:17px; }
+.commerce-product-details { display:flex; flex-direction:column; flex:1 1 auto; min-height:0; padding:17px; }
 .commerce-product-details>small { color:#89938f; font-size:9px; letter-spacing:.06em; text-transform:uppercase; }
 .commerce-product-details h3 { min-height:40px; margin:6px 0 12px; font-size:13px; font-weight:650; line-height:1.6; overflow-wrap:anywhere; }
 .commerce-product-price { display:block; margin:5px 0 15px; font-size:18px; font-weight:750; letter-spacing:-.4px; }
-.commerce-product .commerce-btn { width:100%; }
+.commerce-product .commerce-btn { width:100%; flex-shrink:0; margin-top:auto; }
 .commerce-empty { display:flex; align-items:center; justify-content:center; flex-direction:column; min-height:245px; padding:35px 20px; border:1px dashed #ced8d2; border-radius:15px; text-align:center; background:#ffffff70; }
 .commerce-empty-icon { display:grid; place-items:center; width:56px; height:56px; margin-bottom:17px; border-radius:50%; background:#e8eeea; color:var(--c-primary); }
 .commerce-empty h3 { margin:0 0 8px; font-size:18px; font-weight:650; letter-spacing:-.3px; }
@@ -212,8 +212,13 @@ html.commerce-document.commerce-dialog-open { overflow-y:hidden; }
 
 /* Preços Promocionais e Destaques */
 .commerce-product-price-row {
-  margin: 5px 0 14px;
+  display:flex;
+  flex-direction:column;
+  justify-content:flex-end;
+  min-height:52px;
+  margin: auto 0 14px;
 }
+.commerce-product-price-row .commerce-product-price { margin:0; }
 
 .commerce-price-promo-wrap {
   display: flex;
@@ -264,24 +269,34 @@ html.commerce-document.commerce-dialog-open { overflow-y:hidden; }
   z-index: 2;
 }
 
-/* Selo de Múltiplas Fotos no Card do Catálogo */
-.commerce-badge-multi-fotos {
-  position: absolute;
-  bottom: 8px;
-  right: 8px;
-  background: rgba(15, 23, 42, 0.85);
-  color: #ffffff;
-  font-size: 10px;
-  font-weight: 700;
-  padding: 3px 7px;
-  border-radius: 6px;
-  backdrop-filter: blur(4px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
-  z-index: 2;
+/* Pontos discretos no rodapé da imagem indicam as fotos reais do produto.
+   Não mudam a capa nem interferem na abertura da galeria. */
+.commerce-card-photo-dots {
+  position:absolute;
+  bottom:9px;
+  left:50%;
+  transform:translateX(-50%);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:5px;
+  max-width:calc(100% - 24px);
+  padding:5px 7px;
+  border-radius:999px;
+  background:rgba(255,255,255,.84);
+  box-shadow:0 1px 5px rgba(15,23,42,.10);
+  pointer-events:none;
+  z-index:2;
+}
+.commerce-card-photo-dot {
+  width:6px;
+  height:6px;
+  flex:0 0 6px;
+  border-radius:50%;
+  background:#94a3b8;
+}
+.commerce-card-photo-dot.active {
+  background:#0284c7;
 }
 
 /* Visualizador de Galeria no Modal de Detalhes */
