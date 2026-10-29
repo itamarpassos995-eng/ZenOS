@@ -9,6 +9,15 @@ export const getShadowReadStatus=(db,userId)=>sessionMap(db).get(String(userId))
 export const peekV2Session=(db,userId)=>db&&sessionMap(db).get(String(userId))?.session||null;
 const PAGE=50,MAX_DOCUMENTS=20000;
 const asSnapshot=data=>({exists:()=>true,data:()=>data,metadata:{fromCache:false,hasPendingWrites:false}});
+const cacheCheckpointKey=(db,userId,generation)=>'zenos_v2_cache_checkpoint:'+String(db?.app?.options?.projectId||'unknown')+':'+String(userId)+':'+String(generation);
+const readCacheCheckpoint=(db,userId,generation)=>{
+ try{return JSON.parse(localStorage.getItem(cacheCheckpointKey(db,userId,generation))||'null');}
+ catch{return null;}
+};
+const writeCacheCheckpoint=(db,userId,generation,data)=>{
+ try{localStorage.setItem(cacheCheckpointKey(db,userId,generation),JSON.stringify(data));}
+ catch{/* Armazenamento local indisponível: na próxima abertura usará o servidor. */}
+};
 
 export class V2Session {
  constructor(db,userId,control){this.db=db;this.userId=String(userId);this.control=control;this.generation=control.generation;
@@ -72,7 +81,7 @@ export class V2Session {
  // geração, o manifesto e as contagens conferem. Dados incompletos nunca
  // são usados como base para operações financeiras.
  async hydrateCollections(manifest,{cacheOnly=false}={}){
-  this.records=new Map();this.values={};
+  this.records=new Map();this.values={};this.legacyFieldVersions=new Map();
   for(const [field,meta] of Object.entries(manifest)){
    if(meta.kind!=='array')continue;
    if(!V2_COLLECTIONS[field]||meta.collection!==V2_COLLECTIONS[field])throw v2Error('V2_UNKNOWN_FIELD',`Campo V2 não integrado: ${field}.`);
@@ -86,6 +95,7 @@ export class V2Session {
   await this.paged([...this.root,'legacy_fields'],snap=>{
    const value=snap.data();if(typeof value.field!=='string'||value.value===undefined)throw v2Error('V2_VALUE_SCHEMA','Campo legado inválido.');
    this.values[value.field]=value.value;
+   this.legacyFieldVersions.set(value.field,Number(value.version||0));
   },{cacheOnly});
  }
  assertComplete(manifest,counts,{requireValues=false}={}){
@@ -112,18 +122,29 @@ export class V2Session {
   const authoritative=head.data(),manifest=authoritative.fieldManifest;
   if(!manifest||!Object.keys(manifest).length)throw v2Error('V2_MANIFEST','Manifesto V2 ausente.');
   this.manifest=manifest;this.reads=0;
+  // O head do IndexedDB pode ter uma sequência MAIS NOVA que os documentos
+  // das coleções (porque catchUp aplica recibos apenas na memória). Nunca
+  // inferir a versão das páginas cacheadas a partir do head atualizado.
   const cached=cachedHead?.exists()?cachedHead.data():null;
-  const previousSequence=Number(cached?.sequence),remoteSequence=Number(authoritative.sequence);
-  const reuseCache=!!cached&&cached.schema===2&&cached.state==='ready'
-   &&cached.sourceChecksum===this.control.sourceChecksum
-   &&stableV2Json(cached.fieldManifest)===stableV2Json(manifest)
+  const checkpoint=readCacheCheckpoint(this.db,this.userId,this.generation);
+  const previousSequence=Number(checkpoint?.sequence),remoteSequence=Number(authoritative.sequence);
+  const reuseCache=!!cached&&cached.schema===2&&cached.state==='ready'&&!!checkpoint
+   &&checkpoint.sourceChecksum===this.control.sourceChecksum
+   &&checkpoint.manifest===stableV2Json(manifest)
    &&Number.isSafeInteger(previousSequence)&&previousSequence>=0
    &&Number.isSafeInteger(remoteSequence)&&previousSequence<=remoteSequence;
   if(reuseCache){
    try{
-    this.sequence=previousSequence;this.revisions={...(cached.fieldRevisions||{})};
+    this.sequence=previousSequence;this.revisions={...(checkpoint.revisions||{})};
     await this.hydrateCollections(manifest,{cacheOnly:true});
-    this.assertComplete(manifest,cached.fieldCounts,{requireValues:true});
+    this.assertComplete(manifest,checkpoint.fieldCounts,{requireValues:true});
+    // Outra aba pode ter atualizado parte das páginas sem alterar este checkpoint.
+    // Uma mistura de versões não pode ser usada para estoque e caixa.
+    const hasNewerRecord=[...this.records.values()].some(records=>[...records.values()]
+      .some(value=>Number(value.version||0)>previousSequence));
+    const hasNewerField=[...this.legacyFieldVersions.values()].some(version=>version>previousSequence);
+    if(hasNewerRecord||hasNewerField)
+      throw v2Error('V2_CACHE_MIXED','Cache contém registros de gerações de leitura diferentes.');
     if(this.sequence<remoteSequence)await this.catchUp();
     const end=await getDocFromServer(headRef);
     if(!end.exists()||end.data().state!=='ready')throw v2Error('V2_NOT_READY','Cópia V2 indisponível.');
@@ -149,6 +170,19 @@ export class V2Session {
   if(Number(end.data()?.sequence||0)!==this.sequence)await this.catchUp();
   if(Number(end.data()?.sequence||0)===this.sequence)this.assertComplete(manifest,end.data().fieldCounts);
   if(this.sequence<Number(end.data()?.sequence||0))throw v2Error('V2_NOT_CAUGHT_UP','Não foi possível sincronizar todas as operações.');
+  // Só fixar a versão das páginas persistidas quando nenhuma operação
+  // avançou o head durante a carga: evita reutilizar um cache misturado.
+  if(Number(end.data()?.sequence)===Number(authoritative.sequence)
+    &&stableV2Json(end.data()?.fieldManifest)===stableV2Json(manifest)
+    &&stableV2Json(end.data()?.fieldRevisions||{})===stableV2Json(authoritative.fieldRevisions||{})){
+    writeCacheCheckpoint(this.db,this.userId,this.generation,{
+      sequence:Number(authoritative.sequence),
+      sourceChecksum:this.control.sourceChecksum,
+      manifest:stableV2Json(manifest),
+      fieldCounts:{...(end.data()?.fieldCounts||{})},
+      revisions:{...(authoritative.fieldRevisions||{})},
+    });
+  }
   return this;
  }
  // Invalida também callbacks/microtasks de uma assinatura já cancelada.
