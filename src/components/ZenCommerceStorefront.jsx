@@ -101,7 +101,14 @@ export function montarLojaAPartirDeConfig(configCommerce = {}, produtos = [], lo
         const precoFinalCentavos = Math.round((temPromocao ? precoPromo : precoNormal) * 100);
         const precoDeCentavos = temPromocao ? Math.round(precoNormal * 100) : null;
 
-        const fotoProduto = cfgP.imagemLoja || p.imagem || p.fotoUrl || '';
+        const fotosConfig = Array.isArray(cfgP.imagensLoja) && cfgP.imagensLoja.length > 0
+          ? cfgP.imagensLoja.filter(Boolean)
+          : (cfgP.imagemLoja ? [cfgP.imagemLoja] : (p.imagem || p.fotoUrl ? [p.imagem || p.fotoUrl] : []));
+
+        const fotoProduto = fotosConfig[0] || '';
+        const imagensMapeadas = fotosConfig.length > 0
+          ? fotosConfig.map((url, i) => ({ id: `f-${p.id || idx}-${i}`, url, miniaturaUrl: url }))
+          : (idx === 0 ? [{ id: 'f-demo', url: '/demo-mademoiselle-elegance.png', miniaturaUrl: '/demo-mademoiselle-elegance.png' }] : []);
 
         return {
           skuPublico: String(p.id || `p-${idx + 1}`),
@@ -115,7 +122,7 @@ export function montarLojaAPartirDeConfig(configCommerce = {}, produtos = [], lo
           imagemUrl: fotoProduto || (idx === 0 ? '/demo-mademoiselle-elegance.png' : ''),
           descricao: cfgP.descricaoLoja || p.descricao || p.detalhes || '',
           quantidadeMaxima: Math.max(1, Number(p.estoque || 10)),
-          imagens: fotoProduto ? [{ id: 'f-1', url: fotoProduto }] : (idx === 0 ? [{ id: 'f-demo', url: '/demo-mademoiselle-elegance.png' }] : [])
+          imagens: imagensMapeadas
         };
       });
   }
@@ -506,6 +513,11 @@ export default function ZenCommerceStorefront({
                 >
                   {p.imagemUrl ? <img src={p.imagemUrl} alt={p.nome} loading="lazy" /> : <span>◇</span>}
                   {p.destaque && <span className="commerce-badge-destaque">★ DESTAQUE</span>}
+                  {p.imagens?.length > 1 && (
+                    <span className="commerce-badge-multi-fotos" title={`${p.imagens.length} fotos disponíveis`}>
+                      📷 {p.imagens.length}
+                    </span>
+                  )}
                 </button>
                 <div className="commerce-product-details">
                   <small>{p.categoria}</small>
@@ -611,11 +623,52 @@ export default function ZenCommerceStorefront({
       {/* MODAL DETALHE DO PRODUTO */}
       {detalhe && (
         <CommerceDialog title={detalhe.nome} onClose={() => setDetalhe(null)}>
-          {detalhe.imagens?.[foto]?.url ? (
-            <img className="commerce-full-image" src={detalhe.imagens[foto].url} alt={detalhe.nome} />
-          ) : detalhe.imagemUrl ? (
-            <img className="commerce-full-image" src={detalhe.imagemUrl} alt={detalhe.nome} />
-          ) : null}
+          <div className="commerce-gallery-viewer">
+            {detalhe.imagens?.[foto]?.url ? (
+              <img className="commerce-full-image" src={detalhe.imagens[foto].url} alt={detalhe.nome} />
+            ) : detalhe.imagemUrl ? (
+              <img className="commerce-full-image" src={detalhe.imagemUrl} alt={detalhe.nome} />
+            ) : null}
+
+            {detalhe.imagens?.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  className="commerce-gallery-nav prev"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setFoto(prev => (prev > 0 ? prev - 1 : detalhe.imagens.length - 1));
+                  }}
+                  aria-label="Foto anterior"
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  className="commerce-gallery-nav next"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setFoto(prev => (prev < detalhe.imagens.length - 1 ? prev + 1 : 0));
+                  }}
+                  aria-label="Próxima foto"
+                >
+                  ›
+                </button>
+                <div className="commerce-gallery-dots">
+                  {detalhe.imagens.map((_, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      className={`commerce-dot ${foto === i ? 'active' : ''}`}
+                      onClick={() => setFoto(i)}
+                      aria-label={`Ver foto ${i + 1}`}
+                      aria-pressed={foto === i}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
           {detalhe.imagens?.length > 1 && (
             <div className="commerce-thumbs">
               {detalhe.imagens.map((img, i) => (

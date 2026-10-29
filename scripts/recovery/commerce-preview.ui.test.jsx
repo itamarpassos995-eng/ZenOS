@@ -128,6 +128,34 @@ test('reproduz logo, banner e produto do lojista sem liberar WhatsApp ou carrinh
   expect(mocks.doc).toHaveBeenCalledWith({}, 'lojas', 'loja-A');
 });
 
+test('galeria com várias fotos navega na prévia somente leitura', async () => {
+  // O jsdom não implementa o elemento <dialog> nativo do navegador.
+  HTMLDialogElement.prototype.showModal ??= function () { this.open = true; };
+  HTMLDialogElement.prototype.close ??= function () { this.open = false; };
+  mocks.getDoc.mockImplementation(async path => path === 'lojas/loja-A/dados/configuracoes' ? {
+    exists: () => true,
+    data: () => ({ commerceConfig: { produtosLoja: {
+      'p-1': { imagensLoja: ['/foto-a.jpg', '/foto-b.jpg', '/foto-c.jpg'] },
+    } } }),
+  } : {
+    exists: () => true,
+    data: () => ({ produtos: [{ id: 'p-1', nome: 'Produto Galeria', preco: 50, estoque: 3 }] }),
+  });
+  const { container } = render(<CommerceVitrinePreview lojaIdRota="loja-A" />);
+  await screen.findByRole('heading', { name: 'Produto Galeria' });
+  expect(container.querySelector('.commerce-badge-multi-fotos')?.textContent).toContain('3');
+
+  fireEvent.click(screen.getByRole('button', { name: 'Ver Produto Galeria' }));
+  expect(container.querySelector('.commerce-full-image')?.getAttribute('src')).toBe('/foto-a.jpg');
+  fireEvent.click(screen.getByRole('button', { name: 'Próxima foto' }));
+  expect(container.querySelector('.commerce-full-image')?.getAttribute('src')).toBe('/foto-b.jpg');
+  fireEvent.click(screen.getByRole('button', { name: 'Foto 3' }));
+  expect(container.querySelector('.commerce-full-image')?.getAttribute('src')).toBe('/foto-c.jpg');
+  expect(container.querySelector('.commerce-gallery-dots button[aria-pressed="true"]')).not.toBeNull();
+  expect(container.querySelector('.commerce-cart-row')).toBeNull();
+  expect(container.querySelector('.commerce-btn[disabled]')).not.toBeNull();
+});
+
 test('ao voltar à aba lê novamente alterações salvas sem fazer gravações', async () => {
   let versao = 'Antes';
   mocks.getDoc.mockImplementation(async path => ({

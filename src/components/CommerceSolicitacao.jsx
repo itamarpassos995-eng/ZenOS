@@ -66,6 +66,7 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
     tagPromo: 'OFERTA',
     descricaoLoja: '',
     imagemLoja: '',
+    imagensLoja: [],
     destaque: false,
     ativo: true,
   });
@@ -203,12 +204,23 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
   const abrirModalEdicao = (p) => {
     const cfgP = (configCommerce.produtosLoja || {})[p.id] || {};
     setProdutoModalEdicao(p);
+
+    let fotosIniciais = [];
+    if (Array.isArray(cfgP.imagensLoja) && cfgP.imagensLoja.length > 0) {
+      fotosIniciais = cfgP.imagensLoja.filter(Boolean).slice(0, 5);
+    } else if (cfgP.imagemLoja) {
+      fotosIniciais = [cfgP.imagemLoja];
+    } else if (p.imagem || p.fotoUrl) {
+      fotosIniciais = [p.imagem || p.fotoUrl];
+    }
+
     setFormProdCustom({
       nomeLoja: cfgP.nomeLoja || p.nome || '',
       precoPromoBRL: cfgP.precoPromoBRL || '',
       tagPromo: cfgP.tagPromo || 'OFERTA',
       descricaoLoja: cfgP.descricaoLoja || p.descricao || '',
-      imagemLoja: cfgP.imagemLoja || p.imagem || p.fotoUrl || '',
+      imagemLoja: fotosIniciais[0] || '',
+      imagensLoja: fotosIniciais,
       destaque: Boolean(cfgP.destaque),
       ativo: cfgP.ativo !== false,
     });
@@ -216,26 +228,84 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
 
   const salvarModalEdicao = () => {
     if (!produtoModalEdicao) return;
+    const fotos = (formProdCustom.imagensLoja || []).filter(Boolean).slice(0, 5);
+    const dadosSalvar = {
+      ...formProdCustom,
+      imagensLoja: fotos,
+      imagemLoja: fotos[0] || '',
+    };
     const mapa = {
       ...(configCommerce.produtosLoja || {}),
       [produtoModalEdicao.id]: {
         ...((configCommerce.produtosLoja || {})[produtoModalEdicao.id] || {}),
-        ...formProdCustom,
+        ...dadosSalvar,
       },
     };
     atualizarCampo('produtosLoja', mapa);
     setProdutoModalEdicao(null);
   };
 
-  const lidarUploadFotoProduto = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const compactada = await comprimirImagem(file, 800, 800, 0.8);
-      setFormProdCustom(prev => ({ ...prev, imagemLoja: compactada }));
-    } catch (err) {
-      console.warn('Erro ao processar foto:', err);
+  const lidarUploadFotosProduto = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    const fotosAtuais = formProdCustom.imagensLoja || [];
+    const vagas = 5 - fotosAtuais.length;
+    if (vagas <= 0) {
+      avisarZen('warning', tx('Limite de Fotos', 'Límite de Fotos', 'Photo Limit'), tx('Cada produto permite até 5 fotos.', 'Hasta 5 fotos por producto.', 'Up to 5 photos per product.'));
+      return;
     }
+
+    const selecionados = files.filter(file => file.type.startsWith('image/')).slice(0, vagas);
+    if (selecionados.length === 0) {
+      avisarZen('warning', tx('Arquivo Inválido', 'Archivo Inválido', 'Invalid File'), tx('Selecione imagens PNG, JPG ou WebP.', 'Seleccione imágenes válidas.', 'Select PNG, JPG or WebP images.'));
+      e.target.value = '';
+      return;
+    }
+    try {
+      const novas = [];
+      for (const file of selecionados) {
+        const compactada = await comprimirImagem(file, 800, 800, 0.8);
+        if (compactada) novas.push(compactada);
+      }
+      setFormProdCustom(prev => {
+        const combinadas = [...(prev.imagensLoja || []), ...novas].slice(0, 5);
+        return {
+          ...prev,
+          imagensLoja: combinadas,
+          imagemLoja: combinadas[0] || '',
+        };
+      });
+    } catch (err) {
+      console.warn('Erro ao processar fotos do produto:', err);
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  const removerFotoProduto = (indexParaRemover) => {
+    setFormProdCustom(prev => {
+      const atualizadas = (prev.imagensLoja || []).filter((_, idx) => idx !== indexParaRemover);
+      return {
+        ...prev,
+        imagensLoja: atualizadas,
+        imagemLoja: atualizadas[0] || '',
+      };
+    });
+  };
+
+  const definirFotoPrincipal = (indexPrincipal) => {
+    setFormProdCustom(prev => {
+      const fotos = [...(prev.imagensLoja || [])];
+      if (indexPrincipal <= 0 || indexPrincipal >= fotos.length) return prev;
+      const [escolhida] = fotos.splice(indexPrincipal, 1);
+      fotos.unshift(escolhida);
+      return {
+        ...prev,
+        imagensLoja: fotos,
+        imagemLoja: fotos[0] || '',
+      };
+    });
   };
 
   // Carregar dados de configuração do Firestore
@@ -384,6 +454,19 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
     try {
       notifyPersistenceStatus({ status: 'SALVANDO', field: 'commerce_config' });
       const configNormalizada = normalizarCommerceConfig(configCommerce, perfilLoja, lojaId);
+
+      // As fotos ainda são armazenadas no documento de configurações do Commerce.
+      // Impedir uma gravação grande demais até que a galeria tenha armazenamento dedicado.
+      const temGaleriaMultipla = Object.values(configNormalizada.produtosLoja || {})
+        .some(produto => Array.isArray(produto?.imagensLoja) && produto.imagensLoja.length > 1);
+      if (temGaleriaMultipla && new TextEncoder().encode(JSON.stringify(configNormalizada)).length > 850_000) {
+        notifyPersistenceStatus({ status: 'ERRO', field: 'commerce_config', error: 'commerce-gallery-size-limit' });
+        avisarZen('warning', tx('Muitas Fotos', 'Demasiadas Fotos', 'Too Many Photos'),
+          tx('As fotos ultrapassam o espaço seguro de configuração. Remova algumas fotos para salvar na nuvem.',
+            'Las fotos exceden el espacio seguro. Quite algunas para guardar.',
+            'The photos exceed the safe settings size. Remove some before saving.'));
+        return;
+      }
 
       await setDoc(
         doc(db, 'lojas', lojaId, 'dados', 'configuracoes'),
@@ -796,7 +879,11 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
                             const isDestaque = Boolean(cfgP.destaque);
                             const precoNormal = Number(p.precoBRL ?? p.preco ?? p.precoVenda ?? 0);
                             const precoPromo = cfgP.precoPromoBRL || '';
-                            const fotoThumb = cfgP.imagemLoja || p.imagem || p.fotoUrl || '';
+                            const fotosArr = Array.isArray(cfgP.imagensLoja) && cfgP.imagensLoja.length > 0
+                              ? cfgP.imagensLoja.filter(Boolean)
+                              : (cfgP.imagemLoja ? [cfgP.imagemLoja] : (p.imagem || p.fotoUrl ? [p.imagem || p.fotoUrl] : []));
+                            const fotoThumb = fotosArr[0] || '';
+                            const totalFotos = fotosArr.length;
 
                             return (
                               <div key={p.id} className={`commerce-prod-row ${isAtivo ? 'active' : 'inactive'}`}>
@@ -808,6 +895,7 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
                                     ) : (
                                       <span className="thumb-placeholder">📦</span>
                                     )}
+                                    {totalFotos > 1 && <span className="thumb-count-tag" title={`${totalFotos} fotos na galeria`}>📷 {totalFotos}</span>}
                                   </div>
                                   <div className="commerce-prod-texts">
                                     <div className="commerce-prod-name-row">
@@ -817,6 +905,7 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
                                     </div>
                                     <small>
                                       SKU: {p.sku || p.id} • {p.grupo || p.categoria || 'Geral'} • Estoque: {p.estoque ?? 0}
+                                      {totalFotos > 1 && ` • 📷 ${totalFotos} fotos`}
                                     </small>
                                   </div>
                                 </div>
@@ -1331,36 +1420,58 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
                 />
               </div>
 
-              {/* FOTO EM ALTA RESOLUÇÃO PARA A LOJA */}
+              {/* GALERIA DE FOTOS PARA A LOJA (ATÉ 5 FOTOS) */}
               <div className="commerce-media-block" style={{ marginTop: 12 }}>
-                <span className="commerce-media-label">📸 {tx('Foto de Alta Qualidade para a Loja', 'Foto de Alta Calidad', 'High Quality Photo')}</span>
-                <div className="commerce-prod-photo-row">
-                  <div className="commerce-prod-modal-thumb">
-                    {formProdCustom.imagemLoja ? (
-                      <img src={formProdCustom.imagemLoja} alt="Preview" />
-                    ) : (
-                      <span className="thumb-empty">Sem foto</span>
-                    )}
-                  </div>
-                  <div className="commerce-media-actions">
-                    <label className="commerce-btn-file">
-                      📁 {tx('Enviar Foto da Loja', 'Subir Foto', 'Upload Photo')}
+                <div className="commerce-media-header-row">
+                  <span className="commerce-media-label">📸 {tx('Fotos da Loja (Galeria de Detalhes)', 'Fotos de la Tienda (Galería)', 'Storefront Photo Gallery')}</span>
+                  <span className="commerce-media-counter">{(formProdCustom.imagensLoja || []).length}/5 {tx('fotos', 'fotos', 'photos')}</span>
+                </div>
+                <small style={{ color: '#94a3b8', fontSize: '11px', display: 'block', margin: '4px 0 8px' }}>
+                  {tx('Adicione fotos de diferentes ângulos e detalhes do material. A foto com selo ⭐ Capa será exibida primeiro no catálogo.', 'Añade fotos de diferentes ángulos y material.', 'Add photos of angles and material details. The ⭐ Cover photo appears first in the catalog.')}
+                </small>
+
+                <div className="commerce-prod-gallery-grid">
+                  {(formProdCustom.imagensLoja || []).map((fotoUrl, idx) => (
+                    <div key={idx} className={`commerce-gallery-item ${idx === 0 ? 'principal' : ''}`}>
+                      <img src={fotoUrl} alt={`Foto ${idx + 1}`} />
+                      <div className="gallery-item-overlay">
+                        {idx === 0 ? (
+                          <span className="badge-foto-principal">⭐ Capa</span>
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn-set-principal"
+                            onClick={() => definirFotoPrincipal(idx)}
+                            title={tx('Definir como foto de capa', 'Fijar como portada', 'Set as cover photo')}
+                          >
+                            Tornar Capa
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="btn-del-foto"
+                          onClick={() => removerFotoProduto(idx)}
+                          title={tx('Remover foto', 'Quitar foto', 'Remove photo')}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+
+                  {(formProdCustom.imagensLoja || []).length < 5 && (
+                    <label className="commerce-gallery-add-slot" title={tx('Adicionar foto (PNG, JPG, WebP)', 'Añadir foto', 'Add photo')}>
+                      <span className="add-icon">➕</span>
+                      <span className="add-text">{tx('Adicionar Foto', 'Añadir Foto', 'Add Photo')}</span>
                       <input
                         type="file"
                         accept="image/*"
-                        onChange={lidarUploadFotoProduto}
+                        multiple
+                        onChange={lidarUploadFotosProduto}
+                        style={{ display: 'none' }}
                       />
                     </label>
-                    {formProdCustom.imagemLoja && (
-                      <button
-                        type="button"
-                        className="commerce-btn-remove-media"
-                        onClick={() => setFormProdCustom(prev => ({ ...prev, imagemLoja: '' }))}
-                      >
-                        {tx('Remover', 'Quitar', 'Remove')}
-                      </button>
-                    )}
-                  </div>
+                  )}
                 </div>
               </div>
 
