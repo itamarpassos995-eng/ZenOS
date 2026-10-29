@@ -1,4 +1,5 @@
 import React from 'react';
+import { readFileSync } from 'node:fs';
 import { beforeEach, afterEach, expect, test, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
@@ -14,6 +15,18 @@ vi.mock('firebase/auth', () => ({ onAuthStateChanged: mocks.onAuthStateChanged }
 vi.mock('firebase/firestore', () => ({ doc: mocks.doc, getDoc: mocks.getDoc }));
 
 import CommerceVitrinePreview from '../../src/components/CommerceVitrinePreview';
+
+test('banner personalizado mostra a arte original sem tonalização e sem textos por cima', () => {
+  const css = readFileSync('src/commerce.css', 'utf8');
+  const foto = css.match(/\.commerce-hero-with-photo \.commerce-hero-picture img\s*\{([^}]*)\}/)?.[1];
+  expect(foto).toContain('object-fit:contain');
+  expect(foto).toContain('opacity:1');
+  expect(css).not.toContain('opacity:.38');
+  expect(css).toMatch(/\.commerce-hero-with-photo:after\s*\{\s*display:none;\s*\}/);
+  expect(css).toMatch(/\.commerce-hero-with-photo \.commerce-hero-picture\s*\{[^}]*position:relative/);
+  expect(css).toMatch(/\.commerce-hero-with-photo \.commerce-hero-copy\s*\{[^}]*display:grid/);
+  expect(css).toMatch(/\.commerce-hero-with-photo \.commerce-hero-art\s*\{\s*display:none;\s*\}/);
+});
 
 beforeEach(() => {
   mocks.usuario = { uid: 'loja-A' };
@@ -105,6 +118,7 @@ test('reproduz logo, banner e produto do lojista sem liberar WhatsApp ou carrinh
   const { container } = render(<CommerceVitrinePreview lojaIdRota="loja-A" />);
   expect(await screen.findByRole('heading', { name: 'Sua loja, sua identidade' })).toBeTruthy();
   expect(container.querySelector('.commerce-brand img')?.getAttribute('src')).toBe('data:image/png;base64,logo');
+  expect(container.querySelector('.commerce-hero-with-photo')).not.toBeNull();
   expect(container.querySelector('.commerce-hero-picture img')?.getAttribute('src')).toBe('data:image/png;base64,banner');
   expect(screen.getByRole('heading', { name: 'Perfume demonstrativo' })).toBeTruthy();
   expect(container.querySelector('.commerce-product .commerce-btn')?.disabled).toBe(true);
