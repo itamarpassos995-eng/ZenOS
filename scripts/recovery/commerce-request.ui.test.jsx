@@ -43,6 +43,9 @@ test('layout de celular usa a largura da vitrine, mesmo dentro do ZenOS em tela 
   expect(mobileRules).toMatch(/\.commerce-header-links\s*\{\s*display:none/);
   expect(mobileRules).toMatch(/\.commerce-hero\s*\{[^}]*grid-template-columns:1fr/);
   expect(mobileRules).toMatch(/\.commerce-cart-label\s*\{\s*display:none/);
+  // Indicadores de status do painel não podem herdar os estilos do carrossel.
+  expect(css).toMatch(/\.commerce-gallery-dots \.commerce-dot\s*\{/);
+  expect(css).not.toMatch(/(?:^|\n)\.commerce-dot\s*\{/);
 });
 
 const abrirAbaModulo = () => {
@@ -217,6 +220,44 @@ test('desconto em lote atualiza somente a vitrine local até clicar em salvar', 
   fireEvent.click(screen.getByRole('button', { name: /Limpar Promoções/ }));
   expect(container.querySelector('.commerce-store .commerce-product-price.promo')).toBeNull();
   expect(container.querySelector('.commerce-store .commerce-product-price')?.textContent).toContain('100,00');
+});
+
+test('galeria preserva fotos existentes e permite trocar a capa sem gravar no PDV', async () => {
+  mocks.getDoc.mockResolvedValue({
+    exists: () => true,
+    data: () => ({ commerceConfig: { produtosLoja: {
+      'p-1': { imagensLoja: ['/primeira.jpg', '/segunda.jpg'], imagemLoja: '/primeira.jpg' },
+    } } }),
+  });
+  const { container } = render(<CommerceSolicitacao lojaId="loja-A" produtos={[
+    { id: 'p-1', nome: 'Produto com Fotos', preco: 79.9, estoque: 2 },
+  ]} />);
+  await waitFor(() => expect(container.querySelector('.commerce-badge-multi-fotos')?.textContent).toContain('2'));
+  expect(container.querySelector('.commerce-store .commerce-product-image img')?.getAttribute('src')).toBe('/primeira.jpg');
+
+  fireEvent.click(screen.getByTitle('Personalizar fotos e descrição para a loja'));
+  expect(screen.getByText('2/5 fotos')).toBeTruthy();
+  fireEvent.click(screen.getByTitle('Definir como foto de capa'));
+  fireEvent.click(screen.getByRole('button', { name: /Confirmar Alterações/ }));
+
+  expect(container.querySelector('.commerce-store .commerce-product-image img')?.getAttribute('src')).toBe('/segunda.jpg');
+  expect(mocks.setDoc).not.toHaveBeenCalled();
+});
+
+test('bloqueia gravar galeria grande demais no documento único do Firestore', async () => {
+  const fotoGrande = 'data:image/jpeg;base64,' + 'a'.repeat(900_000);
+  mocks.getDoc.mockResolvedValue({
+    exists: () => true,
+    data: () => ({ commerceConfig: {
+      nomeLoja: 'Loja Fotos',
+      produtosLoja: { 'p-1': { imagensLoja: [fotoGrande, '/segunda.jpg'] } },
+    } }),
+  });
+  render(<CommerceSolicitacao lojaId="loja-A" />);
+  await waitFor(() => expect(screen.getAllByText('Loja Fotos').length).toBeGreaterThan(0));
+  fireEvent.click(screen.getByRole('button', { name: /Salvar Configurações/ }));
+  expect(await screen.findByText(/Muitas Fotos/)).toBeTruthy();
+  expect(mocks.setDoc).not.toHaveBeenCalled();
 });
 
 test('salvamento exibe confirmação visível na tela', async () => {

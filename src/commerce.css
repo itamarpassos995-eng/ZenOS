@@ -263,3 +263,103 @@ html.commerce-document.commerce-dialog-open { overflow-y:hidden; }
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
   z-index: 2;
 }
+
+/* Selo de Múltiplas Fotos no Card do Catálogo */
+.commerce-badge-multi-fotos {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(15, 23, 42, 0.85);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 7px;
+  border-radius: 6px;
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  z-index: 2;
+}
+
+/* Visualizador de Galeria no Modal de Detalhes */
+.commerce-gallery-viewer {
+  position: relative;
+  width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #f4f5f1;
+}
+
+.commerce-gallery-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  color: #193d4e;
+  font-size: 22px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  transition: all 0.15s ease;
+  z-index: 3;
+  line-height: 1;
+}
+
+.commerce-gallery-nav.prev {
+  left: 10px;
+}
+
+.commerce-gallery-nav.next {
+  right: 10px;
+}
+
+.commerce-gallery-nav:hover {
+  background: #ffffff;
+  transform: translateY(-50%) scale(1.08);
+}
+
+.commerce-gallery-dots {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 3;
+  padding: 4px 8px;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 12px;
+  backdrop-filter: blur(4px);
+}
+
+.commerce-gallery-dots .commerce-dot {
+  width: 6px;
+  height: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.commerce-gallery-dots .commerce-dot.active {
+  width: 16px;
+  border-radius: 4px;
+  background: #ffffff;
+}
+
+.commerce-thumbs button[aria-pressed="true"] {
+  border-color: #0284c7;
+  outline: 2px solid rgba(2, 132, 199, 0.35);
+}
