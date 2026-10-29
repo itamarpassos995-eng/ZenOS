@@ -184,7 +184,22 @@ test('painéis retráteis atualizam a prévia ao vivo em celular e computador', 
   });
   expect(container.querySelector('.commerce-store .commerce-announcement')?.textContent).toContain('Entrega hoje');
   expect(container.querySelector('.commerce-store .commerce-preview-cart')).not.toBeNull();
-  expect(container.querySelector('.commerce-store .commerce-product .commerce-btn')?.disabled).toBe(true);
+  expect(container.querySelector('.commerce-store .commerce-product')).toBeNull();
+  expect(container.querySelector('.commerce-store')?.textContent).toContain('Nossa seleção está chegando');
+  expect(mocks.setDoc).not.toHaveBeenCalled();
+});
+
+test('produto real sem foto não recebe foto demonstrativa nem aparece com imagem no editor', () => {
+  const produtos = [{ id: 'p-1', nome: 'Meia cana de Forro PVC', preco: 38, estoque: 4 }];
+  const { container } = render(<CommerceSolicitacao lojaId="loja-A" produtos={produtos} />);
+
+  expect(container.querySelector('.commerce-store .commerce-product h3')?.textContent).toBe('Meia cana de Forro PVC');
+  expect(container.querySelector('.commerce-store .commerce-product-image img')).toBeNull();
+  expect(container.querySelector('.commerce-store')?.textContent).not.toContain('Mademoiselle');
+
+  fireEvent.click(screen.getByTitle('Personalizar fotos e descrição para a loja'));
+  expect(screen.getByText('0/5 fotos')).toBeTruthy();
+  expect(screen.getByText('Adicionar Foto')).toBeTruthy();
   expect(mocks.setDoc).not.toHaveBeenCalled();
 });
 

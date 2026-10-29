@@ -57,7 +57,8 @@ test('carrega a vitrine da própria loja com dados salvos e sem ações de compr
   expect(screen.queryByRole('link', { name: /Atendimento/ })).toBeNull();
   expect(container.querySelector('.commerce-cart-row')).toBeNull();
   expect(container.querySelector('.commerce-product-price')).toBeNull();
-  expect(container.querySelector('.commerce-product .commerce-btn')?.disabled).toBe(true);
+  expect(container.querySelector('.commerce-product')).toBeNull();
+  expect(container.querySelector('.commerce-empty h3')?.textContent).toBe('Nossa seleção está chegando');
   expect(container.querySelector('.commerce-preview-cart')).not.toBeNull();
 });
 
@@ -126,6 +127,28 @@ test('reproduz logo, banner e produto do lojista sem liberar WhatsApp ou carrinh
   expect(screen.queryByRole('button', { name: /Carrinho/ })).toBeNull();
   expect(container.querySelector('.commerce-cart-row')).toBeNull();
   expect(mocks.doc).toHaveBeenCalledWith({}, 'lojas', 'loja-A');
+});
+
+test('primeiro produto sem foto não recebe imagem demonstrativa na prévia', async () => {
+  mocks.getDoc.mockImplementation(async path => path === 'lojas/loja-A/dados/configuracoes' ? {
+    exists: () => true,
+    data: () => ({ commerceConfig: { produtosLoja: { 'p-1': { ativo: true } } } }),
+  } : {
+    exists: () => true,
+    data: () => ({ produtos: [
+      { id: 'p-1', nome: 'Meia cana de Forro PVC', preco: 38, estoque: 10 },
+      { id: 'p-2', nome: 'Outro produto com foto', preco: 20, estoque: 2, fotoUrl: '/foto-correta.webp' },
+    ] }),
+  });
+  const { container } = render(<CommerceVitrinePreview lojaIdRota="loja-A" />);
+  await screen.findByRole('heading', { name: 'Meia cana de Forro PVC' });
+
+  const cards = container.querySelectorAll('.commerce-product');
+  expect(cards).toHaveLength(2);
+  expect(cards[0].querySelector('.commerce-product-image img')).toBeNull();
+  expect(cards[1].querySelector('.commerce-product-image img')?.getAttribute('src')).toBe('/foto-correta.webp');
+  expect(container.querySelector('.commerce-store')?.textContent).not.toContain('Mademoiselle');
+  expect(mocks.getDoc).toHaveBeenCalledTimes(2);
 });
 
 test('galeria com várias fotos navega na prévia somente leitura', async () => {
