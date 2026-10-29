@@ -300,7 +300,7 @@ export default function ZenCommerceStorefront({
           const response = await fetch('/api/commerce/inbox', {
             method:'POST',headers:{'Content-Type':'application/json'},
             body:JSON.stringify({
-              slug:cfg.slug,requestId:chave,
+              slug:configCommerce?.slug || '',requestId:chave,
               cliente:{nome:cliente.nome,telefone:cliente.telefone,
                 observacao:cliente.observacao},
               entrega,pagamento,
