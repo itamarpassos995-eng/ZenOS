@@ -113,3 +113,44 @@ test('checkout só confirma após desafio antifraude e gravação',async()=>{
  const accepted=res();await h2({method:'POST',body:base,headers:{}},accepted);
  assert.equal(accepted.code,200);assert.equal(accepted.body.id,'ON-TEST');
 });
+
+test('reenvio idempotente retorna o pedido existente sem segunda escrita',async()=>{
+ const pedido=validarPedidoPublico(base);
+ let writes=0,reads=0;
+ const fetchImpl=async (url)=>{
+   if(url.endsWith(':beginTransaction'))return {ok:true,json:async()=>({transaction:'txn-duplicada'})};
+   if(url.includes('/pedidos_online/')){
+     reads++;
+     return {ok:true,json:async()=>({fields:{
+       commerceIdempotencyHash:{stringValue:pedido.hash},
+       totalCentavos:{integerValue:'7000'}
+     }})};
+   }
+   writes++;
+   throw Error('Não deveria acessar estoque nem gravar pedido duplicado: '+url);
+ };
+ const result=await registrarPedidoTransacional(pedido,{
+   getSlug:async()=>({lojaId:'loja-1'}),tokenGetter:async()=>'token',fetchImpl
+ });
+ assert.equal(result.duplicado,true);
+ assert.equal(result.totalCentavos,7000);
+ assert.equal(reads,1);
+ assert.equal(writes,0);
+});
+test('chave de pedido reutilizada com dados diferentes gera conflito, sem gravação',async()=>{
+ const pedido=validarPedidoPublico(base);
+ const alterado=validarPedidoPublico({...base,cliente:{...base.cliente,nome:'Outro Comprador'}});
+ let writes=0;
+ const fetchImpl=async url=>{
+   if(url.endsWith(':beginTransaction'))return {ok:true,json:async()=>({transaction:'txn-conflict'})};
+   if(url.includes('/pedidos_online/'))return {ok:true,json:async()=>({fields:{
+     commerceIdempotencyHash:{stringValue:pedido.hash},totalCentavos:{integerValue:'7000'}
+   }})};
+   writes++;
+   throw Error('Não deve gravar conflito');
+ };
+ await assert.rejects(registrarPedidoTransacional(alterado,{
+   getSlug:async()=>({lojaId:'loja-1'}),tokenGetter:async()=>'token',fetchImpl
+ }),/pedido-conflitante/);
+ assert.equal(writes,0);
+});

@@ -4,6 +4,7 @@ import ZenCommerceStorefront from './components/ZenCommerceStorefront';
 import {carregarCatalogoPublico} from './core/commerceCdnClient';
 import './index.css';
 import './commerce.css';
+import './components/CommerceVitrinePreview.css';
 
 // Entrada HTML isolada: NÃO importa App, Firebase, Auth, listeners ou PDV.
 function CommerceCdnHomologacao(){
