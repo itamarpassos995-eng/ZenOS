@@ -39,3 +39,11 @@ O cliente HTTP isolado retorna `{ idPublico, configCommerce, produtos }` com o m
 - Fotos legadas em data URI são convertidas para objetos da Blob pública com hash do conteúdo e limites de quantidade/bytes. Se limite excedido, a publicação falha fechada sem publicar catálogo parcial. As fotos da configuração permanecem preservadas.
 - O publicador usa API HTTP de Blob `x-api-version: 13` e token servidor `BLOB_READ_WRITE_TOKEN`. Versão deve ser revisada antes de produção; preferir SDK oficial e cache com versionamento antes da migração definitiva.
 - Alteração de apelido: antes da produção, implementar revogação/expiração dos aliases antigos para impedir vitrines obsoletas.
+
+## Checkout API em homologação (sem impacto no PDV existente)
+- `POST /api/commerce/pedido`: desativada fora de preview. Precisa simultaneamente de `ZENOS_COMMERCE_CHECKOUT_ENABLED=true`, `ZENOS_COMMERCE_ABUSE_PROTECTION_READY=true` e `VERCEL_ENV=preview`. Até essas condições, responde 503 sem tocar no Firestore.
+- Turnstile obrigatório, segredo configurado no servidor e hostname verificado em `ZENOS_COMMERCE_ALLOWED_HOSTS`. Antes de ativar: configurar WAF/rate limit e verificar conformidade das regras de cobrança e uso.
+- Uma leitura pontual do alias oficial, transação de **até 3 documentos** (pedido por chave, loja, configurações) e uma criação atômica no caminho atual `lojas/{uid}/pedidos_online/{id}`. **Sem listener, busca de coleção ou alteração no PDV.**
+- Preço, promoções, estoque e disponibilidade recalculados do servidor. Carrinho com ID de produto/quantidade; valores enviados pelo navegador ignorados. Pedidos repetidos recebem o mesmo ID, sem duplicar escrita; falha na gravação devolve erro, nunca falso sucesso.
+- A leitura oficial usa credencial de serviço `ZENOS_COMMERCE_SERVICE_ACCOUNT_JSON` **ainda não provisionada**. O endpoint não deve ser habilitado em produção antes da auditoria das permissões do serviço e do teste com o PDV.
+- Necessário criar a ligação de UI com o Turnstile e modo CDN, e testar a recepção de pedidos em ambiente isolado. Não habilitar checkout público sem essa etapa.
