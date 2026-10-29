@@ -90,7 +90,10 @@ const main=read('src/main.jsx');
 assert.ok(main.includes('CommerceVitrinePreview')&&main.includes('previewMatch'),
   'GATE_FAIL: rota isolada da prévia ausente');
 assert.deepEqual(JSON.parse(read('vercel.json')).rewrites,
-  [{source:'/loja/:lojaId',destination:'/index.html'}],
-  'GATE_FAIL: reescritas Vercel além da rota específica de prévia');
+  [
+    {source:'/vitrine/:lojaId',destination:'/commerce-homologacao.html'},
+    {source:'/loja/:lojaId',destination:'/index.html'}
+  ],
+  'GATE_FAIL: rotas fora do escopo do catálogo CDN ou rota privada Commerce modificada');
 console.log('COMMERCE_REQUEST_AND_SETTINGS_GATE_OK: módulos V1/V2, PDV, fiscal, regras, Auth e caixas intactos.');
 console.log('NOT_DEPLOYED: função e interface exigem deploy controlado em duas etapas.');
