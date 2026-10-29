@@ -19,6 +19,16 @@ const allowed=new Set([
   '.github/workflows/commerce-request-only-ci.yml',
   'docs/commerce-request-only-release-20261019.md',
   '.github/workflows/deploy-fiscal-functions.yml',
+  // Homologação CDN: somente novos arquivos isolados, sob gate própria de testes.
+  '.github/workflows/commerce-cdn-homologacao-ci.yml',
+  'api/commerce/_lib/commerceGoogle.js','api/commerce/catalogo.js',
+  'api/commerce/publicar.js','api/commerce/pedido.js',
+  'commerce-homologacao.html','vite.config.js',
+  'src/commerce-homologacao-main.jsx','src/core/commerceCdnClient.js',
+  'src/core/commercePublicCatalog.js','docs/ARQUITETURA_COMMERCE_PUBLICO.md',
+  'scripts/commerce-cdn-api.test.mjs','scripts/commerce-cdn-client.test.mjs',
+  'scripts/commerce-cdn-homologacao.test.mjs','scripts/commerce-cdn-pedido.test.mjs',
+  'scripts/commerce-cdn-preview.test.mjs','scripts/commerce-cdn-publicar.test.mjs',
 ]);
 assert.ok(changed.every(p=>allowed.has(p)),'GATE_FAIL: alteração fora do pacote de solicitação: '+changed.filter(x=>!allowed.has(x)).join(', '));
 const read=path=>fs.readFileSync(path,'utf8');
@@ -80,7 +90,11 @@ const main=read('src/main.jsx');
 assert.ok(main.includes('CommerceVitrinePreview')&&main.includes('previewMatch'),
   'GATE_FAIL: rota isolada da prévia ausente');
 assert.deepEqual(JSON.parse(read('vercel.json')).rewrites,
-  [{source:'/loja/:lojaId',destination:'/index.html'}],
-  'GATE_FAIL: reescritas Vercel além da rota específica de prévia');
+  [
+    {source:'/loja/previa',destination:'/index.html'},
+    {source:'/loja/:lojaId',destination:'/commerce-homologacao.html'},
+    {source:'/vitrine/:lojaId',destination:'/commerce-homologacao.html'}
+  ],
+  'GATE_FAIL: rotas fora do escopo da CDN ou prévia privada alterada');
 console.log('COMMERCE_REQUEST_AND_SETTINGS_GATE_OK: módulos V1/V2, PDV, fiscal, regras, Auth e caixas intactos.');
 console.log('NOT_DEPLOYED: função e interface exigem deploy controlado em duas etapas.');

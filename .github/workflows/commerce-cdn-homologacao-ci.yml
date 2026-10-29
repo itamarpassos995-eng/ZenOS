@@ -1,0 +1,40 @@
+name: Commerce CDN Homologacao
+on:
+  pull_request:
+    paths:
+      - 'src/core/commercePublicCatalog.js'
+      - 'src/core/commerceCdnClient.js'
+      - 'api/commerce/catalogo.js'
+      - 'api/commerce/_lib/commerceGoogle.js'
+      - 'api/commerce/publicar.js'
+      - 'api/commerce/pedido.js'
+      - 'commerce-homologacao.html'
+      - 'src/commerce-homologacao-main.jsx'
+      - 'src/components/ZenCommerceStorefront.jsx'
+      - 'vite.config.js'
+      - 'scripts/commerce-cdn-homologacao.test.mjs'
+      - 'scripts/commerce-cdn-client.test.mjs'
+      - 'scripts/commerce-cdn-api.test.mjs'
+      - 'scripts/commerce-cdn-publicar.test.mjs'
+      - 'scripts/commerce-cdn-pedido.test.mjs'
+      - 'scripts/commerce-cdn-preview.test.mjs'
+      - 'docs/ARQUITETURA_COMMERCE_PUBLICO.md'
+      - '.github/workflows/commerce-cdn-homologacao-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  public-catalog-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Testar contrato puro sem Firestore
+        run: node --test scripts/commerce-cdn-homologacao.test.mjs scripts/commerce-cdn-client.test.mjs scripts/commerce-cdn-api.test.mjs scripts/commerce-cdn-publicar.test.mjs scripts/commerce-cdn-pedido.test.mjs scripts/commerce-cdn-preview.test.mjs
+      - name: Compilar frontend atual sem alterar produção
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run build

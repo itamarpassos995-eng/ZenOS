@@ -42,6 +42,7 @@ const CORES_TEMA = [
 export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produtos = [], tx = (pt) => pt }) {
   const [configCommerce, setConfigCommerce] = useState(() => lerCommerceConfigLocal(lojaId, perfilLoja));
   const [salvandoConfig, setSalvandoConfig] = useState(false);
+  const [publicandoCdn, setPublicandoCdn] = useState(false);
   const [linkCopiado, setLinkCopiado] = useState(false);
   const [modalZen, setModalZen] = useState(null);
   const [modoPrevia, setModoPrevia] = useState('mobile'); // 'mobile' | 'desktop'
@@ -444,6 +445,50 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
     }
   };
 
+  const publicarCatalogoCdn = async ({ silencioso = false } = {}) => {
+    if (publicandoCdn || (salvandoConfig && !silencioso)) return false;
+    const usuario = auth.currentUser;
+    if (!usuario || usuario.uid !== lojaId || usuario.isAnonymous) {
+      avisarZen('warning', 'Acesso restrito', 'Entre com a conta proprietária para publicar a loja.');
+      return;
+    }
+    if (!configCommerce.slug) {
+      avisarZen('warning', 'Link personalizado', 'Escolha e salve o apelido da sua loja antes de publicar.');
+      return;
+    }
+    setPublicandoCdn(true);
+    try {
+      const bearer = await usuario.getIdToken();
+      const response = await fetch('/api/commerce/publicar', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + bearer, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          // A lista do PDV já está carregada pelo repositório operacional (inclusive V2).
+          // Enviar somente campos públicos, nunca custo, fornecedor, clientes ou histórico.
+          produtos: produtos.map((p) => ({
+            id: p.id, nome: p.nome, precoBRL: p.precoBRL, preco: p.preco,
+            precoVenda: p.precoVenda, precoUnitario: p.precoUnitario,
+            estoque: p.estoque, grupo: p.grupo, categoria: p.categoria,
+            descricao: p.descricao, detalhes: p.detalhes,
+            imagem: typeof p.imagem === 'string' && p.imagem.startsWith('https://') ? p.imagem : '',
+            fotoUrl: typeof p.fotoUrl === 'string' && p.fotoUrl.startsWith('https://') ? p.fotoUrl : '',
+          })),
+        }),
+      });
+      const resultado = await response.json().catch(() => ({}));
+      if (!response.ok || resultado.status !== 'publicado') throw new Error(resultado.erro || 'publicacao-indisponivel');
+      if (!silencioso) avisarZen('success', 'Catálogo publicado',
+        'O endereço de sua loja está atualizado. Os produtos do ZenOS não foram modificados.');
+      return true;
+    } catch (erro) {
+      if (!silencioso) avisarZen('danger', 'Publicação não realizada',
+        'Não foi possível publicar a vitrine na CDN. Confira o link e as configurações salvas.', [erro.message]);
+      return false;
+    } finally {
+      setPublicandoCdn(false);
+    }
+  };
+
   const salvarConfiguracoesLoja = async () => {
     if (!lojaId) return;
     if (auth.currentUser?.uid !== lojaId) {
@@ -515,11 +560,24 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
       salvarCommerceConfigLocal(lojaId, configNormalizada);
       notifyPersistenceStatus({ status: 'SINCRONIZADO', field: 'commerce_config' });
 
+      // Publicação somente após gravar a configuração e o apelido no ZenOS Cloud.
+      // Não altera listener, cache ou repositório operacional.
+      const cdnPublicado = import.meta.env.VITE_ZENOS_CDN_PUBLISH_ENABLED === 'true' && apelido
+        ? await publicarCatalogoCdn({ silencioso: true })
+        : null;
       avisarZen(
-        'success',
-        tx('Configurações Salvas!', '¡Configuraciones Guardadas!', 'Settings Saved!'),
+        cdnPublicado === false ? 'warning' : 'success',
+        cdnPublicado === true
+          ? tx('Loja salva e publicada!', '¡Tienda guardada y publicada!', 'Store saved and published!')
+          : cdnPublicado === false
+            ? tx('Configurações salvas, publicação pendente', 'Configuración guardada, publicación pendiente', 'Settings saved, publishing pending')
+            : tx('Configurações Salvas!', '¡Configuraciones Guardadas!', 'Settings Saved!'),
         tx(
-          'As configurações da sua loja online foram sincronizadas com sucesso no ZenOS Cloud.',
+          cdnPublicado === true
+            ? 'As configurações foram salvas e o catálogo foi atualizado no link personalizado.'
+            : cdnPublicado === false
+              ? 'Configurações salvas, mas o catálogo ainda não foi publicado. Use Publicar Loja Online para tentar novamente.'
+              : 'As configurações da sua loja online foram sincronizadas com sucesso no ZenOS Cloud.',
           'Las configuraciones se guardaron con éxito en la nube.',
           'Your online store settings were successfully synchronized to ZenOS Cloud.'
         )
@@ -1662,6 +1720,13 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
             <strong>{tx('Configurações da Loja Online', 'Configuraciones de la Tienda Online', 'Online Store Settings')}</strong>
             <span>{tx('Todas as alterações ficam salvas com segurança no ZenOS Cloud.', 'Los cambios se guardan de forma segura.', 'Changes are securely saved to ZenOS Cloud.')}</span>
           </div>
+          {import.meta.env.VITE_ZENOS_CDN_PUBLISH_ENABLED === 'true' && (
+            <button type="button" className="btn-zen-secondary btn-sm"
+              disabled={salvandoConfig || publicandoCdn}
+              onClick={publicarCatalogoCdn}>
+              {publicandoCdn ? 'Publicando catálogo…' : '☁ Publicar Loja Online'}
+            </button>
+          )}
           <button
             type="button"
             className="commerce-btn-save-main"
