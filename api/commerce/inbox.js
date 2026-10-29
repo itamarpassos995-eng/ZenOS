@@ -192,7 +192,8 @@ export function createPrivateInboxHandler({verify=verifyOwnerFirebaseIdToken,sub
       if(req.method==='GET')return respond(res,200,{pedido:data});
       if(req.body?.acao!=='arquivar')return respond(res,400,{erro:'acao-invalida'});
       await put('commerce/pedidos/'+uid+'/arquivados/'+id+'.json',
-        {...data,estado:'arquivado',arquivadoEm:new Date().toISOString()});
+        {...data,estado:'arquivado',arquivadoEm:new Date().toISOString()},
+        {overwrite:true});
       // Só remove o pendente DEPOIS de arquivar.
       await remove('/delete',{method:'POST',body:JSON.stringify({
         urls:[PRIVATE_ORIGIN+'/'+path]}),extra:{'content-type':'application/json'}});
