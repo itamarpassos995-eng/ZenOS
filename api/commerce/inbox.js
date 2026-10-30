@@ -11,13 +11,15 @@ const PRIVATE_ORIGIN='https://'+STORE_ID+'.private.blob.vercel-storage.com';
 const validId=v=>typeof v==='string'&&/^[a-zA-Z0-9_-]{20,100}$/.test(v);
 const onlyText=(v,max=150)=>String(v??'').trim().slice(0,max);
 const validUid=v=>typeof v==='string'&&/^[a-zA-Z0-9_-]{1,128}$/.test(v);
+const privateToken=()=>process.env.ZENOS_COMMERCE_PRIVATE_BLOB_READ_WRITE_TOKEN||
+  process.env.ZENOS_COMMERCE_PRIVATE_BLOB_TOKEN;
 const active=()=>process.env.ZENOS_COMMERCE_PRIVATE_INBOX_ENABLED==='true'&&
-  typeof process.env.ZENOS_COMMERCE_PRIVATE_BLOB_TOKEN==='string'&&
-  process.env.ZENOS_COMMERCE_PRIVATE_BLOB_TOKEN.startsWith('vercel_blob_rw_')&&
+  typeof privateToken()==='string'&&
+  privateToken().startsWith('vercel_blob_rw_')&&
   process.env.ZENOS_COMMERCE_INBOX_WAF_READY==='true';
 
 function headers(extra={}){
-  const token=process.env.ZENOS_COMMERCE_PRIVATE_BLOB_TOKEN;
+  const token=privateToken();
   if(!active())throw Error('fila-nao-configurada');
   return {
     Authorization:'Bearer '+token,'x-api-version':'13',
