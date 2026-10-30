@@ -48,7 +48,10 @@ function CommerceCdnHomologacao(){
     const {data}=state;
     return <main className="commerce-public-view" data-commerce-cdn-homologacao="true">
       <ZenCommerceStorefront idPublico={data.idPublico} configCommerce={data.configCommerce}
-        produtos={data.produtos} isLivePreview={import.meta.env.VITE_ZENOS_CDN_WHATSAPP_CHECKOUT !== 'true'}
+        produtos={data.produtos} isLivePreview={
+          import.meta.env.VITE_ZENOS_CDN_WHATSAPP_CHECKOUT !== 'true' &&
+          import.meta.env.VITE_ZENOS_PRIVATE_ORDERS_ENABLED !== 'true'
+        }
         checkoutViaWhatsApp={import.meta.env.VITE_ZENOS_CDN_WHATSAPP_CHECKOUT === 'true' &&
           import.meta.env.VITE_ZENOS_PRIVATE_ORDERS_ENABLED !== 'true'}
         checkoutPrivado={import.meta.env.VITE_ZENOS_PRIVATE_ORDERS_ENABLED === 'true'}/>

@@ -179,3 +179,9 @@ test('prévia aceita pedidos apenas da loja piloto autorizada',async()=>{
    if(previousSlug===undefined)delete process.env.ZENOS_COMMERCE_INBOX_PILOT_SLUG;else process.env.ZENOS_COMMERCE_INBOX_PILOT_SLUG=previousSlug;
  }
 });
+
+test('checkout privado da prévia não é bloqueado como prévia administrativa',()=>{
+ const page=readFileSync('src/commerce-homologacao-main.jsx','utf8');
+ assert.match(page,/isLivePreview=\{\s*import\.meta\.env\.VITE_ZENOS_CDN_WHATSAPP_CHECKOUT !== 'true' &&\s*import\.meta\.env\.VITE_ZENOS_PRIVATE_ORDERS_ENABLED !== 'true'/);
+ assert.match(page,/checkoutPrivado=\{import\.meta\.env\.VITE_ZENOS_PRIVATE_ORDERS_ENABLED === 'true'\}/);
+});
