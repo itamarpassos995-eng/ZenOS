@@ -6,19 +6,19 @@ import {createPrivateInboxHandler,submitOrder} from '../api/commerce/inbox.js';
 
 const rawEnv={
  enabled:process.env.ZENOS_COMMERCE_PRIVATE_INBOX_ENABLED,
- token:process.env.ZENOS_COMMERCE_PRIVATE_BLOB_TOKEN,
+ token:process.env.ZENOS_COMMERCE_PRIVATE_BLOB_READ_WRITE_TOKEN,
  waf:process.env.ZENOS_COMMERCE_INBOX_WAF_READY,
 };
 test.after(()=>{
  for(const [key,value] of Object.entries({
   ZENOS_COMMERCE_PRIVATE_INBOX_ENABLED:rawEnv.enabled,
-  ZENOS_COMMERCE_PRIVATE_BLOB_TOKEN:rawEnv.token,
+  ZENOS_COMMERCE_PRIVATE_BLOB_READ_WRITE_TOKEN:rawEnv.token,
   ZENOS_COMMERCE_INBOX_WAF_READY:rawEnv.waf
  })){if(value===undefined)delete process.env[key];else process.env[key]=value;}
 });
 const enabled=()=>{
   process.env.ZENOS_COMMERCE_PRIVATE_INBOX_ENABLED='true';
-  process.env.ZENOS_COMMERCE_PRIVATE_BLOB_TOKEN='vercel_blob_rw_mock_only';
+  process.env.ZENOS_COMMERCE_PRIVATE_BLOB_READ_WRITE_TOKEN='vercel_blob_rw_mock_only';
   process.env.ZENOS_COMMERCE_INBOX_WAF_READY='true';
 };
 function res(){
@@ -117,7 +117,7 @@ test('frontend não adiciona listeners ou altera cache do Firestore',()=>{
  const source=readFileSync('api/commerce/inbox.js','utf8');
  assert.doesNotMatch(source,/from ['"][^'"]*firebase\/firestore/);
  assert.doesNotMatch(source,/\bgetDocs\b|\bonSnapshot\b|\bgetDoc\b/);
- assert.match(source,/private\.blob\.vercel-storage\.com/);
+ assert.match(readFileSync('api/commerce/_lib/privateBlobStore.js','utf8'),/private\\.blob\\.vercel-storage\\.com/);
  assert.doesNotMatch(readFileSync('src/components/CommerceOrderInbox.jsx','utf8'),/firebase\/firestore/);
 });
 
