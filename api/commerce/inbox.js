@@ -1,70 +1,17 @@
-import {randomUUID,createHash} from 'node:crypto';
+import {createHash} from 'node:crypto';
+import {putPrivate,readPrivate,listPrivate,deletePrivate,privateStoreReady} from './_lib/privateBlobStore.js';
 import {verifyOwnerFirebaseIdToken} from './_lib/commerceGoogle.js';
 import {normalizarApelidoPublico,validarSnapshotPublico} from '../../src/core/commerceCdnClient.js';
 import {conferirCarrinhoContraSnapshot} from '../../src/core/commercePublicCatalog.js';
 
 // Separação rigorosa: este módulo nunca importa firebase/db e não consulta Firestore.
 // Pedidos (PII) jamais entram no Blob público usado para o catálogo.
-const STORE_ID='Ub5FhVPSfclqNq5p';
-const API='https://vercel.com/api/blob';
-const PRIVATE_ORIGIN='https://'+STORE_ID+'.private.blob.vercel-storage.com';
 const validId=v=>typeof v==='string'&&/^[a-zA-Z0-9_-]{20,100}$/.test(v);
 const onlyText=(v,max=150)=>String(v??'').trim().slice(0,max);
 const validUid=v=>typeof v==='string'&&/^[a-zA-Z0-9_-]{1,128}$/.test(v);
-const privateToken=()=>process.env.ZENOS_COMMERCE_PRIVATE_BLOB_READ_WRITE_TOKEN||
-  process.env.ZENOS_COMMERCE_PRIVATE_BLOB_TOKEN;
 const active=()=>process.env.ZENOS_COMMERCE_PRIVATE_INBOX_ENABLED==='true'&&
-  typeof privateToken()==='string'&&
-  privateToken().startsWith('vercel_blob_rw_')&&
-  process.env.ZENOS_COMMERCE_INBOX_WAF_READY==='true';
+  process.env.ZENOS_COMMERCE_INBOX_WAF_READY==='true'&&privateStoreReady();
 
-function headers(extra={}){
-  const token=privateToken();
-  if(!active())throw Error('fila-nao-configurada');
-  return {
-    Authorization:'Bearer '+token,'x-api-version':'13',
-    'x-vercel-blob-store-id':STORE_ID,
-    'x-api-blob-request-id':STORE_ID+':'+Date.now()+':'+randomUUID(),
-    'x-api-blob-request-attempt':'0',
-    ...extra
-  };
-}
-async function apiFetch(path,{method='GET',body,extra={}}={}){
-  const res=await fetch(API+path,{method,headers:headers(extra),body,signal:AbortSignal.timeout(10000)});
-  if(!res.ok){const err=Error('fila-armazenamento-indisponivel');err.status=res.status;throw err;}
-  if(res.status===204)return {};
-  const raw=await res.text();
-  return raw?JSON.parse(raw):{};
-}
-async function privatePut(path,content,{overwrite=false}={}){
-  const res=await fetch(API+'/?pathname='+encodeURIComponent(path),{
-    method:'PUT',headers:headers({'x-vercel-blob-access':'private',
-      'x-add-random-suffix':'0','x-allow-overwrite':overwrite?'1':'0',
-      'x-content-type':'application/json','x-cache-control-max-age':'60'}),
-    body:JSON.stringify(content),signal:AbortSignal.timeout(10000)
-  });
-  if(res.status===409||res.status===412){const err=Error('pedido-ja-registrado');err.status=409;throw err;}
-  if(!res.ok)throw Error('fila-gravacao-indisponivel');
-  const data=await res.json();
-  if(!String(data.url||'').startsWith(PRIVATE_ORIGIN+'/'))throw Error('blob-privacidade-invalida');
-  return data;
-}
-async function privateRead(path){
-  const res=await fetch(PRIVATE_ORIGIN+'/'+path,{headers:{Authorization:headers().Authorization},
-    cache:'no-store',signal:AbortSignal.timeout(8000)});
-  if(res.status===404)return null;
-  if(!res.ok)throw Error('fila-leitura-indisponivel');
-  const size=Number(res.headers.get('content-length')||0);
-  if(size>80_000)throw Error('pedido-grande-demais');
-  const raw=await res.text();
-  if(raw.length>80_000)throw Error('pedido-grande-demais');
-  return JSON.parse(raw);
-}
-async function pending(uid,cursor){
-  const q=new URLSearchParams({prefix:'commerce/pedidos/'+uid+'/pendentes/',limit:'80'});
-  if(cursor)q.set('cursor',cursor);
-  return apiFetch('?'+q.toString());
-}
 async function publicCatalog(slug){
   const base=process.env.ZENOS_COMMERCE_CDN_ORIGIN;
   let origin;
@@ -126,8 +73,8 @@ function parseOrder(body){
     pagamento:{forma,trocoPara:forma==='dinheiro'?onlyText(body.pagamento?.trocoPara,35):''},
     itens:itens.map(item=>({id:onlyText(item?.id,128),quantidade:Number(item?.quantidade)}))};
 }
-export async function submitOrder(body,{catalog=publicCatalog,write=privatePut,
-  read=privateRead,now=()=>new Date()}={}){
+export async function submitOrder(body,{catalog=publicCatalog,write=putPrivate,
+  read=readPrivate,now=()=>new Date()}={}){
   const p=parseOrder(body);
   const payloadHash=createHash('sha256').update(JSON.stringify(p)).digest('hex');
   const shop=await catalog(p.slug);
@@ -168,7 +115,7 @@ export async function submitOrder(body,{catalog=publicCatalog,write=privatePut,
 const respond=(res,status,data)=>{res.setHeader('Cache-Control','no-store');return res.status(status).json(data);};
 const forbidden=(body)=>JSON.stringify(body||{}).length>12_000;
 export function createPrivateInboxHandler({verify=verifyOwnerFirebaseIdToken,submit=submitOrder,
-  get=privateRead,list=pending,put=privatePut,remove=apiFetch}={}){
+  get=readPrivate,list=listPrivate,put=putPrivate,remove=deletePrivate}={}){
   return async(req,res)=>{
     res.setHeader('X-Content-Type-Options','nosniff');
     if(!active())return respond(res,503,{erro:'integracao-em-preparacao'});
@@ -213,8 +160,7 @@ export function createPrivateInboxHandler({verify=verifyOwnerFirebaseIdToken,sub
         {...data,estado:'arquivado',arquivadoEm:new Date().toISOString()},
         {overwrite:true});
       // Só remove o pendente DEPOIS de arquivar.
-      await remove('/delete',{method:'POST',body:JSON.stringify({
-        urls:[PRIVATE_ORIGIN+'/'+path]}),extra:{'content-type':'application/json'}});
+      await remove(path);
       return respond(res,200,{status:'arquivado',id});
     }catch{return respond(res,503,{erro:'fila-indisponivel'});}
   };
