@@ -59,7 +59,8 @@ test('nenhum arquivo de persistência Firestore nem regras foi modificado',()=>{
    '.github/workflows/commerce-private-inbox-ci.yml',
    'scripts/commerce-request-release-audit.mjs',
    'api/commerce/_lib/privateBlobStore.js','scripts/commerce-private-blob-driver.test.mjs',
-   'package.json','package-lock.json'
+   'package.json','package-lock.json',
+   'scripts/commerce-cdn-preview.test.mjs'
  ]);
  assert.deepEqual(changed.filter(path=>!allowed.has(path)),[]);
 });

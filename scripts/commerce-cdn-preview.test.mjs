@@ -9,7 +9,7 @@ test('preview CDN é entrada independente sem App Firebase Auth ou listeners',()
  assert.match(html,/noindex,nofollow/);
  assert.match(html,/src\/commerce-homologacao-main.jsx/);
  assert.match(main,/ZenCommerceStorefront/);
- assert.match(main,/isLivePreview=\{import\.meta\.env\.VITE_ZENOS_CDN_WHATSAPP_CHECKOUT !== 'true'\}/);
+ assert.match(main,/isLivePreview=\{\s*import\.meta\.env\.VITE_ZENOS_CDN_WHATSAPP_CHECKOUT !== 'true' &&\s*import\.meta\.env\.VITE_ZENOS_PRIVATE_ORDERS_ENABLED !== 'true'/);
  assert.match(main,/carregarCatalogoPublico/);
  assert.doesNotMatch(main,/from ['"].*firebase/);
  assert.doesNotMatch(main,/App.jsx|onAuthStateChanged|onSnapshot|signInAnonymously/);
