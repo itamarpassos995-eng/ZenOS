@@ -11,6 +11,7 @@ export default function CommerceOrderInbox({
   const [abrindoId,setAbrindoId]=useState('');
   const [arquivarId,setArquivarId]=useState('');
   const [novoAviso,setNovoAviso]=useState('');
+  const [detalhe,setDetalhe]=useState(null);
   const knownRef=useRef(null);
   const tokenGetter=useRef(obterToken);
   tokenGetter.current=obterToken;
@@ -59,16 +60,17 @@ export default function CommerceOrderInbox({
       const token=await tokenGetter.current?.();
       if(!token)throw Error('Sessão expirada');
       const q='/api/commerce/inbox?id='+encodeURIComponent(id);
-      const r=await fetch(q,{method:acao==='carregar'?'GET':'PATCH',
+      const r=await fetch(q,{method:acao==='carregar'||acao==='visualizar'?'GET':'PATCH',
         headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
-        body:acao==='carregar'?undefined:JSON.stringify({acao:'arquivar'}),
+        body:acao==='carregar'||acao==='visualizar'?undefined:JSON.stringify({acao:'arquivar'}),
         credentials:'omit',cache:'no-store'});
       const data=await r.json().catch(()=>({}));
       if(!r.ok)throw Error('O pedido não pôde ser recuperado. Tente novamente.');
-      if(acao==='carregar'){
+      if(acao==='carregar'||acao==='visualizar'){
         if(!data.pedido?.id||!Array.isArray(data.pedido.itens))
           throw Error('Pedido sem itens válidos');
-        onCarregarNoPdv?.(data.pedido);
+        if(acao==='visualizar') setDetalhe(data.pedido);
+        else onCarregarNoPdv?.(data.pedido);
       }else{
         setArquivarId('');
         await atualizar();
@@ -110,6 +112,20 @@ export default function CommerceOrderInbox({
           border:'1px dashed #334155',borderRadius:12,color:'#94a3b8'}}>
           Nenhum pedido pendente no momento.
         </div>}
+        {detalhe&&<section aria-label="Detalhes do pedido online" style={{background:'#10243b',border:'1px solid #38bdf8',borderRadius:12,padding:16,marginBottom:16}}>
+          <div style={{display:'flex',justifyContent:'space-between',gap:8,alignItems:'center'}}>
+            <strong>Pedido {detalhe.id}</strong>
+            <button type="button" onClick={()=>setDetalhe(null)} style={{background:'transparent',border:'1px solid #64748b',borderRadius:7,color:'#fff',padding:7}}>Fechar</button>
+          </div>
+          <p><strong>Cliente:</strong> {detalhe.clienteNome} · {detalhe.clienteTelefone}</p>
+          <p><strong>Entrega:</strong> {detalhe.tipoEntrega==='entrega'?'Entrega':'Retirada'} · <strong>Pagamento solicitado:</strong> {detalhe.formaPagamento}</p>
+          {detalhe.endereco&&<p><strong>Endereço:</strong> {[detalhe.endereco.rua,detalhe.endereco.numero,detalhe.endereco.bairro,detalhe.endereco.cidade].filter(Boolean).join(', ')}</p>}
+          {detalhe.observacao&&<p><strong>Observação:</strong> {detalhe.observacao}</p>}
+          <div style={{display:'grid',gap:5}}>{detalhe.itens.map((item,i)=><div key={item.id||i} style={{display:'flex',justifyContent:'space-between',gap:10}}><span>{item.quantidade} × {item.nome}</span><strong>R$ {Number(item.subtotalBRL||0).toFixed(2)}</strong></div>)}</div>
+          <p><strong>Total informado:</strong> R$ {Number(detalhe.totalBRL||0).toFixed(2)}</p>
+          <p style={{fontSize:12,color:'#94a3b8'}}>Solicitação recuperável. O operador pode gerar orçamento, pré-pedido ou venda no PDV; nenhum pagamento foi confirmado.</p>
+          <button type="button" disabled={!!abrindoId} onClick={()=>onCarregarNoPdv?.(detalhe)} style={{padding:'12px 16px',border:0,borderRadius:9,background:'#059669',color:'#fff',fontWeight:800}}>Abrir no PDV</button>
+        </section>}
         <div style={{display:'grid',gap:10}}>
           {pedidos.map(p=><article key={p.id}
             style={{border:'1px solid #0e7490',borderRadius:12,
@@ -128,6 +144,11 @@ export default function CommerceOrderInbox({
                     color:'#fff',background:'transparent'}}>Voltar</button>
               </div>:
               <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                <button type="button" disabled={!!abrindoId} onClick={()=>void solicitacao(p.id,'visualizar')}
+                  style={{padding:'11px 15px',border:'1px solid #38bdf8',borderRadius:8,
+                    color:'#e0f2fe',background:'#082f49',fontWeight:800,cursor:'pointer'}}>
+                  Ver pedido
+                </button>
                 <button type="button" disabled={!!abrindoId} onClick={()=>void solicitacao(p.id,'carregar')}
                   style={{padding:'11px 15px',border:0,borderRadius:8,
                     color:'#fff',background:'#059669',fontWeight:800,cursor:'pointer'}}>
