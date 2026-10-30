@@ -99,6 +99,14 @@ export async function submitOrder(body,{catalog=publicCatalog,write=putPrivate,
       precoTexto:(item.precoUnitarioCentavos/100).toFixed(2),
       subtotalBRL:item.subtotalCentavos/100}))};
   const path='commerce/pedidos/'+shop.lojaId+'/pendentes/'+id+'.json';
+  // Arquivamento não libera a mesma chave idempotente para nova venda.
+  const archivedPath='commerce/pedidos/'+shop.lojaId+'/arquivados/'+id+'.json';
+  const archived=await read(archivedPath);
+  if(archived){
+    if(archived.id!==id||archived.idempotencyHash!==payloadHash)
+      throw Error('chave-pedido-reutilizada');
+    return {id,totalCentavos:archived.totalCentavos,duplicado:true};
+  }
   try {
     await write(path,pedido);
   } catch(error) {
