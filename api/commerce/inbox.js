@@ -120,6 +120,14 @@ export function createPrivateInboxHandler({verify=verifyOwnerFirebaseIdToken,sub
     res.setHeader('X-Content-Type-Options','nosniff');
     if(!active())return respond(res,503,{erro:'integracao-em-preparacao'});
     if(req.method==='POST'){
+      // Restrição adicional no piloto: somente a loja explicitamente autorizada.
+      if(process.env.VERCEL_ENV==='preview'&&process.env.ZENOS_COMMERCE_INBOX_PILOT_SLUG){
+        let requestedSlug;
+        try{requestedSlug=normalizarApelidoPublico(req.body?.slug);}
+        catch{return respond(res,400,{erro:'link-invalido'});}
+        if(requestedSlug!==process.env.ZENOS_COMMERCE_INBOX_PILOT_SLUG)
+          return respond(res,403,{erro:'loja-nao-homologada'});
+      }
       if(forbidden(req.body))return respond(res,413,{erro:'pedido-grande-demais'});
       try{
         const result=await submit(req.body);

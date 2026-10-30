@@ -35,3 +35,7 @@ Nenhuma leitura extra do Firestore, nem em visitantes, nem por badge. As chamada
 - Credencial passada explicitamente via `ZENOS_COMMERCE_PRIVATE_BLOB_READ_WRITE_TOKEN`, sem fallback ao token `BLOB_READ_WRITE_TOKEN` da CDN pública.
 - Validação de path/store ID e leitura sem cache para consistência após arquivamentos.
 - Testes de integração simulada não equivalem a pedido real em produção. A homologação em Blob precisa ser feita em prévia antes de ativar a loja.
+
+## Piloto por loja
+- O preview pode receber `ZENOS_COMMERCE_INBOX_PILOT_SLUG=zeniteatacadao`: a API de pedido rejeitará qualquer outro apelido com 403, sem gravar. Esta restrição só se aplica ao ambiente preview.
+- Flags do piloto devem ser criadas **somente no preview de homologação**, nunca no ambiente de produção sem E2E.

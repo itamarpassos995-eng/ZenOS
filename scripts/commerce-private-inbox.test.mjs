@@ -156,3 +156,26 @@ test('POST não confirma pedido quando Blob privado falhar',async()=>{
  assert.equal(response.code,503);
  assert.equal(response.value.erro,'pedido-nao-confirmado');
 });
+
+test('prévia aceita pedidos apenas da loja piloto autorizada',async()=>{
+ enabled();
+ const previousEnv=process.env.VERCEL_ENV;
+ const previousSlug=process.env.ZENOS_COMMERCE_INBOX_PILOT_SLUG;
+ try{
+   process.env.VERCEL_ENV='preview';
+   process.env.ZENOS_COMMERCE_INBOX_PILOT_SLUG='zeniteatacadao';
+   let calls=0;
+   const handler=createPrivateInboxHandler({submit:async()=>{calls++;return {id:'OK',totalCentavos:100};}});
+   const other=res();
+   await handler({method:'POST',headers:{},body:{...base,slug:'outra-loja'}},other);
+   assert.equal(other.code,403);
+   assert.equal(calls,0);
+   const pilot=res();
+   await handler({method:'POST',headers:{},body:base},pilot);
+   assert.equal(pilot.code,201);
+   assert.equal(calls,1);
+ }finally{
+   if(previousEnv===undefined)delete process.env.VERCEL_ENV;else process.env.VERCEL_ENV=previousEnv;
+   if(previousSlug===undefined)delete process.env.ZENOS_COMMERCE_INBOX_PILOT_SLUG;else process.env.ZENOS_COMMERCE_INBOX_PILOT_SLUG=previousSlug;
+ }
+});
