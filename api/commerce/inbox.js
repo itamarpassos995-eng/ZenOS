@@ -124,8 +124,10 @@ function parseOrder(body){
     pagamento:{forma,trocoPara:forma==='dinheiro'?onlyText(body.pagamento?.trocoPara,35):''},
     itens:itens.map(item=>({id:onlyText(item?.id,128),quantidade:Number(item?.quantidade)}))};
 }
-export async function submitOrder(body,{catalog=publicCatalog,write=privatePut,now=()=>new Date()}={}){
+export async function submitOrder(body,{catalog=publicCatalog,write=privatePut,
+  read=privateRead,now=()=>new Date()}={}){
   const p=parseOrder(body);
+  const payloadHash=createHash('sha256').update(JSON.stringify(p)).digest('hex');
   const shop=await catalog(p.slug);
   if(!validUid(shop.lojaId))throw Error('loja-invalida');
   if(shop.config?.habilitado===false)throw Error('loja-indisponivel');
@@ -135,6 +137,7 @@ export async function submitOrder(body,{catalog=publicCatalog,write=privatePut,n
   const names=new Map(shop.produtos.map(item=>[String(item.id),item.nome]));
   const id='ON-'+createHash('sha256').update(shop.lojaId+':'+p.requestId).digest('hex').slice(0,24).toUpperCase();
   const pedido={id,criadoEm:now().toISOString(),origem:'commerce-cdn-privado',estado:'pendente',
+    idempotencyHash:payloadHash,
     clienteNome:p.cliente.nome,clienteTelefone:p.cliente.telefone,observacao:p.cliente.observacao,
     tipoEntrega:p.entrega.tipo,endereco:p.entrega.endereco,
     formaPagamento:p.pagamento.forma,trocoPara:p.pagamento.trocoPara,
@@ -146,8 +149,19 @@ export async function submitOrder(body,{catalog=publicCatalog,write=privatePut,n
       precoPraticadoBRL:item.precoUnitarioCentavos/100,
       precoTexto:(item.precoUnitarioCentavos/100).toFixed(2),
       subtotalBRL:item.subtotalCentavos/100}))};
-  await write('commerce/pedidos/'+shop.lojaId+'/pendentes/'+id+'.json',pedido);
-  return {id,totalCentavos:calc.totalCentavos};
+  const path='commerce/pedidos/'+shop.lojaId+'/pendentes/'+id+'.json';
+  try {
+    await write(path,pedido);
+  } catch(error) {
+    if(error?.message!=='pedido-ja-registrado')throw error;
+    // Falha de rede após gravação: a repetição com mesmo conteúdo recebe o
+    // mesmo protocolo, sem criar uma segunda solicitação.
+    const existing=await read(path);
+    if(existing?.id!==id||existing.idempotencyHash!==payloadHash)
+      throw Error('chave-pedido-reutilizada');
+    return {id,totalCentavos:existing.totalCentavos,duplicado:true};
+  }
+  return {id,totalCentavos:calc.totalCentavos,duplicado:false};
 }
 const respond=(res,status,data)=>{res.setHeader('Cache-Control','no-store');return res.status(status).json(data);};
 const forbidden=(body)=>JSON.stringify(body||{}).length>12_000;
@@ -163,7 +177,7 @@ export function createPrivateInboxHandler({verify=verifyOwnerFirebaseIdToken,sub
         return respond(res,201,{status:'registrado',...result});
       }catch(err){
         const message=String(err.message||'');
-        if(message==='pedido-ja-registrado')return respond(res,409,{erro:'pedido-ja-registrado'});
+        if(message==='chave-pedido-reutilizada')return respond(res,409,{erro:'pedido-conflitante'});
         if(/invalido|invalidos|nao-disponivel|estoque|quantidade|inativa|produto|preco|duplicado/.test(message))
           return respond(res,422,{erro:'pedido-ou-estoque-invalido'});
         return respond(res,503,{erro:'pedido-nao-confirmado'});
@@ -178,7 +192,9 @@ export function createPrivateInboxHandler({verify=verifyOwnerFirebaseIdToken,sub
     const id=req.query?.id;
     if(req.method==='GET'&&!id){
       try{
-        const data=await list(uid,req.query?.cursor);
+        const cursor=typeof req.query?.cursor==='string'&&req.query.cursor.length<1024
+          ?req.query.cursor:undefined;
+        const data=await list(uid,cursor);
         const pedidos=(data.blobs||[]).filter(b=>b.pathname?.startsWith('commerce/pedidos/'+uid+'/pendentes/'))
           .map(b=>({id:b.pathname.split('/').at(-1).replace(/\.json$/,''),criadoEm:b.uploadedAt}));
         return respond(res,200,{pedidos,hasMore:!!data.hasMore,cursor:data.cursor||null});

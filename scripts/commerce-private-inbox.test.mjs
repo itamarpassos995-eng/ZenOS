@@ -120,3 +120,39 @@ test('frontend não adiciona listeners ou altera cache do Firestore',()=>{
  assert.match(source,/private\.blob\.vercel-storage\.com/);
  assert.doesNotMatch(readFileSync('src/components/CommerceOrderInbox.jsx','utf8'),/firebase\/firestore/);
 });
+
+test('mesmo pedido após falha de resposta é idempotente e não faz nova gravação',async()=>{
+ const id='ON-'+(await import('node:crypto')).createHash('sha256')
+   .update('loja-teste-123:'+base.requestId).digest('hex').slice(0,24).toUpperCase();
+ let count=0,original;
+ const written=async(path,pedido)=>{
+   count++;
+   original=pedido;
+   throw Error('pedido-ja-registrado');
+ };
+ const repeated=await submitOrder(base,{
+   catalog:async()=>shop,
+   write:written,
+   read:async()=>original,
+ });
+ assert.equal(count,1);
+ assert.equal(repeated.id,id);
+ assert.equal(repeated.totalCentavos,15200);
+ assert.equal(repeated.duplicado,true);
+});
+test('não aceita reutilizar protocolo para conteúdo de outro consumidor',async()=>{
+ await assert.rejects(submitOrder(base,{
+   catalog:async()=>shop,
+   write:async()=>{throw Error('pedido-ja-registrado');},
+   read:async()=>({id:'ON-'+(await import('node:crypto')).createHash('sha256')
+     .update('loja-teste-123:'+base.requestId).digest('hex').slice(0,24).toUpperCase(),
+     idempotencyHash:'hash-de-outra-compra'})
+ }),/chave-pedido-reutilizada/);
+});
+test('POST não confirma pedido quando Blob privado falhar',async()=>{
+ enabled();
+ const handler=createPrivateInboxHandler({submit:async()=>{throw Error('fila-gravacao-indisponivel')}});
+ const response=res();await handler({method:'POST',headers:{},body:base},response);
+ assert.equal(response.code,503);
+ assert.equal(response.value.erro,'pedido-nao-confirmado');
+});
