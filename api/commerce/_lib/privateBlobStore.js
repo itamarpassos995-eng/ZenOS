@@ -30,7 +30,7 @@ export function createPrivateBlobDriver({sdk=moduleSdk}={}){
        cacheControlMaxAge:60
      });
      const url=new URL(written.url);
-     if(url.origin!==urlBase.slice(0,-1)||url.pathname!=='/'+path)
+     if(url.origin!==new URL(urlBase).origin||url.pathname!=='/'+path)
        throw Error('resposta-privada-invalida');
      return written;
    }catch(err){
