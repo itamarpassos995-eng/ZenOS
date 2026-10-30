@@ -29,3 +29,9 @@ Nenhuma leitura extra do Firestore, nem em visitantes, nem por badge. As chamada
 - `ZENOS_COMMERCE_INBOX_WAF_READY=true` definido para preview e produção, mas **a fila continua desativada** porque faltam credencial privada e ativação explícita.
 - Na conexão manual do store privado existente ao projeto ZenOS, usar prefixo de variável exclusivo `ZENOS_COMMERCE_PRIVATE_` de modo a criar `ZENOS_COMMERCE_PRIVATE_BLOB_READ_WRITE_TOKEN`, nunca substituir `BLOB_READ_WRITE_TOKEN` da loja pública. Escolher credencial de leitura/gravação específica da store, não OIDC genérico, até migrar para `@vercel/blob` com OIDC comprovado.
 - Reenvio idempotente: repetição da mesma solicitação devolve o protocolo já gravado; reutilização do protocolo com conteúdo diferente retorna conflito.
+
+## SDK oficial Vercel Blob
+- Driver `api/commerce/_lib/privateBlobStore.js` usa `@vercel/blob@^2.3.0` (lock resolvido como 2.8.2). Métodos oficiais `put/get/list/del` no armazenamento privado.
+- Credencial passada explicitamente via `ZENOS_COMMERCE_PRIVATE_BLOB_READ_WRITE_TOKEN`, sem fallback ao token `BLOB_READ_WRITE_TOKEN` da CDN pública.
+- Validação de path/store ID e leitura sem cache para consistência após arquivamentos.
+- Testes de integração simulada não equivalem a pedido real em produção. A homologação em Blob precisa ser feita em prévia antes de ativar a loja.

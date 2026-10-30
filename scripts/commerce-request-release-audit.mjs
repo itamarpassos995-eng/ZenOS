@@ -34,6 +34,8 @@ const allowed=new Set([
   'docs/COMMERCE_FILA_PRIVADA.md','scripts/commerce-private-inbox.test.mjs',
   '.github/workflows/commerce-private-inbox-ci.yml','src/components/PDV.jsx',
   'scripts/commerce-topbar-pdv.test.mjs',
+  'api/commerce/_lib/privateBlobStore.js','scripts/commerce-private-blob-driver.test.mjs',
+  'package.json','package-lock.json',
 ]);
 assert.ok(changed.every(p=>allowed.has(p)),'GATE_FAIL: alteração fora do pacote de solicitação: '+changed.filter(x=>!allowed.has(x)).join(', '));
 const read=path=>fs.readFileSync(path,'utf8');

@@ -9,6 +9,10 @@ on:
       - 'src/App.jsx'
       - 'src/components/PDV.jsx'
       - 'scripts/commerce-private-inbox.test.mjs'
+      - 'scripts/commerce-private-blob-driver.test.mjs'
+      - 'api/commerce/_lib/privateBlobStore.js'
+      - 'package.json'
+      - 'package-lock.json'
       - '.github/workflows/commerce-private-inbox-ci.yml'
 permissions:
   contents: read
@@ -23,11 +27,12 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Validate restricted scope and zero extra Firestore listeners
-        run: node --test scripts/commerce-private-inbox.test.mjs
+        run: node --test scripts/commerce-private-inbox.test.mjs scripts/commerce-private-blob-driver.test.mjs
       - name: Syntax validation
         run: node --check api/commerce/inbox.js
       - name: Production compile
         run: |
-          npm ci --ignore-scripts --no-audit --no-fund
           npm run build

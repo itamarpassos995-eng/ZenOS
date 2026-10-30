@@ -57,7 +57,9 @@ test('nenhum arquivo de persistência Firestore nem regras foi modificado',()=>{
    'src/components/ZenCommerceStorefront.jsx','src/commerce-homologacao-main.jsx',
    'docs/COMMERCE_FILA_PRIVADA.md','scripts/commerce-private-inbox.test.mjs',
    '.github/workflows/commerce-private-inbox-ci.yml',
-   'scripts/commerce-request-release-audit.mjs'
+   'scripts/commerce-request-release-audit.mjs',
+   'api/commerce/_lib/privateBlobStore.js','scripts/commerce-private-blob-driver.test.mjs',
+   'package.json','package-lock.json'
  ]);
  assert.deepEqual(changed.filter(path=>!allowed.has(path)),[]);
 });
