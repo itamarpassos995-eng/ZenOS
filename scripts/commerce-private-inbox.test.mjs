@@ -39,7 +39,7 @@ test('valores são calculados no servidor com catálogo, nunca pelo cliente',asy
  let path,data;
  const result=await submitOrder(base,{
   catalog:async slug=>{assert.equal(slug,'zeniteatacadao');return shop;},
-  write:async(p,d)=>{path=p;data=d;},
+  write:async(p,d)=>{path=p;data=d;},read:async()=>null,
   now:()=>new Date('2026-10-29T23:00:00Z'),
  });
  assert.equal(result.totalCentavos,15200);
@@ -51,7 +51,7 @@ test('valores são calculados no servidor com catálogo, nunca pelo cliente',asy
 test('nunca grava pedido com estoque insuficiente ou total inválido',async()=>{
  let writes=0;
  await assert.rejects(submitOrder({...base,itens:[{id:'p1',quantidade:31}]},{
-  catalog:async()=>shop,write:async()=>{writes++;}
+  catalog:async()=>shop,write:async()=>{writes++;},read:async()=>null
  }),/estoque-ou-quantidade-invalida/);
  assert.equal(writes,0);
 });
@@ -133,7 +133,7 @@ test('mesmo pedido após falha de resposta é idempotente e não faz nova grava�
  const repeated=await submitOrder(base,{
    catalog:async()=>shop,
    write:written,
-   read:async()=>original,
+   read:async path=>path.includes('/arquivados/')?null:original,
  });
  assert.equal(count,1);
  assert.equal(repeated.id,id);
@@ -144,11 +144,31 @@ test('não aceita reutilizar protocolo para conteúdo de outro consumidor',async
  await assert.rejects(submitOrder(base,{
    catalog:async()=>shop,
    write:async()=>{throw Error('pedido-ja-registrado');},
-   read:async()=>({id:'ON-'+(await import('node:crypto')).createHash('sha256')
+   read:async path=>path.includes('/arquivados/')?null:({id:'ON-'+(await import('node:crypto')).createHash('sha256')
      .update('loja-teste-123:'+base.requestId).digest('hex').slice(0,24).toUpperCase(),
      idempotencyHash:'hash-de-outra-compra'})
  }),/chave-pedido-reutilizada/);
 });
+test('um pedido já arquivado não gera segunda solicitação',async()=>{
+ const {createHash}=await import('node:crypto');
+ const id='ON-'+createHash('sha256').update('loja-teste-123:'+base.requestId).digest('hex').slice(0,24).toUpperCase();
+ let writes=0;
+ const result=await submitOrder(base,{
+  catalog:async()=>shop,
+  read:async path=>path.includes('/arquivados/')?{
+   id,idempotencyHash:createHash('sha256').update(JSON.stringify({
+    slug:base.slug,requestId:base.requestId,
+    cliente:{nome:base.cliente.nome,telefone:'67999990000',observacao:''},
+    entrega:{tipo:'retirada',endereco:null},pagamento:{forma:'pix',trocoPara:''},
+    itens:[{id:'p1',quantidade:4}]
+   })).digest('hex'),totalCentavos:15200
+  }:null,
+  write:async()=>{writes++;}
+ });
+ assert.equal(result.duplicado,true);
+ assert.equal(writes,0);
+});
+
 test('POST não confirma pedido quando Blob privado falhar',async()=>{
  enabled();
  const handler=createPrivateInboxHandler({submit:async()=>{throw Error('fila-gravacao-indisponivel')}});
