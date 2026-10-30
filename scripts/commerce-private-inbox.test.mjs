@@ -117,7 +117,7 @@ test('frontend não adiciona listeners ou altera cache do Firestore',()=>{
  const source=readFileSync('api/commerce/inbox.js','utf8');
  assert.doesNotMatch(source,/from ['"][^'"]*firebase\/firestore/);
  assert.doesNotMatch(source,/\bgetDocs\b|\bonSnapshot\b|\bgetDoc\b/);
- assert.match(readFileSync('api/commerce/_lib/privateBlobStore.js','utf8'),/private\\.blob\\.vercel-storage\\.com/);
+ assert.ok(readFileSync('api/commerce/_lib/privateBlobStore.js','utf8').includes('.private.blob.vercel-storage.com'));
  assert.doesNotMatch(readFileSync('src/components/CommerceOrderInbox.jsx','utf8'),/firebase\/firestore/);
 });
 
