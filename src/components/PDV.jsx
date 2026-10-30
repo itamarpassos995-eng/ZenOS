@@ -22,7 +22,8 @@ import { getOperationalSnapshot } from '../core/operationalRepository';
 import { autoriaDoDocumento, autoriaDoOperador, resolverAutoriaVenda } from '../core/salesAttribution';
 import { indexarProdutosPDV, indexarClientesPDV, buscarProdutosPDV, buscarClientesPDV } from '../core/pdvSearch';
 
-export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizados, perfilLoja, taxasCambio = {}, registrarFinanceiro, commitOperacaoCritica, commitVendaCritica, recarregarDadosPDV, vouchers = [], setVouchers, userId, produtos, setProdutos, clientes, setClientes, moeda, fmt, t, tx, converterDeBRL, converterParaBRL, historicoVendas, setHistoricoVendas, patenteUsuario, idioma, regrasDesconto, vendedores = [], operadorAtivo, sessaoAtiva }) {
+export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizados,
+  pedidoPrivadoSolicitado, onPedidoPrivadoRecebido, perfilLoja, taxasCambio = {}, registrarFinanceiro, commitOperacaoCritica, commitVendaCritica, recarregarDadosPDV, vouchers = [], setVouchers, userId, produtos, setProdutos, clientes, setClientes, moeda, fmt, t, tx, converterDeBRL, converterParaBRL, historicoVendas, setHistoricoVendas, patenteUsuario, idioma, regrasDesconto, vendedores = [], operadorAtivo, sessaoAtiva }) {
   const [rascunhoInicial] = useState(() => lerRascunhoPDV(userId, operadorAtivo?.id));
   const [avisoRascunhoRecuperado, setAvisoRascunhoRecuperado] = useState(Boolean(rascunhoInicial?.itensVenda?.length));
   const [termoBusca, setTermoBusca] = useState('');
@@ -168,7 +169,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
           'A sale is in progress. Confirm before replacing it with the online order.'),
         confirmarTexto: tx('Carregar pedido','Cargar pedido','Load order')
       });
-      if (!autorizado) return;
+      if (!autorizado) return false;
     }
     try {
       const novosItens = pedido.itens.map((item, idx) => {
@@ -211,14 +212,29 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       const identCliente = `${pedido.clienteNome || 'Cliente Online'}${pedido.clienteTelefone ? ' (' + pedido.clienteTelefone + ')' : ''}`;
       setNomeClienteVulso(identCliente);
       setDescontoTexto('0');
-      setPrePedidoEmAbertoId(pedido.id);
+      // Pedido do Blob ainda é uma solicitação, não um pré-pedido gravado no Firestore.
+      // Orçamento, pré-pedido e venda só serão criados pelos fluxos normais do PDV.
+      setPrePedidoEmAbertoId(pedido.origem === 'commerce-cdn-privado' ? null : pedido.id);
       operacaoDocumentoRef.current = { assinatura: null, id: null, instante: null };
       setModalResgateAberto(false);
       mostrarZen('info', tx('Pedido Online Carregado!','¡Pedido Online Cargado!','Online Order Loaded!'), tx(`Pedido de ${pedido.clienteNome || 'Cliente'} carregado no caixa. Confira e finalize a venda.`,'Pedido cargado en caja. Verifique y finalice.','Order loaded into register. Verify and complete sale.'));
+      return true;
     } catch (err) {
       mostrarZen('danger', 'Erro ao carregar pedido online', 'Não foi possível carregar o pedido.', [err?.message]);
+      return false;
     }
   };
+
+  // Mesma função de resgate, sem nenhum novo listener ou leitura Firestore.
+  const ultimaSolicitacaoPrivadaRef = useRef(null);
+  useEffect(() => {
+    const token = pedidoPrivadoSolicitado?.token;
+    if (!token || ultimaSolicitacaoPrivadaRef.current===token) return;
+    ultimaSolicitacaoPrivadaRef.current = token;
+    Promise.resolve(carregarPedidoOnline(pedidoPrivadoSolicitado.pedido)).then(loaded => {
+      if (loaded) onPedidoPrivadoRecebido?.(token);
+    });
+  }, [pedidoPrivadoSolicitado?.token]);
 
   const normalizarWhatsNumero = (tel) => {
     if (!tel) return '';
