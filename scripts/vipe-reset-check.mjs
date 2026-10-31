@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import { montarBackup } from '../src/core/backupCore.js';
+import { prepararLimpezaVipe } from '../src/core/vipeReset.js';
+const userId='QNtFleq9ajNNmU6iwiFSi5w1alu2',email='vipeagropecuaria@gmail.com';
+const data={produtos:[{id:'test-1',estoque:3}],clientes:[],historicoVendas:[{id:'sale-1'}],vendedores:[{id:'admin'}]};
+const backup=await montarBackup({lojaId:userId,createdBy:'test',dados:{operacao:data}});
+const args={userId,email,backup,fields:['produtos','historicoVendas'],data,control:null};
+assert.deepEqual(await prepararLimpezaVipe(args),{produtos:[],historicoVendas:[]});
+assert.equal(data.produtos.length,1,'Never mutate source snapshot');
+assert.equal(backup.data.operacao.produtos.length,1,'Never mutate backup');
+for (const override of [{userId:'other'},{email:'other@example.test'},{fields:['vendedores']},{fields:[]},{control:{mode:'v2'}},{backup:{...backup,metadata:{...backup.metadata,checksum:'wrong'}}},{data:{...data,produtos:[...data.produtos,{id:'concurrent'}]}}]) await assert.rejects(prepararLimpezaVipe({...args,...override}));
+const changedUnselected={...data,vendedores:[{id:'admin'},{id:'other'}]};
+assert.deepEqual(await prepararLimpezaVipe({...args,data:changedUnselected}),{produtos:[],historicoVendas:[]});
+console.log('VIPE reset: empty payload, tenant, selection, backup integrity, concurrency and preservation checks passed.');

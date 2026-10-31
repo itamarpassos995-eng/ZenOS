@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { db, auth } from '../firebase';
-import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { doc, runTransaction, serverTimestamp, setDoc } from 'firebase/firestore';
 import { EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { produtosIniciais, clientesIniciais, normalizarProduto, normalizarCliente } from '../data';
 import { zenosStorage } from '../core/storage';
@@ -10,6 +10,7 @@ import { ehOperadorGerencial } from '../core/accessControl';
 import { criarCredencialPin, pinEhFraco } from '../core/operatorPin';
 import { baixarBackupJson, coletarBackupLoja, restaurarBackupSomenteHomologacao } from '../core/backupRecovery';
 import { validarBackup } from '../core/backupCore';
+import { prepararLimpezaVipe } from '../core/vipeReset.js';
 import { ZENOS_RUNTIME } from '../core/runtimeEnvironment';
 import { notifyPersistenceStatus } from '../core/persistenceSafety';
 
@@ -20,6 +21,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
   const [carregandoReset, setCarregandoReset] = useState(false);
   const [modalZen, setModalZen] = useState(null);
   const [backupValidadoNestaSessao, setBackupValidadoNestaSessao] = useState(false);
+  const [backupDaSessao, setBackupDaSessao] = useState(null);
   const [processandoBackup, setProcessandoBackup] = useState(false);
   const [arquivoBackupSelecionado, setArquivoBackupSelecionado] = useState(null);
   const avisarZen = (variante, titulo, mensagem, detalhes = []) => setModalZen({ variante, titulo, mensagem, detalhes, apenasConfirmar:true });
@@ -81,6 +83,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
       if (!validacao.ok) throw new Error(validacao.erros.join(' '));
       baixarBackupJson(backup);
       setBackupValidadoNestaSessao(true);
+      setBackupDaSessao(backup);
       avisarZen('success',tx('Backup validado e exportado','Backup validado y exportado','Backup validated and exported'),`${tx('Backup íntegro. Produtos:','Backup íntegro. Productos:','Valid backup. Products:')} ${validacao.counts.produtos} • ${tx('Clientes:','Clientes:','Customers:')} ${validacao.counts.clientes} • ${tx('Vendas:','Ventas:','Sales:')} ${validacao.counts.vendas}.`);
     } catch (error) {
       console.error('[ZenOS Backup]', error);
@@ -227,6 +230,27 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
       if (!user || !user.email) throw new Error('Utilizador não autenticado.');
       const credential = EmailAuthProvider.credential(user.email, senhaAdmin);
       await reauthenticateWithCredential(user, credential);
+      // Limpeza da migração VIPE: nunca restaura seeds nem usa merge de listas.
+      // Exige backup da própria loja, reautenticação acima e snapshot sem alterações.
+      if (user.uid === 'QNtFleq9ajNNmU6iwiFSi5w1alu2' && user.email.toLowerCase() === 'vipeagropecuaria@gmail.com') {
+        const fields = [selProdutos && 'produtos', selClientes && 'clientes', selVendas && 'historicoVendas', selCaixa && 'caixaMovimentos', selDespesas && 'despesas'].filter(Boolean);
+        await runTransaction(db, async transaction => {
+          const control = await transaction.get(doc(db, 'lojas', user.uid, 'dados', 'storage_control'));
+          const ref = doc(db, 'lojas', user.uid, 'dados', 'operacao');
+          const snap = await transaction.get(ref);
+          const data = snap.data() || {};
+          const payload = await prepararLimpezaVipe({ userId:user.uid, email:user.email, backup:backupDaSessao, fields, data, control:control.exists() ? control.data() : null });
+          const revisions = { ...(data._syncMeta?.fieldRevisions || {}) };
+          fields.forEach(field => { revisions[field] = (Number(revisions[field]) || 0) + 1; });
+          transaction.set(ref, { ...payload, _syncMeta: { ...(data._syncMeta || {}), fieldRevisions: revisions, lastField: 'vipe_limpeza_validada', updatedAtClient: new Date().toISOString(), updatedAtServer: serverTimestamp() } }, { merge: true });
+        });
+        for (const field of fields) {
+          const suffix = { historicoVendas:'historico_vendas', caixaMovimentos:'caixa_movs' }[field] || field;
+          zenosStorage.setItem(`zenos_${user.uid}_${suffix}`, '[]');
+        }
+        window.location.reload();
+        return;
+      }
       const novosProdutos = selProdutos ? produtosIniciais.map((p, idx) => normalizarProduto(p, idx)) : produtos;
       const novosClientes = selClientes ? clientesIniciais.map(c => normalizarCliente(c)) : clientes;
       const novoHistoricoVendas = selVendas ? [] : historicoVendas;
@@ -253,7 +277,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
       setModalResetAberto(false); setSenhaAdmin(''); setEtapaAviso(1); handleSelTudo(false);
     } catch (err) {
       console.error("Erro ao validar senha:", err);
-      avisarZen('danger',tx('Autenticação falhou','Autenticación fallida','Authentication failed'),tx('Senha incorreta ou erro de autenticação.','Contraseña incorrecta o error de autenticación.','Incorrect password or authentication error.'));
+      avisarZen('danger',tx('Autenticação falhou','Autenticación fallida','Authentication failed'),err?.message || tx('Senha incorreta ou erro de autenticação.','Contraseña incorrecta o error de autenticación.','Incorrect password or authentication error.'));
     } finally {
       setCarregandoReset(false);
     }
