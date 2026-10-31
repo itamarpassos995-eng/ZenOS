@@ -37,6 +37,7 @@ export default function ImportacaoVipe({userId,operadorAtivo,patenteUsuario,prod
     grupo:r.categoria||'Geral',custoBRL:dinheiro(r.costo_original,modo)/Number(taxaPYG),
     precoBRL:dinheiro(r.precio_original,modo)/Number(taxaPYG),
     estoque:Math.max(0,Number(String(r.existencia_migracao).replace(',','.'))),
+    estoqueVitrine:0,estoqueGalpao:Math.max(0,Number(String(r.existencia_migracao).replace(',','.'))),
     ativo:true,inativo:false,arquivado:false,oculto:false,
     origemMigracao:'VIPE-FPX',idOrigemMigracao:r.id_origen
    }));
