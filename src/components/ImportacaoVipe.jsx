@@ -3,6 +3,7 @@ import {auth} from '../firebase';
 import {normalizarProduto,normalizarCliente} from '../data';
 import {detectarConflitosIdentidadeProdutos} from '../core/productIdentity';
 const EMAIL='vipeagropecuaria@gmail.com';
+const LOJA_ID='qntfleq9';
 const SCHEMAS={
  produtos:['id_origen','descripcion','costo_original','precio_original','existencia_migracao'],
  clientes:['id_origen','codigo_o_nombre'],
@@ -19,7 +20,7 @@ export default function ImportacaoVipe({userId,operadorAtivo,patenteUsuario,prod
  const [arquivos,setArquivos]=useState({}),[modo,setModo]=useState(''),[confirmacao,setConfirmacao]=useState(''),[status,setStatus]=useState(''),[ocupado,setOcupado]=useState(false);
  const email=String(auth.currentUser?.email||'').toLowerCase();
  if(email!==EMAIL)return null;
- const autorizado=Boolean(userId)&&email===EMAIL&&(patenteUsuario==='gerencia'||operadorAtivo?.permissoes?.admin===true);
+ const autorizado=String(userId||'')===LOJA_ID&&email===EMAIL&&(patenteUsuario==='gerencia'||operadorAtivo?.permissoes?.admin===true);
  const carregar=async(tipo,file)=>{if(!file)return;try{const rows=lerCSV(await file.text());const missing=SCHEMAS[tipo].filter(k=>!(k in (rows[0]||{})));if(missing.length)throw Error('Colunas ausentes: '+missing.join(', '));const ids=rows.map(r=>r.id_origen);if(ids.some(x=>!x)||new Set(ids).size!==ids.length)throw Error('IDs ausentes ou duplicados no arquivo.');setArquivos(prev=>({...prev,[tipo]:rows}));setStatus(tipo+': '+rows.length+' registros validados.');}catch(e){setStatus('ERRO: '+e.message);setArquivos(prev=>({...prev,[tipo]:undefined}));}};
  const importar=async()=>{
   if(ocupado||!autorizado)return;
@@ -30,7 +31,7 @@ export default function ImportacaoVipe({userId,operadorAtivo,patenteUsuario,prod
    if(!Object.values(arquivos).length||!SCHEMAS.produtos||['produtos','clientes','fornecedores'].some(k=>!arquivos[k]))throw Error('Selecione os três CSVs preparados.');
    if(!Number.isFinite(Number(taxaPYG))||Number(taxaPYG)<=0)throw Error('Câmbio PYG/BRL inválido na loja.');
    if(produtos.length||clientes.length||fornecedores.length)throw Error('A loja não está vazia. Importação bloqueada para evitar conflitos.');
-   if(auth.currentUser?.email?.toLowerCase()!==EMAIL)throw Error('Sessão da loja mudou.');
+   if(auth.currentUser?.email?.toLowerCase()!==EMAIL||String(userId||'')!==LOJA_ID)throw Error('Sessão ou ID da loja não corresponde à VIPE.');
    const p=arquivos.produtos.map(r=>normalizarProduto({
     id:'VIPE-PROD-'+r.id_origen,sku:r.codigo_barras||'VIPE-'+r.id_origen,nome:r.descripcion,
     grupo:r.categoria||'Geral',custoBRL:dinheiro(r.costo_original,modo)/Number(taxaPYG),
@@ -65,7 +66,7 @@ export default function ImportacaoVipe({userId,operadorAtivo,patenteUsuario,prod
  };
  return <section style={{border:'1px solid #eab308',padding:18,borderRadius:12,marginBottom:20,background:'#111827'}}>
  <h3>Importação controlada — VIPE Agropecuária</h3>
- <p>Destino: {email}. ID da loja: {String(userId||'não identificado')}. Somente nesta conta, com permissão de gerência.</p>
+ <p>Destino: {email}. ID da loja: {String(userId||'não identificado')} (esperado: {LOJA_ID}). Somente nesta conta, com permissão de gerência.</p>
  <p>Para evitar duplicações, só permite importar em loja completamente vazia. Estoques negativos ficam em zero.</p>
  {!autorizado?<p>Permissão de gerência necessária. Nenhuma gravação disponível.</p>:<>
  {['produtos','clientes','fornecedores'].map(k=><label key={k} style={{display:'block',margin:'10px 0'}}>{k}: <input type="file" accept=".csv,text/csv" onChange={e=>carregar(k,e.target.files?.[0])}/>{arquivos[k]?.length||0} registros</label>)}
