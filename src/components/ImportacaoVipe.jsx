@@ -39,7 +39,7 @@ export default function ImportacaoVipe({userId,operadorAtivo,patenteUsuario,prod
     estoque:Math.max(0,Number(String(r.existencia_migracao).replace(',','.'))),
     ativo:true,inativo:false,arquivado:false,oculto:false,
     origemMigracao:'VIPE-FPX',idOrigemMigracao:r.id_origen
-   })));
+   }));
    if(p.some(x=>!x.nome||!x.sku||!Number.isFinite(x.precoBRL)||!Number.isFinite(x.custoBRL)||!Number.isFinite(x.estoque)))throw Error('Produto incompleto.');
    if(detectarConflitosIdentidadeProdutos(p).length)throw Error('IDs de produto repetidos.');
    const skus=p.map(x=>x.sku.toUpperCase());if(new Set(skus).size!==skus.length)throw Error('SKUs repetidos.');
