@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { normalizarProduto, normalizarCliente } from '../data';
 import ZenModal from './ZenModal';
+import ImportacaoVipe from './ImportacaoVipe';
 
-export default function Migracao({ commitOperacaoNegocio, produtos, setProdutos, clientes, setClientes, t, tx = (pt) => pt }) {
+export default function Migracao({ commitOperacaoNegocio, produtos, setProdutos, clientes, setClientes, fornecedores, setFornecedores, userId, operadorAtivo, patenteUsuario, taxaPYG, t, tx = (pt) => pt }) {
   const [dadosInput, setDadosInput] = useState('');
   const [tipoMigracao, setTipoMigracao] = useState('produtos');
   const [mensagemSucesso, setMensagemSucesso] = useState('');
@@ -60,6 +61,7 @@ export default function Migracao({ commitOperacaoNegocio, produtos, setProdutos,
 
   return (
     <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '20px', padding: '32px', maxWidth: '800px', margin: '0 auto', color: '#fff' }}>
+      <ImportacaoVipe userId={userId} operadorAtivo={operadorAtivo} patenteUsuario={patenteUsuario} taxaPYG={taxaPYG} commitOperacaoNegocio={commitOperacaoNegocio} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} fornecedores={fornecedores} setFornecedores={setFornecedores}/>
       <ZenModal aberto={!!modalZen} variante={modalZen?.variante} titulo={modalZen?.titulo} mensagem={modalZen?.mensagem} apenasConfirmar confirmarTexto="OK" onConfirmar={()=>setModalZen(null)} onCancelar={()=>setModalZen(null)} />
       <h2 style={{ fontSize: '24px', fontWeight: 900, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}><span>📥</span> {tx('Importador Universal','Importador Universal','Universal Importer')}</h2>
       <p style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '24px', lineHeight: 1.5 }}>
