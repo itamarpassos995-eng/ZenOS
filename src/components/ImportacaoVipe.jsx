@@ -28,7 +28,7 @@ export default function ImportacaoVipe({userId,operadorAtivo,patenteUsuario,prod
   try{
    if(confirmacao!=='IMPORTAR VIPE')throw Error('Digite IMPORTAR VIPE para autorizar.');
    if(!['milhar','decimal'].includes(modo))throw Error('Confirme o padrão de preços.');
-   if(!Object.values(arquivos).length||!SCHEMAS.produtos||['produtos','clientes','fornecedores'].some(k=>!arquivos[k]))throw Error('Selecione os três CSVs preparados.');
+   if(['produtos','clientes','fornecedores'].some(k=>!arquivos[k]))throw Error('Selecione os três CSVs preparados.');
    if(!Number.isFinite(Number(taxaPYG))||Number(taxaPYG)<=0)throw Error('Câmbio PYG/BRL inválido na loja.');
    if(produtos.length||clientes.length||fornecedores.length)throw Error('A loja não está vazia. Importação bloqueada para evitar conflitos.');
    if(auth.currentUser?.email?.toLowerCase()!==EMAIL||String(auth.currentUser?.uid||'')!==String(userId||''))throw Error('Sessão ou ID da loja não corresponde à VIPE.');
@@ -36,7 +36,7 @@ export default function ImportacaoVipe({userId,operadorAtivo,patenteUsuario,prod
     id:'VIPE-PROD-'+r.id_origen,sku:r.codigo_barras||'VIPE-'+r.id_origen,nome:r.descripcion,
     grupo:r.categoria||'Geral',custoBRL:dinheiro(r.costo_original,modo)/Number(taxaPYG),
     precoBRL:dinheiro(r.precio_original,modo)/Number(taxaPYG),
-    estoque:Math.max(0,Number(String(r.existencia_migracao).replace(',','.'))||0),
+    estoque:Math.max(0,Number(String(r.existencia_migracao).replace(',','.'))),
     ativo:true,inativo:false,arquivado:false,oculto:false,
     origemMigracao:'VIPE-FPX',idOrigemMigracao:r.id_origen
    })));
@@ -52,7 +52,7 @@ export default function ImportacaoVipe({userId,operadorAtivo,patenteUsuario,prod
      origemMigracao:'VIPE-FPX',idOrigemMigracao:r.id_origen
    }));
    if(c.some(x=>!x.nome)||f.some(x=>!x.nome))throw Error('Cliente ou fornecedor sem nome.');
-   const r=await commitOperacaoNegocio({changes:[
+   const r=await commitOperacaoNegocio({operationKey:'vipe-fpx-inicial-v1',changes:[
     {field:'produtos',value:p,storageSuffix:'produtos'},
     {field:'clientes',value:c,storageSuffix:'clientes'},
     {field:'fornecedores',value:f,storageSuffix:'fornecedores'}
