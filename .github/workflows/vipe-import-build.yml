@@ -5,6 +5,7 @@ on:
       - 'src/components/ImportacaoVipe.jsx'
       - 'src/components/Migracao.jsx'
       - 'src/App.jsx'
+      - 'scripts/vipe-import-emulator.mjs'
       - '.github/workflows/vipe-import-build.yml'
   workflow_dispatch:
 jobs:
@@ -18,3 +19,5 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run build
+      - name: Testar lote sintético no emulador
+        run: npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local "node scripts/vipe-import-emulator.mjs"
