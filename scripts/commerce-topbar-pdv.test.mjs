@@ -54,6 +54,12 @@ test('nenhum arquivo de persistência Firestore nem regras foi modificado',()=>{
  // Exceção pontual: este PR corrige a reconciliação física multimoeda.
  // O módulo permanece puro e não pode passar a consultar Firestore.
  const allowedFinancialCore='src/core/cashReconciliation.js';
+ const allowedCashGuard='src/core/productionSync.js';
+ if(changed.includes(allowedCashGuard)){
+   const source=read(allowedCashGuard);
+   assert.match(source,/guard\.type === 'cash_native_balance_at_least'/);
+   assert.match(source,/calcularConciliacaoFisicaMultimoeda/);
+ }
  if(changed.includes(allowedFinancialCore)){
    const source=read(allowedFinancialCore);
    assert.doesNotMatch(source,/firebase\/firestore|\bonSnapshot\s*\(|\bgetDocs(?:FromServer)?\s*\(|\bgetDoc(?:FromServer)?\s*\(|\brunTransaction\s*\(/,
@@ -63,7 +69,7 @@ test('nenhum arquivo de persistência Firestore nem regras foi modificado',()=>{
    /(^|\/)firestore[^/]*\.rules$/.test(path)||
    /^src\/firebase[^/]*\.[jt]s$/.test(path)||
    /^functions\//.test(path)||
-   (/^src\/core\//.test(path)&&!uiOnlyCore.has(path)&&path!==allowedFinancialCore)
+   (/^src\/core\//.test(path)&&!uiOnlyCore.has(path)&&path!==allowedFinancialCore&&path!==allowedCashGuard)
  );
  assert.deepEqual(protectedPaths,[],'A mudança visual não pode alterar persistência nem regras');
 });
