@@ -44,7 +44,7 @@ export default function Mesas({ commitOperacaoNegocio, userId, produtos, fmt, tx
   const catalogoFormas = [
     { id: 'Dinheiro (R$)', rotulo: tx('Dinheiro (R$)','Efectivo (R$)','Cash (R$)'), icone: '💵' }, 
     { id: 'Dólar ($)', rotulo: tx('Dólar ($)','Dólar ($)','Dollar ($)'), icone: '💵' },
-    { id: 'Guarani (₲)', rotulo: 'Guarani (₲)', icone: '💵' }, 
+    { id: 'Guarani (₲)', rotulo: tx("Guarani (₲)","Guaraní (₲)"), icone: '💵' },
     { id: 'Euro (€)', rotulo: 'Euro (€)', icone: '💶' },
     { id: 'Pix QR Code', rotulo: 'Pix QR Code', icone: '⚡' }, 
     { id: 'Cartão Crédito', rotulo: tx('Cartão Crédito','Tarjeta Crédito','Credit Card'), icone: '💳' },
@@ -254,7 +254,7 @@ export default function Mesas({ commitOperacaoNegocio, userId, produtos, fmt, tx
               onClick={() => setModalPagamento(true)}
               style={{ width: '100%', padding: '16px', borderRadius: '12px', fontSize: '16px', fontWeight: 900, cursor: mesaAtiva.itens.length === 0 ? 'not-allowed' : 'pointer', background: mesaAtiva.itens.length === 0 ? '#1e1b4b' : 'linear-gradient(135deg, #10b981, #059669)', color: mesaAtiva.itens.length === 0 ? '#64748b' : '#fff', border: 'none', boxShadow: mesaAtiva.itens.length === 0 ? 'none' : '0 10px 25px rgba(16, 185, 129, 0.3)', boxSizing: 'border-box' }}
             >
-              💳 FECHAR CONTA • {fmt(totalMesa)}
+              {tx("💳 FECHAR CONTA •","💳 CERRAR CUENTA •")} {fmt(totalMesa)}
             </button>
           </div>
         </div>

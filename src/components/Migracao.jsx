@@ -80,7 +80,7 @@ export default function Migracao({ commitOperacaoNegocio, produtos, setProdutos,
       {mensagemSucesso && <div style={{ padding: '14px', backgroundColor: 'rgba(16, 185, 129, 0.1)', border: '1px solid #10b981', color: '#34d399', borderRadius: '10px', marginBottom: '16px', fontWeight: 800 }}>{mensagemSucesso}</div>}
 
       <button onClick={importarDadosEmMassa} style={{ width: '100%', padding: '16px', background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '15px', boxShadow: '0 4px 15px rgba(16, 185, 129, 0.3)' }}>
-        🚀 Processar e Carregar no Zenos OS
+        {tx("🚀 Processar e Carregar no Zenos OS","🚀 Procesar y cargar en ZenOS")}
       </button>
     </div>
   );

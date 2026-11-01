@@ -1,6 +1,7 @@
 import { gerarIdCliente, gerarIdProduto } from './core/productIdentity.js';
 export const traducoes = {
   pt: {
+    itensLancados:'Itens lançados',nenhumItem:'Nenhum item lançado.',resumoVenda:'Resumo da venda',subtotal:'Subtotal',descontoGlobal:'Desconto global',totalPagar:'Total a pagar',
     menuPrincipal: 'Menu Principal', pdvBalcao: 'PDV Balcão', produtosEstoque: 'Produtos & Estoque', clientesFiado: 'Clientes & Fiado', vendasDevolucoes: 'Vendas & Devoluções',
     perfil: 'PERFIL', vendedorBalcao: 'Vendedor Balcão', gerenciaDono: 'Gerência / Dono', caixaAberto: 'CAIXA ABERTO', cotacoes: 'Câmbio', configuracoes: 'Configurações',
     idioma: 'IDIOMA', moedaBase: 'MOEDA BASE', ajustarCambio: 'Ajustar Câmbio', modulosSistema: 'Módulos do Sistema',
@@ -26,6 +27,7 @@ export const traducoes = {
     digiteProdutoLabel: '🔍 PESQUISAR PRODUTO NO BALCÃO'
   },
   es: {
+    itensLancados:'Artículos registrados',nenhumItem:'Ningún artículo registrado.',resumoVenda:'Resumen de la venta',subtotal:'Subtotal',descontoGlobal:'Descuento global',totalPagar:'Total a pagar',
     menuPrincipal: 'Menú Principal', pdvBalcao: 'TPV Mostrador', produtosEstoque: 'Productos y Stock', clientesFiado: 'Clientes y Créditos', vendasDevolucoes: 'Ventas y Devoluciones',
     perfil: 'PERFIL', vendedorBalcao: 'Vendedor', gerenciaDono: 'Gerencia / Dueño', caixaAberto: 'CAJA ABIERTA', cotacoes: 'Cambio', configuracoes: 'Configuración',
     idioma: 'IDIOMA', moedaBase: 'MONEDA BASE', ajustarCambio: 'Ajustar Cambio', modulosSistema: 'Módulos del Sistema',
@@ -51,6 +53,7 @@ export const traducoes = {
     digiteProdutoLabel: '🔍 BUSCAR PRODUCTO EN MOSTRADOR'
   },
   en: {
+    itensLancados:'Items added',nenhumItem:'No items added.',resumoVenda:'Sale summary',subtotal:'Subtotal',descontoGlobal:'Order discount',totalPagar:'Total due',
     menuPrincipal: 'Main Menu', pdvBalcao: 'POS Counter', produtosEstoque: 'Products & Stock', clientesFiado: 'Customers & Credit', vendasDevolucoes: 'Sales & Returns',
     perfil: 'PROFILE', vendedorBalcao: 'Cashier', gerenciaDono: 'Manager / Owner', caixaAberto: 'REGISTER OPEN', cotacoes: 'Exchange', configuracoes: 'Settings',
     idioma: 'LANGUAGE', moedaBase: 'BASE CURRENCY', ajustarCambio: 'Adjust Exchange Rate', modulosSistema: 'System Modules',

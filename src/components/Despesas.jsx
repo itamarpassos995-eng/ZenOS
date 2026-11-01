@@ -51,7 +51,7 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
 
   const editarDespesa = despesa => {
     if(!despesa || despesa.status!=='pendente' || despesa.compraId || despesa.naturezaContabil==='estoque_ativo' || String(despesa.descricao||'').startsWith('Compra de Estoque - ')) {
-      return avisarZen('warning','Edição exige correção financeira','Somente despesas manuais pendentes podem ser editadas. Para valores já pagos, use a remoção com ajuste do resultado, preservando o histórico.');
+      return avisarZen('warning',tx("Edição exige correção financeira","La edición requiere corrección financiera"),tx("Somente despesas manuais pendentes podem ser editadas. Para valores já pagos, use a remoção com ajuste do resultado, preservando o histórico.","Solo se pueden editar gastos manuales pendientes. Para importes ya pagados, utilice la eliminación con ajuste del resultado, conservando el historial."));
     }
     setDespesaEmEdicao(despesa);
     setDescricao(despesa.descricao||'');
@@ -65,7 +65,7 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
   const salvarDespesa = async () => {
     if(salvandoDespesaRef.current)return;
     if(despesaEmEdicao && (despesaEmEdicao.status!=='pendente' || despesaEmEdicao.compraId || despesaEmEdicao.naturezaContabil==='estoque_ativo'))
-      return avisarZen('warning','Edição bloqueada','Esta despesa não pode ser editada diretamente por ter pagamento ou vínculo com compra.');
+      return avisarZen('warning',tx("Edição bloqueada","Edición bloqueada"),tx("Esta despesa não pode ser editada diretamente por ter pagamento ou vínculo com compra.","Este gasto no puede editarse directamente porque tiene un pago o un vínculo con una compra."));
 
     if (!descricao.trim()) return avisarZen('warning',tx('Descrição obrigatória','Descripción obligatoria','Description required'),tx('Informe a descrição da despesa.','Informe la descripción del gasto.','Enter the expense description.'));
     const valBRL = converterParaBRL(parseFloat(valorInput.replace(',', '.')) || 0, moeda);
@@ -214,21 +214,21 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
           if(resultado.status==='reconciled'||resultado.status==='already_paid'){
             setModalPagamentoAberto(false);
             setDespesaParaPagar(null);
-            return avisarZen('success','Pagamento original localizado',
+            return avisarZen('success',tx("Pagamento original localizado","Pago original localizado"),
               resultado.status==='reconciled'
-                ? 'Pagamento original confirmado no livro e, quando aplicável, no caixa. A despesa foi conciliada sem novo débito.'
-                : 'Esta despesa já estava paga no servidor. A lista foi atualizada sem novo débito.');
+                ? tx("Pagamento original confirmado no livro e, quando aplicável, no caixa. A despesa foi conciliada sem novo débito.","Pago original confirmado en el libro y, cuando corresponde, en la caja. El gasto se concilió sin un nuevo débito.")
+                : tx("Esta despesa já estava paga no servidor. A lista foi atualizada sem novo débito.","Este gasto ya estaba pagado en el servidor. Se actualizó la lista sin un nuevo débito."));
           }
-          return avisarZen('warning','Pagamento exige conferência',
-            'Há um histórico anterior que não pôde ser conciliado com segurança. Nenhum novo pagamento foi registrado. Não repita antes de verificar.',
+          return avisarZen('warning',tx("Pagamento exige conferência","El pago requiere revisión"),
+            tx("Há um histórico anterior que não pôde ser conciliado com segurança. Nenhum novo pagamento foi registrado. Não repita antes de verificar.","Hay un historial anterior que no pudo conciliarse de forma segura. No se registró ningún pago nuevo. No repita el pago antes de verificar."),
             [`Referência: DESPESA-${despesaParaPagar?.id||'?'}`,`Motivo: ${resultado.reason||'inconclusivo'}`]);
         }catch(erroConciliacao){
-          return avisarZen('warning','Conciliação indisponível',
-            'O lançamento anterior não pôde ser verificado no servidor. Não repita o pagamento.',
-            [erroConciliacao?.message||'Sem confirmação']);
+          return avisarZen('warning',tx("Conciliação indisponível","Conciliación no disponible"),
+            tx("O lançamento anterior não pôde ser verificado no servidor. Não repita o pagamento.","No se pudo verificar el movimiento anterior en el servidor. No repita el pago."),
+            [erroConciliacao?.message||tx("Sem confirmação","Sin confirmación")]);
         }
       }
-      return setModalZen({ variante:'danger', titulo:tx('Pagamento sem confirmação','Pago sin confirmar','Payment unconfirmed'), mensagem:tx('Não foi possível confirmar o pagamento. Ele pode existir no servidor. Consulte o histórico antes de repetir.','No se pudo confirmar el pago. Revise el historial antes de repetir.','Payment was not confirmed. Check the server history before retrying.'), detalhes:[err?.message || 'Falha de persistência'], apenasConfirmar:true });
+      return setModalZen({ variante:'danger', titulo:tx('Pagamento sem confirmação','Pago sin confirmar','Payment unconfirmed'), mensagem:tx('Não foi possível confirmar o pagamento. Ele pode existir no servidor. Consulte o histórico antes de repetir.','No se pudo confirmar el pago. Revise el historial antes de repetir.','Payment was not confirmed. Check the server history before retrying.'), detalhes:[err?.message || tx("Falha de persistência","Error de persistencia")], apenasConfirmar:true });
     }
 
     setModalPagamentoAberto(false);
@@ -239,17 +239,17 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
   const excluirDespesa = async (id) => {
     if(exclusaoPendenteRef.current) return;
     const alvo=(despesas||[]).find(d=>String(d.id)===String(id));
-    if(!alvo || alvo.excluida) return avisarZen('warning','Despesa indisponível','O registro foi alterado. Atualize a listagem antes de continuar.');
+    if(!alvo || alvo.excluida) return avisarZen('warning',tx("Despesa indisponível","Gasto no disponible"),tx("O registro foi alterado. Atualize a listagem antes de continuar.","Se modificó el registro. Actualice la lista antes de continuar."));
     // Compras de estoque são obrigações associadas a estoque e nota fiscal.
     // Excluir isoladamente causaria divergência no contas a pagar e no CMV.
     if(alvo.compraId||alvo.naturezaContabil==='estoque_ativo'||String(alvo.descricao||'').startsWith('Compra de Estoque - ')) {
-      return avisarZen('warning','Despesa vinculada a compra','Corrija ou cancele a compra no fluxo original, com estorno e auditoria. A exclusão isolada foi bloqueada.');
+      return avisarZen('warning',tx("Despesa vinculada a compra","Gasto vinculado a una compra"),tx("Corrija ou cancele a compra no fluxo original, com estorno e auditoria. A exclusão isolada foi bloqueada.","Corrija o cancele la compra en el flujo original, con reversión y auditoría. Se bloqueó la eliminación aislada."));
     }
     const paga=alvo.status==='paga'||Boolean(alvo.dataPagamento);
     setOpcaoExclusaoFinanceira('ajustar');
     const escolha=await confirmarZen({
       titulo:tx('Remover despesa','Quitar gasto de la lista','Remove expense'),
-      mensagem:`${tx('Remover da lista','Quitar de la lista','Remove from list')} “${alvo.descricao||'este registro'}”? ${paga?'Este lançamento possui pagamento. Escolha se deseja manter seu efeito no resultado financeiro ou fazer um estorno contábil. O caixa físico não será alterado.':'Esta despesa não foi paga; ela ainda não afeta o resultado financeiro.'}`,
+      mensagem:`${tx('Remover da lista','Quitar de la lista','Remove from list')} “${alvo.descricao||tx("este registro","este registro")}”? ${paga?tx("Este lançamento possui pagamento. Escolha se deseja manter seu efeito no resultado financeiro ou fazer um estorno contábil. O caixa físico não será alterado.","Este movimiento tiene un pago. Elija si desea mantener su efecto en el resultado financiero o realizar una reversión contable. No se modificará la caja física."):tx("Esta despesa não foi paga; ela ainda não afeta o resultado financeiro.","Este gasto no fue pagado; aún no afecta al resultado financiero.")}`,
       confirmarTexto:tx('Confirmar remoção','Confirmar eliminación','Confirm removal'),
       variante:'warning',tipo:paga?'exclusao_financeira':null
     });
@@ -285,12 +285,12 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
       });
       if(!resultado?.cloudOk)throw resultado?.error||new Error('A nuvem não confirmou a operação.');
       setDespesas(resultado.values?.despesas||despesasPropostas);
-      avisarZen('success','Despesa removida',ajustarResultado
-        ? 'Ajuste do resultado financeiro confirmado. O pagamento original permaneceu no histórico e o caixa físico não foi alterado.'
-        : paga?'Despesa removida da lista. O resultado financeiro e o histórico de pagamento foram preservados.'
-          :'Despesa não paga removida da lista. O registro original foi preservado para auditoria.');
+      avisarZen('success',tx("Despesa removida","Gasto eliminado"),ajustarResultado
+        ? tx("Ajuste do resultado financeiro confirmado. O pagamento original permaneceu no histórico e o caixa físico não foi alterado.","Ajuste del resultado financiero confirmado. El pago original permaneció en el historial y no se modificó la caja física.")
+        : paga?tx("Despesa removida da lista. O resultado financeiro e o histórico de pagamento foram preservados.","Gasto eliminado de la lista. Se conservaron el resultado financiero y el historial de pago.")
+          :tx("Despesa não paga removida da lista. O registro original foi preservado para auditoria.","Gasto no pagado eliminado de la lista. Se conservó el registro original para auditoría."));
     }catch(erro){
-      avisarZen('danger','Remoção sem confirmação','A operação pode ter sido concluída no servidor. Verifique a listagem antes de repetir.',[erro?.message||'Falha de persistência']);
+      avisarZen('danger',tx("Remoção sem confirmação","Eliminación sin confirmación"),tx("A operação pode ter sido concluída no servidor. Verifique a listagem antes de repetir.","La operación puede haberse completado en el servidor. Revise la lista antes de repetirla."),[erro?.message||tx("Falha de persistência","Error de persistencia")]);
     }finally{
       exclusaoPendenteRef.current=false;
       setExclusaoPendenteId(null);
@@ -305,10 +305,10 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
       <ZenModal aberto={!!modalZen} variante={modalZen?.variante} titulo={modalZen?.titulo} mensagem={modalZen?.mensagem} detalhes={modalZen?.detalhes} confirmarTexto={modalZen?.confirmarTexto || "OK"} cancelarTexto={modalZen?.cancelarTexto || tx('Cancelar','Cancelar','Cancel')} apenasConfirmar={!!modalZen?.apenasConfirmar} onConfirmar={()=>{const r=modalZen?.resolver;const escolha=modalZen?.tipo==='exclusao_financeira'?opcaoExclusaoFinanceira:true;setModalZen(null);if(r)r(escolha);}} onCancelar={()=>{const r=modalZen?.resolver;setModalZen(null);if(r)r(false);}}>
         {modalZen?.tipo==='exclusao_financeira' && <fieldset style={{display:'flex',flexDirection:'column',gap:12,border:'1px solid #334155',borderRadius:12,padding:14,marginTop:16}}>
-          <legend style={{fontSize:12,fontWeight:800}}>Efeito no Painel Financeiro</legend>
-          <label style={{display:'flex',gap:10,alignItems:'start',fontSize:13}}><input type="radio" name="zenos-opcao-exclusao" checked={opcaoExclusaoFinanceira==='manter'} onChange={()=>setOpcaoExclusaoFinanceira('manter')}/>Remover da lista e manter o valor no resultado financeiro</label>
-          <label style={{display:'flex',gap:10,alignItems:'start',fontSize:13}}><input type="radio" name="zenos-opcao-exclusao" checked={opcaoExclusaoFinanceira==='ajustar'} onChange={()=>setOpcaoExclusaoFinanceira('ajustar')}/>Remover da lista e estornar o valor no resultado financeiro</label>
-          <small style={{color:'#fbbf24'}}>Ajuste contábil apenas. Não devolve dinheiro ao caixa nem exclui o histórico do pagamento.</small>
+          <legend style={{fontSize:12,fontWeight:800}}>{tx("Efeito no Painel Financeiro","Efecto en el panel financiero")}</legend>
+          <label style={{display:'flex',gap:10,alignItems:'start',fontSize:13}}><input type="radio" name="zenos-opcao-exclusao" checked={opcaoExclusaoFinanceira==='manter'} onChange={()=>setOpcaoExclusaoFinanceira('manter')}/>{tx("Remover da lista e manter o valor no resultado financeiro","Eliminar de la lista y mantener el importe en el resultado financiero")}</label>
+          <label style={{display:'flex',gap:10,alignItems:'start',fontSize:13}}><input type="radio" name="zenos-opcao-exclusao" checked={opcaoExclusaoFinanceira==='ajustar'} onChange={()=>setOpcaoExclusaoFinanceira('ajustar')}/>{tx("Remover da lista e estornar o valor no resultado financeiro","Eliminar de la lista y revertir el importe en el resultado financiero")}</label>
+          <small style={{color:'#fbbf24'}}>{tx("Ajuste contábil apenas. Não devolve dinheiro ao caixa nem exclui o histórico do pagamento.","Solo ajuste contable. No devuelve dinero a la caja ni elimina el historial del pago.")}</small>
         </fieldset>}
       </ZenModal>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -317,7 +317,7 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
           <span style={{ fontSize: '13px', color: '#64748b' }}>{tx('Gestão de custos fixos, variáveis e fornecedores.','Gestión de costos fijos, variables y proveedores.','Manage fixed, variable and supplier costs.')}</span>
         </div>
         <button onClick={abrirNovaDespesa} style={{ background: 'linear-gradient(135deg, #e11d48, #be123c)', border: 'none', color: '#ffffff', padding: '12px 24px', borderRadius: '12px', fontSize: '13px', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 15px rgba(225, 29, 72, 0.3)' }}>
-          + Lançar Nova Despesa
+          {tx("+ Lançar Nova Despesa","+ Registrar nuevo gasto")}
         </button>
       </div>
 
@@ -350,7 +350,7 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
                   </td>
                   <td style={{ padding: '16px 12px', color: '#f8fafc', fontWeight: 700 }}>
                     {d.descricao}
-                    {d.status === 'paga' && <div style={{ fontSize: '10px', color: '#10b981', marginTop: '4px' }}>Pago em: {d.dataPagamento ? d.dataPagamento.split('T')[0].split('-').reverse().join('/') : '-'} via {d.formaPagamento || '-'}</div>}
+                    {d.status === 'paga' && <div style={{ fontSize: '10px', color: '#10b981', marginTop: '4px' }}>{tx("Pago em:","Pagado el:")} {d.dataPagamento ? d.dataPagamento.split('T')[0].split('-').reverse().join('/') : '-'} via {d.formaPagamento || '-'}</div>}
                     {d.afetaResultado === false && <div style={{ fontSize: '10px', color: '#38bdf8', marginTop: '4px', fontWeight: 800 }}>{tx('Estoque / ativo — não reduz o lucro novamente','Stock / activo — no reduce la ganancia nuevamente','Stock / asset — does not reduce profit again')}</div>}
                   </td>
                   <td style={{ padding: '16px 12px' }}>
@@ -402,7 +402,7 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Valor ({moeda})</label>
+                  <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx("Valor (","Importe (")}{moeda})</label>
                   <input type="text" value={valorInput} onChange={e => setValorInput(e.target.value)} placeholder="0.00" style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #f43f5e', borderRadius: '8px', color: '#fb7185', fontWeight: 900, fontSize: '16px', padding: '12px', outline: 'none', marginTop: '4px', boxSizing: 'border-box' }} />
                 </div>
                 <div>
@@ -424,7 +424,7 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
             </div>
 
             <button onClick={salvarDespesa} disabled={salvandoDespesa} style={{ width: '100%', background: 'linear-gradient(135deg, #e11d48, #be123c)', border: 'none', color: '#fff', padding: '16px', borderRadius: '12px', fontSize: '14px', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 15px rgba(225, 29, 72, 0.3)' }}>
-              {salvandoDespesa?'Salvando...':despesaEmEdicao?'Salvar alterações':'Registrar Despesa no Sistema'}
+              {salvandoDespesa?tx("Salvando...","Guardando..."):despesaEmEdicao?tx("Salvar alterações","Guardar cambios"):tx("Registrar Despesa no Sistema","Registrar gasto en el sistema")}
             </button>
           </div>
         </div>

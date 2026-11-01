@@ -220,7 +220,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       mostrarZen('info', tx('Pedido Online Carregado!','¡Pedido Online Cargado!','Online Order Loaded!'), tx(`Pedido de ${pedido.clienteNome || 'Cliente'} carregado no caixa. Confira e finalize a venda.`,'Pedido cargado en caja. Verifique y finalice.','Order loaded into register. Verify and complete sale.'));
       return true;
     } catch (err) {
-      mostrarZen('danger', 'Erro ao carregar pedido online', 'Não foi possível carregar o pedido.', [err?.message]);
+      mostrarZen('danger', tx("Erro ao carregar pedido online","Error al cargar pedido en línea"), tx("Não foi possível carregar o pedido.","No se pudo cargar el pedido."), [err?.message]);
       return false;
     }
   };
@@ -293,7 +293,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       });
       mostrarZen('info', tx('Pedido cancelado','Pedido cancelado','Order cancelled'), tx('O pedido online foi removido da fila.','El pedido fue removido de la fila.','The online order was removed from queue.'));
     } catch (err) {
-      mostrarZen('danger', 'Erro ao cancelar', 'Não foi possível atualizar o pedido.', [err?.message]);
+      mostrarZen('danger', tx("Erro ao cancelar","Error al cancelar"), tx("Não foi possível atualizar o pedido.","No se pudo actualizar el pedido."), [err?.message]);
     }
   };
 
@@ -444,7 +444,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   };
 
   const salvarClientePDV = async () => {
-    if (!formClientePDV.nome.trim()) return mostrarZen('warning', 'Nome obrigatório', tx('Informe o nome do cliente.', 'Informe el nombre del cliente.', 'Enter customer name.'));
+    if (!formClientePDV.nome.trim()) return mostrarZen('warning', tx("Nome obrigatório","Nombre obligatorio"), tx('Informe o nome do cliente.', 'Informe el nombre del cliente.', 'Enter customer name.'));
     const limiteNum = parseFloat(String(formClientePDV.limiteCreditoBRL).replace(',', '.')) || 0;
     const novoCli = normalizarCliente({ ...formClientePDV, limiteCreditoBRL: limiteNum });
     const listaProposta = [novoCli, ...(clientes || [])];
@@ -481,7 +481,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   };
 
   const salvarProdutoPDV = async () => {
-    if (!formProdutoPDV.nome.trim()) return mostrarZen('warning', 'Nome obrigatório', tx('Informe o nome do produto.', 'Informe el nombre del producto.', 'Enter product name.'));
+    if (!formProdutoPDV.nome.trim()) return mostrarZen('warning', tx("Nome obrigatório","Nombre obligatorio"), tx('Informe o nome do produto.', 'Informe el nombre del producto.', 'Enter product name.'));
     const custo = parseFloat(String(formProdutoPDV.custoBRL).replace(',', '.')) || 0;
     const preco = parseFloat(String(formProdutoPDV.precoBRL).replace(',', '.')) || 0;
     const preco2 = formProdutoPDV.habilitarPreco2 ? (parseFloat(String(formProdutoPDV.preco2BRL).replace(',', '.')) || 0) : 0;
@@ -632,8 +632,8 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       const documento=fila.find(v=>String(v?.id)===String(pedido.id));
       setHistoricoVendas(fila);
       if(!documento || !['pendente','orcamento'].includes(documento.estado)){
-        return mostrarZen('warning','Documento indisponível',
-          'Este documento não está mais pendente nem disponível como orçamento. A fila foi atualizada. Verifique o histórico antes de fazer nova cobrança.');
+        return mostrarZen('warning',tx("Documento indisponível","Documento no disponible"),
+          tx("Este documento não está mais pendente nem disponível como orçamento. A fila foi atualizada. Verifique o histórico antes de fazer nova cobrança.","Este documento ya no está pendiente ni disponible como presupuesto. Se actualizó la cola. Revise el historial antes de realizar otro cobro."));
       }
       // Usar exclusivamente o documento confirmado pelo servidor daqui em diante.
       pedido=documento;
@@ -642,7 +642,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       // de um orçamento ao guard de "pendente" do pagamento.
       const itensRecuperados=itensVendaComCustoAtual(documento.itens||[]);
       if(!itensRecuperados.length)
-        return mostrarZen('warning','Documento sem itens','O servidor não devolveu itens para este documento. Nada foi alterado no carrinho.');
+        return mostrarZen('warning',tx("Documento sem itens","Documento sin artículos"),tx("O servidor não devolveu itens para este documento. Nada foi alterado no carrinho.","El servidor no devolvió los artículos de este documento. No se modificó el carrito."));
       setItensVenda(itensRecuperados);
       setPagamentosLancados([]); // Não transportar valores de outro atendimento
       // Conservar o valor total cotado: desconto pode estar incluído no total
@@ -663,10 +663,10 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       operacaoDocumentoRef.current={assinatura:null,id:null,instante:null};
       setModalResgateAberto(false);
       if(documento.estado==='orcamento')
-        mostrarZen('info','Orçamento recuperado',
-          'Itens recuperados do servidor. Este é um novo atendimento: confirme estoque, preços, descontos e pagamentos antes de finalizar. O orçamento original permanece no histórico.');
+        mostrarZen('info',tx("Orçamento recuperado","Presupuesto recuperado"),
+          tx("Itens recuperados do servidor. Este é um novo atendimento: confirme estoque, preços, descontos e pagamentos antes de finalizar. O orçamento original permanece no histórico.","Artículos recuperados del servidor. Esta es una nueva operación: confirme existencias, precios, descuentos y pagos antes de finalizar. El presupuesto original permanece en el historial."));
     }catch(error){
-      mostrarZen('danger','Resgate não confirmado','O servidor não confirmou o documento. O carrinho foi preservado; tente novamente após reconectar.',[error?.message||'Falha de consulta']);
+      mostrarZen('danger',tx("Resgate não confirmado","Recuperación no confirmada"),tx("O servidor não confirmou o documento. O carrinho foi preservado; tente novamente após reconectar.","El servidor no confirmó el documento. Se conservó el carrito; reintente después de reconectarse."),[error?.message||tx("Falha de consulta","Error de consulta")]);
     }finally{resgateEmAndamentoRef.current=false;setConsultandoResgate(false);}
   };
 
@@ -733,7 +733,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   const trocoTotalBRL = trocoCalculadoBRL || 0;
 
   const abrirCheckoutAposValidacoes = () => {
-    if (itensVenda.length === 0 || totalFinalBRL <= 0) return mostrarZen('warning', 'Venda vazia', tx('Adicione produtos à venda.', 'Añada productos.', 'Add products.'));
+    if (itensVenda.length === 0 || totalFinalBRL <= 0) return mostrarZen('warning', tx("Venda vazia","Venta vacía"), tx('Adicione produtos à venda.', 'Añada productos.', 'Add products.'));
     setPagamentosLancados([]);
     setFormaSelecionada('dinheiro_brl');
     setMoedaTrocoEscolhida(moeda);
@@ -746,7 +746,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     const autorizador = await validarCredencialGerencial({ vendedores, senha: senhaMargemInput, senhaLegada: regras?.senhaGerente });
     if (!autorizador) {
       setSenhaMargemInput('');
-      return mostrarZen('danger', 'Senha incorreta', tx('Venda bloqueada. Informe o PIN de um Administrador/Gerência cadastrado.', 'Venta bloqueada. Ingrese el PIN de un Administrador/Gerencia.', 'Sale blocked. Enter a registered manager/admin PIN.'));
+      return mostrarZen('danger', tx("Senha incorreta","Contraseña incorrecta"), tx('Venda bloqueada. Informe o PIN de um Administrador/Gerência cadastrado.', 'Venta bloqueada. Ingrese el PIN de un Administrador/Gerencia.', 'Sale blocked. Enter a registered manager/admin PIN.'));
     }
     setModalSenhaMargem(false);
     setSenhaMargemInput('');
@@ -755,7 +755,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
 
   const abrirFechamento = () => {
     if (!sessaoAtiva) {
-      return mostrarZen('warning', 'Caixa fechado', tx('Abra primeiro o turno de caixa na Home para liquidar vendas. Pré-pedidos e orçamentos continuam disponíveis.', 'Abra primero el turno de caja.', 'Open the cash shift first.'));
+      return mostrarZen('warning', tx("Caixa fechado","Caja cerrada"), tx('Abra primeiro o turno de caixa na Home para liquidar vendas. Pré-pedidos e orçamentos continuam disponíveis.', 'Abra primero el turno de caja.', 'Open the cash shift first.'));
     }
     if (vendaBloqueadaPorMargem) {
       if (regras?.exigirSenhaVermelho ?? true) {
@@ -763,7 +763,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
         setModalSenhaMargem(true);
         return;
       }
-      return mostrarZen('danger', 'Venda bloqueada pela margem', tx(`A margem de lucro (${margemLucroReal.toFixed(1)}%) está abaixo do mínimo exigido de ${margemMinima}%.`, 'Margen por debajo del mínimo.', 'Margin below minimum.'));
+      return mostrarZen('danger', tx("Venda bloqueada pela margem","Venta bloqueada por el margen"), tx(`A margem de lucro (${margemLucroReal.toFixed(1)}%) está abaixo do mínimo exigido de ${margemMinima}%.`, 'Margen por debajo del mínimo.', 'Margin below minimum.'));
     }
     abrirCheckoutAposValidacoes();
   };
@@ -786,7 +786,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     const configForma = catalogoFormas.find(f => f.id === formaSelecionada) || catalogoFormas[0];
     const leituraValor = interpretarValorMonetario(valorLancamentoInput, configForma.moedaOrigem);
     if (!leituraValor.ok || leituraValor.valor <= 0) {
-      return mostrarZen('warning', 'Valor monetário inválido', leituraValor.erro || 'Digite um valor maior que zero.');
+      return mostrarZen('warning', tx("Valor monetário inválido","Importe monetario inválido"), leituraValor.erro || tx("Digite um valor maior que zero.","Ingrese un importe mayor que cero."));
     }
     const valorNum = leituraValor.valor;
     let voucherSelecionado = null;
@@ -797,12 +797,12 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       if (valorNum > Number(voucherSelecionado.saldoBRL || 0) + 0.001) return setModalZen({variante:'warning',titulo:tx('Saldo insuficiente no voucher','Saldo insuficiente en el voucher','Insufficient voucher balance'),mensagem:`${tx('Saldo disponível:','Saldo disponible:','Available balance:')} ${fmt(voucherSelecionado.saldoBRL, 'BRL')}`,apenasConfirmar:true});
     }
     const valorBRL = converterParaBRL(valorNum, configForma.moedaOrigem);
-    if (!Number.isFinite(valorBRL) || valorBRL <= 0) return mostrarZen('danger', 'Valor inválido', 'Verifique a moeda e a cotação.');
+    if (!Number.isFinite(valorBRL) || valorBRL <= 0) return mostrarZen('danger', tx("Valor inválido","Importe inválido"), tx("Verifique a moeda e a cotação.","Revise la moneda y la cotización."));
     const recebidoProposto = totalPagoConvertidoBRL + valorBRL;
     const dinheiroProposto = totalDinheiroBRL + (configForma.id.startsWith('dinheiro') ? valorBRL : 0);
     if (validarComposicaoPagamento({ totalBRL: totalFinalBRL, recebidoBRL: recebidoProposto, recebidoDinheiroBRL: dinheiroProposto }).excessoEletronico) {
-      return mostrarZen('warning', 'Pagamento eletrônico excedente',
-        'O valor excede o total da venda e não pode gerar troco em dinheiro. Corrija o valor ou registre o estorno separadamente.');
+      return mostrarZen('warning', tx("Pagamento eletrônico excedente","Pago electrónico excedente"),
+        tx("O valor excede o total da venda e não pode gerar troco em dinheiro. Corrija o valor ou registre o estorno separadamente.","El importe supera el total de la venta y no puede generar vuelto en efectivo. Corrija el importe o registre la reversión por separado."));
     }
 
   if (configForma.id === 'crediario') {
@@ -861,15 +861,15 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
           const originais=remoto.historicoVendas.filter(v=>String(v?.id)===String(prePedidoEmAbertoId));
           setHistoricoVendas(remoto.historicoVendas);
           if(originais.length!==1 || originais[0].estado!=='pendente'){
-            mostrarZen('warning','Pré-pedido não disponível para liquidar',
-              'O servidor não confirmou que este pré-pedido continua pendente. O carrinho foi preservado e nenhum pagamento foi enviado. Confira o histórico ou resgate novamente.');
+            mostrarZen('warning',tx("Pré-pedido não disponível para liquidar","Prepedido no disponible para liquidar"),
+              tx("O servidor não confirmou que este pré-pedido continua pendente. O carrinho foi preservado e nenhum pagamento foi enviado. Confira o histórico ou resgate novamente.","El servidor no confirmó que este prepedido siga pendiente. Se conservó el carrito y no se envió ningún pago. Revise el historial o recupérelo nuevamente."));
             return;
           }
           documentoOrigemConfirmado = originais[0];
         }catch(error){
-          mostrarZen('danger','Pré-pedido sem confirmação',
-            'Não foi possível consultar o estado atual do pré-pedido. O carrinho foi preservado; nenhuma cobrança foi enviada.',
-            [error?.message||'Consulta indisponível']);
+          mostrarZen('danger',tx("Pré-pedido sem confirmação","Prepedido sin confirmación"),
+            tx("Não foi possível consultar o estado atual do pré-pedido. O carrinho foi preservado; nenhuma cobrança foi enviada.","No se pudo consultar el estado actual del prepedido. Se conservó el carrito; no se envió ningún cobro."),
+            [error?.message||tx("Consulta indisponível","Consulta no disponible")]);
           return;
         }
       }
@@ -880,8 +880,8 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
           clienteSelecionadoPDV?.id != null && String(c?.id) === String(clienteSelecionadoPDV.id));
         if (vinculados.length !== 1
           || String(vinculados[0]?.nome || '').trim() !== String(clienteSelecionadoPDV?.nome || '').trim()) {
-          mostrarZen('danger', 'Cliente do fiado não confirmado',
-            'O cadastro vinculado não corresponde ao cliente atual. A venda não foi gravada. Selecione novamente o cliente e tente concluir.');
+          mostrarZen('danger', tx("Cliente do fiado não confirmado","Cliente a crédito no confirmado"),
+            tx("O cadastro vinculado não corresponde ao cliente atual. A venda não foi gravada. Selecione novamente o cliente e tente concluir.","El registro vinculado no corresponde al cliente actual. La venta no se guardó. Seleccione nuevamente el cliente e intente finalizar."));
           return;
         }
       }
@@ -1121,9 +1121,9 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
           console.error('Falha ao registrar a venda no Livro Financeiro:', erroFinanceiro);
           setModalZen({
             variante: 'danger',
-            titulo: 'Venda não concluída',
-            mensagem: 'Não foi possível registrar o financeiro desta venda com segurança.',
-            detalhes: 'Nenhum estoque, cliente ou histórico de venda foi alterado. Tente novamente antes de prosseguir.',
+            titulo: tx("Venda não concluída","Venta no concluida"),
+            mensagem: tx("Não foi possível registrar o financeiro desta venda com segurança.","No se pudo registrar de forma segura el movimiento financiero de esta venta."),
+            detalhes: tx("Nenhum estoque, cliente ou histórico de venda foi alterado. Tente novamente antes de prosseguir.","No se modificaron existencias, clientes ni el historial de ventas. Reintente antes de continuar."),
             apenasConfirmar: true,
           });
           return;
@@ -1400,12 +1400,12 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
 
                                 {statusAviso === 'separando' && (
                                   <span style={{ background: '#d97706', color: '#fff', fontSize: '10px', fontWeight: 800, padding: '2px 6px', borderRadius: '4px' }}>
-                                    👨‍🍳 Em Separação
+                                    {tx("👨‍🍳 Em Separação","👨‍🍳 En preparación")}
                                   </span>
                                 )}
                                 {statusAviso === 'pronto_saiu' && (
                                   <span style={{ background: '#059669', color: '#fff', fontSize: '10px', fontWeight: 800, padding: '2px 6px', borderRadius: '4px' }}>
-                                    {isEntrega ? '🛵 A Caminho' : '🛍️ Pronto p/ Retirada'}
+                                    {isEntrega ? tx("🛵 A Caminho","🛵 En camino") : tx("🛍️ Pronto p/ Retirada","🛍️ Listo para retirar")}
                                   </span>
                                 )}
                               </div>
@@ -1431,7 +1431,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
 
                                 {ped.observacao && (
                                   <span style={{ color: '#f59e0b', fontStyle: 'italic', marginTop: '4px', background: 'rgba(245, 158, 11, 0.1)', padding: '4px 8px', borderRadius: '6px', border: '1px dashed rgba(245, 158, 11, 0.3)' }}>
-                                    Obs: "{ped.observacao}"
+                                    {tx("Obs: \"","Obs.: \"")}{ped.observacao}"
                                   </span>
                                 )}
                               </div>
@@ -1448,7 +1448,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                               <button
                                 type="button"
                                 onClick={(e) => enviarAvisoWhatsApp(e, ped, 'separando')}
-                                title="Avisar cliente no WhatsApp que o pedido começou a ser preparado"
+                                title={tx("Avisar cliente no WhatsApp que o pedido começou a ser preparado","Avisar al cliente por WhatsApp que comenzó la preparación del pedido")}
                                 style={{
                                   background: statusAviso === 'separando' ? '#d97706' : '#1e293b',
                                   border: '1px solid #d97706',
@@ -1469,7 +1469,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                               <button
                                 type="button"
                                 onClick={(e) => enviarAvisoWhatsApp(e, ped, 'pronto_saiu')}
-                                title={isEntrega ? 'Avisar cliente que o pedido saiu para entrega' : 'Avisar cliente que o pedido está pronto para retirada'}
+                                title={isEntrega ? tx("Avisar cliente que o pedido saiu para entrega","Avisar al cliente que el pedido salió para entrega") : tx("Avisar cliente que o pedido está pronto para retirada","Avisar al cliente que el pedido está listo para retirar")}
                                 style={{
                                   background: statusAviso === 'pronto_saiu' ? '#059669' : '#1e293b',
                                   border: '1px solid #059669',
@@ -1537,7 +1537,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                 {historicoVendas.filter(v => v.estado === 'pendente').map(v => (
                   <div key={v.id} onClick={() => {if(!consultandoResgate)carregarPrePedido(v);}} role="button" tabIndex={0} onKeyDown={e=>{if((e.key==='Enter'||e.key===' ')&&!consultandoResgate){e.preventDefault();carregarPrePedido(v);}}} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', backgroundColor: '#1e1b4b', border: '1px solid #4c1d95', borderRadius: '12px', cursor: 'pointer', transition: 'transform 0.2s', boxShadow: '0 4px 10px rgba(76,29,149,0.2)' }}>
                     <div>
-                      <strong style={{ display: 'block', color: '#e2e8f0', fontSize: '15px' }}>{v.clienteNome} {v.estado==='orcamento'?'· ORÇAMENTO':'· PRÉ-PEDIDO'}</strong>
+                      <strong style={{ display: 'block', color: '#e2e8f0', fontSize: '15px' }}>{v.clienteNome} {v.estado==='orcamento'?tx("· ORÇAMENTO","· PRESUPUESTO"):tx("· PRÉ-PEDIDO","· PEDIDO ANTICIPADO")}</strong>
                       <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', display: 'block' }}>{tx('Vendedor:','Vendedor:','Seller:')} <span style={{color: '#a78bfa', fontWeight: 800}}>{v.vendedorNome}</span> • {v.dataHora}</span>
                     </div>
                     <div style={{ fontWeight: 900, color: '#34d399', fontSize: '16px' }}>{fmt(v.totalBRL)}</div>
@@ -1546,7 +1546,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                 {historicoVendas.filter(v => v.estado === 'orcamento').map(v => (
                   <div key={v.id} onClick={() => {if(!consultandoResgate)carregarPrePedido(v);}} role="button" tabIndex={0} onKeyDown={e=>{if((e.key==='Enter'||e.key===' ')&&!consultandoResgate){e.preventDefault();carregarPrePedido(v);}}} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:16,backgroundColor:'#1e293b',border:'1px solid #60a5fa',borderRadius:12,cursor:'pointer'}}>
                     <div>
-                      <strong style={{display:'block',color:'#e2e8f0',fontSize:15}}>{v.clienteNome} · ORÇAMENTO</strong>
+                      <strong style={{display:'block',color:'#e2e8f0',fontSize:15}}>{v.clienteNome} {tx("· ORÇAMENTO","· PRESUPUESTO")}</strong>
                       <span style={{fontSize:11,color:'#94a3b8'}}>{tx('Vendedor:','Vendedor:','Seller:')} {v.vendedorNome} • {v.dataHora}</span>
                     </div>
                     <div style={{fontWeight:900,color:'#7dd3fc',fontSize:16}}>{fmt(v.totalBRL)}</div>
@@ -1564,7 +1564,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
            <div style={{ backgroundColor: '#ffffff', border: '1px solid #10b981', borderRadius: '16px', width: '100%', maxWidth: '380px', maxHeight: '95vh', overflowY: 'auto', padding: '0', color: '#000', boxShadow: '0 25px 50px rgba(0,0,0,0.5)' }}>
               <div id="area-cupom-pdv" style={{ padding: '20px', fontFamily: 'monospace', fontSize: '12px' }}>
                 <div style={{ textAlign: 'center', marginBottom: '10px' }}>
-                  {perfilRecibo.mostrarLogoRecibo !== false && perfilRecibo.logoLoja && <img src={perfilRecibo.logoLoja} alt="Logo" style={{maxWidth:'110px',maxHeight:'55px',objectFit:'contain',marginBottom:4}}/>}<h2 style={{ margin: '0 0 4px 0', fontSize: '16px' }}>{perfilRecibo.nomeFantasia || 'ZenOS - SISTEMA DE GESTÃO'}</h2>{perfilRecibo.cabecalhoRecibo && <div style={{fontSize:'10px'}}>{perfilRecibo.cabecalhoRecibo}</div>}
+                  {perfilRecibo.mostrarLogoRecibo !== false && perfilRecibo.logoLoja && <img src={perfilRecibo.logoLoja} alt="Logo" style={{maxWidth:'110px',maxHeight:'55px',objectFit:'contain',marginBottom:4}}/>}<h2 style={{ margin: '0 0 4px 0', fontSize: '16px' }}>{perfilRecibo.nomeFantasia || tx("ZenOS - SISTEMA DE GESTÃO","ZenOS - SISTEMA DE GESTIÓN")}</h2>{perfilRecibo.cabecalhoRecibo && <div style={{fontSize:'10px'}}>{perfilRecibo.cabecalhoRecibo}</div>}
                   <div style={{ fontSize: '10px' }}>{vendaConcluidaObj.tipoDocumento === 'pre_pedido' ? tx('TICKET DE PRÉ-PEDIDO (NÃO PAGO)','TICKET DE PRE-PEDIDO (NO PAGADO)','PRE-ORDER TICKET (UNPAID)') : tx('ORÇAMENTO SEM VALOR FISCAL','PRESUPUESTO SIN VALOR FISCAL','QUOTE WITH NO FISCAL VALUE')}<br/>{vendaConcluidaObj.dataHora}</div>
                 </div>
                 <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
@@ -1597,7 +1597,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                 </div>
 
                 <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
-                <div style={{ textAlign: 'center', fontSize: '10px' }}>{perfilRecibo.rodapeRecibo || 'Obrigado pela preferência! Volte sempre.'}</div>
+                <div style={{ textAlign: 'center', fontSize: '10px' }}>{perfilRecibo.rodapeRecibo || tx("Obrigado pela preferência! Volte sempre.","¡Gracias por su preferencia! Vuelva pronto.")}</div>
               </div>
               <div className="no-print" style={{ padding: '20px', backgroundColor: '#f1f5f9', display: 'flex', gap: '10px', borderTop: '1px dashed #ccc', borderBottomLeftRadius: '16px', borderBottomRightRadius: '16px', flexWrap: 'wrap' }}>
                 <div style={{flex:'1 1 110px',minWidth:110}}><ZenShareButton documento={vendaConcluidaObj} perfilLoja={perfilRecibo}/></div>
@@ -1633,7 +1633,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
               <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: '8px', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '14px', overflow: 'hidden', zIndex: 50, maxHeight: '200px', overflowY: 'auto', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
                 {clientesSugeridos.map((c, index) => (
   <div key={c.id || `cli-antigo-${index}`} onMouseDown={(e) => { e.preventDefault(); selecionarClienteNoPDV(c); }} style={{ padding: '12px 20px', borderBottom: '1px solid #1e293b', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div><strong style={{ color: '#f8fafc', fontSize: '14px' }}>{c.nome}</strong><br/><span style={{ color: '#64748b', fontSize: '11px' }}>Doc: {c.documento}</span></div><span style={{ color: '#38bdf8', fontSize: '11px', fontWeight: 800 }}>{tx('Vincular ➜','Vincular ➜','Link ➜')}</span>
+                    <div><strong style={{ color: '#f8fafc', fontSize: '14px' }}>{c.nome}</strong><br/><span style={{ color: '#64748b', fontSize: '11px' }}>{tx("Doc:","Doc.:")} {c.documento}</span></div><span style={{ color: '#38bdf8', fontSize: '11px', fontWeight: 800 }}>{tx('Vincular ➜','Vincular ➜','Link ➜')}</span>
                   </div>
                 ))}
               </div>
@@ -1655,7 +1655,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                   const estaFocado = index === indiceFocoBusca;
                   return (
                     <div key={prod.id} onClick={() => { setItemParaAdicionar(prod); setQtdDigitadaRapida('1'); }} onMouseEnter={() => setIndiceFocoBusca(index)} style={{ padding: '14px 20px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', backgroundColor: estaFocado ? '#1e1b4b' : 'transparent' }}>
-                      <div><div style={{ fontWeight: 700, color: '#f8fafc', fontSize: '15px' }}>{prod.nome} {ehEncomendaUsoUnico(prod) && <span style={{ color: '#fbbf24', fontSize: '11px' }}>({tx('Encomenda', 'Especial', 'Order')})</span>}</div><div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>SKU: {prod.sku} • Estoque: <strong style={{ color: '#38bdf8' }}>{prod.estoque} {prod.unidadeMedida}</strong></div></div>
+                      <div><div style={{ fontWeight: 700, color: '#f8fafc', fontSize: '15px' }}>{prod.nome} {ehEncomendaUsoUnico(prod) && <span style={{ color: '#fbbf24', fontSize: '11px' }}>({tx('Encomenda', 'Especial', 'Order')})</span>}</div><div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>SKU: {prod.sku} {tx("• Estoque:","• Existencias:")} <strong style={{ color: '#38bdf8' }}>{prod.estoque} {prod.unidadeMedida}</strong></div></div>
                       <div style={{ color: '#34d399', fontWeight: 900, fontSize: '16px' }}>{fmt(aplicarPrecoPorPerfilCliente(prod, clienteSelecionadoPDV))}</div>
                     </div>
                   );
@@ -1720,10 +1720,10 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <button disabled={processandoTransacao} onClick={() => { if(itensVenda.length===0) return; concluirTransacao('orcamento'); }} style={{ flex: 1, minWidth: '90px', padding: '12px', background: 'transparent', border: '1px solid #475569', color: '#94a3b8', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', fontSize: '12px' }}>
-              🖨️ Orçamento
+              {tx("🖨️ Orçamento","🖨️ Presupuesto")}
             </button>
             <button disabled={processandoTransacao} onClick={() => { if(itensVenda.length===0) return; concluirTransacao('pre_pedido'); }} style={{ flex: 1, minWidth: '90px', padding: '12px', background: '#021e15', border: '1px solid #10b981', color: '#34d399', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', fontSize: '12px' }}>
-              📝 Pré-Pedido
+              {tx("📝 Pré-Pedido","📝 Prepedido")}
             </button>
             <button
               onClick={() => setModalResgateAberto(true)}
@@ -1742,7 +1742,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                 boxShadow: pedidosOnline.length > 0 ? '0 0 16px rgba(56, 189, 248, 0.45)' : 'none'
               }}
             >
-              📥 Resgatar
+              {tx("📥 Resgatar","📥 Recuperar")}
               {pedidosOnline.length > 0 && (
                 <span
                   style={{
@@ -1770,7 +1770,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
           </div>
           
           <button onClick={abrirFechamento} style={{ background: vendaBloqueadaPorMargem ? '#334155' : 'linear-gradient(135deg, #4f46e5, #4338ca)', border: '1px solid #6366f1', color: '#fff', padding: '18px', borderRadius: '14px', fontSize: '15px', fontWeight: 900, cursor: vendaBloqueadaPorMargem ? 'not-allowed' : 'pointer', textAlign: 'center', boxShadow: '0 4px 15px rgba(79, 70, 229, 0.3)', width: '100%', boxSizing: 'border-box' }}>
-            [F10] Receber no Caixa {vendaBloqueadaPorMargem ? '🔒' : ''}
+            {tx("[F10] Receber no Caixa","[F10] Cobrar en caja")} {vendaBloqueadaPorMargem ? '🔒' : ''}
           </button>
         </div>
       </div>
@@ -1783,8 +1783,8 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
               if (itemParaAdicionar.tipoItem === 'servico' || ehEncomendaUsoUnico(itemParaAdicionar)) return null;
               const saldo = obterEstoqueProduto(itemParaAdicionar);
               const previsao = preverBaixaEstoqueProduto(itemParaAdicionar, Math.max(1, parseInt(qtdDigitadaRapida) || 1));
-              if (saldo.estoqueVitrine > 0) return <div style={{ marginBottom: '14px', padding: '10px 12px', backgroundColor: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.45)', borderRadius: '10px', color: '#fbbf24', fontSize: '12px', fontWeight: 800 }}>⚠️ {tx('Disponibilidade:','Disponibilidad:','Availability:')} {tx('Vitrine','Exhibición','Display')} {saldo.estoqueVitrine} • {tx('Depósito','Depósito','Warehouse')} {saldo.estoqueGalpao} • {tx('Total','Total','Total')} {saldo.estoque}. {tx('Para esta quantidade, a baixa prevista é','Para esta cantidad, la baja prevista es','For this quantity, the expected deduction is')} {tx('Vitrine','Exhibición','Display')} {previsao.movimento.vitrine} + {tx('Depósito','Depósito','Warehouse')} {previsao.movimento.galpao}. {saldo.estoqueGalpao > 0 ? 'Considere repor a vitrine após a venda.' : 'O produto está disponível somente na vitrine.'}</div>;
-              return <div style={{ marginBottom: '12px', color: '#64748b', fontSize: '11px' }}>Vitrine: {saldo.estoqueVitrine} • Depósito: {saldo.estoqueGalpao} • Total: {saldo.estoque}</div>;
+              if (saldo.estoqueVitrine > 0) return <div style={{ marginBottom: '14px', padding: '10px 12px', backgroundColor: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.45)', borderRadius: '10px', color: '#fbbf24', fontSize: '12px', fontWeight: 800 }}>⚠️ {tx('Disponibilidade:','Disponibilidad:','Availability:')} {tx('Vitrine','Exhibición','Display')} {saldo.estoqueVitrine} • {tx('Depósito','Depósito','Warehouse')} {saldo.estoqueGalpao} • {tx('Total','Total','Total')} {saldo.estoque}. {tx('Para esta quantidade, a baixa prevista é','Para esta cantidad, la baja prevista es','For this quantity, the expected deduction is')} {tx('Vitrine','Exhibición','Display')} {previsao.movimento.vitrine} + {tx('Depósito','Depósito','Warehouse')} {previsao.movimento.galpao}. {saldo.estoqueGalpao > 0 ? tx("Considere repor a vitrine após a venda.","Considere reponer la vitrina después de la venta.") : tx("O produto está disponível somente na vitrine.","El producto está disponible solo en la vitrina.")}</div>;
+              return <div style={{ marginBottom: '12px', color: '#64748b', fontSize: '11px' }}>{tx("Vitrine:","Exhibición:")} {saldo.estoqueVitrine} {tx("• Depósito:","• Depósito:")} {saldo.estoqueGalpao} • Total: {saldo.estoque}</div>;
             })()}
             <input ref={inputQtdRapidaRef} type="number" value={qtdDigitadaRapida} onChange={e => setQtdDigitadaRapida(e.target.value)} onFocus={e=>e.target.select()} onKeyDown={e=>{if(e.key==='Enter') confirmarAdicaoRapida(); if(e.key==='Escape') setItemParaAdicionar(null);}} style={{ width: '80px', padding: '10px', fontSize: '20px', textAlign: 'center', backgroundColor: '#020617', border: '1px solid #6366f1', color: '#fff', borderRadius: '8px', marginBottom: '20px', outline: 'none' }} />
             <div style={{ display: 'flex', gap: '10px' }}>
@@ -1877,8 +1877,8 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
               <div>
                 <div id="area-cupom-pdv" style={{ padding: '20px', fontFamily: 'monospace', fontSize: '12px' }}>
                   <div style={{ textAlign: 'center', marginBottom: '10px' }}>
-                    {perfilRecibo.mostrarLogoRecibo !== false && perfilRecibo.logoLoja && <img src={perfilRecibo.logoLoja} alt="Logo" style={{maxWidth:'110px',maxHeight:'55px',objectFit:'contain',marginBottom:4}}/>}<h2 style={{ margin: '0 0 4px 0', fontSize: '16px' }}>{perfilRecibo.nomeFantasia || 'ZenOS - SISTEMA DE GESTÃO'}</h2>{perfilRecibo.cabecalhoRecibo && <div style={{fontSize:'10px'}}>{perfilRecibo.cabecalhoRecibo}</div>}
-                    <div style={{ fontSize: '10px' }}>{vendaConcluidaObj?.tipoDocumento === 'venda' ? 'Cupom de Venda Não Fiscal' : vendaConcluidaObj?.tipoDocumento === 'pre_pedido' ? 'TICKET DE PRÉ-PEDIDO (NÃO PAGO)' : 'ORÇAMENTO SEM VALOR FISCAL'}<br/>{vendaConcluidaObj?.dataHora}</div>
+                    {perfilRecibo.mostrarLogoRecibo !== false && perfilRecibo.logoLoja && <img src={perfilRecibo.logoLoja} alt="Logo" style={{maxWidth:'110px',maxHeight:'55px',objectFit:'contain',marginBottom:4}}/>}<h2 style={{ margin: '0 0 4px 0', fontSize: '16px' }}>{perfilRecibo.nomeFantasia || tx("ZenOS - SISTEMA DE GESTÃO","ZenOS - SISTEMA DE GESTIÓN")}</h2>{perfilRecibo.cabecalhoRecibo && <div style={{fontSize:'10px'}}>{perfilRecibo.cabecalhoRecibo}</div>}
+                    <div style={{ fontSize: '10px' }}>{vendaConcluidaObj?.tipoDocumento === 'venda' ? tx("Cupom de Venda Não Fiscal","Comprobante de venta no fiscal") : vendaConcluidaObj?.tipoDocumento === 'pre_pedido' ? tx("TICKET DE PRÉ-PEDIDO (NÃO PAGO)","TICKET DE PEDIDO ANTICIPADO (NO PAGADO)") : tx("ORÇAMENTO SEM VALOR FISCAL","PRESUPUESTO SIN VALOR FISCAL")}<br/>{vendaConcluidaObj?.dataHora}</div>
                   </div>
                   <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
                   <div style={{ marginBottom: '8px', fontSize: '11px' }}>
@@ -1912,7 +1912,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                         <strong>{tx('Pagamentos (Liquidados):','Pagos (Liquidados):','Payments (Settled):')}</strong><br/>
                         {vendaConcluidaObj?.pagamentos.map((p, idx) => <div key={idx} style={{ display: 'flex', justifyContent: 'space-between' }}><span>{p.rotulo}</span><span>{p.valorOriginal.toFixed(2)}</span></div>)}
                       </div>
-                      {vendaConcluidaObj?.trocoBRL > 0.01 && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginTop: '4px', backgroundColor: '#e2e8f0', padding: '2px' }}><span>TROCO ({vendaConcluidaObj.moedaTrocoInfo})</span><span>{formatarEquivalenciaBRL(vendaConcluidaObj.trocoBRL, vendaConcluidaObj.moedaTrocoInfo || 'BRL', cotacoesRecibo)}</span></div>}
+                      {vendaConcluidaObj?.trocoBRL > 0.01 && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginTop: '4px', backgroundColor: '#e2e8f0', padding: '2px' }}><span>{tx("TROCO (","VUELTO (")}{vendaConcluidaObj.moedaTrocoInfo})</span><span>{formatarEquivalenciaBRL(vendaConcluidaObj.trocoBRL, vendaConcluidaObj.moedaTrocoInfo || 'BRL', cotacoesRecibo)}</span></div>}
                     </>
                   )}
                   {vendaConcluidaObj?.tipoDocumento === 'pre_pedido' && (
@@ -1920,7 +1920,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                   )}
 
                   <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
-                  <div style={{ textAlign: 'center', fontSize: '10px' }}>{perfilRecibo.rodapeRecibo || 'Obrigado pela preferência! Volte sempre.'}</div>
+                  <div style={{ textAlign: 'center', fontSize: '10px' }}>{perfilRecibo.rodapeRecibo || tx("Obrigado pela preferência! Volte sempre.","¡Gracias por su preferencia! Vuelva pronto.")}</div>
                 </div>
                 <div className="no-print" style={{ padding: '20px', backgroundColor: '#f1f5f9', display:'grid', gridTemplateColumns:'repeat(3, minmax(0, 1fr))', alignItems:'stretch', gap: '10px', borderTop: '1px dashed #ccc', borderBottomLeftRadius: '16px', borderBottomRightRadius: '16px', minWidth:0 }}>
                   <div style={{minWidth:0,height:62}}><ZenShareButton documento={vendaConcluidaObj} perfilLoja={perfilRecibo}/></div>
@@ -1953,7 +1953,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                       <div style={{ fontSize: '18px', fontWeight: 900, color: '#fb7185' }}>{fmt(saldoRestanteBRL, 'BRL')}</div>
                     ) : (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <div style={{ fontSize: '18px', fontWeight: 900, color: trocoTotalBRL > 0 ? '#fbbf24' : '#38bdf8' }}>{trocoTotalBRL > 0 ? `${converterDeBRL(trocoTotalBRL, moedaTrocoEscolhida).toFixed(2)}` : 'QUITADO ✓'}</div>
+                        <div style={{ fontSize: '18px', fontWeight: 900, color: trocoTotalBRL > 0 ? '#fbbf24' : '#38bdf8' }}>{trocoTotalBRL > 0 ? `${converterDeBRL(trocoTotalBRL, moedaTrocoEscolhida).toFixed(2)}` : tx("QUITADO ✓","PAGADO ✓")}</div>
                         {trocoTotalBRL > 0 && (
                           <select value={moedaTrocoEscolhida} onChange={(e) => setMoedaTrocoEscolhida(e.target.value)} style={{ backgroundColor: '#0f172a', color: '#fbbf24', border: '1px solid #334155', borderRadius: '4px', fontSize: '11px', outline: 'none', cursor: 'pointer', padding: '2px' }}>
                             <option value="BRL">BRL</option><option value="USD">USD</option><option value="EUR">EUR</option><option value="PYG">PYG</option>
@@ -2004,7 +2004,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                   onClick={adicionarPagamento} 
                   style={{ width: '100%', padding: '14px', background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '15px', marginBottom: '20px', boxShadow: '0 4px 15px rgba(16, 185, 129, 0.3)', boxSizing: 'border-box' }}
                 >
-                  + Lançar Pagamento
+                  {tx("+ Lançar Pagamento","+ Registrar pago")}
                 </button>
                 
                 <div style={{ maxHeight: '120px', overflowY: 'auto', marginBottom: '20px', background: '#020617', padding: '10px', borderRadius: '12px', border: '1px solid #1e293b' }}>
