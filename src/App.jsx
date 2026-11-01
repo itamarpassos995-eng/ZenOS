@@ -1134,6 +1134,32 @@ export default function App() {
     if (!movimentoValidado) return;
     const valBRL = movimentoValidado.totalBRL;
     if (valBRL <= 0) return avisarAppZen({ variante:'warning', titulo:tx("Valor inválido","Importe inválido"), mensagem:tx('Insira um valor válido.', 'Ingrese un valor válido.', 'Enter a valid amount.') });
+    if (tipoMovCaixa === 'sangria') {
+      // A comparação em BRL continua como guarda legada, mas NÃO pode
+      // autorizar sacar PYG/USD/EUR sem a quantia física dessa moeda.
+      const fisicoAntesDaSangria = calcularConciliacaoFisicaMultimoeda({
+        sessao: sessaoAtiva, historicoVendas, caixaMovimentos,
+        contagem: {}, taxas: taxasCambio,
+      });
+      if (!fisicoAntesDaSangria.confiavel) {
+        return avisarAppZen({
+          variante:'warning',
+          titulo:tx('Caixa exige conciliação','La caja requiere conciliación','Cash reconciliation required'),
+          mensagem:tx('Não é seguro autorizar a sangria: existem movimentos sem composição física confirmada. Confira a gaveta e os registros antes da retirada.','No es seguro autorizar el retiro: hay movimientos sin composición física confirmada. Revise la caja y los registros.','Cash withdrawal blocked: physical currency composition is not reliable. Reconcile before withdrawing.'),
+        });
+      }
+      const faltaMoeda = Object.entries(movimentoValidado.valoresNativos).find(([codigo,quantia]) =>
+        Number(quantia) > Number(fisicoAntesDaSangria.esperado[codigo] || 0) + (codigo === 'PYG' ? 0 : 0.001)
+      );
+      if (faltaMoeda) {
+        return avisarAppZen({
+          variante:'danger',
+          titulo:tx('Saldo insuficiente na moeda escolhida','Saldo insuficiente en la moneda seleccionada','Insufficient balance in selected currency'),
+          mensagem:tx('A retirada excede a quantidade física disponível na moeda selecionada, mesmo que o total convertido seja suficiente.','El retiro supera el efectivo disponible en la moneda elegida, aunque el total convertido sea suficiente.','Withdrawal exceeds the physical balance in the selected currency, even if converted total is sufficient.'),
+          detalhes:[`Moeda: ${faltaMoeda[0]}`],
+        });
+      }
+    }
     if (tipoMovCaixa === 'sangria' && valBRL > saldoSessaoFisicoBRL + 0.001) {
       return avisarAppZen({ variante:'danger', titulo:tx("Saldo insuficiente na gaveta","Saldo insuficiente en caja"), mensagem:tx('A sangria não pode ser maior que o dinheiro físico disponível.', 'La sangría no puede superar el efectivo disponible.', 'Cash drop cannot exceed physical cash available.'), detalhes:[`Solicitado: ${fmt(valBRL,'BRL')}`, tx('Saldo esperado oculto até o fechamento cego.','Saldo esperado oculto hasta el cierre ciego.','Expected balance hidden until blind closeout.')] });
     }
