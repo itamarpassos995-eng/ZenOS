@@ -1,3 +1,4 @@
+import { DOCUMENTOS_CONFIGURACAO } from './fiscalProviderCatalog.js';
 // Interesse comercial não autoriza emissão nem transmite dados ao provedor.
 export function registrarInteresseFiscal(atual,{pais,uid,agora}) {
  if(!['BR','PY'].includes(pais))throw new Error('FISCAL_PAIS_INVALIDO');
@@ -11,6 +12,6 @@ export function resumirDemandaFiscal(itens,agora=new Date()) {
  return {janelaDias:30,desde:inicio,solicitacoes:recentes.length,
   brasil:recentes.filter(x=>x.pais==='BR').length,paraguai:recentes.filter(x=>x.pais==='PY').length,
   cadastrosCompletos:recentes.filter(x=>x.cadastroCompleto).length,
-  solicitantesPorDocumento:Object.fromEntries(['nfce','nfe','nfse','factura_electronica'].map(tipo=>[tipo,recentes.filter(x=>x.tiposDocumento?.includes(tipo)).length])),
+  solicitantesPorDocumento:Object.fromEntries(Object.values(DOCUMENTOS_CONFIGURACAO).flat().map(tipo=>[tipo,recentes.filter(x=>x.tiposDocumento?.includes(tipo)).length])),
   emissoesVerificadas:null}; // Sem integração homologada, não inventar consumo de notas.
 }
