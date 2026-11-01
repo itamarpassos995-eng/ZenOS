@@ -95,6 +95,10 @@ export function calcularConciliacaoFisicaMultimoeda({ sessao, historicoVendas = 
     const detalhes = mov.detalhesMoedasNativas || mov.detalhesMoedas;
     if (detalhes && typeof detalhes === 'object' && Object.keys(detalhes).length) {
       adicionarDetalhes(esperado, detalhes, sinal, pendencias, 'Movimento ' + mov.id);
+    } else if (normalizarMoeda(mov.moedaOrigem) && normalizarMoeda(mov.moedaOrigem) !== 'BRL') {
+      // O equivalente contábil em BRL não prova quantas notas de outra moeda
+      // entraram ou saíram. Não inventar saldo físico nem aprovar conciliação.
+      pendencias.push('Movimento ' + mov.id + ': faltam valores físicos nativos de ' + mov.moedaOrigem + '.');
     } else if (Number.isFinite(Number(mov.valorBRL))) {
       esperado.BRL += sinal * Number(mov.valorBRL);
     } else {
