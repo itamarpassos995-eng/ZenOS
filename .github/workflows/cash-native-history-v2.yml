@@ -1,0 +1,27 @@
+name: Caixa Multimoeda V2 Historico Nativo
+on:
+  pull_request:
+    paths:
+      - 'src/App.jsx'
+      - 'src/core/cashHistoryDisplay.js'
+      - 'scripts/cash-native-history-v2.test.mjs'
+      - '.github/workflows/cash-native-history-v2.yml'
+permissions:
+  contents: read
+jobs:
+  caixa-nativo-v2:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test scripts/cash-native-history-v2.test.mjs
+      - run: npm run build
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+      - name: Livro financeiro Firebase Emulator
+        run: npm run test:att07:emulator
