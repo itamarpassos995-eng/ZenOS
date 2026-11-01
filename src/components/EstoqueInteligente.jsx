@@ -110,7 +110,7 @@ export default function EstoqueInteligente({ produtos, fmt, tx = (pt) => pt }) {
                 produtosRuptura.map(p => (
                   <tr key={p.id} style={{ borderBottom: '1px solid #1e293b' }}>
                     <td style={{ padding: '16px 20px', fontWeight: 700, color: '#f8fafc' }}>{p.sku} - {p.nome}</td>
-                    <td style={{ padding: '16px 12px', color: '#94a3b8' }}>{p.fornecedor || p.marca || 'Não informado'}</td>
+                    <td style={{ padding: '16px 12px', color: '#94a3b8' }}>{p.fornecedor || p.marca || tx("Não informado","No informado")}</td>
                     <td style={{ padding: '16px 12px', textAlign: 'center' }}>
                       <span style={{ backgroundColor: p.estoque === 0 ? 'rgba(251, 113, 133, 0.2)' : 'rgba(245, 158, 11, 0.2)', color: p.estoque === 0 ? '#fb7185' : '#fbbf24', padding: '4px 12px', borderRadius: '8px', fontWeight: 900, fontSize: '14px' }}>
                         {p.estoque} {p.unidadeMedida || 'UN'}
@@ -118,7 +118,7 @@ export default function EstoqueInteligente({ produtos, fmt, tx = (pt) => pt }) {
                     </td>
                     <td style={{ padding: '16px 20px' }}>
                       <span style={{ fontSize: '12px', fontWeight: 800, color: p.estoque === 0 ? '#fb7185' : '#fbbf24' }}>
-                        {p.estoque === 0 ? '🚨 ZERADO - Comprar Urgente' : '⚠️ Pedido de Reposição Recomendado'}
+                        {p.estoque === 0 ? tx("🚨 ZERADO - Comprar Urgente","🚨 SIN STOCK - Compra urgente") : tx("⚠️ Pedido de Reposição Recomendado","⚠️ Pedido de reposición recomendado")}
                       </span>
                     </td>
                   </tr>

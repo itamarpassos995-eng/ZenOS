@@ -424,7 +424,7 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
             </div>
 
             <button onClick={salvarDespesa} disabled={salvandoDespesa} style={{ width: '100%', background: 'linear-gradient(135deg, #e11d48, #be123c)', border: 'none', color: '#fff', padding: '16px', borderRadius: '12px', fontSize: '14px', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 15px rgba(225, 29, 72, 0.3)' }}>
-              {salvandoDespesa?'Salvando...':despesaEmEdicao?'Salvar alterações':'Registrar Despesa no Sistema'}
+              {salvandoDespesa?tx("Salvando...","Guardando..."):despesaEmEdicao?tx("Salvar alterações","Guardar cambios"):tx("Registrar Despesa no Sistema","Registrar gasto en el sistema")}
             </button>
           </div>
         </div>

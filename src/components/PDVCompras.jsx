@@ -691,7 +691,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1500, padding: '16px' }}>
           <div style={{ backgroundColor: '#0b1120', border: '1px solid #ea580c', borderRadius: '24px', width: '100%', maxWidth: '820px', maxHeight: '92vh', overflowY: 'auto', padding: '28px', color: '#fff', boxSizing: 'border-box' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <div><span style={{ fontSize: '11px', fontWeight: 800, color: '#f97316', letterSpacing: '1px', textTransform: 'uppercase' }}>{tx('Ficha Cadastral Universal','Ficha Universal','Universal Record')}</span><h3 style={{ fontSize: '18px', fontWeight: 900, margin: '2px 0 0 0' }}>{produtoEmEdicao ? `Editar: ${produtoEmEdicao.nome}` : 'Cadastrar Novo Produto na Base'}</h3></div>
+              <div><span style={{ fontSize: '11px', fontWeight: 800, color: '#f97316', letterSpacing: '1px', textTransform: 'uppercase' }}>{tx('Ficha Cadastral Universal','Ficha Universal','Universal Record')}</span><h3 style={{ fontSize: '18px', fontWeight: 900, margin: '2px 0 0 0' }}>{produtoEmEdicao ? `Editar: ${produtoEmEdicao.nome}` : tx("Cadastrar Novo Produto na Base","Registrar nuevo producto en la base")}</h3></div>
               <button onClick={() => setModalProdutoAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#64748b', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>✕</button>
             </div>
             
@@ -787,7 +787,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div>
                 <span style={{ fontSize: '11px', fontWeight: 900, color: '#f97316', letterSpacing: '1px', textTransform: 'uppercase' }}>{tx('Lançamento Financeiro','Movimiento Financiero','Financial Entry')}</span>
-                <h3 style={{ fontSize: '18px', fontWeight: 900, margin: '4px 0 0 0' }}>{tx("Fornecedor:","Proveedor:")} {fornecedorSelecionado ? fornecedorSelecionado.nome : (nomeFornecedorVulso || 'Avulso / Não Informado')}</h3>
+                <h3 style={{ fontSize: '18px', fontWeight: 900, margin: '4px 0 0 0' }}>{tx("Fornecedor:","Proveedor:")} {fornecedorSelecionado ? fornecedorSelecionado.nome : (nomeFornecedorVulso || tx("Avulso / Não Informado","Ocasional / No informado"))}</h3>
               </div>
               <button onClick={() => setModalFechamentoAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #334155', color: '#94a3b8', borderRadius: '10px', width: '36px', height: '36px', cursor: 'pointer', fontWeight: 900 }}>✕</button>
             </div>

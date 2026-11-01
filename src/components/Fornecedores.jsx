@@ -132,7 +132,7 @@ export default function Fornecedores({ commitOperacaoNegocio, fornecedores, setF
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
               <div>
                 <span style={{ fontSize: '11px', fontWeight: 800, color: '#a855f7', textTransform: 'uppercase', letterSpacing: '1px' }}>{tx('Ficha Cadastral','Ficha de Registro','Record Form')}</span>
-                <h3 style={{ margin: '4px 0 0 0', fontSize: '20px', fontWeight: 900 }}>{fornecedorEmEdicao ? `Editar: ${form.nome}` : 'Novo Fornecedor'}</h3>
+                <h3 style={{ margin: '4px 0 0 0', fontSize: '20px', fontWeight: 900 }}>{fornecedorEmEdicao ? `Editar: ${form.nome}` : tx("Novo Fornecedor","Nuevo proveedor")}</h3>
               </div>
               <button onClick={() => setModalAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#64748b', borderRadius: '8px', padding: '6px 12px', cursor: 'pointer', fontWeight: 900 }}>✕</button>
             </div>

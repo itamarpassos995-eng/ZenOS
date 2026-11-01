@@ -653,14 +653,14 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div><h2 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>{t ? t('catalogoTitulo') : 'Catálogo'}</h2><span style={{ fontSize: '13px', color: '#64748b' }}>{t ? t('catalogoSub') : 'Gerenciamento'}</span></div>
+        <div><h2 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>{t ? t('catalogoTitulo') : tx("Catálogo","Catálogo")}</h2><span style={{ fontSize: '13px', color: '#64748b' }}>{t ? t('catalogoSub') : tx("Gerenciamento","Administración")}</span></div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <label style={{display:'flex',alignItems:'center',gap:6,color:'#94a3b8',fontSize:11,fontWeight:800}}><input type="checkbox" checked={mostrarInativos} onChange={e=>setMostrarInativos(e.target.checked)}/> {tx('Mostrar inativos','Mostrar inactivos','Show inactive')}</label>{podeGerenciarProdutos && <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
             <input aria-label={tx("SKU original","SKU original")} inputMode="text" placeholder={tx("SKU (ex. SKU-63346)","SKU (ej.: SKU-63346)")} value={skuHistoricoBusca} onChange={e=>setSkuHistoricoBusca(e.target.value)} style={{width:155,maxWidth:'100%',background:'#020617',color:'#f8fafc',border:'1px solid #334155',borderRadius:8,padding:'10px 8px'}}/>
-            <button type="button" disabled={buscandoSkuHistorico} onClick={buscarCadastroPeloSkuAntigo} title={tx("Localiza somente o SKU original informado, sem varrer todos os índices","Busca únicamente el SKU original ingresado, sin recorrer todos los índices")} style={{background:'#164e63',color:'#e0f2fe',border:'1px solid #38bdf8',borderRadius:8,padding:'10px',fontWeight:800}}>{buscandoSkuHistorico?'Conferindo...':'Recuperar produto por SKU'}</button>
+            <button type="button" disabled={buscandoSkuHistorico} onClick={buscarCadastroPeloSkuAntigo} title={tx("Localiza somente o SKU original informado, sem varrer todos os índices","Busca únicamente el SKU original ingresado, sin recorrer todos los índices")} style={{background:'#164e63',color:'#e0f2fe',border:'1px solid #38bdf8',borderRadius:8,padding:'10px',fontWeight:800}}>{buscandoSkuHistorico?tx("Conferindo...","Verificando..."):tx("Recuperar produto por SKU","Recuperar producto por SKU")}</button>
           </div>}
-          {podeGerenciarProdutos && candidatoOrfaoPDV && <button type="button" disabled={liberandoOrfaoPDV} onClick={()=>setConfirmarLiberacaoOrfao(true)} style={{border:'1px solid #f59e0b',borderRadius:10,padding:'10px',background:'#422006',color:'#fde68a',fontWeight:800}}>{liberandoOrfaoPDV?'Conferindo...':'Conferir cadastro incompleto'}</button>}
-          {podeGerenciarProdutos && <button type="button" disabled={auditandoIndices} onClick={()=>setConfirmarAuditoriaCompleta(true)} title={tx("Auditoria completa excepcional — consulta até 2.501 índices; requer confirmação","Auditoría completa excepcional — consulta hasta 2.501 índices; requiere confirmación")} style={{background:'#0f172a',border:'1px solid #475569',color:'#94a3b8',borderRadius:12,padding:'8px 10px',fontWeight:700,cursor:'pointer',fontSize:11}}>{auditandoIndices?'Auditando...':'Auditoria completa (avançada)'}</button>}
+          {podeGerenciarProdutos && candidatoOrfaoPDV && <button type="button" disabled={liberandoOrfaoPDV} onClick={()=>setConfirmarLiberacaoOrfao(true)} style={{border:'1px solid #f59e0b',borderRadius:10,padding:'10px',background:'#422006',color:'#fde68a',fontWeight:800}}>{liberandoOrfaoPDV?tx("Conferindo...","Verificando..."):tx("Conferir cadastro incompleto","Verificar registro incompleto")}</button>}
+          {podeGerenciarProdutos && <button type="button" disabled={auditandoIndices} onClick={()=>setConfirmarAuditoriaCompleta(true)} title={tx("Auditoria completa excepcional — consulta até 2.501 índices; requer confirmação","Auditoría completa excepcional — consulta hasta 2.501 índices; requiere confirmación")} style={{background:'#0f172a',border:'1px solid #475569',color:'#94a3b8',borderRadius:12,padding:'8px 10px',fontWeight:700,cursor:'pointer',fontSize:11}}>{auditandoIndices?tx("Auditando...","Auditando..."):tx("Auditoria completa (avançada)","Auditoría completa (avanzada)")}</button>}
           {podeGerenciarProdutos && identidadesAuditadas.length>0 && (
             <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
               <select aria-label={tx("Produto para conferir","Producto para revisar")} value={idOriginalSelecionado}
@@ -670,36 +670,36 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
               </select>
               <button type="button" disabled={conferindoOriginal} onClick={()=>examinarCadastroPeloId()}
                 style={{border:'1px solid #38bdf8',borderRadius:8,padding:10,background:'#0c4a6e',color:'#e0f2fe',fontWeight:800}}>
-                {conferindoOriginal?'Conferindo...':'Conferir cadastro'}
+                {conferindoOriginal?tx("Conferindo...","Verificando..."):tx("Conferir cadastro","Verificar registro")}
               </button>
             </div>
           )}
           {podeGerenciarProdutos && diagnosticoOriginal?.status==='original_inativo' &&
             <button type="button" disabled={reativandoOriginal} onClick={()=>setConfirmarReativacaoOriginal(true)}
               style={{border:'1px solid #34d399',borderRadius:8,padding:10,background:'#064e3b',color:'#d1fae5',fontWeight:800}}>
-              {reativandoOriginal?'Conferindo...':'Reativar este produto original'}
+              {reativandoOriginal?tx("Conferindo...","Verificando..."):tx("Reativar este produto original","Reactivar este producto original")}
             </button>}
           {podeGerenciarProdutos && diagnosticoOriginal?.status==='indice_sem_cadastro' &&
             <button type="button" disabled={abrindoRecomposicao} onClick={iniciarRecomposicaoOriginal}
               style={{border:'1px solid #34d399',borderRadius:8,padding:10,background:'#064e3b',color:'#d1fae5',fontWeight:800}}>
-              {abrindoRecomposicao?'Conferindo...':'Completar cadastro'}
+              {abrindoRecomposicao?tx("Conferindo...","Verificando..."):tx("Completar cadastro","Completar registro")}
             </button>}
-          <button onClick={abrirCadastroNovoProduto} style={{ background: 'linear-gradient(135deg, #0284c7, #0369a1)', border: '1px solid #38bdf8', color: '#ffffff', padding: '12px 24px', borderRadius: '12px', fontSize: '13px', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 15px rgba(2, 132, 199, 0.3)' }}>{t ? t('novoProdutoBtn') : '+ Novo Produto'}</button>
+          <button onClick={abrirCadastroNovoProduto} style={{ background: 'linear-gradient(135deg, #0284c7, #0369a1)', border: '1px solid #38bdf8', color: '#ffffff', padding: '12px 24px', borderRadius: '12px', fontSize: '13px', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 15px rgba(2, 132, 199, 0.3)' }}>{t ? t('novoProdutoBtn') : tx("+ Novo Produto","+ Nuevo producto")}</button>
         </div>
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0b1120', padding: '16px 20px', borderRadius: '16px', border: '1px solid #1e293b', gap: '16px' }}>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', flex: 1 }}>
-          <button onClick={() => setFiltroGrupo('todos')} style={{ backgroundColor: filtroGrupo === 'todos' ? '#082f49' : '#020617', color: filtroGrupo === 'todos' ? '#38bdf8' : '#94a3b8', border: `1px solid ${filtroGrupo === 'todos' ? '#0284c7' : '#1e293b'}`, borderRadius: '8px', padding: '6px 14px', fontSize: '12px', fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}>{t ? t('todosGrupos') : 'Todos'} ({produtosListaFiltrada.length})</button>
+          <button onClick={() => setFiltroGrupo('todos')} style={{ backgroundColor: filtroGrupo === 'todos' ? '#082f49' : '#020617', color: filtroGrupo === 'todos' ? '#38bdf8' : '#94a3b8', border: `1px solid ${filtroGrupo === 'todos' ? '#0284c7' : '#1e293b'}`, borderRadius: '8px', padding: '6px 14px', fontSize: '12px', fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}>{t ? t('todosGrupos') : tx("Todos","Todos")} ({produtosListaFiltrada.length})</button>
           {gruposCadastrados.map((grp) => {
             const ativo = filtroGrupo === grp;
-            const qtd = produtos.filter(p => (p.grupo || 'Geral') === grp).length;
+            const qtd = produtos.filter(p => (p.grupo || tx("Geral","General")) === grp).length;
             return (
               <button key={grp} onClick={() => setFiltroGrupo(grp)} style={{ backgroundColor: ativo ? '#082f49' : '#020617', color: ativo ? '#38bdf8' : '#94a3b8', border: `1px solid ${ativo ? '#0284c7' : '#1e293b'}`, borderRadius: '8px', padding: '6px 14px', fontSize: '12px', fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}>{grp} ({qtd})</button>
             );
           })}
         </div>
-        <input type="text" value={buscaProdutoTexto} onChange={(e) => setBuscaProdutoTexto(e.target.value)} placeholder={t ? t('buscarProd') : 'Buscar...'} style={{ width: '280px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', padding: '8px 14px', color: '#ffffff', fontSize: '13px', outline: 'none' }} />
+        <input type="text" value={buscaProdutoTexto} onChange={(e) => setBuscaProdutoTexto(e.target.value)} placeholder={t ? t('buscarProd') : tx("Buscar...","Buscar...")} style={{ width: '280px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', padding: '8px 14px', color: '#ffffff', fontSize: '13px', outline: 'none' }} />
       </div>
 
       {conflitosIdentidade.length > 0 && (
@@ -740,8 +740,8 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
                           <span>{prod.sku}</span>
                         </div>
                       </td>
-                      <td style={{ padding: '16px 12px' }}><div style={{ fontWeight: 700, color: '#ffffff', fontSize: '14px' }}>{prod.nome} {ehEncomendaUsoUnico(prod) && <span style={{ color: '#fbbf24', fontSize: '10px' }}>({tx('⭐ Encomenda','⭐ Pedido','⭐ Special Order')})</span>} {idsComConflito.has(String(prod.id)) && <span style={{ color: '#f87171', fontSize: '10px' }}>({tx('⛔ ID duplicado','⛔ ID duplicado','⛔ Duplicate ID')})</span>}</div><span style={{ fontSize: '11px', color: '#64748b' }}>{prod.marca ? `Marca: ${prod.marca}` : 'S/ Marca'}</span></td>
-                      <td style={{ padding: '16px 12px' }}><span style={{ backgroundColor: '#020617', border: '1px solid #1e293b', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', color: '#cbd5e1', fontWeight: 700 }}>{prod.grupo || 'Geral'}</span><span style={{ marginLeft: '6px', fontSize: '11px', color: '#38bdf8', fontWeight: 800 }}>[{prod.unidadeMedida || 'UN'}]</span></td>
+                      <td style={{ padding: '16px 12px' }}><div style={{ fontWeight: 700, color: '#ffffff', fontSize: '14px' }}>{prod.nome} {ehEncomendaUsoUnico(prod) && <span style={{ color: '#fbbf24', fontSize: '10px' }}>({tx('⭐ Encomenda','⭐ Pedido','⭐ Special Order')})</span>} {idsComConflito.has(String(prod.id)) && <span style={{ color: '#f87171', fontSize: '10px' }}>({tx('⛔ ID duplicado','⛔ ID duplicado','⛔ Duplicate ID')})</span>}</div><span style={{ fontSize: '11px', color: '#64748b' }}>{prod.marca ? `Marca: ${prod.marca}` : tx("S/ Marca","Sin marca")}</span></td>
+                      <td style={{ padding: '16px 12px' }}><span style={{ backgroundColor: '#020617', border: '1px solid #1e293b', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', color: '#cbd5e1', fontWeight: 700 }}>{prod.grupo || tx("Geral","General")}</span><span style={{ marginLeft: '6px', fontSize: '11px', color: '#38bdf8', fontWeight: 800 }}>[{prod.unidadeMedida || 'UN'}]</span></td>
                       <td style={{ padding: '16px 12px', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{prod.localizacao || '—'}</td>
                       <td style={{ padding: '16px 12px', textAlign: 'center' }}>
                         {ehServico ? <span style={{ color: '#818cf8', fontWeight: 700, fontSize: '11px' }}>{tx('Infinito','Infinito','Infinite')}</span> : (
@@ -776,7 +776,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
                       <td style={{ padding: '16px 12px', textAlign: 'right', fontWeight: 900, color: '#34d399', fontSize: '15px' }}>{fmt(preco)}</td>
                       <td style={{ padding: '16px 12px', textAlign: 'right', fontWeight: 700, color: prod.habilitarPreco2 ? '#38bdf8' : '#475569' }}>{prod.habilitarPreco2 && prod.preco2BRL > 0 ? fmt(prod.preco2BRL) : '—'}</td>
                       <td style={{ padding: '16px 12px', textAlign: 'center' }}><span style={{ backgroundColor: margem >= 40 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)', color: margem >= 40 ? '#34d399' : '#fbbf24', border: `1px solid ${margem >= 40 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`, padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>{margem}%</span></td>
-                      <td style={{ padding: '16px 20px', textAlign: 'right' }}><div style={{display:'flex',gap:6,justifyContent:'flex-end'}}><button onClick={() => pedirExclusao(prod)} style={{background:'#2e0a16',border:'1px solid #7f1d1d',color:'#fb7185',padding:'7px 10px',borderRadius:8,fontSize:11,fontWeight:900,cursor:'pointer'}}>{prod.ativo===false?'Inativo':'Inativar'}</button><button onClick={() => abrirEdicaoProduto(prod)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#38bdf8', padding: '6px 14px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>{tx('Editar','Editar','Edit')}</button></div></td>
+                      <td style={{ padding: '16px 20px', textAlign: 'right' }}><div style={{display:'flex',gap:6,justifyContent:'flex-end'}}><button onClick={() => pedirExclusao(prod)} style={{background:'#2e0a16',border:'1px solid #7f1d1d',color:'#fb7185',padding:'7px 10px',borderRadius:8,fontSize:11,fontWeight:900,cursor:'pointer'}}>{prod.ativo===false?tx("Inativo","Inactivo"):tx("Inativar","Desactivar")}</button><button onClick={() => abrirEdicaoProduto(prod)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#38bdf8', padding: '6px 14px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>{tx('Editar','Editar','Edit')}</button></div></td>
                     </tr>
                   );
                 })
@@ -792,7 +792,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
             <div style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 900, textTransform: 'uppercase' }}>{tx('Movimentação Auditada','Movimiento Auditado','Audited Movement')}</div>
             <h3 style={{ margin: '6px 0 6px', fontSize: '18px' }}>{modalMovimento.produto.nome}</h3>
             <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '16px' }}>
-              {modalMovimento.origem === 'vitrine' ? 'Vitrine' : 'Depósito'} → {modalMovimento.destino === 'vitrine' ? 'Vitrine' : 'Depósito'}
+              {modalMovimento.origem === 'vitrine' ? tx("Vitrine","Vitrina") : tx("Depósito","Depósito")} → {modalMovimento.destino === 'vitrine' ? tx("Vitrine","Vitrina") : tx("Depósito","Depósito")}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '10px', marginBottom: '12px' }}>
               <div><label style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800 }}>{tx('Quantidade','Cantidad','Quantity')}</label><input type="number" min="0.01" step="0.01" value={movimentoQtd} onChange={(e) => setMovimentoQtd(e.target.value)} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '9px', boxSizing: 'border-box' }} /></div>
@@ -800,7 +800,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
             </div>
             <div style={{ marginBottom: '16px' }}><label style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800 }}>{tx('Observação','Observación','Note')}</label><textarea value={movimentoObs} onChange={(e) => setMovimentoObs(e.target.value)} placeholder={tx('Opcional: informe detalhes da movimentação','Opcional: informe detalles del movimiento','Optional: enter movement details')} rows="3" style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '9px', boxSizing: 'border-box', resize: 'vertical' }} /></div>
             <div style={{ padding: '10px 12px', backgroundColor: '#082f49', border: '1px solid #0e7490', borderRadius: '10px', color: '#bae6fd', fontSize: '11px', marginBottom: '16px' }}>{tx('Esta ação não altera o estoque total: apenas transfere unidades entre Vitrine e Depósito e registra operador, data, motivo e saldos antes/depois.','Esta acción no altera el stock total: solo transfiere unidades entre Exhibición y Depósito y registra operador, fecha, motivo y saldos antes/después.','This action does not change total stock: it only transfers units between Display and Warehouse and records operator, date, reason and balances before/after.')}</div>
-            <div style={{ display: 'flex', gap: '10px' }}><button disabled={salvandoMovimento} onClick={() => setModalMovimento(null)} style={{ flex: 1, padding: '11px', borderRadius: '9px', backgroundColor: '#1e293b', border: 'none', color: '#cbd5e1', cursor: 'pointer', fontWeight: 800 }}>{tx('Cancelar','Cancelar','Cancel')}</button><button disabled={salvandoMovimento} onClick={confirmarMovimentoEstoque} style={{ flex: 2, padding: '11px', borderRadius: '9px', background: 'linear-gradient(135deg,#0284c7,#0369a1)', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 900 }}>{salvandoMovimento ? 'Registrando...' : 'Confirmar movimentação'}</button></div>
+            <div style={{ display: 'flex', gap: '10px' }}><button disabled={salvandoMovimento} onClick={() => setModalMovimento(null)} style={{ flex: 1, padding: '11px', borderRadius: '9px', backgroundColor: '#1e293b', border: 'none', color: '#cbd5e1', cursor: 'pointer', fontWeight: 800 }}>{tx('Cancelar','Cancelar','Cancel')}</button><button disabled={salvandoMovimento} onClick={confirmarMovimentoEstoque} style={{ flex: 2, padding: '11px', borderRadius: '9px', background: 'linear-gradient(135deg,#0284c7,#0369a1)', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 900 }}>{salvandoMovimento ? tx("Registrando...","Registrando...") : tx("Confirmar movimentação","Confirmar movimiento")}</button></div>
           </div>
         </div>
       )}
@@ -846,7 +846,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
                   <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Grupo','Grupo','Group')}</label><button type="button" onClick={() => setCriandoNovoGrupo(!criandoNovoGrupo)} style={{ background: 'none', border: 'none', color: '#38bdf8', fontSize: '10px', fontWeight: 800, cursor: 'pointer' }}>{criandoNovoGrupo ? 'Voltar' : '+ Criar'}</button></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Grupo','Grupo','Group')}</label><button type="button" onClick={() => setCriandoNovoGrupo(!criandoNovoGrupo)} style={{ background: 'none', border: 'none', color: '#38bdf8', fontSize: '10px', fontWeight: 800, cursor: 'pointer' }}>{criandoNovoGrupo ? tx("Voltar","Volver") : tx("+ Criar","+ Crear")}</button></div>
                     {criandoNovoGrupo ? <input type="text" value={novoGrupoTexto} onChange={(e) => setNovoGrupoTexto(e.target.value)} placeholder={tx('Novo grupo...','Nuevo grupo...','New group...')} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #0284c7', borderRadius: '8px', color: '#38bdf8', fontSize: '12px', padding: '8px', outline: 'none' }} /> : <select value={formProduto.grupo} onChange={(e) => setFormProduto({ ...formProduto, grupo: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontSize: '12px', padding: '8px', outline: 'none' }}>{gruposCadastrados.map(g => <option key={g} value={g}>{g}</option>)}</select>}
                   </div>
                   <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Marca','Marca','Brand')}</label><input type="text" value={formProduto.marca} onChange={(e) => setFormProduto({ ...formProduto, marca: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontSize: '12px', padding: '8px 10px', outline: 'none' }} /></div>
@@ -921,7 +921,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
             <div style={{ backgroundColor: '#070d19', border: '1px solid #1e293b', borderRadius: '16px', overflow: 'hidden', marginBottom: '24px' }}>
               <div onClick={() => setSecaoFiscalExpandida(!secaoFiscalExpandida)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', cursor: 'pointer', backgroundColor: secaoFiscalExpandida ? '#0c1527' : '#070d19', borderBottom: secaoFiscalExpandida ? '1px solid #1e293b' : 'none' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span style={{ fontSize: '14px' }}>⚖️</span><span style={{ fontSize: '12px', fontWeight: 800, color: '#94a3b8' }}>{tx('Parâmetros Fiscais (NCM / DNIT / IVA)','Parámetros Fiscales (NCM / DNIT / IVA)','Fiscal Parameters (NCM / DNIT / VAT)')}</span></div>
-                <span style={{ color: '#64748b', fontSize: '12px', fontWeight: 900 }}>{secaoFiscalExpandida ? '▲ Recolher' : '▼ Expandir'}</span>
+                <span style={{ color: '#64748b', fontSize: '12px', fontWeight: 900 }}>{secaoFiscalExpandida ? tx("▲ Recolher","▲ Contraer") : tx("▼ Expandir","▼ Expandir")}</span>
               </div>
               {secaoFiscalExpandida && (
                 <div style={{ padding: '20px' }}>
@@ -951,7 +951,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
               <div style={{ backgroundColor: '#070d19', border: '1px solid #1e293b', borderRadius: '16px', overflow: 'hidden', marginBottom: '24px' }}>
                 <div onClick={alternarHistorico} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', cursor: 'pointer', backgroundColor: historicoExpandido ? '#0c1527' : '#070d19', borderBottom: historicoExpandido ? '1px solid #1e293b' : 'none' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span>🧾</span><span style={{ fontSize: '12px', fontWeight: 900, color: '#cbd5e1' }}>{tx('Histórico de Movimentações de Estoque','Historial de Movimientos de Stock','Stock Movement History')}</span></div>
-                  <span style={{ color: '#64748b', fontSize: '12px', fontWeight: 900 }}>{historicoExpandido ? '▲ Recolher' : '▼ Expandir'}</span>
+                  <span style={{ color: '#64748b', fontSize: '12px', fontWeight: 900 }}>{historicoExpandido ? tx("▲ Recolher","▲ Contraer") : tx("▼ Expandir","▼ Expandir")}</span>
                 </div>
                 {historicoExpandido && (
                   <div style={{ padding: '18px' }}>
@@ -980,7 +980,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
                               <span style={{ color: '#64748b', fontSize: '10px' }}>{mov.createdAt ? new Date(mov.createdAt).toLocaleString('pt-BR') : '—'}</span>
                             </div>
                             <div style={{ marginTop: '6px', color: '#cbd5e1', fontSize: '11px' }}>
-                              <span style={{ color: '#38bdf8', fontWeight: 800 }}>{mov.quantidade}</span> {tx("un. •","un. •")} {mov.origem || 'externo'} → {mov.destino || '—'} • {mov.motivo || 'Sem motivo'}
+                              <span style={{ color: '#38bdf8', fontWeight: 800 }}>{mov.quantidade}</span> {tx("un. •","un. •")} {mov.origem || 'externo'} → {mov.destino || '—'} • {mov.motivo || tx("Sem motivo","Sin motivo")}
                             </div>
                             <div style={{ marginTop: '4px', color: '#64748b', fontSize: '10px' }}>{tx('Operador:','Operador:','Operator:')} {mov.operadorNome || '—'}{mov.referenciaId ? ` • Ref.: ${mov.referenciaId}` : ''}</div>
                             {mov.saldoAntes && mov.saldoDepois && <div style={{ marginTop: '4px', color: '#94a3b8', fontSize: '10px' }}>{tx("Antes V/D/T:","Antes E/D/T:")} {mov.saldoAntes.vitrine}/{mov.saldoAntes.deposito}/{mov.saldoAntes.total} {tx("→ Depois:","→ Después:")} {mov.saldoDepois.vitrine}/{mov.saldoDepois.deposito}/{mov.saldoDepois.total}</div>}

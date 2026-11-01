@@ -1405,7 +1405,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                                 )}
                                 {statusAviso === 'pronto_saiu' && (
                                   <span style={{ background: '#059669', color: '#fff', fontSize: '10px', fontWeight: 800, padding: '2px 6px', borderRadius: '4px' }}>
-                                    {isEntrega ? '🛵 A Caminho' : '🛍️ Pronto p/ Retirada'}
+                                    {isEntrega ? tx("🛵 A Caminho","🛵 En camino") : tx("🛍️ Pronto p/ Retirada","🛍️ Listo para retirar")}
                                   </span>
                                 )}
                               </div>
@@ -1469,7 +1469,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                               <button
                                 type="button"
                                 onClick={(e) => enviarAvisoWhatsApp(e, ped, 'pronto_saiu')}
-                                title={isEntrega ? 'Avisar cliente que o pedido saiu para entrega' : 'Avisar cliente que o pedido está pronto para retirada'}
+                                title={isEntrega ? tx("Avisar cliente que o pedido saiu para entrega","Avisar al cliente que el pedido salió para entrega") : tx("Avisar cliente que o pedido está pronto para retirada","Avisar al cliente que el pedido está listo para retirar")}
                                 style={{
                                   background: statusAviso === 'pronto_saiu' ? '#059669' : '#1e293b',
                                   border: '1px solid #059669',
@@ -1537,7 +1537,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                 {historicoVendas.filter(v => v.estado === 'pendente').map(v => (
                   <div key={v.id} onClick={() => {if(!consultandoResgate)carregarPrePedido(v);}} role="button" tabIndex={0} onKeyDown={e=>{if((e.key==='Enter'||e.key===' ')&&!consultandoResgate){e.preventDefault();carregarPrePedido(v);}}} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', backgroundColor: '#1e1b4b', border: '1px solid #4c1d95', borderRadius: '12px', cursor: 'pointer', transition: 'transform 0.2s', boxShadow: '0 4px 10px rgba(76,29,149,0.2)' }}>
                     <div>
-                      <strong style={{ display: 'block', color: '#e2e8f0', fontSize: '15px' }}>{v.clienteNome} {v.estado==='orcamento'?'· ORÇAMENTO':'· PRÉ-PEDIDO'}</strong>
+                      <strong style={{ display: 'block', color: '#e2e8f0', fontSize: '15px' }}>{v.clienteNome} {v.estado==='orcamento'?tx("· ORÇAMENTO","· PRESUPUESTO"):tx("· PRÉ-PEDIDO","· PEDIDO ANTICIPADO")}</strong>
                       <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', display: 'block' }}>{tx('Vendedor:','Vendedor:','Seller:')} <span style={{color: '#a78bfa', fontWeight: 800}}>{v.vendedorNome}</span> • {v.dataHora}</span>
                     </div>
                     <div style={{ fontWeight: 900, color: '#34d399', fontSize: '16px' }}>{fmt(v.totalBRL)}</div>
@@ -1564,7 +1564,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
            <div style={{ backgroundColor: '#ffffff', border: '1px solid #10b981', borderRadius: '16px', width: '100%', maxWidth: '380px', maxHeight: '95vh', overflowY: 'auto', padding: '0', color: '#000', boxShadow: '0 25px 50px rgba(0,0,0,0.5)' }}>
               <div id="area-cupom-pdv" style={{ padding: '20px', fontFamily: 'monospace', fontSize: '12px' }}>
                 <div style={{ textAlign: 'center', marginBottom: '10px' }}>
-                  {perfilRecibo.mostrarLogoRecibo !== false && perfilRecibo.logoLoja && <img src={perfilRecibo.logoLoja} alt="Logo" style={{maxWidth:'110px',maxHeight:'55px',objectFit:'contain',marginBottom:4}}/>}<h2 style={{ margin: '0 0 4px 0', fontSize: '16px' }}>{perfilRecibo.nomeFantasia || 'ZenOS - SISTEMA DE GESTÃO'}</h2>{perfilRecibo.cabecalhoRecibo && <div style={{fontSize:'10px'}}>{perfilRecibo.cabecalhoRecibo}</div>}
+                  {perfilRecibo.mostrarLogoRecibo !== false && perfilRecibo.logoLoja && <img src={perfilRecibo.logoLoja} alt="Logo" style={{maxWidth:'110px',maxHeight:'55px',objectFit:'contain',marginBottom:4}}/>}<h2 style={{ margin: '0 0 4px 0', fontSize: '16px' }}>{perfilRecibo.nomeFantasia || tx("ZenOS - SISTEMA DE GESTÃO","ZenOS - SISTEMA DE GESTIÓN")}</h2>{perfilRecibo.cabecalhoRecibo && <div style={{fontSize:'10px'}}>{perfilRecibo.cabecalhoRecibo}</div>}
                   <div style={{ fontSize: '10px' }}>{vendaConcluidaObj.tipoDocumento === 'pre_pedido' ? tx('TICKET DE PRÉ-PEDIDO (NÃO PAGO)','TICKET DE PRE-PEDIDO (NO PAGADO)','PRE-ORDER TICKET (UNPAID)') : tx('ORÇAMENTO SEM VALOR FISCAL','PRESUPUESTO SIN VALOR FISCAL','QUOTE WITH NO FISCAL VALUE')}<br/>{vendaConcluidaObj.dataHora}</div>
                 </div>
                 <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
@@ -1597,7 +1597,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                 </div>
 
                 <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
-                <div style={{ textAlign: 'center', fontSize: '10px' }}>{perfilRecibo.rodapeRecibo || 'Obrigado pela preferência! Volte sempre.'}</div>
+                <div style={{ textAlign: 'center', fontSize: '10px' }}>{perfilRecibo.rodapeRecibo || tx("Obrigado pela preferência! Volte sempre.","¡Gracias por su preferencia! Vuelva pronto.")}</div>
               </div>
               <div className="no-print" style={{ padding: '20px', backgroundColor: '#f1f5f9', display: 'flex', gap: '10px', borderTop: '1px dashed #ccc', borderBottomLeftRadius: '16px', borderBottomRightRadius: '16px', flexWrap: 'wrap' }}>
                 <div style={{flex:'1 1 110px',minWidth:110}}><ZenShareButton documento={vendaConcluidaObj} perfilLoja={perfilRecibo}/></div>
@@ -1783,7 +1783,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
               if (itemParaAdicionar.tipoItem === 'servico' || ehEncomendaUsoUnico(itemParaAdicionar)) return null;
               const saldo = obterEstoqueProduto(itemParaAdicionar);
               const previsao = preverBaixaEstoqueProduto(itemParaAdicionar, Math.max(1, parseInt(qtdDigitadaRapida) || 1));
-              if (saldo.estoqueVitrine > 0) return <div style={{ marginBottom: '14px', padding: '10px 12px', backgroundColor: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.45)', borderRadius: '10px', color: '#fbbf24', fontSize: '12px', fontWeight: 800 }}>⚠️ {tx('Disponibilidade:','Disponibilidad:','Availability:')} {tx('Vitrine','Exhibición','Display')} {saldo.estoqueVitrine} • {tx('Depósito','Depósito','Warehouse')} {saldo.estoqueGalpao} • {tx('Total','Total','Total')} {saldo.estoque}. {tx('Para esta quantidade, a baixa prevista é','Para esta cantidad, la baja prevista es','For this quantity, the expected deduction is')} {tx('Vitrine','Exhibición','Display')} {previsao.movimento.vitrine} + {tx('Depósito','Depósito','Warehouse')} {previsao.movimento.galpao}. {saldo.estoqueGalpao > 0 ? 'Considere repor a vitrine após a venda.' : 'O produto está disponível somente na vitrine.'}</div>;
+              if (saldo.estoqueVitrine > 0) return <div style={{ marginBottom: '14px', padding: '10px 12px', backgroundColor: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.45)', borderRadius: '10px', color: '#fbbf24', fontSize: '12px', fontWeight: 800 }}>⚠️ {tx('Disponibilidade:','Disponibilidad:','Availability:')} {tx('Vitrine','Exhibición','Display')} {saldo.estoqueVitrine} • {tx('Depósito','Depósito','Warehouse')} {saldo.estoqueGalpao} • {tx('Total','Total','Total')} {saldo.estoque}. {tx('Para esta quantidade, a baixa prevista é','Para esta cantidad, la baja prevista es','For this quantity, the expected deduction is')} {tx('Vitrine','Exhibición','Display')} {previsao.movimento.vitrine} + {tx('Depósito','Depósito','Warehouse')} {previsao.movimento.galpao}. {saldo.estoqueGalpao > 0 ? tx("Considere repor a vitrine após a venda.","Considere reponer la vitrina después de la venta.") : tx("O produto está disponível somente na vitrine.","El producto está disponible solo en la vitrina.")}</div>;
               return <div style={{ marginBottom: '12px', color: '#64748b', fontSize: '11px' }}>{tx("Vitrine:","Exhibición:")} {saldo.estoqueVitrine} {tx("• Depósito:","• Depósito:")} {saldo.estoqueGalpao} • Total: {saldo.estoque}</div>;
             })()}
             <input ref={inputQtdRapidaRef} type="number" value={qtdDigitadaRapida} onChange={e => setQtdDigitadaRapida(e.target.value)} onFocus={e=>e.target.select()} onKeyDown={e=>{if(e.key==='Enter') confirmarAdicaoRapida(); if(e.key==='Escape') setItemParaAdicionar(null);}} style={{ width: '80px', padding: '10px', fontSize: '20px', textAlign: 'center', backgroundColor: '#020617', border: '1px solid #6366f1', color: '#fff', borderRadius: '8px', marginBottom: '20px', outline: 'none' }} />
@@ -1877,8 +1877,8 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
               <div>
                 <div id="area-cupom-pdv" style={{ padding: '20px', fontFamily: 'monospace', fontSize: '12px' }}>
                   <div style={{ textAlign: 'center', marginBottom: '10px' }}>
-                    {perfilRecibo.mostrarLogoRecibo !== false && perfilRecibo.logoLoja && <img src={perfilRecibo.logoLoja} alt="Logo" style={{maxWidth:'110px',maxHeight:'55px',objectFit:'contain',marginBottom:4}}/>}<h2 style={{ margin: '0 0 4px 0', fontSize: '16px' }}>{perfilRecibo.nomeFantasia || 'ZenOS - SISTEMA DE GESTÃO'}</h2>{perfilRecibo.cabecalhoRecibo && <div style={{fontSize:'10px'}}>{perfilRecibo.cabecalhoRecibo}</div>}
-                    <div style={{ fontSize: '10px' }}>{vendaConcluidaObj?.tipoDocumento === 'venda' ? 'Cupom de Venda Não Fiscal' : vendaConcluidaObj?.tipoDocumento === 'pre_pedido' ? 'TICKET DE PRÉ-PEDIDO (NÃO PAGO)' : 'ORÇAMENTO SEM VALOR FISCAL'}<br/>{vendaConcluidaObj?.dataHora}</div>
+                    {perfilRecibo.mostrarLogoRecibo !== false && perfilRecibo.logoLoja && <img src={perfilRecibo.logoLoja} alt="Logo" style={{maxWidth:'110px',maxHeight:'55px',objectFit:'contain',marginBottom:4}}/>}<h2 style={{ margin: '0 0 4px 0', fontSize: '16px' }}>{perfilRecibo.nomeFantasia || tx("ZenOS - SISTEMA DE GESTÃO","ZenOS - SISTEMA DE GESTIÓN")}</h2>{perfilRecibo.cabecalhoRecibo && <div style={{fontSize:'10px'}}>{perfilRecibo.cabecalhoRecibo}</div>}
+                    <div style={{ fontSize: '10px' }}>{vendaConcluidaObj?.tipoDocumento === 'venda' ? tx("Cupom de Venda Não Fiscal","Comprobante de venta no fiscal") : vendaConcluidaObj?.tipoDocumento === 'pre_pedido' ? tx("TICKET DE PRÉ-PEDIDO (NÃO PAGO)","TICKET DE PEDIDO ANTICIPADO (NO PAGADO)") : tx("ORÇAMENTO SEM VALOR FISCAL","PRESUPUESTO SIN VALOR FISCAL")}<br/>{vendaConcluidaObj?.dataHora}</div>
                   </div>
                   <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
                   <div style={{ marginBottom: '8px', fontSize: '11px' }}>
@@ -1920,7 +1920,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                   )}
 
                   <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
-                  <div style={{ textAlign: 'center', fontSize: '10px' }}>{perfilRecibo.rodapeRecibo || 'Obrigado pela preferência! Volte sempre.'}</div>
+                  <div style={{ textAlign: 'center', fontSize: '10px' }}>{perfilRecibo.rodapeRecibo || tx("Obrigado pela preferência! Volte sempre.","¡Gracias por su preferencia! Vuelva pronto.")}</div>
                 </div>
                 <div className="no-print" style={{ padding: '20px', backgroundColor: '#f1f5f9', display:'grid', gridTemplateColumns:'repeat(3, minmax(0, 1fr))', alignItems:'stretch', gap: '10px', borderTop: '1px dashed #ccc', borderBottomLeftRadius: '16px', borderBottomRightRadius: '16px', minWidth:0 }}>
                   <div style={{minWidth:0,height:62}}><ZenShareButton documento={vendaConcluidaObj} perfilLoja={perfilRecibo}/></div>
@@ -1953,7 +1953,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                       <div style={{ fontSize: '18px', fontWeight: 900, color: '#fb7185' }}>{fmt(saldoRestanteBRL, 'BRL')}</div>
                     ) : (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <div style={{ fontSize: '18px', fontWeight: 900, color: trocoTotalBRL > 0 ? '#fbbf24' : '#38bdf8' }}>{trocoTotalBRL > 0 ? `${converterDeBRL(trocoTotalBRL, moedaTrocoEscolhida).toFixed(2)}` : 'QUITADO ✓'}</div>
+                        <div style={{ fontSize: '18px', fontWeight: 900, color: trocoTotalBRL > 0 ? '#fbbf24' : '#38bdf8' }}>{trocoTotalBRL > 0 ? `${converterDeBRL(trocoTotalBRL, moedaTrocoEscolhida).toFixed(2)}` : tx("QUITADO ✓","PAGADO ✓")}</div>
                         {trocoTotalBRL > 0 && (
                           <select value={moedaTrocoEscolhida} onChange={(e) => setMoedaTrocoEscolhida(e.target.value)} style={{ backgroundColor: '#0f172a', color: '#fbbf24', border: '1px solid #334155', borderRadius: '4px', fontSize: '11px', outline: 'none', cursor: 'pointer', padding: '2px' }}>
                             <option value="BRL">BRL</option><option value="USD">USD</option><option value="EUR">EUR</option><option value="PYG">PYG</option>

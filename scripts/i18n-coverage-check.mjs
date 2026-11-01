@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { parse } from '@babel/parser';
 
 const root = process.cwd();
 const uiFiles = [
@@ -57,6 +58,26 @@ for (const file of uiFiles) {
   if (!source.includes('tx(') && !source.includes('t(')) {
     failures.push(`${file}: sem uso do mecanismo de idioma`);
   }
+
+  // Conditional/fallback labels are invisible to a plain JSX-text regex.
+  const ast = parse(source,{sourceType:'module',plugins:['jsx']});
+  function inspectRenderedLabels(node,ancestors=[]) {
+    if (!node || typeof node!=='object') return;
+    if (Array.isArray(node)) { node.forEach(child=>inspectRenderedLabels(child,ancestors)); return; }
+    const parent=ancestors.at(-1);
+    const attribute=ancestors.filter(item=>item.type==='JSXAttribute').at(-1);
+    const rendered=ancestors.some(item=>item.type==='JSXExpressionContainer');
+    const translated=ancestors.some(item=>item.type==='CallExpression'&&['t','tx'].includes(item.callee?.name));
+    const labelPosition=(parent?.type==='ConditionalExpression'&&(parent.consequent===node||parent.alternate===node))||
+      (parent?.type==='LogicalExpression'&&parent.right===node)||parent?.type==='JSXExpressionContainer';
+    if(node.type==='StringLiteral'&&rendered&&!translated&&labelPosition&&
+      (!attribute||['title','placeholder','aria-label','alt'].includes(attribute.name?.name))&&
+      humanLanguage.test(node.value)&&!allowedDirectText.has(node.value.trim())) {
+      failures.push(`${file}:${node.loc.start.line}: rótulo condicional fora de tx() -> ${node.value}`);
+    }
+    for(const [key,value] of Object.entries(node)) if(!['loc','start','end','extra'].includes(key)&&value&&typeof value==='object') inspectRenderedLabels(value,[...ancestors,node]);
+  }
+  inspectRenderedLabels(ast);
 
   // Visible JSX text must be wrapped by t()/tx(), except invariant technical labels/brands.
   const nodeRegex = />([^<>{}\n][^<>{}\n]{0,140})</g;

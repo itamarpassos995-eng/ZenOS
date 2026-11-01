@@ -315,7 +315,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span style={{ fontSize: '20px' }}>🏛️</span>
             <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff', margin: 0 }}>
-              {tx ? tx('Dados da Empresa e Fiscal', 'Datos de la Empresa y Fiscal', 'Company & Fiscal Data') : 'Dados da Empresa'}
+              {tx ? tx('Dados da Empresa e Fiscal', 'Datos de la Empresa y Fiscal', 'Company & Fiscal Data') : tx("Dados da Empresa","Datos de la empresa")}
             </h3>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#020617', padding: '4px 8px', borderRadius: '10px', border: '1px solid #334155' }}>
@@ -334,7 +334,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
             <input type="text" value={perfilLoja.nomeFantasia} onChange={(e) => lidarMudancaPerfil('nomeFantasia', e.target.value)} placeholder={tx('Ex: Zênite Atacadão','Ej: Zênite Mayorista','Ex: Zênite Wholesale')} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#f8fafc', padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
           </div>
           <div>
-            <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>{perfilLoja.pais === 'PY' ? 'Razón Social' : 'Razão Social (Legal)'}</label>
+            <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>{perfilLoja.pais === 'PY' ? tx("Razão social","Razón social") : tx("Razão Social (Legal)","Razón social (legal)")}</label>
             <input type="text" value={perfilLoja.razaoSocial} onChange={(e) => lidarMudancaPerfil('razaoSocial', e.target.value)} placeholder={tx('Ex: Zênite Tintas LTDA','Ej: Zênite Pinturas S.A.','Ex: Zênite Paints Ltd.')} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#f8fafc', padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
           </div>
 
@@ -343,8 +343,8 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
             <input type="text" value={perfilLoja.documento1} onChange={(e) => lidarMudancaPerfil('documento1', e.target.value)} placeholder={perfilLoja.pais === 'BR' ? '00.000.000/0001-00' : '8000000-1'} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#38bdf8', fontWeight: 900, padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
           </div>
           <div>
-            <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>{perfilLoja.pais === 'BR' ? 'Inscrição Estadual (IE)' : perfilLoja.pais === 'PY' ? 'Timbrado Fiscal' : 'Registo Comercial'}</label>
-            <input type="text" value={perfilLoja.documento2} onChange={(e) => lidarMudancaPerfil('documento2', e.target.value)} placeholder={perfilLoja.pais === 'PY' ? '12345678' : 'Isento ou Número'} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#f8fafc', padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
+            <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>{perfilLoja.pais === 'BR' ? tx("Inscrição Estadual (IE)","Inscripción estatal (IE)") : perfilLoja.pais === 'PY' ? 'Timbrado Fiscal' : tx("Registo Comercial","Registro comercial")}</label>
+            <input type="text" value={perfilLoja.documento2} onChange={(e) => lidarMudancaPerfil('documento2', e.target.value)} placeholder={perfilLoja.pais === 'PY' ? '12345678' : tx("Isento ou Número","Exento o número")} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#f8fafc', padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
           </div>
 
           <div>
@@ -597,7 +597,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
           <label style={{padding:'11px 16px',borderRadius:'10px',border:'1px solid #38bdf8',background:'#020617',color:'#7dd3fc',fontWeight:900,cursor:'pointer'}}>✓ {tx('Validar arquivo','Validar archivo','Validate file')}<input type="file" accept="application/json,.json" onChange={e=>validarArquivoBackup(e.target.files?.[0])} style={{display:'none'}}/></label>
           {ZENOS_RUNTIME.isHomologacao && <button disabled={!arquivoBackupSelecionado || processandoBackup} onClick={restaurarBackupHomologacao} style={{padding:'11px 16px',borderRadius:'10px',border:'1px solid #f59e0b',background:'#451a03',color:'#fbbf24',fontWeight:900,cursor:'pointer'}}>↩ {tx('Restaurar em Homologação Vazia','Restaurar en Homologación Vacía','Restore to Empty Test Environment')}</button>}
         </div>
-        <div style={{fontSize:'11px',color:backupValidadoNestaSessao?'#86efac':'#fbbf24',fontWeight:800}}>{backupValidadoNestaSessao?'✓ Backup desta sessão exportado e validado. Operações de limpeza podem prosseguir após reautenticação.':'⚠ A zona de limpeza fica protegida até existir backup validado nesta sessão.'}</div>
+        <div style={{fontSize:'11px',color:backupValidadoNestaSessao?'#86efac':'#fbbf24',fontWeight:800}}>{backupValidadoNestaSessao?tx("✓ Backup desta sessão exportado e validado. Operações de limpeza podem prosseguir após reautenticação.","✓ Copia de seguridad de esta sesión exportada y validada. Las operaciones de limpieza pueden continuar tras volver a autenticarse."):tx("⚠ A zona de limpeza fica protegida até existir backup validado nesta sessão.","⚠ La zona de limpieza permanece protegida hasta que exista una copia de seguridad validada en esta sesión.")}</div>
       </div>
 
       <div style={{ backgroundColor: '#2e0a16', border: '1px solid rgba(244, 63, 94, 0.4)', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>

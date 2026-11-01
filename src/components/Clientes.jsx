@@ -324,7 +324,7 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
             <div key={item.vendaId} style={{borderTop:'1px solid #6b4e1d',padding:'10px 0',marginTop:8,color:'#fff',fontSize:12,overflowWrap:'anywhere'}}>
               <div><strong>{tx("Venda:","Venta:")}</strong> {item.vendaId} · <strong>{tx("Fiado:","Crédito:")}</strong> {fmt(item.valorFiadoBRL,'BRL')}</div>
               <div><strong>{tx("Nome na venda:","Nombre en la venta:")}</strong> {item.vendaNome} · <strong>{tx("Cliente vinculado atualmente:","Cliente vinculado actualmente:")}</strong> {item.clienteAtualNome}</div>
-              <div><strong>{tx("ID da venda:","ID de la venta:")}</strong> {item.clienteIdVenda || 'Ausente'} · <strong>{tx("ID no Livro Financeiro:","ID en el libro financiero:")}</strong> {item.clienteIdFinanceiro}</div>
+              <div><strong>{tx("ID da venda:","ID de la venta:")}</strong> {item.clienteIdVenda || tx("Ausente","Ausente")} · <strong>{tx("ID no Livro Financeiro:","ID en el libro financiero:")}</strong> {item.clienteIdFinanceiro}</div>
               <div><strong>{tx("Nome no Livro Financeiro:","Nombre en el libro financiero:")}</strong> {item.clienteNomeFinanceiro}</div>
               <div style={{color:'#fbbf24'}}>{item.problemas.join(' • ')}</div>
             </div>

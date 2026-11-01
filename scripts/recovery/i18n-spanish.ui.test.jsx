@@ -4,11 +4,12 @@ import {cleanup,render,screen,fireEvent} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 const mocks=vi.hoisted(()=>({call:vi.fn(),auth:{currentUser:{uid:'user-A'}}}));
 vi.mock('firebase/functions',()=>({getFunctions:vi.fn(),httpsCallable:()=>mocks.call}));
-vi.mock('../../src/firebase',()=>({auth:mocks.auth}));
+vi.mock('../../src/firebase',()=>({auth:mocks.auth,db:{}}));
 import {useUiLanguage} from '../../src/core/useUiLanguage.js';
 import {UI_LANGUAGE_KEY,lerIdiomaUi,salvarIdiomaUi} from '../../src/core/uiLanguage.js';
 import {traducoes} from '../../src/data.js';
 import FiscalAtivacaoAssistente from '../../src/components/FiscalAtivacaoAssistente.jsx';
+import Produtos from '../../src/components/Produtos.jsx';
 import FiscalAdministracaoPainel from '../../src/components/FiscalAdministracaoPainel.jsx';
 const tx=(_pt,es)=>es||_pt;
 beforeEach(()=>{
@@ -59,4 +60,12 @@ it('administração fiscal recebe tradutor, sem nova consulta ao trocar idioma',
 it('rótulos do PDV possuem traduções completas em PT, ES e EN',()=>{
  for(const key of ['itensLancados','nenhumItem','resumoVenda','subtotal','descontoGlobal','totalPagar'])for(const idioma of ['pt','es','en'])expect(traducoes[idioma][key]).toBeTruthy();
  expect(traducoes.es.resumoVenda).toBe('Resumen de la venta');
+});
+
+it('ações condicionais de recuperação de produtos aparecem em espanhol sem consultar estoque',()=>{
+ const page=render(<Produtos produtos={[]} setProdutos={vi.fn()} moeda="PYG" fmt={String} t={key=>traducoes.es[key]||key} tx={tx} userId="store-A" patenteUsuario="gerencia"/>);
+ expect(screen.getByRole('button',{name:'Recuperar producto por SKU'})).toBeTruthy();
+ expect(screen.getByRole('button',{name:'Auditoría completa (avanzada)'})).toBeTruthy();
+ expect(page.container.textContent).not.toMatch(/Recuperar produto|Conferir cadastro|Auditoria completa/);
+ expect(mocks.call).not.toHaveBeenCalled();
 });

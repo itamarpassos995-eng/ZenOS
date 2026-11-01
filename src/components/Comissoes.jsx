@@ -362,7 +362,7 @@ export default function Comissoes({ commitOperacaoNegocio, historicoVendas, fmt,
 
             {erroSalvarRegras && <span style={{ color: '#fb7185', fontSize: '12px', fontWeight: 900 }}>⚠ {erroSalvarRegras}</span>}
 
-            <button disabled={salvandoRegras} onClick={salvarRegras} style={{ padding: '12px 20px', borderRadius: '9px', border: 'none', background: '#0ea5e9', color: '#fff', fontWeight: 900, cursor: salvandoRegras ? 'wait' : 'pointer', opacity: salvandoRegras ? .65 : 1 }}>{salvandoRegras ? 'Confirmando…' : 'Salvar regras'}</button>
+            <button disabled={salvandoRegras} onClick={salvarRegras} style={{ padding: '12px 20px', borderRadius: '9px', border: 'none', background: '#0ea5e9', color: '#fff', fontWeight: 900, cursor: salvandoRegras ? 'wait' : 'pointer', opacity: salvandoRegras ? .65 : 1 }}>{salvandoRegras ? tx("Confirmando…","Confirmando…") : tx("Salvar regras","Guardar reglas")}</button>
 
           </div>
 
@@ -430,7 +430,7 @@ export default function Comissoes({ commitOperacaoNegocio, historicoVendas, fmt,
 
             {linha.bonusAvaliados.map(bonus => <div key={bonus.id} style={{ padding: '13px', borderRadius: '11px', border: `1px solid ${bonus.atingida ? 'rgba(16,185,129,.4)' : '#1e293b'}`, background: bonus.atingida ? 'rgba(16,185,129,.08)' : '#020617' }}>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}><span style={{ color: '#f8fafc', fontSize: '12px', fontWeight: 900 }}>{bonus.nome}</span><span style={{ color: bonus.atingida ? '#34d399' : '#fbbf24', fontSize: '10px', fontWeight: 900 }}>{bonus.atingida ? '✓ QUALIFICADO' : 'EM ANDAMENTO'}</span></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}><span style={{ color: '#f8fafc', fontSize: '12px', fontWeight: 900 }}>{bonus.nome}</span><span style={{ color: bonus.atingida ? '#34d399' : '#fbbf24', fontSize: '10px', fontWeight: 900 }}>{bonus.atingida ? tx("✓ QUALIFICADO","✓ CALIFICADO") : 'EM ANDAMENTO'}</span></div>
 
               <div style={{ color: '#94a3b8', fontSize: '10px', marginTop: '6px' }}>{formatarMetaBonus(bonus, fmt)} {tx("• Atual:","• Actual:")} {formatarMetricaBonus(bonus, fmt, tx)}</div>
 
