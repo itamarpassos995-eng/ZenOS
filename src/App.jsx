@@ -12,6 +12,7 @@ import { persistV1OperationFieldSafe, persistV1BusinessOperationSafe, recordSync
 import { cloneSyncValue, hasLocalSyncChange, syncValuesEqual } from './core/syncMerge';
 import { zenosStorage } from './core/storage';
 import { obterFinanceiroVenda } from './core/salesFinancials';
+import { auditarFinanceiroVenda } from './core/financialAudit';
 import { registroEhDoDiaLocal } from './core/dates';
 import { filtrarVendasHojeVisiveis } from './core/salesTodayScope';
 import LandingPage from './components/LandingPage';
@@ -998,6 +999,15 @@ export default function App() {
     acc.lucro += financeiro.lucroLiquidoBRL;
     return acc;
   }, { total: 0, cmv: 0, lucro: 0 }), [vendasValidas]);
+  // Auditoria local sobre vendas já carregadas: zero consultas ou listeners novos.
+  // Quando faltam evidências, o painel não apresenta receita e lucro como confirmados.
+  const auditoriaPainelFinanceiro = useMemo(() => {
+    const resultados = vendasValidas.map(auditarFinanceiroVenda);
+    const divergentes = resultados.filter(r => r.situacao === 'DIVERGENTE');
+    const pendentes = resultados.filter(r => r.situacao === 'PENDENTE_AUDITORIA');
+    return { total: resultados.length, divergentes, pendentes,
+      confiavel: divergentes.length === 0 && pendentes.length === 0 };
+  }, [vendasValidas]);
   const faturamentoTotalBRL = financeiroHistorico.total;
   const cmvTotalBRL = financeiroHistorico.cmv;
   const lucroBrutoBRL = financeiroHistorico.lucro;
@@ -1901,12 +1911,21 @@ export default function App() {
               {temPermissao('inteligencia') ? <section className="zen-dashboard-card">
                 <button className="zen-exec-toggle" onClick={() => setMostrarPainelExecutivo(!mostrarPainelExecutivo)}><span>👁️ {tx('Painel Executivo e Financeiro','Panel Ejecutivo y Financiero','Executive & Financial Dashboard')}</span><span>{mostrarPainelExecutivo ? '⌃' : '›'}</span></button>
                 {mostrarPainelExecutivo && <div className="zen-exec-body">
+                  <div role="status" aria-live="polite" style={{ marginBottom:12,padding:'12px 14px',borderRadius:10,border:'1px solid #334155',background:'#0f172a',color:'#e2e8f0',fontSize:12 }}>
+                    <strong>{auditoriaPainelFinanceiro.confiavel ? tx('Conferência automática sem divergências detectadas','Verificación automática sin divergencias detectadas','Automated check: no discrepancies detected') : tx('Indicadores de vendas em auditoria','Indicadores de ventas en auditoría','Sales indicators under audit')}</strong>
+                    <div style={{marginTop:5}}>
+                      {auditoriaPainelFinanceiro.total} {tx('vendas verificadas nos dados carregados','ventas verificadas en los datos cargados','sales checked in loaded data')} · {auditoriaPainelFinanceiro.divergentes.length} {tx('divergentes','divergentes','inconsistent')} · {auditoriaPainelFinanceiro.pendentes.length} {tx('pendentes','pendientes','pending')}
+                    </div>
+                    <div style={{marginTop:5,color:'#94a3b8'}}>
+                      {tx('Verificação local dos registros disponíveis. Não substitui conciliação do livro financeiro, despesas, caixa ou histórico não carregado.','Verificación local de los registros disponibles. No sustituye conciliación del libro, gastos, caja o historial no cargado.','Local verification of available records; not a full ledger, expense, cash or historical reconciliation.')}
+                    </div>
+                  </div>
                   <div className="zen-exec-grid">
-                    <div className="zen-exec-stat"><span>{tx('Faturamento Real','Facturación Real','Actual Revenue')}</span><strong>{fmt(faturamentoTotalBRL)}</strong></div>
-                    <div className="zen-exec-stat"><span>CMV</span><strong>{fmt(cmvTotalBRL)}</strong></div>
-                    <div className="zen-exec-stat"><span>{tx('Lucro Bruto','Ganancia Bruta','Gross Profit')}</span><strong style={{color:'#38bdf8'}}>{fmt(lucroBrutoBRL)}</strong></div>
+                    <div className="zen-exec-stat"><span>{tx('Faturamento Real','Facturación Real','Actual Revenue')}</span><strong>{auditoriaPainelFinanceiro.confiavel ? fmt(faturamentoTotalBRL) : tx('Em auditoria','En auditoría','Under audit')}</strong></div>
+                    <div className="zen-exec-stat"><span>CMV</span><strong>{auditoriaPainelFinanceiro.confiavel ? fmt(cmvTotalBRL) : tx('Em auditoria','En auditoría','Under audit')}</strong></div>
+                    <div className="zen-exec-stat"><span>{tx('Lucro Bruto','Ganancia Bruta','Gross Profit')}</span><strong style={{color:'#38bdf8'}}>{auditoriaPainelFinanceiro.confiavel ? fmt(lucroBrutoBRL) : tx('Em auditoria','En auditoría','Under audit')}</strong></div>
                     <div className="zen-exec-stat"><span>{tx('Despesas Pagas','Gastos Pagados','Paid Expenses')}</span><strong style={{color:'#fbbf24'}}>{fmt(despesasPagasBRL)}</strong></div>
-                    <div className="zen-exec-stat"><span>{tx('Lucro Líquido','Ganancia Neta','Net Profit')}</span><strong style={{color:'#34d399'}}>{fmt(lucroLiquidoRealBRL)}</strong></div>
+                    <div className="zen-exec-stat"><span>{tx('Lucro Líquido','Ganancia Neta','Net Profit')}</span><strong style={{color:'#34d399'}}>{auditoriaPainelFinanceiro.confiavel ? fmt(lucroLiquidoRealBRL) : tx('Em auditoria','En auditoría','Under audit')}</strong></div>
                     <div className="zen-exec-stat"><span>{tx('Fiado na Praça','Crédito Pendiente','Outstanding Credit')}</span><strong style={{color:'#fb7185'}}>{fmt(totalFiadoAbertoBRL)}</strong></div>
                   </div>
                   <div className="zen-abc-list">{curvaABC.slice(0,5).map((item,index)=><div className="zen-abc-row" key={`${item.sku}-${index}`}><b>{index+1}</b><span>{item.nome}</span><strong>{fmt(item.faturamentoBRL,'BRL')}</strong></div>)}</div>
