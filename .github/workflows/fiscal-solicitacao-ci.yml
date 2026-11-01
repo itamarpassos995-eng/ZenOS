@@ -4,6 +4,9 @@ on:
     paths:
       - 'src/components/Fiscal*.jsx'
       - 'src/components/Fiscal*.css'
+      - 'src/core/fiscalConfigCache.js'
+      - 'scripts/fiscal-config-cache-check.mjs'
+      - 'scripts/recovery/fiscal-*.ui.test.jsx'
       - 'scripts/fiscal-boot-check.mjs'
       - 'functions/**'
       - 'firebase.json'
@@ -32,6 +35,10 @@ jobs:
       - name: Backend tests
         working-directory: functions
         run: npm run check
+      - name: Fiscal provider configuration and read budget
+        run: |
+          node scripts/fiscal-config-cache-check.mjs
+          npx vitest run --config vitest.recovery.config.js scripts/recovery/fiscal-provider-choice.ui.test.jsx scripts/recovery/fiscal-config-backend.ui.test.jsx
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
