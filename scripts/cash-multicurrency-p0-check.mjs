@@ -170,4 +170,11 @@ assert.ok(movimentoSemNativo.pendencias.some(p=>p.includes('faltam valores físi
 assert.match(app,/fmt\(saldoEsperadoBRL, moedaTotalCaixa\)/);
 assert.match(app,/fmt\(valInformadoBRL, moedaTotalCaixa\)/);
 
+// O diálogo final não deve reduzir os saldos nativos a três valores só em BRL.
+assert.match(app,/Demonstrativo físico por moeda:/);
+assert.match(app,/conciliacaoFisica\.esperado\?\.\[m\]/);
+assert.match(app,/conciliacaoFisica\.contado\?\.\[m\]/);
+assert.match(app,/conciliacaoFisica\.diferencas\?\.\[m\]/);
+assert.match(app,/Equivalente total esperado em BRL/);
+assert.doesNotMatch(app,/`Saldo esperado: \\${fmt\(saldoEsperadoBRL, 'BRL'\)\}`/);
 console.log('ZenOS caixa: testes de regressão P0 aprovados.');
