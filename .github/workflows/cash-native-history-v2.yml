@@ -19,3 +19,9 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: node --test scripts/cash-native-history-v2.test.mjs
       - run: npm run build
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+      - name: Livro financeiro Firebase Emulator
+        run: npm run test:att07:emulator
