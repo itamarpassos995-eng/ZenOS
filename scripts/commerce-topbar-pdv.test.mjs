@@ -56,6 +56,12 @@ test('nenhum arquivo de persistência Firestore nem regras foi modificado',()=>{
  const allowedFinancialCore='src/core/cashReconciliation.js';
  const allowedCashGuard='src/core/productionSync.js';
  const allowedReadOnlyAudit='src/core/financialAudit.js';
+ const allowedCashHistory='src/core/cashHistoryDisplay.js';
+ if(changed.includes(allowedCashHistory)){
+   const source=read(allowedCashHistory);
+   assert.doesNotMatch(source,/firebase\/firestore|\bonSnapshot\s*\(|\bgetDocs(?:FromServer)?\s*\(|\bgetDoc(?:FromServer)?\s*\(|\brunTransaction\s*\(/,'Histórico nativo não pode acessar o Firestore');
+   assert.match(source,/obterComposicaoHistoricaCaixa/);
+ }
  if(changed.includes(allowedReadOnlyAudit)){
    const source=read(allowedReadOnlyAudit);
    assert.doesNotMatch(source,/firebase\/firestore|\bonSnapshot\s*\(|\bgetDocs(?:FromServer)?\s*\(|\bgetDoc(?:FromServer)?\s*\(|\brunTransaction\s*\(/,'Auditoria financeira deve ser apenas cálculo puro, sem acesso ao Firestore');
@@ -74,7 +80,7 @@ test('nenhum arquivo de persistência Firestore nem regras foi modificado',()=>{
    /(^|\/)firestore[^/]*\.rules$/.test(path)||
    /^src\/firebase[^/]*\.[jt]s$/.test(path)||
    /^functions\//.test(path)||
-   (/^src\/core\//.test(path)&&!uiOnlyCore.has(path)&&path!==allowedFinancialCore&&path!==allowedCashGuard&&path!==allowedReadOnlyAudit)
+   (/^src\/core\//.test(path)&&!uiOnlyCore.has(path)&&path!==allowedFinancialCore&&path!==allowedCashGuard&&path!==allowedReadOnlyAudit&&path!==allowedCashHistory)
  );
  assert.deepEqual(protectedPaths,[],'A mudança visual não pode alterar persistência nem regras');
 });
