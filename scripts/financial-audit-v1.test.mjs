@@ -60,3 +60,15 @@ test('caixa com troco de outra moeda reduz somente essa moeda',()=>{
  assert.equal(caixa.esperado.BRL,200);
  assert.equal(caixa.esperado.PYG,108000);
 });
+
+// O painel não apresenta valores de vendas duvidosas como se fossem confirmados.
+import { readFileSync } from 'node:fs';
+test('painel sinaliza divergências, esconde indicadores não comprovados e não consulta Firestore',()=>{
+ const app=readFileSync(new URL('../src/App.jsx',import.meta.url),'utf8');
+ assert.match(app,/const auditoriaPainelFinanceiro = useMemo/);
+ assert.match(app,/vendasValidas\.map\(auditarFinanceiroVenda\)/);
+ assert.match(app,/auditoriaPainelFinanceiro\.confiavel \? fmt\(faturamentoTotalBRL\)/);
+ assert.match(app,/auditoriaPainelFinanceiro\.confiavel \? fmt\(cmvTotalBRL\)/);
+ assert.match(app,/auditoriaPainelFinanceiro\.confiavel \? fmt\(lucroLiquidoRealBRL\)/);
+ assert.match(app,/histórico não carregado|historial no cargado|historical reconciliation/);
+});
