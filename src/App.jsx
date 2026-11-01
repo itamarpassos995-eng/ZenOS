@@ -1387,9 +1387,10 @@ export default function App() {
         ${!conciliacaoFisica.confiavel ? `<div style="margin-top:5px;font-weight:bold;">${tx('RECONCILIAÇÃO INCONCLUSIVA:','CONCILIACIÓN NO CONCLUYENTE:','INCONCLUSIVE RECONCILIATION:')} ${conciliacaoFisica.pendencias.map(escaparHTML).join(' | ')}</div>` : ''}
 
         <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
-        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('SALDO ESPERADO:','SALDO ESPERADO:','EXPECTED BALANCE:')}</span><span>${fmt(saldoEsperadoBRL, 'BRL')}${conciliacaoFisica.confiavel ? '' : ' (REFERENCIAL)'}</span></div>
-        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('TOTAL CONTADO:','TOTAL CONTADO:','TOTAL COUNTED:')}</span><span>${fmt(valInformadoBRL, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('DIFERENÇA:','DIFERENCIA:','DIFFERENCE:')}</span><span>${conciliacaoFisica.confiavel ? fmt(diferenca, 'BRL') : 'INDETERMINADA'}</span></div>
+        <div style="font-size:10px;margin-bottom:5px;">${tx('Os totais abaixo são equivalentes convertidos no câmbio do fechamento. Os saldos físicos de cada moeda constam na conciliação acima.','Los totales siguientes son equivalentes convertidos al tipo de cambio del cierre. Los saldos físicos por moneda figuran arriba.','Totals below are converted equivalents at closing rates. Physical balances by currency are shown above.')}</div>
+        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('SALDO ESPERADO:','SALDO ESPERADO:','EXPECTED BALANCE:')}</span><span>${fmt(saldoEsperadoBRL, moedaTotalCaixa)} (${moedaTotalCaixa})${conciliacaoFisica.confiavel ? '' : ' (REFERENCIAL)'}</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('TOTAL CONTADO:','TOTAL CONTADO:','TOTAL COUNTED:')}</span><span>${fmt(valInformadoBRL, moedaTotalCaixa)} (${moedaTotalCaixa})</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('DIFERENÇA:','DIFERENCIA:','DIFFERENCE:')}</span><span>${conciliacaoFisica.confiavel ? fmt(diferenca, moedaTotalCaixa) + ' (' + moedaTotalCaixa + ')' : 'INDETERMINADA'}</span></div>
         <div style="text-align:center;font-weight:bold;margin-top:8px;">${descQuebra}</div>
 
         <div style="margin-top:36px;text-align:center;">_________________________________<br/>${tx('Assinatura do Operador','Firma del Operador','Operator Signature')}<br/>${escaparHTML(sessaoAtiva.operadorNome)}</div>
