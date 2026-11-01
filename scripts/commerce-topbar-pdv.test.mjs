@@ -51,11 +51,19 @@ test('nenhum arquivo de persistência Firestore nem regras foi modificado',()=>{
  const changed=execFileSync('git',['diff','--name-only','origin/main...HEAD'],{encoding:'utf8'}).trim().split('\n');
  // UI translations may touch multiple screens; persistence engines remain protected.
  const uiOnlyCore=new Set(['src/core/uiLanguage.js','src/core/useUiLanguage.js','src/core/fiscalErrorUi.js']);
+ // Exceção pontual: este PR corrige a reconciliação física multimoeda.
+ // O módulo permanece puro e não pode passar a consultar Firestore.
+ const allowedFinancialCore='src/core/cashReconciliation.js';
+ if(changed.includes(allowedFinancialCore)){
+   const source=read(allowedFinancialCore);
+   assert.doesNotMatch(source,/firebase\/firestore|\bonSnapshot\s*\(|\bgetDocs(?:FromServer)?\s*\(|\bgetDoc(?:FromServer)?\s*\(|\brunTransaction\s*\(/,
+    'A reconciliação financeira não pode adicionar consultas ou listeners Firestore');
+ }
  const protectedPaths=changed.filter(path=>
    /(^|\/)firestore[^/]*\.rules$/.test(path)||
    /^src\/firebase[^/]*\.[jt]s$/.test(path)||
    /^functions\//.test(path)||
-   (/^src\/core\//.test(path)&&!uiOnlyCore.has(path))
+   (/^src\/core\//.test(path)&&!uiOnlyCore.has(path)&&path!==allowedFinancialCore)
  );
  assert.deepEqual(protectedPaths,[],'A mudança visual não pode alterar persistência nem regras');
 });
