@@ -44,6 +44,7 @@ import { planejarReconciliacoesFiado } from './core/creditReconciliation.js';
 import { calcularResumoSessao, calcularConciliacaoEletronicaSessao, timestampSessao, timestampVenda, vendasDaSessao, assinaturaFinanceiraSessao } from './core/cashSession';
 import { converterValoresFisicosParaBRL, interpretarValorMonetario } from './core/cashMoneyInput';
 import { calcularConciliacaoFisicaMultimoeda } from './core/cashReconciliation';
+import { obterComposicaoHistoricaCaixa, formatarDinheiroNativo } from './core/cashHistoryDisplay';
 import { normalizarRegrasComissao, REGRAS_COMISSAO_PADRAO } from './core/commissionEngine';
 import { normalizarRegrasMargem } from './core/profitability';
 import { patenteEfetivaOperador } from './core/accessControl';
@@ -1176,7 +1177,7 @@ export default function App() {
     const agoraISO = new Date().toISOString();
     const novoMov = { 
       id: Date.now(), sessaoId: sessaoAtiva.id, dataHora: new Date().toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR'), createdAt: agoraISO,
-      tipo: tipoMovCaixa, valorBRL: valBRL, detalhesMoedas: { ...valoresMovCaixa }, detalhesMoedasNativas: movimentoValidado.valoresNativos, taxasCambioMovimento: { ...taxasCambio },
+      tipo: tipoMovCaixa, lojaId:String(userId), moedaEquivalente:'BRL', valorBRL: valBRL, detalhesMoedas: { ...valoresMovCaixa }, detalhesMoedasNativas: movimentoValidado.valoresNativos, taxasCambioMovimento: { ...taxasCambio },
       direcao: tipoMovCaixa === 'suprimento' ? 'entrada' : 'saida', afetaGaveta: true,
       descricao: descMovCaixa || (tipoMovCaixa === 'suprimento' ? tx('Reforço de Fundo', 'Refuerzo de Caja', 'Float Fund') : tx('Retirada de Caixa', 'Retiro de Caja', 'Cash Withdrawal')), 
       operador: operadorAtivo?.nome 
@@ -1908,7 +1909,23 @@ export default function App() {
                         <button onClick={() => { setTipoMovCaixa('sangria'); setModalCaixaAberto(true); }}>− {tx('Saída (Sangria)','Salida (Retiro)','Cash Out (Withdrawal)')}</button>
                         <button onClick={() => { setTipoMovCaixa('fechamento'); setModalCaixaAberto(true); }}>🔒 {tx('Encerrar Turno','Cerrar Turno','Close Shift')}</button>
                       </div>
-                      <div className="zen-movements">{movsSessao.length === 0 ? <div className="zen-movement"><span>{tx('Nenhuma movimentação neste turno.','Ningún movimiento en este turno.','No movements in this shift.')}</span></div> : movsSessao.slice(0,6).map(m => <div className="zen-movement" key={m.id}><span>{m.tipo === 'suprimento' ? tx('Entrada','Entrada','Cash In') : tx('Saída','Salida','Cash Out')} • {m.descricao}</span><strong>{m.tipo === 'suprimento' ? '+' : '-'}{fmt(m.valorBRL,'BRL')}</strong></div>)}</div>
+                      <div className="zen-movements">{movsSessao.length === 0 ? <div className="zen-movement"><span>{tx('Nenhuma movimentação neste turno.','Ningún movimiento en este turno.','No movements in this shift.')}</span></div> : movsSessao.slice(0,6).map(m => {
+                        const composicao = obterComposicaoHistoricaCaixa(m);
+                        return <div className="zen-movement" key={m.id}>
+                          <div style={{display:'flex',flexDirection:'column',gap:4,minWidth:0}}>
+                            <span>{m.tipo === 'suprimento' ? tx('Entrada','Entrada','Cash In') : tx('Saída','Salida','Cash Out')} • {m.descricao}</span>
+                            {composicao.comprovada
+                              ? <div style={{fontSize:11,color:'#94a3b8',display:'flex',flexWrap:'wrap',columnGap:9,rowGap:3}}>
+                                  {composicao.moedas.map(({moeda,valor})=><span key={moeda}>{formatarDinheiroNativo(valor,moeda,idioma)}</span>)}
+                                </div>
+                              : <small style={{color:'#fbbf24'}}>{tx('Movimentação histórica — composição monetária não disponível.','Movimiento histórico — composición monetaria no disponible.','Historical movement — currency breakdown unavailable.')}</small>}
+                          </div>
+                          <div style={{textAlign:'right',minWidth:95}}>
+                            <strong>{m.tipo === 'suprimento' ? '+' : '-'}{Number.isFinite(composicao.equivalenteBRL) ? fmt(composicao.equivalenteBRL,'BRL') : fmt(m.valorBRL,'BRL')}</strong>
+                            <div style={{fontSize:10,color:'#94a3b8'}}>{tx('Equivalente registrado BRL','Equivalente registrado BRL','Recorded BRL equivalent')}</div>
+                          </div>
+                        </div>;
+                      })}</div>
                     </>}
                   </div>
                 </section>
