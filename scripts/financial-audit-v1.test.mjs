@@ -29,7 +29,7 @@ test('venda válida multimoeda não duplica receita nem CMV',()=>{
  assert.equal(caixa.esperado.PYG,120000);
 });
 test('identifica CMV e lucro persistidos incorretos',()=>{
- const a=auditarFinanceiroVenda(venda({cmvBRL:100,lucroLiquidoBRL:200}));
+ const a=auditarFinanceiroVenda(venda({cmvBRL:100,lucroLiquidoBRL:190}));
  assert.equal(a.situacao,'DIVERGENTE');
  assert.ok(a.pendencias.some(p=>p.codigo==='CMV_DIVERGENTE'));
  assert.ok(a.pendencias.some(p=>p.codigo==='LUCRO_DIVERGENTE'));
