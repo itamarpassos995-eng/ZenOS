@@ -6,6 +6,7 @@ import { getV1OperationPath, notifyPersistenceStatus, safeSetLocalJson } from '.
 import { cloneSyncValue, mergeV1FieldThreeWay, syncValuesEqual } from './syncMerge.js';
 import { criarLancamentoFinanceiro } from './financialLedgerCore.js';
 import { calcularResumoSessao, assinaturaFinanceiraSessao } from './cashSession.js';
+import { calcularConciliacaoFisicaMultimoeda } from './cashReconciliation.js';
 
 // ATT 10.2: proteção local contra loops/eco. Os limites são deliberadamente
 // conservadores: uma operação real pode alterar muitos campos, mas deve gerar
@@ -194,6 +195,29 @@ const assertBusinessGuards = (data, guards = []) => {
       const necessario = Number(guard.amount || 0);
       if (!Number.isFinite(disponivel) || disponivel + 0.000001 < necessario) {
         failGuard(guard.message || `Saldo físico do caixa mudou em outro terminal. Disponível: ${disponivel.toFixed(2)}.`, 'ZENOS_CASH_BALANCE_CONFLICT');
+      }
+    } else if (guard.type === 'cash_native_balance_at_least') {
+      const session = findEntity(data?.sessoesCaixa, guard.sessionId, 'id');
+      if (!session || session.status !== 'aberta') {
+        failGuard('Turno não está aberto para a retirada.', 'ZENOS_CASH_SESSION_NOT_OPEN');
+      }
+      const reconciled = calcularConciliacaoFisicaMultimoeda({
+        sessao: session,
+        historicoVendas: data?.historicoVendas || [],
+        caixaMovimentos: data?.caixaMovimentos || [],
+        contagem: {},
+        taxas: guard.taxas || {},
+      });
+      if (!reconciled.confiavel) {
+        failGuard('Composição física do caixa não confiável. É necessária conciliação.', 'ZENOS_CASH_NATIVE_UNVERIFIED');
+      }
+      for (const moeda of ['BRL','USD','EUR','PYG']) {
+        const solicitado = Number(guard.valoresNativos?.[moeda] || 0);
+        const disponivel = Number(reconciled.esperado?.[moeda]);
+        if (!Number.isFinite(solicitado) || solicitado < 0 || !Number.isFinite(disponivel)
+          || solicitado > disponivel + (moeda === 'PYG' ? 0 : 0.001)) {
+          failGuard('Saldo físico insuficiente ou inválido em ' + moeda, 'ZENOS_CASH_NATIVE_BALANCE_CONFLICT');
+        }
       }
     } else if (guard.type === 'no_open_cash_session_for_operator') {
       const hasOpen = (Array.isArray(data?.sessoesCaixa) ? data.sessoesCaixa : []).some(s => String(s?.operadorId) === String(guard.operatorId) && s?.status === 'aberta');
