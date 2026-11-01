@@ -22,19 +22,24 @@ const uiFiles = [
   'src/components/Migracao.jsx',
   'src/components/Fiscal.jsx',
   'src/components/FiscalErrorBoundary.jsx',
+  'src/components/FiscalAtivacaoAssistente.jsx',
+  'src/components/FiscalCredenciaisForm.jsx',
+  'src/components/FiscalAdministracaoPainel.jsx',
   'src/components/TerminalLogin.jsx',
 ];
 
 const allowedDirectText = new Set([
   'Zen','OS','ZenOS','ZenOS Cloud SaaS Enterprise','ZENOS (CLOUD)','ZENOS FISCAL','ZÊNITE','Zênite','CEO','LIVE','OK','×',
   'SKU','BRL','USD','EUR','PYG','CF','CMV','UN','KG','M²','CX','KIT','NCM','CEST','A4',
-  'CPF','CNPJ','CI / RUC','WhatsApp',
+  'CPF','CNPJ','CI / RUC','WhatsApp','NFC-e','Simples Nacional',
   'Português (PT)','Español (ES)','English (EN)',
   'BRL (R$)','USD ($)','EUR (€)','PYG (₲)',
 ]);
 
 const allowedDirectAttrs = [
   /^••••$/,
+  /^VALE-\d+$/,
+  /^WhatsApp$/,
   /^0%$/,
   /^000\.000\.000-00$/,
   /^\(00\) 00000-0000$/,
@@ -62,7 +67,7 @@ for (const file of uiFiles) {
     if (allowedDirectText.has(value)) continue;
     if (/^(?:R\$|₲|\$|€|%|\+|-|\/)/.test(value)) continue;
     if (/^(?:[A-Z0-9_./-]{1,12})$/.test(value)) continue;
-    if (value.includes('=>') || value.includes('return') || value.includes('p.estoque') || value.includes('String(') || value.includes('.join(') || value.includes('`')) continue;
+    if (value.includes('=>') || value.includes('&&') || value.includes('return') || value.includes('p.estoque') || value.includes('String(') || value.includes('.join(') || value.includes('`')) continue;
     failures.push(`${file}: texto JSX direto -> "${value}"`);
   }
 
@@ -79,6 +84,7 @@ for (const file of uiFiles) {
   const lines = source.split('\n');
   lines.forEach((line, index) => {
     if (!uiCall.test(line) || line.includes('tx(') || !humanLanguage.test(line)) return;
+    if (/setErro\(['"]["']\)/.test(line) && !/\b(?:avisarZen|mostrarZen|setModalZen|avisarAppZen|confirmarAppZen)\s*\(/.test(line)) return;
     failures.push(`${file}:${index + 1}: mensagem operacional fora de tx() -> ${line.trim().slice(0,180)}`);
   });
 }
@@ -86,6 +92,12 @@ for (const file of uiFiles) {
 const dataUrl = pathToFileURL(path.join(root, 'src/data.js')).href;
 const { traducoes } = await import(dataUrl);
 const baseKeys = Object.keys(traducoes.pt || {}).sort();
+for (const file of uiFiles) {
+ const source = fs.readFileSync(path.join(root,file),'utf8');
+ for (const match of source.matchAll(/\bt\(['"]([^'"]+)['"]\)/g)) {
+  for (const idioma of ['pt','es','en']) if (!traducoes[idioma]?.[match[1]]) failures.push(`${file}: chave ausente em ${idioma}: ${match[1]}`);
+ }
+}
 for (const idioma of ['es','en']) {
   const keys = Object.keys(traducoes[idioma] || {}).sort();
   const faltando = baseKeys.filter(key => !keys.includes(key));

@@ -50,7 +50,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
   };
 
   const salvarPerfilLoja = async () => {
-    if (!perfilLoja.nomeFantasia.trim()) return avisarZen('warning','Nome obrigatório',tx ? tx('O Nome Fantasia é obrigatório.', 'El Nombre Comercial es obligatorio.', 'Store Name is required.') : 'Nome obrigatório.');
+    if (!perfilLoja.nomeFantasia.trim()) return avisarZen('warning',tx("Nome obrigatório","Nombre obligatorio"),tx ? tx('O Nome Fantasia é obrigatório.', 'El Nombre Comercial es obligatorio.', 'Store Name is required.') : tx("Nome obrigatório.","Nombre obligatorio."));
     setSalvandoPerfil(true);
     try {
       const user = auth.currentUser;
@@ -64,7 +64,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
       // pode deixar aparência de configuração salva apenas neste terminal.
       const perfilConfirmadoLocal = salvarPerfilLojaLocal(user?.uid, perfilLoja);
       if (setPerfilLojaGlobal) setPerfilLojaGlobal(perfilConfirmadoLocal);
-      avisarZen('success','Configurações salvas',tx ? tx('Dados fiscais da loja atualizados com sucesso!', '¡Datos fiscales actualizados con éxito!', 'Fiscal data successfully updated!') : 'Dados atualizados!');
+      avisarZen('success',tx("Configurações salvas","Configuraciones guardadas"),tx ? tx('Dados fiscais da loja atualizados com sucesso!', '¡Datos fiscales actualizados con éxito!', 'Fiscal data successfully updated!') : tx("Dados atualizados!","¡Datos actualizados!"));
       window.location.reload(); 
     } catch (err) {
       console.error("Erro ao guardar perfil:", err);
@@ -108,8 +108,8 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
 
   const restaurarBackupHomologacao = async () => {
     if (!ZENOS_RUNTIME.isHomologacao) return avisarZen('danger',tx('Restauração bloqueada','Restauración bloqueada','Restore blocked'),tx('A restauração só é permitida no ambiente de homologação.','La restauración solo está permitida en el ambiente de homologación.','Restore is only allowed in the test environment.'));
-    if (!arquivoBackupSelecionado) return avisarZen('warning','Selecione um backup','Valide primeiro um arquivo de backup.');
-    const confirmou = await confirmarZen({ titulo:'Restaurar em homologação vazia', mensagem:'Esta operação é permitida somente em uma loja de homologação vazia e não apaga registros existentes.', confirmarTexto:'Restaurar', variante:'warning' });
+    if (!arquivoBackupSelecionado) return avisarZen('warning',tx("Selecione um backup","Seleccione una copia de seguridad"),tx("Valide primeiro um arquivo de backup.","Valide primero un archivo de copia de seguridad."));
+    const confirmou = await confirmarZen({ titulo:tx("Restaurar em homologação vazia","Restaurar en homologación vacía"), mensagem:tx("Esta operação é permitida somente em uma loja de homologação vazia e não apaga registros existentes.","Esta operación solo se permite en una tienda de homologación vacía y no elimina registros existentes."), confirmarTexto:tx("Restaurar","Restaurar"), variante:'warning' });
     if (!confirmou) return;
     setProcessandoBackup(true);
     try {
@@ -173,7 +173,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
     if (String(idParaRemover) === 'admin') return avisarZen('warning',tx('Administrador principal protegido','Administrador principal protegido','Main administrator protected'),tx('O administrador principal não pode ser removido. Altere o PIN se necessário.','El administrador principal no puede ser eliminado. Cambie el PIN si es necesario.','The main administrator cannot be removed. Change the PIN if necessary.'));
     if (!vendedores || vendedores.length <= 1) return avisarZen('warning',tx('Operação bloqueada','Operación bloqueada','Operation blocked'),tx('Você não pode excluir o último utilizador do sistema.','No puede eliminar el último usuario del sistema.','You cannot delete the last user in the system.'));
     const alvo=(vendedores||[]).find(v=>String(v.id)===String(idParaRemover));
-    const confirmou=await confirmarZen({ titulo:tx('Remover operador','Eliminar operador','Remove operator'), mensagem:`Remover ${alvo?.nome || 'este operador'} do sistema?`, confirmarTexto:tx('Remover','Eliminar','Remove'), variante:'danger' });
+    const confirmou=await confirmarZen({ titulo:tx('Remover operador','Eliminar operador','Remove operator'), mensagem:`Remover ${alvo?.nome || tx("este operador","este operador")} do sistema?`, confirmarTexto:tx('Remover','Eliminar','Remove'), variante:'danger' });
     if (!confirmou) return;
     try {
       const confirmados = await confirmarVendedoresNaNuvem(vendedores.filter(v => String(v.id) !== String(idParaRemover)));
@@ -185,7 +185,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
 
   // 🛡️ ATUALIZA AS PERMISSÕES DE UM VENDEDOR JÁ EXISTENTE
   const atualizarPermissaoVendedor = async (idVendedor, campoPermissao, valorCheckbox) => {
-    if (String(idVendedor) === 'admin' && campoPermissao === 'admin' && !valorCheckbox) return avisarZen('warning','Administrador principal protegido','O administrador principal deve manter acesso total.');
+    if (String(idVendedor) === 'admin' && campoPermissao === 'admin' && !valorCheckbox) return avisarZen('warning',tx("Administrador principal protegido","Administrador principal protegido"),tx("O administrador principal deve manter acesso total.","El administrador principal debe conservar el acceso total."));
     const novaLista = (vendedores || []).map(v => {
       if (v.id === idVendedor) {
         const permissoes = { ...(v.permissoes || {}), [campoPermissao]: valorCheckbox };
@@ -559,7 +559,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                       <input type="checkbox" disabled={v.permissoes?.admin || false} checked={v.permissoes?.admin || v.permissoes?.produtos || false} onChange={e => atualizarPermissaoVendedor(v.id, 'produtos', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#0284c7' }} />
-                      📦 Produtos e Compras
+                      {tx("📦 Produtos e Compras","📦 Productos y compras")}
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                       <input type="checkbox" disabled={v.permissoes?.admin || false} checked={v.permissoes?.admin || v.permissoes?.clientes || false} onChange={e => atualizarPermissaoVendedor(v.id, 'clientes', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#d97706' }} />
@@ -625,7 +625,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
                 </div>
                 <div style={{ display: 'flex', gap: '12px' }}>
                   <button onClick={() => setModalResetAberto(false)} type="button" style={{ flex: 1, padding: '12px', backgroundColor: '#020617', border: '1px solid #334155', color: '#94a3b8', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}>{tx('Cancelar','Cancelar','Cancel')}</button>
-                  <button onClick={() => { if (!selProdutos && !selClientes && !selVendas && !selCaixa && !selDespesas) { return avisarZen('warning','Nada selecionado','Selecione ao menos uma categoria.'); } setEtapaAviso(2); }} type="button" style={{ flex: 1, padding: '12px', backgroundColor: '#e11d48', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}>{tx('Avançar ➔','Avanzar ➔','Next ➔')}</button>
+                  <button onClick={() => { if (!selProdutos && !selClientes && !selVendas && !selCaixa && !selDespesas) { return avisarZen('warning',tx("Nada selecionado","Nada seleccionado"),tx("Selecione ao menos uma categoria.","Seleccione al menos una categoría.")); } setEtapaAviso(2); }} type="button" style={{ flex: 1, padding: '12px', backgroundColor: '#e11d48', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}>{tx('Avançar ➔','Avanzar ➔','Next ➔')}</button>
                 </div>
               </>
             ) : (

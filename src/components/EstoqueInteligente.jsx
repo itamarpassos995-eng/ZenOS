@@ -73,7 +73,7 @@ export default function EstoqueInteligente({ produtos, fmt, tx = (pt) => pt }) {
           onClick={() => setAbaAtiva('ruptura')} 
           style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '10px', fontWeight: 800, fontSize: '13px', cursor: 'pointer', transition: 'all 0.2s', backgroundColor: abaAtiva === 'ruptura' ? 'rgba(251, 113, 133, 0.1)' : 'transparent', color: abaAtiva === 'ruptura' ? '#fb7185' : '#64748b', border: abaAtiva === 'ruptura' ? '1px solid rgba(251, 113, 133, 0.3)' : '1px solid transparent' }}
         >
-          🚨 <span>Risco de Ruptura ({totalItensRuptura})</span>
+          🚨 <span>{tx("Risco de Ruptura (","Riesgo de desabastecimiento (")}{totalItensRuptura})</span>
         </button>
         <button 
           onClick={() => setAbaAtiva('curvaABC')} 
@@ -195,7 +195,7 @@ export default function EstoqueInteligente({ produtos, fmt, tx = (pt) => pt }) {
                     </td>
                     <td style={{ padding: '16px 20px', textAlign: 'center' }}>
                       <span style={{ backgroundColor: '#020617', border: '1px solid #334155', color: '#94a3b8', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800 }}>
-                        📢 Criar Promoção / Oferta
+                        {tx("📢 Criar Promoção / Oferta","📢 Crear promoción / oferta")}
                       </span>
                     </td>
                   </tr>

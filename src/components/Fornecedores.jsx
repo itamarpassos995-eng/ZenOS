@@ -35,7 +35,7 @@ export default function Fornecedores({ commitOperacaoNegocio, fornecedores, setF
   };
 
   const salvar = async () => {
-    if (!form.nome.trim()) return avisarZen('warning','Nome obrigatório',tx('O Nome/Razão Social é obrigatório.', 'El Nombre/Razón Social es obligatorio.', 'Name is required.'));
+    if (!form.nome.trim()) return avisarZen('warning',tx("Nome obrigatório","Nombre obligatorio"),tx('O Nome/Razão Social é obrigatório.', 'El Nombre/Razón Social es obligatorio.', 'Name is required.'));
     const dados = { ...form };
     let listaProposta;
     if (fornecedorEmEdicao) {
@@ -61,7 +61,7 @@ export default function Fornecedores({ commitOperacaoNegocio, fornecedores, setF
 
   const excluir = async (id) => {
     const alvo=(fornecedores||[]).find(f=>f.id===id);
-    const confirmou=await confirmarZen({titulo:'Excluir fornecedor',mensagem:tx(`Excluir ${alvo?.nome || 'este fornecedor'}?`, `¿Eliminar ${alvo?.nome || 'este proveedor'}?`, `Delete ${alvo?.nome || 'this supplier'}?`),confirmarTexto:'Excluir',variante:'danger'});
+    const confirmou=await confirmarZen({titulo:tx("Excluir fornecedor","Eliminar proveedor"),mensagem:tx(`Excluir ${alvo?.nome || 'este fornecedor'}?`, `¿Eliminar ${alvo?.nome || 'este proveedor'}?`, `Delete ${alvo?.nome || 'this supplier'}?`),confirmarTexto:tx("Excluir","Eliminar"),variante:'danger'});
     if (confirmou) {
       const listaProposta = fornecedores.filter(f => f.id !== id);
       try {

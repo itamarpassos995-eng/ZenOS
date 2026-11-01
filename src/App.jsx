@@ -1,3 +1,4 @@
+import { useUiLanguage } from './core/useUiLanguage.js';
 import {getOperationalSnapshot,subscribeOperationalSnapshot,clearOperationalSession} from './core/operationalRepository.js';
 import {verificarMovimentoCaixaNoServidor} from './core/cashMovementReadOnly.js';
 import TerminalLogin from './components/TerminalLogin';
@@ -104,11 +105,11 @@ function ZenosLogo({ aoClicar, tx = (pt) => pt }) {
 
 // Acesso público separado do fluxo autenticado: a sessão existente continua no App.
 // Apenas visitantes sem sessão na rota principal são enviados à apresentação comercial.
-function PublicHomeRedirect() {
+function PublicHomeRedirect({tx=pt=>pt}) {
   useEffect(() => {
     window.location.replace('/home-premium-conceito-c.html');
   }, []);
-  return <div role="status" aria-live="polite" style={{minHeight:'100vh',display:'grid',placeItems:'center',background:'#f7faf9',color:'#163a50',fontFamily:'system-ui,sans-serif'}}>Abrindo ZenOS…</div>;
+  return <div role="status" aria-live="polite" style={{minHeight:'100vh',display:'grid',placeItems:'center',background:'#f7faf9',color:'#163a50',fontFamily:'system-ui,sans-serif'}}>{tx("Abrindo ZenOS…","Abriendo ZenOS…")}</div>;
 }
 
 export default function App() {
@@ -138,7 +139,7 @@ export default function App() {
 
   const [ecraAtual, setEcraAtual] = useState('hub');
   const [temaUi, setTemaUi] = useState('dark');
-  const [idioma, setIdioma] = useState('pt');
+  const [idioma, setIdioma] = useUiLanguage(zenosStorage);
   const [moeda, setMoeda] = useState('BRL');
   
   const [mostrarPainelExecutivo, setMostrarPainelExecutivo] = useState(false);
@@ -451,7 +452,7 @@ export default function App() {
       setDemoSolicitada(true);
       avisarAppZen({ variante:'success', titulo:tx('Solicitação enviada','Solicitud enviada','Request sent'), mensagem:tx('A solicitação foi registrada com sucesso.','La solicitud fue registrada correctamente.','The request was registered successfully.') });
     } catch (err) {
-      avisarAppZen({ variante:'danger', titulo:'Não foi possível enviar', mensagem:tx('Erro ao enviar solicitação.', 'Error al enviar solicitud.', 'Error sending request.') });
+      avisarAppZen({ variante:'danger', titulo:tx("Não foi possível enviar","No se pudo enviar"), mensagem:tx('Erro ao enviar solicitação.', 'Error al enviar solicitud.', 'Error sending request.') });
     }
   };
 
@@ -959,10 +960,10 @@ export default function App() {
     const eur = interpretarValorMonetario(taxasInput.EUR, 'BRL');
     const pyg = interpretarValorMonetario(taxasInput.PYG, 'PYG');
     if (!usd.ok || !eur.ok || !pyg.ok || usd.valor <= 0 || eur.valor <= 0 || pyg.valor <= 0) {
-      return avisarAppZen({ variante:'danger', titulo:'Cotação inválida', mensagem:'Informe cotações positivas e completas. Nenhuma cotação foi alterada.' });
+      return avisarAppZen({ variante:'danger', titulo:tx("Cotação inválida","Cotización inválida"), mensagem:tx("Informe cotações positivas e completas. Nenhuma cotação foi alterada.","Ingrese cotizaciones positivas y completas. No se modificó ninguna cotización.") });
     }
     if (!userId || !nuvemSincronizada) {
-      return avisarAppZen({ variante:'danger', titulo:'Cotação não salva', mensagem:'Aguarde a confirmação da nuvem para alterar o câmbio.' });
+      return avisarAppZen({ variante:'danger', titulo:tx("Cotação não salva","Cotización no guardada"), mensagem:tx("Aguarde a confirmação da nuvem para alterar o câmbio.","Espere la confirmación de la nube antes de modificar el tipo de cambio.") });
     }
     const novasTaxas = normalizarTaxasCambio({ BRL:1, USD:1 / usd.valor, EUR:1 / eur.valor, PYG:pyg.valor });
     try {
@@ -976,7 +977,7 @@ export default function App() {
     } catch (err) {
       console.error('[ZenOS][Câmbio] A nuvem não confirmou o novo câmbio:', err);
       notifyPersistenceStatus({status:'ERRO',field:'configuracoes',error:err?.message || String(err)});
-      avisarAppZen({ variante:'danger', titulo:'Cotação não salva', mensagem:'A nuvem não confirmou a atualização. As taxas anteriores permanecem em uso.' });
+      avisarAppZen({ variante:'danger', titulo:tx("Cotação não salva","Cotización no guardada"), mensagem:tx("A nuvem não confirmou a atualização. As taxas anteriores permanecem em uso.","La nube no confirmó la actualización. Se siguen utilizando las cotizaciones anteriores.") });
     }
   };
 
@@ -1109,28 +1110,28 @@ export default function App() {
           setCaixaMovimentos(verificacao.movimentos);
           zenosStorage.removeItem(pendenciaKey);
           movCaixaResultadoIncertoRef.current=false;
-          return avisarAppZen({variante:'success',titulo:'Movimento original confirmado',mensagem:'A retirada anterior já estava registrada no servidor e no livro financeiro. Nenhum novo lançamento foi criado. Confira o extrato antes de iniciar outra operação.'});
+          return avisarAppZen({variante:'success',titulo:tx("Movimento original confirmado","Movimiento original confirmado"),mensagem:tx("A retirada anterior já estava registrada no servidor e no livro financeiro. Nenhum novo lançamento foi criado. Confira o extrato antes de iniciar outra operação.","El retiro anterior ya estaba registrado en el servidor y en el libro financiero. No se creó ningún movimiento nuevo. Revise el extracto antes de iniciar otra operación.")});
         }
         return avisarAppZen({
           variante:verificacao.status==='conflict'?'danger':'warning',
-          titulo:'Retirada exige conciliação',
-          mensagem:'O servidor ainda não comprovou a retirada original nos dois registros (caixa e livro financeiro). Nenhuma nova retirada foi enviada. Solicite reconciliação antes de tentar novamente.',
-          detalhes:[`Referência preservada: ${tentativa?.id||'indisponível'}`,`Estado: ${verificacao.reason||verificacao.status}`]
+          titulo:tx("Retirada exige conciliação","El retiro requiere conciliación"),
+          mensagem:tx("O servidor ainda não comprovou a retirada original nos dois registros (caixa e livro financeiro). Nenhuma nova retirada foi enviada. Solicite reconciliação antes de tentar novamente.","El servidor aún no comprobó el retiro original en ambos registros (caja y libro financiero). No se envió otro retiro. Solicite la conciliación antes de reintentar."),
+          detalhes:[`Referência preservada: ${tentativa?.id||tx("indisponível","no disponible")}`,`Estado: ${verificacao.reason||verificacao.status}`]
         });
       }finally{movCaixaEmAndamentoRef.current=false;}
     }
     if (movCaixaEmAndamentoRef.current || movCaixaResultadoIncertoRef.current) {
-      return avisarAppZen({variante:'warning',titulo:'Movimento pendente de conferência',mensagem:'Não repita a retirada: verifique o extrato e a confirmação no servidor antes de uma nova tentativa.'});
+      return avisarAppZen({variante:'warning',titulo:tx("Movimento pendente de conferência","Movimiento pendiente de revisión"),mensagem:tx("Não repita a retirada: verifique o extrato e a confirmação no servidor antes de uma nova tentativa.","No repita el retiro: revise el extracto y la confirmación del servidor antes de reintentar.")});
     }
     movCaixaEmAndamentoRef.current = true;
     try {
-    if (!sessaoAtiva) return avisarAppZen({ variante:'warning', titulo:'Caixa fechado', mensagem:tx('Precisa de abrir o turno de caixa primeiro.', 'Debe abrir turno primero.', 'Must open shift first.') });
+    if (!sessaoAtiva) return avisarAppZen({ variante:'warning', titulo:tx("Caixa fechado","Caja cerrada"), mensagem:tx('Precisa de abrir o turno de caixa primeiro.', 'Debe abrir turno primero.', 'Must open shift first.') });
     const movimentoValidado = validarValoresMovCaixa();
     if (!movimentoValidado) return;
     const valBRL = movimentoValidado.totalBRL;
-    if (valBRL <= 0) return avisarAppZen({ variante:'warning', titulo:'Valor inválido', mensagem:tx('Insira um valor válido.', 'Ingrese un valor válido.', 'Enter a valid amount.') });
+    if (valBRL <= 0) return avisarAppZen({ variante:'warning', titulo:tx("Valor inválido","Importe inválido"), mensagem:tx('Insira um valor válido.', 'Ingrese un valor válido.', 'Enter a valid amount.') });
     if (tipoMovCaixa === 'sangria' && valBRL > saldoSessaoFisicoBRL + 0.001) {
-      return avisarAppZen({ variante:'danger', titulo:'Saldo insuficiente na gaveta', mensagem:tx('A sangria não pode ser maior que o dinheiro físico disponível.', 'La sangría no puede superar el efectivo disponible.', 'Cash drop cannot exceed physical cash available.'), detalhes:[`Solicitado: ${fmt(valBRL,'BRL')}`, tx('Saldo esperado oculto até o fechamento cego.','Saldo esperado oculto hasta el cierre ciego.','Expected balance hidden until blind closeout.')] });
+      return avisarAppZen({ variante:'danger', titulo:tx("Saldo insuficiente na gaveta","Saldo insuficiente en caja"), mensagem:tx('A sangria não pode ser maior que o dinheiro físico disponível.', 'La sangría no puede superar el efectivo disponible.', 'Cash drop cannot exceed physical cash available.'), detalhes:[`Solicitado: ${fmt(valBRL,'BRL')}`, tx('Saldo esperado oculto até o fechamento cego.','Saldo esperado oculto hasta el cierre ciego.','Expected balance hidden until blind closeout.')] });
     }
     const agoraISO = new Date().toISOString();
     const novoMov = { 
@@ -1146,7 +1147,7 @@ export default function App() {
     if (!pendenciaKey || !zenosStorage.setItem(pendenciaKey, JSON.stringify({
       id:novoMov.id, sessaoId:sessaoAtiva.id, tipo:novoMov.tipo, valorBRL:valBRL, createdAt:agoraISO
     }))) {
-      return avisarAppZen({variante:'danger',titulo:'Movimento não iniciado',mensagem:'Não foi possível preservar a identificação da retirada neste dispositivo. Nenhum lançamento foi enviado.'});
+      return avisarAppZen({variante:'danger',titulo:tx("Movimento não iniciado","Movimiento no iniciado"),mensagem:tx("Não foi possível preservar a identificação da retirada neste dispositivo. Nenhum lançamento foi enviado.","No se pudo conservar la identificación del retiro en este dispositivo. No se envió ningún movimiento.")});
     }
     const confirmado = await commitVendaCritica({
       changes: [{ field:'caixaMovimentos', value:movimentosPropostos, storageSuffix:'caixa_movs' }],
@@ -1230,8 +1231,8 @@ export default function App() {
       livroSessaoConfirmado = await consultarLivroFinanceiroSessaoServidor({ db, userId, sessaoId:sessaoAtiva.id });
     } catch (erro) {
       console.error('[ZenOS][Fechamento] Livro Financeiro não confirmado', erro);
-      return avisarAppZen({variante:'warning',titulo:'Fechamento aguardando confirmação',
-        mensagem:'Não foi possível conferir os lançamentos financeiros deste turno na nuvem. O caixa permanece aberto; não repita operações financeiras até a sincronização ser restabelecida.'});
+      return avisarAppZen({variante:'warning',titulo:tx("Fechamento aguardando confirmação","Cierre pendiente de confirmación"),
+        mensagem:tx("Não foi possível conferir os lançamentos financeiros deste turno na nuvem. O caixa permanece aberto; não repita operações financeiras até a sincronização ser restabelecida.","No se pudieron verificar los movimientos financieros de este turno en la nube. La caja permanece abierta; no repita operaciones financieras hasta restablecer la sincronización.")});
     }
     const conciliacaoEletronica = calcularConciliacaoEletronicaSessao({ sessao: sessaoAtiva, livroFinanceiro:livroSessaoConfirmado }) || {
       pixEntradas: 0, pixSaidas: 0, pixLiquido: 0,
@@ -1377,9 +1378,9 @@ export default function App() {
         <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
         <div style="margin-bottom:5px;"><strong>>> ${tx('CONTAGEM INFORMADA PELO OPERADOR','CONTEO INFORMADO POR EL OPERADOR','COUNT ENTERED BY OPERATOR')}</strong></div>
         ${moedasContadasHTML}
-        <div style="margin-top:6px;font-weight:bold;">>>> CONCILIAÇÃO FÍSICA POR MOEDA</div>
+        <div style="margin-top:6px;font-weight:bold;">>>> ${tx('CONCILIAÇÃO FÍSICA POR MOEDA','CONCILIACIÓN FÍSICA POR MONEDA','PHYSICAL RECONCILIATION BY CURRENCY')}</div>
         ${demonstrativoMoedas}
-        ${!conciliacaoFisica.confiavel ? `<div style="margin-top:5px;font-weight:bold;">RECONCILIAÇÃO INCONCLUSIVA: ${conciliacaoFisica.pendencias.map(escaparHTML).join(' | ')}</div>` : ''}
+        ${!conciliacaoFisica.confiavel ? `<div style="margin-top:5px;font-weight:bold;">${tx('RECONCILIAÇÃO INCONCLUSIVA:','CONCILIACIÓN NO CONCLUYENTE:','INCONCLUSIVE RECONCILIATION:')} ${conciliacaoFisica.pendencias.map(escaparHTML).join(' | ')}</div>` : ''}
 
         <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
         <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('SALDO ESPERADO:','SALDO ESPERADO:','EXPECTED BALANCE:')}</span><span>${fmt(saldoEsperadoBRL, 'BRL')}${conciliacaoFisica.confiavel ? '' : ' (REFERENCIAL)'}</span></div>
@@ -1427,18 +1428,18 @@ export default function App() {
 
     avisarAppZen({
       variante: temQuebra ? 'warning' : 'success',
-      titulo: !conciliacaoFisica.confiavel ? 'Fechamento registrado — auditoria pendente'
-        : temQuebra ? 'Fechamento registrado — diferença por moeda' : 'Caixa fechado e conciliado',
+      titulo: !conciliacaoFisica.confiavel ? tx("Fechamento registrado — auditoria pendente","Cierre registrado — auditoría pendiente")
+        : temQuebra ? tx("Fechamento registrado — diferença por moeda","Cierre registrado — diferencia por moneda") : tx("Caixa fechado e conciliado","Caja cerrada y conciliada"),
       mensagem: !conciliacaoFisica.confiavel
-        ? 'A documentação de algumas operações não permite concluir a falta ou sobra. Não atribua responsabilidade financeira ao operador sem auditoria.'
-        : temQuebra ? 'As quantidades físicas por moeda não conferem. Confira o demonstrativo individual no comprovante.'
-          : 'A contagem física confere com os valores esperados em cada moeda.',
+        ? tx("A documentação de algumas operações não permite concluir a falta ou sobra. Não atribua responsabilidade financeira ao operador sem auditoria.","La documentación de algunas operaciones no permite determinar el faltante o sobrante. No atribuya responsabilidad financiera al operador sin una auditoría.")
+        : temQuebra ? tx("As quantidades físicas por moeda não conferem. Confira o demonstrativo individual no comprovante.","Las cantidades físicas por moneda no coinciden. Revise el detalle individual del comprobante.")
+          : tx("A contagem física confere com os valores esperados em cada moeda.","El conteo físico coincide con los importes esperados en cada moneda."),
       detalhes: [
         `Saldo esperado: ${fmt(saldoEsperadoBRL, 'BRL')}`,
         `Total contado: ${fmt(valInformadoBRL, 'BRL')}`,
         `Diferença: ${conciliacaoFisica.confiavel ? fmt(diferenca, 'BRL') : 'INDETERMINADA'}`,
         ...conciliacaoFisica.pendencias.slice(0, 4),
-        janelaImpressao ? 'Comprovante aberto para impressão.' : 'A impressão foi bloqueada pelo navegador; o fechamento ficou registrado.',
+        janelaImpressao ? tx("Comprovante aberto para impressão.","Comprobante abierto para imprimir.") : tx("A impressão foi bloqueada pelo navegador; o fechamento ficou registrado.","El navegador bloqueó la impresión; el cierre quedó registrado."),
       ],
       apenasConfirmar: true,
     });
@@ -1589,7 +1590,7 @@ export default function App() {
   if (!usuarioAutenticado) {
     // A URL de login mantém a tela existente de usuário e senha, sem tocar na autenticação.
     const acessoLogin = window.location.pathname === '/login' || new URLSearchParams(window.location.search).get('login') === '1';
-    return acessoLogin ? <LandingPage/> : <PublicHomeRedirect/>;
+    return acessoLogin ? <LandingPage/> : <PublicHomeRedirect tx={tx}/>;
   }
 
   if (falhaBootstrapNuvem) {
@@ -1913,13 +1914,13 @@ export default function App() {
         {ecraAtual === 'inteligencia' && <EstoqueInteligente produtos={produtos} fmt={fmt} tx={tx} />}
         {ecraAtual === 'comissoes' && <Comissoes commitOperacaoNegocio={commitVendaCritica} historicoVendas={historicoVisivelParaOperador} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} operadorAtivo={operadorAtivo} regrasDesconto={regrasDesconto} regrasComissao={regrasComissao} setRegrasComissao={setRegrasComissao} />}
         {ecraAtual === 'dashboardMobile' && <DashboardMobile historicoVendas={historicoVendas} despesas={despesas} clientes={clientes} produtos={produtos} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} regrasDesconto={regrasDesconto} />}
-        {ecraAtual === 'clientes' && (livroFinanceiroConfirmado && livroFinanceiroAtivadoParaLoja === String(userId) ? <Clientes perfilLoja={perfilLoja} commitOperacaoNegocio={commitVendaCritica} livroFinanceiro={livroFinanceiro} historicoVendas={historicoVendas} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} operadorAtivo={operadorAtivo} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} /> : <div role="status" style={{padding:24,color:'#cbd5e1'}}>Conferindo histórico financeiro completo no servidor antes de liberar contas e fiado…</div>)}
+        {ecraAtual === 'clientes' && (livroFinanceiroConfirmado && livroFinanceiroAtivadoParaLoja === String(userId) ? <Clientes perfilLoja={perfilLoja} commitOperacaoNegocio={commitVendaCritica} livroFinanceiro={livroFinanceiro} historicoVendas={historicoVendas} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} operadorAtivo={operadorAtivo} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} /> : <div role="status" style={{padding:24,color:'#cbd5e1'}}>{tx("Conferindo histórico financeiro completo no servidor antes de liberar contas e fiado…","Verificando el historial financiero completo en el servidor antes de habilitar cuentas y créditos…")}</div>)}
         {ecraAtual === 'vendas' && <Vendas commitOperacaoNegocio={commitVendaCritica} taxasCambio={taxasCambio} sessoesCaixa={sessoesCaixa} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} saldoSessaoFisicoBRL={saldoSessaoFisicoBRL} perfilLoja={perfilLoja} vouchers={vouchers} setVouchers={setVouchers} userId={userId} operadorAtivo={operadorAtivo} historicoVendas={historicoVisivelParaOperador} historicoVendasCompleto={historicoVendas} setHistoricoVendas={setHistoricoVendas} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} fmt={fmt} t={t} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterDeBRL={converterDeBRL} />}
         {ecraAtual === 'commerce-solicitar' && temPermissao('admin') && <React.Suspense fallback={<div role="status" style={{padding:20,color:'#bdd5df'}}>{tx('Preparando Minha Loja Online…','Preparando Mi Tienda Online…','Preparing My Online Store…')}</div>}><CommerceSolicitacao key={String(userId)+':'+String(operadorAtivo?.id)} lojaId={userId} perfilLoja={perfilLoja} tx={tx} produtos={produtos} /></React.Suspense>}
         {ecraAtual === 'fiscal' && <FiscalErrorBoundary resetKey={`${userId || ''}:${perfilLoja?.pais || ''}:${resultadoFilaFiscal.erro || ''}`} onVoltar={() => navegarPara('hub')} tx={tx}><Fiscal lojaId={userId} perfilLoja={perfilLoja} filaFiscal={resultadoFilaFiscal.fila} erroFila={resultadoFilaFiscal.erro} clientes={clientes} ambiente="homologacao" onVerVenda={() => navegarPara('vendas')} tx={tx} idioma={idioma} /></FiscalErrorBoundary>}
         {ecraAtual === 'migracao' && <Migracao commitOperacaoNegocio={commitVendaCritica} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} fornecedores={fornecedores} setFornecedores={setFornecedores} userId={userId} operadorAtivo={operadorAtivo} patenteUsuario={patenteUsuario} taxaPYG={taxasCambio?.PYG} t={t} tx={tx} />}
         {ecraAtual === 'configuracoes' && <Configuracoes commitOperacaoNegocio={commitVendaCritica} userId={userId} operadorAtivo={operadorAtivo} perfilLojaGlobal={perfilLoja} setPerfilLojaGlobal={setPerfilLoja} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} despesas={despesas} setDespesas={setDespesas} moeda={moeda} fmt={fmt} tx={tx} regrasDesconto={regrasDesconto} setRegrasDesconto={setRegrasDesconto} vendedores={vendedores} setVendedores={(novosVendedores) => { setVendedores(novosVendedores); persistirCampoSeguro({ field: 'vendedores', value:novosVendedores, setter:setVendedores, localStorageKey:`zenos_${userId}_vendedores` }); }} />}
-        {ecraAtual === 'auditoria_caixas' && (livroFinanceiroConfirmado && livroFinanceiroAtivadoParaLoja === String(userId) ? <GestaoCaixas sessoesCaixa={sessoesCaixa} historicoVendas={historicoVendas} caixaMovimentos={caixaMovimentos} livroFinanceiro={livroFinanceiro} fmt={fmt} tx={tx} /> : <div role="status" style={{padding:24,color:'#cbd5e1'}}>Conferindo o Livro Financeiro no servidor para a auditoria de caixas…</div>)}
+        {ecraAtual === 'auditoria_caixas' && (livroFinanceiroConfirmado && livroFinanceiroAtivadoParaLoja === String(userId) ? <GestaoCaixas sessoesCaixa={sessoesCaixa} historicoVendas={historicoVendas} caixaMovimentos={caixaMovimentos} livroFinanceiro={livroFinanceiro} fmt={fmt} tx={tx} /> : <div role="status" style={{padding:24,color:'#cbd5e1'}}>{tx("Conferindo o Livro Financeiro no servidor para a auditoria de caixas…","Verificando el libro financiero en el servidor para la auditoría de cajas…")}</div>)}
         {ecraAtual === 'despesas' && <Despesas userId={userId} commitOperacaoNegocio={commitVendaCritica} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} saldoSessaoFisicoBRL={saldoSessaoFisicoBRL} operadorAtivo={operadorAtivo} despesas={despesas} setDespesas={setDespesas} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterParaBRL={converterParaBRL} converterDeBRL={converterDeBRL} />}
       </main>
 

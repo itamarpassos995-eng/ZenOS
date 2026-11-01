@@ -14,6 +14,7 @@ const checks = emulator ? [
   'scripts/att07-emulator-check.mjs',
   'scripts/att09-emulator-check.mjs',
 ] : [
+  'scripts/i18n-coverage-check.mjs',
   'scripts/att02-check.mjs',
   'scripts/att03-check.mjs',
   'scripts/att04-check.mjs',
@@ -43,6 +44,7 @@ function run(args) {
 for (const check of checks) run([check]);
 if (!emulator) run([
   'node_modules/vitest/vitest.mjs', 'run', '--config', 'vitest.recovery.config.js',
+  'scripts/recovery/i18n-spanish.ui.test.jsx',
   'scripts/recovery/pdv-draft.ui.test.jsx',
   'scripts/recovery/clientes-receipt.ui.test.jsx',
   'scripts/recovery/clientes-quitado-status.ui.test.jsx',

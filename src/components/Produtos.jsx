@@ -71,7 +71,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
   const buscarCadastroPeloSkuAntigo = async () => {
     if(!podeGerenciarProdutos||buscandoSkuHistorico)return;
     const sku=skuHistoricoBusca.trim();
-    if(!sku)return mostrarZen('warning','Informe o SKU antigo','Use o código original que o vendedor cadastrou. A consulta não altera estoque.');
+    if(!sku)return mostrarZen('warning',tx("Informe o SKU antigo","Ingrese el SKU original"),tx("Use o código original que o vendedor cadastrou. A consulta não altera estoque.","Use el código original registrado por el vendedor. La consulta no modifica las existencias."));
     setCandidatoOrfaoPDV(null);
     setBuscandoSkuHistorico(true);
     try{
@@ -81,10 +81,10 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
         setFiltroGrupo('todos');
         setMostrarInativos(true);
         setBuscaProdutoTexto(String(resultado.produto.sku||resultado.produto.nome||''));
-        return mostrarZen('info','Produto localizado','A busca foi ajustada para mostrar o produto. Confira o estoque e os preços antes de movimentar.',[`SKU: ${resultado.produto.sku||'(sem SKU)'}`]);
+        return mostrarZen('info',tx("Produto localizado","Producto localizado"),tx("A busca foi ajustada para mostrar o produto. Confira o estoque e os preços antes de movimentar.","Se ajustó la búsqueda para mostrar el producto. Revise las existencias y los precios antes de operar."),[`SKU: ${resultado.produto.sku||tx("(sem SKU)","(sin SKU)")}`]);
       }
       if(resultado.status==='historical_only'){
-        return mostrarZen('warning','Produto exige conferência','Encontramos um registro anterior, mas ainda não é seguro exibi-lo como disponível. Nenhum saldo foi alterado.',[`Produto: ${resultado.nome}`,`SKU: ${resultado.sku}`]);
+        return mostrarZen('warning',tx("Produto exige conferência","El producto requiere revisión"),tx("Encontramos um registro anterior, mas ainda não é seguro exibi-lo como disponível. Nenhum saldo foi alterado.","Encontramos un registro anterior, pero todavía no es seguro mostrarlo como disponible. No se modificó ningún saldo."),[`Produto: ${resultado.nome}`,`SKU: ${resultado.sku}`]);
       }
       if(resultado.status==='orphan_index' && String(resultado.ownerId||'').startsWith('PROD-BALCAO-')){
         setCandidatoOrfaoPDV({sku,ownerId:resultado.ownerId});
@@ -96,9 +96,9 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
         await examinarCadastroPeloId(String(resultado.ownerId));
         return;
       }
-      return mostrarZen('warning','Cadastro ainda não disponível','Este produto precisa de conferência para voltar à lista. Confira o SKU original ou solicite suporte. Nenhum cadastro foi alterado.',[`SKU pesquisado: ${sku}`]);
+      return mostrarZen('warning',tx("Cadastro ainda não disponível","Registro aún no disponible"),tx("Este produto precisa de conferência para voltar à lista. Confira o SKU original ou solicite suporte. Nenhum cadastro foi alterado.","Este producto requiere revisión para volver a la lista. Revise el SKU original o solicite soporte. No se modificó ningún registro."),[`SKU pesquisado: ${sku}`]);
     }catch(error){
-      return mostrarZen('danger','Busca indisponível','Não foi possível conferir os dados do servidor. Nenhum registro foi alterado.',[error?.message||String(error)]);
+      return mostrarZen('danger',tx("Busca indisponível","Búsqueda no disponible"),tx("Não foi possível conferir os dados do servidor. Nenhum registro foi alterado.","No se pudieron verificar los datos del servidor. No se modificó ningún registro."),[error?.message||String(error)]);
     }finally{setBuscandoSkuHistorico(false);}
   };
 
@@ -113,16 +113,16 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       });
       if(resultado.status==='released'){
         setCandidatoOrfaoPDV(null);
-        return mostrarZen('success','Cadastro liberado com segurança','Agora é possível cadastrar este produto. Confira o estoque físico antes de informar o saldo. O histórico foi preservado.');
+        return mostrarZen('success',tx("Cadastro liberado com segurança","Registro habilitado de forma segura"),tx("Agora é possível cadastrar este produto. Confira o estoque físico antes de informar o saldo. O histórico foi preservado.","Ahora se puede registrar este producto. Revise las existencias físicas antes de ingresar el saldo. Se conservó el historial."));
       }
-      return mostrarZen('warning','Cadastro precisa de suporte','A conferência encontrou informações que impedem liberar o cadastro com segurança. Nenhum dado foi alterado.');
+      return mostrarZen('warning',tx("Cadastro precisa de suporte","El registro requiere soporte"),tx("A conferência encontrou informações que impedem liberar o cadastro com segurança. Nenhum dado foi alterado.","La revisión encontró información que impide habilitar el registro de forma segura. No se modificó ningún dato."));
     }finally{setLiberandoOrfaoPDV(false);}
   };
 
   const examinarCadastroPeloId = async (idSelecionado=idOriginalSelecionado) => {
     if(!podeGerenciarProdutos||conferindoOriginal)return;
     const id=String(idSelecionado||'').trim();
-    if(!id)return mostrarZen('warning','Selecione um produto','Escolha o produto que deseja recuperar.');
+    if(!id)return mostrarZen('warning',tx("Selecione um produto","Seleccione un producto"),tx("Escolha o produto que deseja recuperar.","Elija el producto que desea recuperar."));
     setConferindoOriginal(true);setDiagnosticoOriginal(null);
     try{
       const r=await diagnosticarCadastroOcultoServidor({db,userId,ownerId:id});
@@ -142,11 +142,11 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
         r.status==='indice_sem_cadastro'?'Encontramos o nome e o código originais, mas a ficha ainda não foi concluída. É possível conferir se ela pode ser completada sem duplicação.':
         'Não foi possível confirmar o cadastro completo com segurança. Nenhum produto foi modificado. Se necessário, solicite uma conferência ao suporte.';
       mostrarZen(['original_ativo','original_inativo'].includes(r.status)?'info':'warning',
-        titulo,mensagem,[`Produto: ${nome}`,`SKU: ${sku||'não informado'}`]);
+        titulo,mensagem,[`Produto: ${nome}`,`SKU: ${sku||tx("não informado","no informado")}`]);
     }catch(error){
       console.error('[ZenOS][Produtos] Diagnostico por ID',error);
-      mostrarZen('danger','Conferência indisponível',
-        'Não foi possível consultar o cadastro agora. Nenhum produto foi alterado.');
+      mostrarZen('danger',tx("Conferência indisponível","Revisión no disponible"),
+        tx("Não foi possível consultar o cadastro agora. Nenhum produto foi alterado.","No se pudo consultar el registro ahora. No se modificó ningún producto."));
     }finally{setConferindoOriginal(false);}
   };
 
@@ -157,8 +157,8 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       const candidato=await verificarRecomposicaoOriginal({db,userId,ownerId:diagnosticoOriginal.ownerId});
       if(!candidato.ok){
         console.warn('[ZenOS][Recomposicao] Fonte nao autoriza cadastro',candidato.reason);
-        return mostrarZen('warning','Cadastro precisa de conferência',
-          'Não foi possível confirmar que este produto pode ser completado sem afetar outros registros. Nenhum produto foi alterado. Peça ao suporte para conferir o cadastro.');
+        return mostrarZen('warning',tx("Cadastro precisa de conferência","El registro requiere revisión"),
+          tx("Não foi possível confirmar que este produto pode ser completado sem afetar outros registros. Nenhum produto foi alterado. Peça ao suporte para conferir o cadastro.","No se pudo confirmar que este producto pueda completarse sin afectar otros registros. No se modificó ningún producto. Solicite al soporte que revise el registro."));
       }
       // ID e SKU originais permanecem; custo/preços/saldo NÃO são inventados.
       setRecomposicaoOriginal(candidato);
@@ -173,7 +173,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       setModalProdutoAberto(true);
     }catch(error){
       console.error('[ZenOS][Recomposicao] Verificacao indisponivel',error);
-      mostrarZen('warning','Verificação indisponível','O cadastro não foi alterado. Aguarde a sincronização antes de tentar novamente.');
+      mostrarZen('warning',tx("Verificação indisponível","Verificación no disponible"),tx("O cadastro não foi alterado. Aguarde a sincronização antes de tentar novamente.","No se modificó el registro. Espere la sincronización antes de reintentar."));
     }finally{setAbrindoRecomposicao(false);}
   };
 
@@ -208,12 +208,12 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       }else setProdutos(operacao.values?.produtos||plano.lista);
       setDiagnosticoOriginal(null);setMostrarInativos(false);setFiltroGrupo('todos');
       setBuscaProdutoTexto(plano.antes.sku||plano.antes.nome||'');
-      mostrarZen('success','Produto original reativado',
-        'A nuvem confirmou o cadastro original como ativo. Foram preservados o mesmo ID, SKU, preços, estoque e histórico; nenhuma entrada de estoque foi criada.',
+      mostrarZen('success',tx("Produto original reativado","Producto original reactivado"),
+        tx("A nuvem confirmou o cadastro original como ativo. Foram preservados o mesmo ID, SKU, preços, estoque e histórico; nenhuma entrada de estoque foi criada.","La nube confirmó que el registro original está activo. Se conservaron el mismo ID, SKU, precios, existencias e historial; no se creó ninguna entrada de existencias."),
         [`ID: ${id}`,`SKU: ${plano.antes.sku||'-'}`]);
     }catch(error){
-      mostrarZen('warning','Reativação não confirmada',
-        'Nenhum novo produto foi criado. Confira novamente o diagnóstico e o histórico antes de tentar outra operação.',
+      mostrarZen('warning',tx("Reativação não confirmada","Reactivación no confirmada"),
+        tx("Nenhum novo produto foi criado. Confira novamente o diagnóstico e o histórico antes de tentar outra operação.","No se creó ningún producto nuevo. Revise nuevamente el diagnóstico y el historial antes de intentar otra operación."),
         [error?.message||String(error)]);
     }finally{setReativandoOriginal(false);}
   };
@@ -227,8 +227,8 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
     try{
       const r=await auditarIndicesProdutosServidor({db,userId});
       if(r.status!=='complete')
-        return mostrarZen('warning','Conferência não concluída',
-          'Não foi possível verificar todos os produtos agora. Nenhum cadastro foi modificado. Tente novamente mais tarde.');
+        return mostrarZen('warning',tx("Conferência não concluída","Revisión no concluida"),
+          tx("Não foi possível verificar todos os produtos agora. Nenhum cadastro foi modificado. Tente novamente mais tarde.","No se pudieron verificar todos los productos ahora. No se modificó ningún registro. Reintente más tarde."));
       const candidatos=[
         ...r.inativos.map(x=>({...x,situacao:'Desativado'})),
         ...r.ausentes.map(x=>({...x,situacao:'Cadastro incompleto'})),
@@ -239,15 +239,15 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       const detalhes=candidatos.slice(0,20).map(x=>
         `${x.situacao}: ${x.nomes.join(' / ')||'(sem nome)'} — ${x.skus.join(' / ')||'(sem SKU)'}`);
       mostrarZen(r.ausentes.length||r.duplicados.length?'warning':'info',
-        'Conferência de produtos concluída',
+        tx("Conferência de produtos concluída","Revisión de productos concluida"),
         candidatos.length
           ?`Encontramos ${candidatos.length} cadastro(s) que precisam de atenção. Selecione um produto e clique em Conferir cadastro. Nenhum produto ou saldo foi alterado.`
-          :'Nenhum cadastro incompleto foi encontrado. Caso um produto não apareça, confira os filtros da lista.',
+          :tx("Nenhum cadastro incompleto foi encontrado. Caso um produto não apareça, confira os filtros da lista.","No se encontró ningún registro incompleto. Si no aparece un producto, revise los filtros de la lista."),
         detalhes);
     }catch(error){
       console.error('[ZenOS][Produtos] Falha na auditoria',error);
-      mostrarZen('warning','Conferência indisponível',
-        'Não foi possível consultar os produtos agora. Nenhum cadastro foi modificado.');
+      mostrarZen('warning',tx("Conferência indisponível","Revisión no disponible"),
+        tx("Não foi possível consultar os produtos agora. Nenhum cadastro foi modificado.","No se pudieron consultar los productos ahora. No se modificó ningún registro."));
     }finally{setAuditandoIndices(false);}
   };
 
@@ -385,19 +385,19 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       if(String(formProduto.id)!==String(recomposicaoOriginal.ownerId)||
          String(formProduto.sku).trim().toUpperCase()!==String(recomposicaoOriginal.sku).trim().toUpperCase()||
          String(formProduto.nome).trim().toLowerCase()!==String(recomposicaoOriginal.nome).trim().toLowerCase())
-        return mostrarZen('warning','Dados originais protegidos',
-          'Nome, código e identificação do produto devem ser preservados. Confira os valores de preço e estoque físico e tente novamente.');
+        return mostrarZen('warning',tx("Dados originais protegidos","Datos originales protegidos"),
+          tx("Nome, código e identificação do produto devem ser preservados. Confira os valores de preço e estoque físico e tente novamente.","Se deben conservar el nombre, el código y la identificación del producto. Revise los precios y las existencias físicas y reintente."));
       if(!estoqueRecompostoConferido)
-        return mostrarZen('warning','Confirme o estoque',
-          'Antes de concluir, confira as quantidades físicas na vitrine e no depósito e marque a confirmação na ficha.');
+        return mostrarZen('warning',tx("Confirme o estoque","Confirme las existencias"),
+          tx("Antes de concluir, confira as quantidades físicas na vitrine e no depósito e marque a confirmação na ficha.","Antes de finalizar, revise las cantidades físicas en exhibición y depósito y marque la confirmación en la ficha."));
       if(!(Number(String(formProduto.precoBRL??'').replace(',','.'))>0))
-        return mostrarZen('warning','Preço obrigatório',
-          'Informe o preço de venda correto antes de concluir o cadastro. O sistema não preenche valores de um cadastro incompleto.');
+        return mostrarZen('warning',tx("Preço obrigatório","Precio obligatorio"),
+          tx("Informe o preço de venda correto antes de concluir o cadastro. O sistema não preenche valores de um cadastro incompleto.","Ingrese el precio de venta correcto antes de completar el registro. El sistema no completa importes de un registro incompleto."));
       const verificado=await verificarRecomposicaoOriginal({db,userId,ownerId:recomposicaoOriginal.ownerId});
       if(!verificado.ok){
         console.warn('[ZenOS][Recomposicao] Bloqueio no salvamento',verificado.reason);
-        return mostrarZen('warning','Cadastro não concluído',
-          'A conferência encontrou uma alteração ou outro vínculo deste produto. Nenhum item foi criado. Atualize e peça uma conferência ao suporte.');
+        return mostrarZen('warning',tx("Cadastro não concluído","Registro no concluido"),
+          tx("A conferência encontrou uma alteração ou outro vínculo deste produto. Nenhum item foi criado. Atualize e peça uma conferência ao suporte.","La revisión encontró una modificación u otro vínculo de este producto. No se creó ningún artículo. Actualice y solicite una revisión al soporte."));
       }
     }
     if (!formProduto.nome.trim()) return mostrarZen('warning', tx('Nome obrigatório','Nombre obligatorio','Name required'), tx('Informe o nome do produto antes de salvar.','Informe el nombre del producto antes de guardar.','Enter the product name before saving.'));
@@ -481,7 +481,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
                'Reserved identity without a unique catalog match. No data was removed. Contact support before retrying.'));
         }
       }
-      return mostrarZen('danger', erro?.code === 'ZENOS_PRODUTO_DUPLICADO' ? tx('Produto duplicado','Producto duplicado','Duplicate product') : tx('Cadastro não concluído','Registro no concluido','Registration not completed'), erro.message || 'Não foi possível reservar a identidade do produto.');
+      return mostrarZen('danger', erro?.code === 'ZENOS_PRODUTO_DUPLICADO' ? tx('Produto duplicado','Producto duplicado','Duplicate product') : tx('Cadastro não concluído','Registro no concluido','Registration not completed'), erro.message || tx("Não foi possível reservar a identidade do produto.","No se pudo reservar la identidad del producto."));
     }
 
     try {
@@ -641,7 +641,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       setProdutos(produtosConfirmados);
       if (!temHist) {
         try { await liberarIdentidadeProduto({db,userId,produto:modalExcluir}); }
-        catch (erroIndice) { console.error('[ZenOS][ATT10.2] Produto removido, mas índice não foi liberado:', erroIndice); mostrarZen('warning','Produto removido com proteção pendente','O produto foi removido, porém o índice de unicidade não pôde ser liberado. Não recadastre o mesmo SKU até sincronizar novamente.'); }
+        catch (erroIndice) { console.error('[ZenOS][ATT10.2] Produto removido, mas índice não foi liberado:', erroIndice); mostrarZen('warning',tx("Produto removido com proteção pendente","Producto eliminado con protección pendiente"),tx("O produto foi removido, porém o índice de unicidade não pôde ser liberado. Não recadastre o mesmo SKU até sincronizar novamente.","Se eliminó el producto, pero no se pudo liberar el índice de unicidad. No vuelva a registrar el mismo SKU hasta sincronizar nuevamente.")); }
       }
       setModalExcluir(null);
     } catch (erro) {
@@ -656,14 +656,14 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
         <div><h2 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>{t ? t('catalogoTitulo') : 'Catálogo'}</h2><span style={{ fontSize: '13px', color: '#64748b' }}>{t ? t('catalogoSub') : 'Gerenciamento'}</span></div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <label style={{display:'flex',alignItems:'center',gap:6,color:'#94a3b8',fontSize:11,fontWeight:800}}><input type="checkbox" checked={mostrarInativos} onChange={e=>setMostrarInativos(e.target.checked)}/> {tx('Mostrar inativos','Mostrar inactivos','Show inactive')}</label>{podeGerenciarProdutos && <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
-            <input aria-label="SKU original" inputMode="text" placeholder="SKU (ex. SKU-63346)" value={skuHistoricoBusca} onChange={e=>setSkuHistoricoBusca(e.target.value)} style={{width:155,maxWidth:'100%',background:'#020617',color:'#f8fafc',border:'1px solid #334155',borderRadius:8,padding:'10px 8px'}}/>
-            <button type="button" disabled={buscandoSkuHistorico} onClick={buscarCadastroPeloSkuAntigo} title="Localiza somente o SKU original informado, sem varrer todos os índices" style={{background:'#164e63',color:'#e0f2fe',border:'1px solid #38bdf8',borderRadius:8,padding:'10px',fontWeight:800}}>{buscandoSkuHistorico?'Conferindo...':'Recuperar produto por SKU'}</button>
+            <input aria-label={tx("SKU original","SKU original")} inputMode="text" placeholder={tx("SKU (ex. SKU-63346)","SKU (ej.: SKU-63346)")} value={skuHistoricoBusca} onChange={e=>setSkuHistoricoBusca(e.target.value)} style={{width:155,maxWidth:'100%',background:'#020617',color:'#f8fafc',border:'1px solid #334155',borderRadius:8,padding:'10px 8px'}}/>
+            <button type="button" disabled={buscandoSkuHistorico} onClick={buscarCadastroPeloSkuAntigo} title={tx("Localiza somente o SKU original informado, sem varrer todos os índices","Busca únicamente el SKU original ingresado, sin recorrer todos los índices")} style={{background:'#164e63',color:'#e0f2fe',border:'1px solid #38bdf8',borderRadius:8,padding:'10px',fontWeight:800}}>{buscandoSkuHistorico?'Conferindo...':'Recuperar produto por SKU'}</button>
           </div>}
           {podeGerenciarProdutos && candidatoOrfaoPDV && <button type="button" disabled={liberandoOrfaoPDV} onClick={()=>setConfirmarLiberacaoOrfao(true)} style={{border:'1px solid #f59e0b',borderRadius:10,padding:'10px',background:'#422006',color:'#fde68a',fontWeight:800}}>{liberandoOrfaoPDV?'Conferindo...':'Conferir cadastro incompleto'}</button>}
-          {podeGerenciarProdutos && <button type="button" disabled={auditandoIndices} onClick={()=>setConfirmarAuditoriaCompleta(true)} title="Auditoria completa excepcional — consulta até 2.501 índices; requer confirmação" style={{background:'#0f172a',border:'1px solid #475569',color:'#94a3b8',borderRadius:12,padding:'8px 10px',fontWeight:700,cursor:'pointer',fontSize:11}}>{auditandoIndices?'Auditando...':'Auditoria completa (avançada)'}</button>}
+          {podeGerenciarProdutos && <button type="button" disabled={auditandoIndices} onClick={()=>setConfirmarAuditoriaCompleta(true)} title={tx("Auditoria completa excepcional — consulta até 2.501 índices; requer confirmação","Auditoría completa excepcional — consulta hasta 2.501 índices; requiere confirmación")} style={{background:'#0f172a',border:'1px solid #475569',color:'#94a3b8',borderRadius:12,padding:'8px 10px',fontWeight:700,cursor:'pointer',fontSize:11}}>{auditandoIndices?'Auditando...':'Auditoria completa (avançada)'}</button>}
           {podeGerenciarProdutos && identidadesAuditadas.length>0 && (
             <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
-              <select aria-label="Produto para conferir" value={idOriginalSelecionado}
+              <select aria-label={tx("Produto para conferir","Producto para revisar")} value={idOriginalSelecionado}
                 onChange={e=>{setIdOriginalSelecionado(e.target.value);setDiagnosticoOriginal(null);}}
                 style={{maxWidth:235,minWidth:110,background:'#020617',color:'#e0f2fe',border:'1px solid #64748b',padding:10,borderRadius:8}}>
                 {identidadesAuditadas.map(x=><option key={x.produtoId} value={x.produtoId}>{x.situacao} · {x.nomes[0]||x.skus[0]||x.produtoId}</option>)}
@@ -704,7 +704,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
 
       {conflitosIdentidade.length > 0 && (
         <div style={{ backgroundColor: 'rgba(127,29,29,0.24)', border: '1px solid #ef4444', borderRadius: '12px', padding: '12px 16px', color: '#fecaca', fontSize: '12px', fontWeight: 800 }}>
-          ⛔ Conflito de identidade detectado em {conflitosIdentidade.length} ID(s) de produto. Movimentações desses itens serão bloqueadas para impedir que um produto altere outro. Nenhum cadastro será corrigido automaticamente.
+          {tx("⛔ Conflito de identidade detectado em","⛔ Conflicto de identidad detectado en")} {conflitosIdentidade.length} {tx("ID(s) de produto. Movimentações desses itens serão bloqueadas para impedir que um produto altere outro. Nenhum cadastro será corrigido automaticamente.","ID de producto. Se bloquearán los movimientos de estos artículos para evitar que un producto modifique otro. No se corregirá ningún registro automáticamente.")}
         </div>
       )}
 
@@ -749,17 +749,17 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
                             <div style={{ display: 'grid', gridTemplateColumns: '52px 1fr', alignItems: 'center', gap: '6px' }}>
                               <span style={{ fontSize: '9px', color: '#38bdf8', fontWeight: 900, textTransform: 'uppercase' }}>{tx('Vitrine','Exhibición','Display')}</span>
                               <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', backgroundColor: '#0f172a', padding: '4px 6px', borderRadius: '8px', border: '1px solid #164e63' }}>
-                                <button title={tx('Transferir da vitrine para o depósito','Transferir de exhibición a depósito','Transfer from display to warehouse')} onClick={() => idsComConflito.has(String(prod.id)) ? mostrarZen('danger', 'Conflito de identidade', 'Movimentação bloqueada porque este produto possui ID duplicado no catálogo.') : abrirMovimentoRapido(prod, 'vitrine', -1)} style={{ width: '20px', height: '20px', borderRadius: '4px', backgroundColor: '#020617', border: '1px solid #334155', color: '#fb7185', fontWeight: 900, cursor: 'pointer' }}>-</button>
+                                <button title={tx('Transferir da vitrine para o depósito','Transferir de exhibición a depósito','Transfer from display to warehouse')} onClick={() => idsComConflito.has(String(prod.id)) ? mostrarZen('danger', tx("Conflito de identidade","Conflicto de identidad"), tx("Movimentação bloqueada porque este produto possui ID duplicado no catálogo.","Movimiento bloqueado porque este producto tiene un ID duplicado en el catálogo.")) : abrirMovimentoRapido(prod, 'vitrine', -1)} style={{ width: '20px', height: '20px', borderRadius: '4px', backgroundColor: '#020617', border: '1px solid #334155', color: '#fb7185', fontWeight: 900, cursor: 'pointer' }}>-</button>
                                 <span style={{ fontWeight: 900, fontSize: '14px', minWidth: '30px', textAlign: 'center', color: '#38bdf8' }}>{prod.estoqueVitrine ?? prod.estoque ?? 0}</span>
-                                <button title={tx('Transferir do depósito para a vitrine','Transferir de depósito a exhibición','Transfer from warehouse to display')} onClick={() => idsComConflito.has(String(prod.id)) ? mostrarZen('danger', 'Conflito de identidade', 'Movimentação bloqueada porque este produto possui ID duplicado no catálogo.') : abrirMovimentoRapido(prod, 'vitrine', 1)} style={{ width: '20px', height: '20px', borderRadius: '4px', backgroundColor: '#020617', border: '1px solid #334155', color: '#34d399', fontWeight: 900, cursor: 'pointer' }}>+</button>
+                                <button title={tx('Transferir do depósito para a vitrine','Transferir de depósito a exhibición','Transfer from warehouse to display')} onClick={() => idsComConflito.has(String(prod.id)) ? mostrarZen('danger', tx("Conflito de identidade","Conflicto de identidad"), tx("Movimentação bloqueada porque este produto possui ID duplicado no catálogo.","Movimiento bloqueado porque este producto tiene un ID duplicado en el catálogo.")) : abrirMovimentoRapido(prod, 'vitrine', 1)} style={{ width: '20px', height: '20px', borderRadius: '4px', backgroundColor: '#020617', border: '1px solid #334155', color: '#34d399', fontWeight: 900, cursor: 'pointer' }}>+</button>
                               </div>
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '52px 1fr', alignItems: 'center', gap: '6px' }}>
                               <span style={{ fontSize: '9px', color: '#a855f7', fontWeight: 900, textTransform: 'uppercase' }}>{tx('Depósito','Depósito','Warehouse')}</span>
                               <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', backgroundColor: '#0f172a', padding: '4px 6px', borderRadius: '8px', border: '1px solid #4c1d95' }}>
-                                <button title={tx('Transferir do depósito para a vitrine','Transferir de depósito a exhibición','Transfer from warehouse to display')} onClick={() => idsComConflito.has(String(prod.id)) ? mostrarZen('danger', 'Conflito de identidade', 'Movimentação bloqueada porque este produto possui ID duplicado no catálogo.') : abrirMovimentoRapido(prod, 'deposito', -1)} style={{ width: '20px', height: '20px', borderRadius: '4px', backgroundColor: '#020617', border: '1px solid #334155', color: '#fb7185', fontWeight: 900, cursor: 'pointer' }}>-</button>
+                                <button title={tx('Transferir do depósito para a vitrine','Transferir de depósito a exhibición','Transfer from warehouse to display')} onClick={() => idsComConflito.has(String(prod.id)) ? mostrarZen('danger', tx("Conflito de identidade","Conflicto de identidad"), tx("Movimentação bloqueada porque este produto possui ID duplicado no catálogo.","Movimiento bloqueado porque este producto tiene un ID duplicado en el catálogo.")) : abrirMovimentoRapido(prod, 'deposito', -1)} style={{ width: '20px', height: '20px', borderRadius: '4px', backgroundColor: '#020617', border: '1px solid #334155', color: '#fb7185', fontWeight: 900, cursor: 'pointer' }}>-</button>
                                 <span style={{ fontWeight: 900, fontSize: '14px', minWidth: '30px', textAlign: 'center', color: '#a855f7' }}>{prod.estoqueGalpao ?? 0}</span>
-                                <button title={tx('Transferir da vitrine para o depósito','Transferir de exhibición a depósito','Transfer from display to warehouse')} onClick={() => idsComConflito.has(String(prod.id)) ? mostrarZen('danger', 'Conflito de identidade', 'Movimentação bloqueada porque este produto possui ID duplicado no catálogo.') : abrirMovimentoRapido(prod, 'deposito', 1)} style={{ width: '20px', height: '20px', borderRadius: '4px', backgroundColor: '#020617', border: '1px solid #334155', color: '#34d399', fontWeight: 900, cursor: 'pointer' }}>+</button>
+                                <button title={tx('Transferir da vitrine para o depósito','Transferir de exhibición a depósito','Transfer from display to warehouse')} onClick={() => idsComConflito.has(String(prod.id)) ? mostrarZen('danger', tx("Conflito de identidade","Conflicto de identidad"), tx("Movimentação bloqueada porque este produto possui ID duplicado no catálogo.","Movimiento bloqueado porque este producto tiene un ID duplicado en el catálogo.")) : abrirMovimentoRapido(prod, 'deposito', 1)} style={{ width: '20px', height: '20px', borderRadius: '4px', backgroundColor: '#020617', border: '1px solid #334155', color: '#34d399', fontWeight: 900, cursor: 'pointer' }}>+</button>
                               </div>
                             </div>
                           </div>
@@ -832,7 +832,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
               <div>
                 <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>{tx('Foto do Item','Foto del Ítem','Item Photo')}</label>
                 <div onClick={() => fileInputRef.current?.click()} style={{ width: '130px', height: '115px', borderRadius: '12px', backgroundColor: '#020617', border: '2px dashed #334155', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden' }}>
-                  {formProduto.imagem ? <img src={formProduto.imagem} alt="Produto" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ textAlign: 'center', color: '#64748b' }}><span style={{ fontSize: '24px', display: 'block' }}>📷</span><span style={{ fontSize: '10px', fontWeight: 700 }}>{tx('Foto','Foto','Photo')}</span></div>}
+                  {formProduto.imagem ? <img src={formProduto.imagem} alt={tx("Produto","Producto")} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ textAlign: 'center', color: '#64748b' }}><span style={{ fontSize: '24px', display: 'block' }}>📷</span><span style={{ fontSize: '10px', fontWeight: 700 }}>{tx('Foto','Foto','Photo')}</span></div>}
                 </div>
                 <input ref={fileInputRef} type="file" accept="image/*" onChange={lidarUploadImagem} style={{ display: 'none' }} />
               </div>
@@ -980,11 +980,11 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
                               <span style={{ color: '#64748b', fontSize: '10px' }}>{mov.createdAt ? new Date(mov.createdAt).toLocaleString('pt-BR') : '—'}</span>
                             </div>
                             <div style={{ marginTop: '6px', color: '#cbd5e1', fontSize: '11px' }}>
-                              <span style={{ color: '#38bdf8', fontWeight: 800 }}>{mov.quantidade}</span> un. • {mov.origem || 'externo'} → {mov.destino || '—'} • {mov.motivo || 'Sem motivo'}
+                              <span style={{ color: '#38bdf8', fontWeight: 800 }}>{mov.quantidade}</span> {tx("un. •","un. •")} {mov.origem || 'externo'} → {mov.destino || '—'} • {mov.motivo || 'Sem motivo'}
                             </div>
                             <div style={{ marginTop: '4px', color: '#64748b', fontSize: '10px' }}>{tx('Operador:','Operador:','Operator:')} {mov.operadorNome || '—'}{mov.referenciaId ? ` • Ref.: ${mov.referenciaId}` : ''}</div>
-                            {mov.saldoAntes && mov.saldoDepois && <div style={{ marginTop: '4px', color: '#94a3b8', fontSize: '10px' }}>Antes V/D/T: {mov.saldoAntes.vitrine}/{mov.saldoAntes.deposito}/{mov.saldoAntes.total} → Depois: {mov.saldoDepois.vitrine}/{mov.saldoDepois.deposito}/{mov.saldoDepois.total}</div>}
-                            {mov.observacao && <div style={{ marginTop: '4px', color: '#94a3b8', fontSize: '10px' }}>Obs.: {mov.observacao}</div>}
+                            {mov.saldoAntes && mov.saldoDepois && <div style={{ marginTop: '4px', color: '#94a3b8', fontSize: '10px' }}>{tx("Antes V/D/T:","Antes E/D/T:")} {mov.saldoAntes.vitrine}/{mov.saldoAntes.deposito}/{mov.saldoAntes.total} {tx("→ Depois:","→ Después:")} {mov.saldoDepois.vitrine}/{mov.saldoDepois.deposito}/{mov.saldoDepois.total}</div>}
+                            {mov.observacao && <div style={{ marginTop: '4px', color: '#94a3b8', fontSize: '10px' }}>{tx("Obs.:","Obs.:")} {mov.observacao}</div>}
                           </div>
                         ))}
                       </div>
@@ -997,9 +997,9 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
             <div style={{ display: 'flex', gap: '12px' }}>
               <button onClick={() => setModalProdutoAberto(false)} style={{ flex: 1, backgroundColor: '#020617', border: '1px solid #1e293b', color: '#94a3b8', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}>{tx('Cancelar','Cancelar','Cancel')}</button>
               {recomposicaoOriginal && <label style={{flex:2,display:'flex',alignItems:'center',gap:8,color:'#e0f2fe',fontSize:12}}>
-                <input aria-label="Conferi o estoque físico" type="checkbox" checked={estoqueRecompostoConferido}
+                <input aria-label={tx("Conferi o estoque físico","Verifiqué las existencias físicas")} type="checkbox" checked={estoqueRecompostoConferido}
                   onChange={e=>setEstoqueRecompostoConferido(e.target.checked)}/>
-                Conferi as quantidades físicas e os preços deste produto
+                {tx("Conferi as quantidades físicas e os preços deste produto","Verifiqué las cantidades físicas y los precios de este producto")}
               </label>}
               <button onClick={salvarProduto} style={{ flex: 2, background: 'linear-gradient(135deg, #0284c7, #0369a1)', border: 'none', color: '#ffffff', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 900, cursor: 'pointer' }}>{tx('Salvar Produto no Sistema','Guardar Producto en el Sistema','Save Product in System')}</button>
             </div>

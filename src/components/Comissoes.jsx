@@ -304,11 +304,11 @@ export default function Comissoes({ commitOperacaoNegocio, historicoVendas, fmt,
 
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', fontSize: '11px', fontWeight: 900 }}>
 
-            <span style={{ color: '#34d399' }}>🟢 margem ≥ {margemIdeal}%</span>
+            <span style={{ color: '#34d399' }}>{tx("🟢 margem ≥","🟢 margen ≥")} {margemIdeal}%</span>
 
             <span style={{ color: '#fbbf24' }}>🟡 {margemMinima}% a &lt; {margemIdeal}%</span>
 
-            <span style={{ color: '#fb7185' }}>🔴 margem &lt; {margemMinima}%</span>
+            <span style={{ color: '#fb7185' }}>{tx("🔴 margem <","🔴 margen <")} {margemMinima}%</span>
 
             <span style={{ color: '#fb7185' }}>⛔ {tx('prejuízo = comissão zero','pérdida = comisión cero','loss = zero commission')}</span>
 
@@ -392,7 +392,7 @@ export default function Comissoes({ commitOperacaoNegocio, historicoVendas, fmt,
 
               return <tr key={linha.id} style={{ borderBottom: '1px solid rgba(255,255,255,.05)', color: '#cbd5e1', fontSize: '12px' }}>
 
-                <td style={{ padding: '16px 8px', color: '#f8fafc', fontWeight: 900 }}>{linha.nome}{linha.qtdPrejuizo > 0 && <div style={{ color: '#fb7185', fontSize: '10px', marginTop: '4px' }}>⛔ {linha.qtdPrejuizo} {tx('venda(s) sem comissão por prejuízo','venta(s) sin comisión por pérdida','sale(s) with no commission due to loss')}</div>}{linha.qtdComissaoLimitada > 0 && <div style={{ color: '#fbbf24', fontSize: '10px', marginTop: '3px' }}>🛡️ {linha.qtdComissaoLimitada} {tx('comissão(ões) limitada(s) ao lucro','comisión(es) limitada(s) a la ganancia','commission(s) capped by profit')} da venda</div>}</td>
+                <td style={{ padding: '16px 8px', color: '#f8fafc', fontWeight: 900 }}>{linha.nome}{linha.qtdPrejuizo > 0 && <div style={{ color: '#fb7185', fontSize: '10px', marginTop: '4px' }}>⛔ {linha.qtdPrejuizo} {tx('venda(s) sem comissão por prejuízo','venta(s) sin comisión por pérdida','sale(s) with no commission due to loss')}</div>}{linha.qtdComissaoLimitada > 0 && <div style={{ color: '#fbbf24', fontSize: '10px', marginTop: '3px' }}>🛡️ {linha.qtdComissaoLimitada} {tx('comissão(ões) limitada(s) ao lucro','comisión(es) limitada(s) a la ganancia','commission(s) capped by profit')} {tx("da venda","de la venta")}</div>}</td>
 
                 <td style={{ textAlign: 'center' }}>{linha.totalAtendimentos}</td><td style={{ textAlign: 'right' }}>{fmt(linha.totalVendas)}</td><td style={{ textAlign: 'right' }}>{fmt(linha.totalLucro)}</td>
 
@@ -400,9 +400,9 @@ export default function Comissoes({ commitOperacaoNegocio, historicoVendas, fmt,
 
                 <td style={{ textAlign: 'center' }}><div style={{ display: 'flex', gap: '5px', justifyContent: 'center', fontWeight: 900 }}><span style={{ color: '#34d399' }}>● {linha.qtdVerde}</span><span style={{ color: '#fbbf24' }}>● {linha.qtdAmarelo}</span><span style={{ color: '#fb7185' }}>● {linha.qtdVermelho}</span></div></td>
 
-                <td style={{ textAlign: 'right' }}><div style={{ fontWeight: 900 }}>{fmt(linha.comissaoBaseTotal)}</div><div style={{ color: '#64748b', fontSize: '10px' }}>sobre {linha.baseCalculo === 'faturamento' ? 'faturamento' : 'lucro'}</div></td>
+                <td style={{ textAlign: 'right' }}><div style={{ fontWeight: 900 }}>{fmt(linha.comissaoBaseTotal)}</div><div style={{ color: '#64748b', fontSize: '10px' }}>{tx("sobre","sobre")} {linha.baseCalculo === 'faturamento' ? 'faturamento' : 'lucro'}</div></td>
 
-                <td style={{ textAlign: 'right', color: '#c084fc' }}><div style={{ fontWeight: 900 }}>{linha.totalBonus > 0 ? fmt(linha.totalBonus) : '-'}</div>{linha.bonusAvaliados.length > 0 && <div style={{ fontSize: '10px', color: '#94a3b8' }}>{metasAtingidas}/{linha.bonusAvaliados.length} metas</div>}</td>
+                <td style={{ textAlign: 'right', color: '#c084fc' }}><div style={{ fontWeight: 900 }}>{linha.totalBonus > 0 ? fmt(linha.totalBonus) : '-'}</div>{linha.bonusAvaliados.length > 0 && <div style={{ fontSize: '10px', color: '#94a3b8' }}>{metasAtingidas}/{linha.bonusAvaliados.length} {tx("metas","metas")}</div>}</td>
 
                 <td style={{ textAlign: 'right', color: '#34d399', fontWeight: 900, fontSize: '15px' }}>{fmt(linha.comissaoTotal)}</td>
 
@@ -432,11 +432,11 @@ export default function Comissoes({ commitOperacaoNegocio, historicoVendas, fmt,
 
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}><span style={{ color: '#f8fafc', fontSize: '12px', fontWeight: 900 }}>{bonus.nome}</span><span style={{ color: bonus.atingida ? '#34d399' : '#fbbf24', fontSize: '10px', fontWeight: 900 }}>{bonus.atingida ? '✓ QUALIFICADO' : 'EM ANDAMENTO'}</span></div>
 
-              <div style={{ color: '#94a3b8', fontSize: '10px', marginTop: '6px' }}>{formatarMetaBonus(bonus, fmt)} • Atual: {formatarMetricaBonus(bonus, fmt, tx)}</div>
+              <div style={{ color: '#94a3b8', fontSize: '10px', marginTop: '6px' }}>{formatarMetaBonus(bonus, fmt)} {tx("• Atual:","• Actual:")} {formatarMetricaBonus(bonus, fmt, tx)}</div>
 
               <div style={{ marginTop: '8px', height: '6px', background: '#1e293b', borderRadius: '99px', overflow: 'hidden' }}><div style={{ width: `${bonus.progressoPct}%`, height: '100%', background: bonus.atingida ? '#10b981' : '#8b5cf6' }} /></div>
 
-              <div style={{ color: '#c084fc', marginTop: '7px', fontSize: '11px', fontWeight: 900 }}>Bônus: {fmt(bonus.valorBonus)}</div>
+              <div style={{ color: '#c084fc', marginTop: '7px', fontSize: '11px', fontWeight: 900 }}>{tx("Bônus:","Bono:")} {fmt(bonus.valorBonus)}</div>
 
             </div>)}
 
