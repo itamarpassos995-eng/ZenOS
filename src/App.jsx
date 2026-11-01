@@ -1373,7 +1373,7 @@ export default function App() {
     const demonstrativoMoedas = ['BRL','USD','EUR','PYG'].map(m => {
       const casas = m === 'PYG' ? 0 : 2;
       const n = valor => Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits:casas, maximumFractionDigits:casas });
-      return `<div style="display:flex;justify-content:space-between;gap:6px;"><span>${m} esperado: ${n(conciliacaoFisica.esperado?.[m])}</span><span>contado: ${n(conciliacaoFisica.contado?.[m])} / dif.: ${n(conciliacaoFisica.diferencas?.[m])}</span></div>`;
+      return `<div style="padding:5px 0;page-break-inside:avoid"><b>${m}</b><div>Esperado: ${n(conciliacaoFisica.esperado?.[m])}</div><div>Contado: ${n(conciliacaoFisica.contado?.[m])}</div><div>Dif.: ${conciliacaoFisica.confiavel?n(conciliacaoFisica.diferencas?.[m]):'NO CONCLUYENTE'}</div></div>`;
     }).join('');
 
     const reciboFechoHTML = `
