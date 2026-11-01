@@ -1180,8 +1180,10 @@ export default function App() {
       tipo: tipoMovCaixa, lojaId:String(userId), moedaEquivalente:'BRL', valorBRL: valBRL, detalhesMoedas: { ...valoresMovCaixa }, detalhesMoedasNativas: movimentoValidado.valoresNativos, taxasCambioMovimento: { ...taxasCambio },
       direcao: tipoMovCaixa === 'suprimento' ? 'entrada' : 'saida', afetaGaveta: true,
       descricao: descMovCaixa || (tipoMovCaixa === 'suprimento' ? tx('Reforço de Fundo', 'Refuerzo de Caja', 'Float Fund') : tx('Retirada de Caixa', 'Retiro de Caja', 'Cash Withdrawal')), 
-      operador: operadorAtivo?.nome 
+      operador: operadorAtivo?.nome,
+      operadorId: String(operadorAtivo?.id || 'admin'),
     };
+    novoMov.referenciaFinanceira = `CAIXA-${novoMov.id}`;
     const movimentosPropostos = [novoMov, ...caixaMovimentos];
     // Bloqueio persistente ANTES do envio: se cair a rede ou recarregar a aba,
     // não se pode criar outro ID e movimentar dinheiro novamente às cegas.
