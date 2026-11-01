@@ -1063,8 +1063,6 @@ export default function App() {
   const totalMovimentoConvertido = converterValoresFisicosParaBRL(valoresMovCaixa, taxasCambio);
   const calcularTotalMovBRL = () => totalMovimentoConvertido.ok ? totalMovimentoConvertido.totalBRL : NaN;
   const moedaTotalCaixa = ['BRL', 'USD', 'EUR', 'PYG'].includes(moeda) ? moeda : 'BRL';
-  const totalMovimentoNaMoedaSelecionada = () => totalMovimentoConvertido.ok
-    ? converterDeBRL(totalMovimentoConvertido.totalBRL, moedaTotalCaixa) : NaN;
   const resetarValoresCaixa = () => setValoresMovCaixa({ BRL: '', USD: '', EUR: '', PYG: '' });
 
   const abrirTurnoDeCaixa = async () => {
@@ -1977,7 +1975,7 @@ export default function App() {
                 {tipoMovCaixa === 'fechamento' && (
                   <div style={{ marginTop:'14px', padding:'12px 14px', borderRadius:'12px', background:'#020617', border:'1px solid #1e293b' }}>
                     <div style={{fontSize:'10px',fontWeight:900,letterSpacing:'1px',color:'#64748b',marginBottom:'5px'}}>{tx('TOTAL FÍSICO INFORMADO • MOEDA SELECIONADA','TOTAL FÍSICO INFORMADO • MONEDA SELECCIONADA','PHYSICAL TOTAL ENTERED • SELECTED CURRENCY') + ' (' + moedaTotalCaixa + ')'}</div>
-                    <div style={{fontSize:'20px',fontWeight:950,color:'#f8fafc'}}>{Number.isFinite(totalMovimentoNaMoedaSelecionada()) ? fmt(totalMovimentoNaMoedaSelecionada(), moedaTotalCaixa) : tx('Corrija os valores digitados', 'Corrija los importes', 'Correct the entered amounts')}</div>
+                    <div style={{fontSize:'20px',fontWeight:950,color:'#f8fafc'}}>{Number.isFinite(calcularTotalMovBRL()) ? fmt(calcularTotalMovBRL(), moedaTotalCaixa) : tx('Corrija os valores digitados', 'Corrija los importes', 'Correct the entered amounts')}</div>
                     <div style={{fontSize:'10px',color:'#64748b',marginTop:'5px'}}>{tx('O saldo esperado pelo ZenOS permanece oculto até a auditoria ser concluída.','El saldo esperado por ZenOS permanece oculto hasta finalizar la auditoría.','The balance expected by ZenOS remains hidden until the audit is completed.')}</div>
                   </div>
                 )}
