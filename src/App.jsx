@@ -1199,7 +1199,7 @@ export default function App() {
       }],
       guards: [
         { type:'cash_session_open', sessionId:sessaoAtiva.id },
-        ...(tipoMovCaixa === 'sangria' ? [{ type:'cash_balance_at_least', sessionId:sessaoAtiva.id, amount:valBRL, message:tx('O saldo físico do caixa mudou em outro terminal. A sangria não foi realizada.','El saldo físico de caja cambió en otro terminal. El retiro no fue realizado.','The physical cash balance changed on another terminal. The cash drop was not performed.') }] : []),
+        ...(tipoMovCaixa === 'sangria' ? [{ type:'cash_native_balance_at_least', sessionId:sessaoAtiva.id, valoresNativos:movimentoValidado.valoresNativos, taxas:{...taxasCambio} }, { type:'cash_balance_at_least', sessionId:sessaoAtiva.id, amount:valBRL, message:tx('O saldo físico do caixa mudou em outro terminal. A sangria não foi realizada.','El saldo físico de caja cambió en otro terminal. El retiro no fue realizado.','The physical cash balance changed on another terminal. The cash drop was not performed.') }] : []),
       ],
       operationKey: `mov-caixa:${novoMov.id}`,
     });
