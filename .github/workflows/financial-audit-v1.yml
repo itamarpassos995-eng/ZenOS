@@ -2,6 +2,7 @@ name: Blindagem Financeira V1
 on:
   pull_request:
     paths:
+      - 'src/App.jsx'
       - 'src/core/financialAudit.js'
       - 'src/core/salesFinancials.js'
       - 'src/core/cashReconciliation.js'
