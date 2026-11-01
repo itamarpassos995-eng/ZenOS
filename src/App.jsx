@@ -1388,7 +1388,7 @@ export default function App() {
         <div><strong>${tx('Fechamento:','Cierre:','Closing:')}</strong> ${dataFechoLocal}</div>
         <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
 
-        <div style="margin-bottom:5px;"><strong>>> ${tx('COMPOSIÇÃO DO DINHEIRO FÍSICO','COMPOSICIÓN DEL DINERO FÍSICO','PHYSICAL CASH COMPOSITION')}</strong></div>
+        <div style="margin-bottom:5px;"><strong>>> ${tx('FLUXO DE CAIXA — EQUIVALENTES EM BRL','FLUJO DE CAJA — EQUIVALENTES EN BRL','CASH FLOW — BRL EQUIVALENTS')}</strong></div>
         <div style="display:flex;justify-content:space-between;"><span>${tx('Fundo inicial:','Fondo inicial:','Opening float:')}</span><span>${fmt(componentes.fundoInicial, 'BRL')}</span></div>
         <div style="display:flex;justify-content:space-between;"><span>${tx('Vendas em dinheiro:','Ventas en efectivo:','Cash sales:')}</span><span>+ ${fmt(componentes.vendasDinheiro, 'BRL')}</span></div>
         <div style="display:flex;justify-content:space-between;"><span>${tx('Recebimentos em dinheiro:','Cobros en efectivo:','Cash receipts:')}</span><span>+ ${fmt(componentes.recebimentosDinheiro, 'BRL')}</span></div>
@@ -1420,6 +1420,12 @@ export default function App() {
         ${moedasContadasHTML}
         <div style="margin-top:6px;font-weight:bold;">>>> ${tx('CONCILIAÇÃO FÍSICA POR MOEDA','CONCILIACIÓN FÍSICA POR MONEDA','PHYSICAL RECONCILIATION BY CURRENCY')}</div>
         ${demonstrativoMoedas}
+        <div style="margin-top:8px;"><strong>${tx('CÂMBIO DE APRESENTAÇÃO NO FECHAMENTO','TIPOS DE CAMBIO DEL CIERRE','CLOSING DISPLAY EXCHANGE RATES')}</strong></div>
+        ${['USD','EUR','PYG'].map(codigo => {
+          const taxa=Number(taxasCambio?.[codigo]);
+          return '<div>1 BRL = ' + (Number.isFinite(taxa) && taxa>0 ? taxa.toLocaleString('pt-BR',{maximumFractionDigits:6}) + ' ' + codigo : tx('COTAÇÃO INDISPONÍVEL','CAMBIO NO DISPONIBLE','RATE UNAVAILABLE') + ' (' + codigo + ')') + '</div>';
+        }).join('')}
+        <div>${tx('Taxas usadas apenas para os equivalentes totais; os saldos nativos permanecem inalterados.','Tipos usados solo para los totales equivalentes; los saldos nativos no cambian.','Rates used for equivalent totals only; native balances do not change.')}</div>
         ${!conciliacaoFisica.confiavel ? `<div style="margin-top:5px;font-weight:bold;">${tx('RECONCILIAÇÃO INCONCLUSIVA:','CONCILIACIÓN NO CONCLUYENTE:','INCONCLUSIVE RECONCILIATION:')} ${conciliacaoFisica.pendencias.map(escaparHTML).join(' | ')}</div>` : ''}
 
         <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
