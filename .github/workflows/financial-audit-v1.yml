@@ -24,6 +24,10 @@ jobs:
         run: npm run build
       - name: Testar consistência financeira e caixa
         run: node --test scripts/financial-audit-v1.test.mjs
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
       - name: Testar livro financeiro no emulador local
         run: npm run test:att07:emulator
       - name: Verificar ausência de imports Firestore no módulo de auditoria
