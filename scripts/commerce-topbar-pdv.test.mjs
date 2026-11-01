@@ -55,6 +55,11 @@ test('nenhum arquivo de persistência Firestore nem regras foi modificado',()=>{
  // O módulo permanece puro e não pode passar a consultar Firestore.
  const allowedFinancialCore='src/core/cashReconciliation.js';
  const allowedCashGuard='src/core/productionSync.js';
+ const allowedReadOnlyAudit='src/core/financialAudit.js';
+ if(changed.includes(allowedReadOnlyAudit)){
+   const source=read(allowedReadOnlyAudit);
+   assert.doesNotMatch(source,/firebase\/firestore|\bonSnapshot\s*\(|\bgetDocs(?:FromServer)?\s*\(|\bgetDoc(?:FromServer)?\s*\(|\brunTransaction\s*\(/,'Auditoria financeira deve ser apenas cálculo puro, sem acesso ao Firestore');
+ }
  if(changed.includes(allowedCashGuard)){
    const source=read(allowedCashGuard);
    assert.match(source,/guard\.type === 'cash_native_balance_at_least'/);
@@ -69,7 +74,7 @@ test('nenhum arquivo de persistência Firestore nem regras foi modificado',()=>{
    /(^|\/)firestore[^/]*\.rules$/.test(path)||
    /^src\/firebase[^/]*\.[jt]s$/.test(path)||
    /^functions\//.test(path)||
-   (/^src\/core\//.test(path)&&!uiOnlyCore.has(path)&&path!==allowedFinancialCore&&path!==allowedCashGuard)
+   (/^src\/core\//.test(path)&&!uiOnlyCore.has(path)&&path!==allowedFinancialCore&&path!==allowedCashGuard&&path!==allowedReadOnlyAudit)
  );
  assert.deepEqual(protectedPaths,[],'A mudança visual não pode alterar persistência nem regras');
 });
