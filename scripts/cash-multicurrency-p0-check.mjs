@@ -170,4 +170,9 @@ assert.ok(movimentoSemNativo.pendencias.some(p=>p.includes('faltam valores físi
 assert.match(app,/fmt\(saldoEsperadoBRL, moedaTotalCaixa\)/);
 assert.match(app,/fmt\(valInformadoBRL, moedaTotalCaixa\)/);
 
+assert.match(app,/FLUXO DE CAIXA — EQUIVALENTES EM BRL/);
+assert.match(app,/TIPOS DE CAMBIO DEL CIERRE/);
+assert.match(app,/1 BRL = /);
+assert.match(app,/page-break-inside:avoid/);
+assert.match(app,/conciliacaoFisica\.confiavel\?n\(conciliacaoFisica\.diferencas\?\.\[m\]\)/);
 console.log('ZenOS caixa: testes de regressão P0 aprovados.');
