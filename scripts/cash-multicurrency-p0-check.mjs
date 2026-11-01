@@ -157,4 +157,17 @@ assert.match(app,/const moedaTotalCaixa =/);
 assert.match(app,/fmt\(calcularTotalMovBRL\(\), moedaTotalCaixa\)/);
 assert.doesNotMatch(app,/TOTAL FÍSICO INFORMADO • CONVERTIDO PARA BRL/);
 
+// Movimentos antigos em moeda estrangeira sem quantia física não podem
+// ser reinterpretados como reais e produzir conciliação falsa.
+const movimentoSemNativo=calcularConciliacaoFisicaMultimoeda({
+  sessao:sessaoMista,historicoVendas:[],
+  caixaMovimentos:[{id:'MOV-PYG-ANTIGO',sessaoId:sessaoMista.id,tipo:'suprimento',moedaOrigem:'PYG',valorBRL:33.33}],
+  contagem:{BRL:0,PYG:40000},taxas:{BRL:1,USD:0.2,EUR:0.18,PYG:1200},
+});
+assert.equal(movimentoSemNativo.confiavel,false);
+assert.equal(movimentoSemNativo.esperado.BRL,0);
+assert.ok(movimentoSemNativo.pendencias.some(p=>p.includes('faltam valores físicos nativos')));
+assert.match(app,/fmt\(saldoEsperadoBRL, moedaTotalCaixa\)/);
+assert.match(app,/fmt\(valInformadoBRL, moedaTotalCaixa\)/);
+
 console.log('ZenOS caixa: testes de regressão P0 aprovados.');
