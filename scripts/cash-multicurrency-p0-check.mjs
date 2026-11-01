@@ -116,4 +116,45 @@ const conciliacaoLegada = calcularConciliacaoFisicaMultimoeda({
 assert.equal(conciliacaoLegada.confiavel,false);
 assert.ok(conciliacaoLegada.pendencias.some(p=>p.includes('sem forma identificável')));
 
+// Regressão real de loja BR/PY: 300 reais e 40.000 guaranis são gavetas
+// independentes; o câmbio altera somente o equivalente de apresentação.
+const sessaoMista = {
+  id:'SESSAO-MISTA', operadorId:'op-mista', createdAt:'2026-11-01T10:00:00.000Z',
+  status:'aberta', saldoInicial:0,
+  detalheAberturaNativos:{BRL:0,USD:0,EUR:0,PYG:0},
+};
+const vendaMista = {
+  id:'VENDA-MISTA',estado:'concluida',sessaoId:'SESSAO-MISTA',
+  createdAt:'2026-11-01T11:00:00.000Z',
+  pagamentos:[
+    {formaId:'dinheiro_brl',moedaOrigem:'BRL',valorOriginal:300,valorConvertidoBRL:300},
+    {formaId:'dinheiro_pyg',moedaOrigem:'PYG',valorOriginal:40000,valorConvertidoBRL:33.33},
+  ],trocoBRL:0,
+};
+const mista = (venda,contagem,cambio=1200) => calcularConciliacaoFisicaMultimoeda({
+  sessao:sessaoMista,historicoVendas:[venda],caixaMovimentos:[],
+  contagem,taxas:{BRL:1,USD:0.2,EUR:0.18,PYG:cambio},
+});
+const semTroco=mista(vendaMista,{BRL:300,PYG:40000});
+assert.equal(semTroco.confiavel,true);
+assert.equal(semTroco.divergenciaFisica,false);
+assert.deepEqual([semTroco.esperado.BRL,semTroco.esperado.PYG],[300,40000]);
+assert.equal(semTroco.totalEsperadoBRL,333.33);
+const trocoGuarani={...vendaMista,trocoBRL:8.33,moedaTrocoInfo:'PYG',trocoOriginal:10000};
+const comTroco=mista(trocoGuarani,{BRL:300,PYG:30000});
+assert.equal(comTroco.confiavel,true);
+assert.equal(comTroco.divergenciaFisica,false);
+assert.equal(comTroco.esperado.BRL,300);
+assert.equal(comTroco.esperado.PYG,30000);
+assert.equal(comTroco.totalEsperadoBRL,325);
+const novaCotacao=mista(trocoGuarani,{BRL:300,PYG:30000},1000);
+assert.equal(novaCotacao.divergenciaFisica,false);
+assert.equal(novaCotacao.esperado.PYG,30000);
+assert.equal(novaCotacao.totalEsperadoBRL,330);
+assert.equal(converterValoresFisicosParaBRL({BRL:'300,00',PYG:'40.000'},{PYG:1200}).totalBRL,333.33);
+// O total visível do fechamento deve respeitar a moeda escolhida.
+assert.match(app,/totalMovimentoNaMoedaSelecionada/);
+assert.match(app,/fmt\(totalMovimentoNaMoedaSelecionada\(\), moedaTotalCaixa\)/);
+assert.doesNotMatch(app,/TOTAL FÍSICO INFORMADO • CONVERTIDO PARA BRL/);
+
 console.log('ZenOS caixa: testes de regressão P0 aprovados.');
