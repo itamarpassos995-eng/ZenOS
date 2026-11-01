@@ -18,8 +18,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Instalar dependências
+        run: npm ci
+      - name: Compilar ZenOS
+        run: npm run build
       - name: Testar consistência financeira e caixa
         run: node --test scripts/financial-audit-v1.test.mjs
+      - name: Testar livro financeiro no emulador local
+        run: npm run test:att07:emulator
       - name: Verificar ausência de imports Firestore no módulo de auditoria
         run: |
           ! grep -E "firebase/firestore|onSnapshot|getDocs|runTransaction" src/core/financialAudit.js
