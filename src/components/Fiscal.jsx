@@ -125,7 +125,7 @@ export default function Fiscal({
 
   return <section className="fiscal-page" data-fiscal-mobile-safe="true">
     <FiscalContratacao lojaId={lojaId} perfilLoja={perfilLoja} tx={tx} />
-    <FiscalAdministracaoPainel />
+    <FiscalAdministracaoPainel tx={tx} />
     <header className="fiscal-header">
       <div><span className="fiscal-eyebrow">ZENOS FISCAL</span><h1>{tx('Operação fiscal','Operación fiscal','Fiscal operation')}</h1><p>{tx('Consulta e preparação visual de documentos, sem alterar a venda comercial.','Consulta y preparación visual de documentos, sin alterar la venta comercial.','View and visually prepare documents without changing the commercial sale.')}</p></div>
       <div className="fiscal-contexto">

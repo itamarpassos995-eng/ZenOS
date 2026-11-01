@@ -35,7 +35,7 @@ export default function Fornecedores({ commitOperacaoNegocio, fornecedores, setF
   };
 
   const salvar = async () => {
-    if (!form.nome.trim()) return avisarZen('warning','Nome obrigatório',tx('O Nome/Razão Social é obrigatório.', 'El Nombre/Razón Social es obligatorio.', 'Name is required.'));
+    if (!form.nome.trim()) return avisarZen('warning',tx("Nome obrigatório","Nombre obligatorio"),tx('O Nome/Razão Social é obrigatório.', 'El Nombre/Razón Social es obligatorio.', 'Name is required.'));
     const dados = { ...form };
     let listaProposta;
     if (fornecedorEmEdicao) {
@@ -61,7 +61,7 @@ export default function Fornecedores({ commitOperacaoNegocio, fornecedores, setF
 
   const excluir = async (id) => {
     const alvo=(fornecedores||[]).find(f=>f.id===id);
-    const confirmou=await confirmarZen({titulo:'Excluir fornecedor',mensagem:tx(`Excluir ${alvo?.nome || 'este fornecedor'}?`, `¿Eliminar ${alvo?.nome || 'este proveedor'}?`, `Delete ${alvo?.nome || 'this supplier'}?`),confirmarTexto:'Excluir',variante:'danger'});
+    const confirmou=await confirmarZen({titulo:tx("Excluir fornecedor","Eliminar proveedor"),mensagem:tx(`Excluir ${alvo?.nome || 'este fornecedor'}?`, `¿Eliminar ${alvo?.nome || 'este proveedor'}?`, `Delete ${alvo?.nome || 'this supplier'}?`),confirmarTexto:tx("Excluir","Eliminar"),variante:'danger'});
     if (confirmou) {
       const listaProposta = fornecedores.filter(f => f.id !== id);
       try {
@@ -132,7 +132,7 @@ export default function Fornecedores({ commitOperacaoNegocio, fornecedores, setF
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
               <div>
                 <span style={{ fontSize: '11px', fontWeight: 800, color: '#a855f7', textTransform: 'uppercase', letterSpacing: '1px' }}>{tx('Ficha Cadastral','Ficha de Registro','Record Form')}</span>
-                <h3 style={{ margin: '4px 0 0 0', fontSize: '20px', fontWeight: 900 }}>{fornecedorEmEdicao ? `Editar: ${form.nome}` : 'Novo Fornecedor'}</h3>
+                <h3 style={{ margin: '4px 0 0 0', fontSize: '20px', fontWeight: 900 }}>{fornecedorEmEdicao ? `Editar: ${form.nome}` : tx("Novo Fornecedor","Nuevo proveedor")}</h3>
               </div>
               <button onClick={() => setModalAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#64748b', borderRadius: '8px', padding: '6px 12px', cursor: 'pointer', fontWeight: 900 }}>✕</button>
             </div>

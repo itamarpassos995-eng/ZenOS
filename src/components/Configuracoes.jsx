@@ -50,7 +50,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
   };
 
   const salvarPerfilLoja = async () => {
-    if (!perfilLoja.nomeFantasia.trim()) return avisarZen('warning','Nome obrigatório',tx ? tx('O Nome Fantasia é obrigatório.', 'El Nombre Comercial es obligatorio.', 'Store Name is required.') : 'Nome obrigatório.');
+    if (!perfilLoja.nomeFantasia.trim()) return avisarZen('warning',tx("Nome obrigatório","Nombre obligatorio"),tx ? tx('O Nome Fantasia é obrigatório.', 'El Nombre Comercial es obligatorio.', 'Store Name is required.') : tx("Nome obrigatório.","Nombre obligatorio."));
     setSalvandoPerfil(true);
     try {
       const user = auth.currentUser;
@@ -64,7 +64,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
       // pode deixar aparência de configuração salva apenas neste terminal.
       const perfilConfirmadoLocal = salvarPerfilLojaLocal(user?.uid, perfilLoja);
       if (setPerfilLojaGlobal) setPerfilLojaGlobal(perfilConfirmadoLocal);
-      avisarZen('success','Configurações salvas',tx ? tx('Dados fiscais da loja atualizados com sucesso!', '¡Datos fiscales actualizados con éxito!', 'Fiscal data successfully updated!') : 'Dados atualizados!');
+      avisarZen('success',tx("Configurações salvas","Configuraciones guardadas"),tx ? tx('Dados fiscais da loja atualizados com sucesso!', '¡Datos fiscales actualizados con éxito!', 'Fiscal data successfully updated!') : tx("Dados atualizados!","¡Datos actualizados!"));
       window.location.reload(); 
     } catch (err) {
       console.error("Erro ao guardar perfil:", err);
@@ -108,8 +108,8 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
 
   const restaurarBackupHomologacao = async () => {
     if (!ZENOS_RUNTIME.isHomologacao) return avisarZen('danger',tx('Restauração bloqueada','Restauración bloqueada','Restore blocked'),tx('A restauração só é permitida no ambiente de homologação.','La restauración solo está permitida en el ambiente de homologación.','Restore is only allowed in the test environment.'));
-    if (!arquivoBackupSelecionado) return avisarZen('warning','Selecione um backup','Valide primeiro um arquivo de backup.');
-    const confirmou = await confirmarZen({ titulo:'Restaurar em homologação vazia', mensagem:'Esta operação é permitida somente em uma loja de homologação vazia e não apaga registros existentes.', confirmarTexto:'Restaurar', variante:'warning' });
+    if (!arquivoBackupSelecionado) return avisarZen('warning',tx("Selecione um backup","Seleccione una copia de seguridad"),tx("Valide primeiro um arquivo de backup.","Valide primero un archivo de copia de seguridad."));
+    const confirmou = await confirmarZen({ titulo:tx("Restaurar em homologação vazia","Restaurar en homologación vacía"), mensagem:tx("Esta operação é permitida somente em uma loja de homologação vazia e não apaga registros existentes.","Esta operación solo se permite en una tienda de homologación vacía y no elimina registros existentes."), confirmarTexto:tx("Restaurar","Restaurar"), variante:'warning' });
     if (!confirmou) return;
     setProcessandoBackup(true);
     try {
@@ -173,7 +173,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
     if (String(idParaRemover) === 'admin') return avisarZen('warning',tx('Administrador principal protegido','Administrador principal protegido','Main administrator protected'),tx('O administrador principal não pode ser removido. Altere o PIN se necessário.','El administrador principal no puede ser eliminado. Cambie el PIN si es necesario.','The main administrator cannot be removed. Change the PIN if necessary.'));
     if (!vendedores || vendedores.length <= 1) return avisarZen('warning',tx('Operação bloqueada','Operación bloqueada','Operation blocked'),tx('Você não pode excluir o último utilizador do sistema.','No puede eliminar el último usuario del sistema.','You cannot delete the last user in the system.'));
     const alvo=(vendedores||[]).find(v=>String(v.id)===String(idParaRemover));
-    const confirmou=await confirmarZen({ titulo:tx('Remover operador','Eliminar operador','Remove operator'), mensagem:`Remover ${alvo?.nome || 'este operador'} do sistema?`, confirmarTexto:tx('Remover','Eliminar','Remove'), variante:'danger' });
+    const confirmou=await confirmarZen({ titulo:tx('Remover operador','Eliminar operador','Remove operator'), mensagem:`Remover ${alvo?.nome || tx("este operador","este operador")} do sistema?`, confirmarTexto:tx('Remover','Eliminar','Remove'), variante:'danger' });
     if (!confirmou) return;
     try {
       const confirmados = await confirmarVendedoresNaNuvem(vendedores.filter(v => String(v.id) !== String(idParaRemover)));
@@ -185,7 +185,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
 
   // 🛡️ ATUALIZA AS PERMISSÕES DE UM VENDEDOR JÁ EXISTENTE
   const atualizarPermissaoVendedor = async (idVendedor, campoPermissao, valorCheckbox) => {
-    if (String(idVendedor) === 'admin' && campoPermissao === 'admin' && !valorCheckbox) return avisarZen('warning','Administrador principal protegido','O administrador principal deve manter acesso total.');
+    if (String(idVendedor) === 'admin' && campoPermissao === 'admin' && !valorCheckbox) return avisarZen('warning',tx("Administrador principal protegido","Administrador principal protegido"),tx("O administrador principal deve manter acesso total.","El administrador principal debe conservar el acceso total."));
     const novaLista = (vendedores || []).map(v => {
       if (v.id === idVendedor) {
         const permissoes = { ...(v.permissoes || {}), [campoPermissao]: valorCheckbox };
@@ -315,7 +315,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span style={{ fontSize: '20px' }}>🏛️</span>
             <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff', margin: 0 }}>
-              {tx ? tx('Dados da Empresa e Fiscal', 'Datos de la Empresa y Fiscal', 'Company & Fiscal Data') : 'Dados da Empresa'}
+              {tx ? tx('Dados da Empresa e Fiscal', 'Datos de la Empresa y Fiscal', 'Company & Fiscal Data') : tx("Dados da Empresa","Datos de la empresa")}
             </h3>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#020617', padding: '4px 8px', borderRadius: '10px', border: '1px solid #334155' }}>
@@ -334,7 +334,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
             <input type="text" value={perfilLoja.nomeFantasia} onChange={(e) => lidarMudancaPerfil('nomeFantasia', e.target.value)} placeholder={tx('Ex: Zênite Atacadão','Ej: Zênite Mayorista','Ex: Zênite Wholesale')} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#f8fafc', padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
           </div>
           <div>
-            <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>{perfilLoja.pais === 'PY' ? 'Razón Social' : 'Razão Social (Legal)'}</label>
+            <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>{perfilLoja.pais === 'PY' ? tx("Razão social","Razón social") : tx("Razão Social (Legal)","Razón social (legal)")}</label>
             <input type="text" value={perfilLoja.razaoSocial} onChange={(e) => lidarMudancaPerfil('razaoSocial', e.target.value)} placeholder={tx('Ex: Zênite Tintas LTDA','Ej: Zênite Pinturas S.A.','Ex: Zênite Paints Ltd.')} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#f8fafc', padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
           </div>
 
@@ -343,8 +343,8 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
             <input type="text" value={perfilLoja.documento1} onChange={(e) => lidarMudancaPerfil('documento1', e.target.value)} placeholder={perfilLoja.pais === 'BR' ? '00.000.000/0001-00' : '8000000-1'} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#38bdf8', fontWeight: 900, padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
           </div>
           <div>
-            <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>{perfilLoja.pais === 'BR' ? 'Inscrição Estadual (IE)' : perfilLoja.pais === 'PY' ? 'Timbrado Fiscal' : 'Registo Comercial'}</label>
-            <input type="text" value={perfilLoja.documento2} onChange={(e) => lidarMudancaPerfil('documento2', e.target.value)} placeholder={perfilLoja.pais === 'PY' ? '12345678' : 'Isento ou Número'} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#f8fafc', padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
+            <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px', display: 'block' }}>{perfilLoja.pais === 'BR' ? tx("Inscrição Estadual (IE)","Inscripción estatal (IE)") : perfilLoja.pais === 'PY' ? 'Timbrado Fiscal' : tx("Registo Comercial","Registro comercial")}</label>
+            <input type="text" value={perfilLoja.documento2} onChange={(e) => lidarMudancaPerfil('documento2', e.target.value)} placeholder={perfilLoja.pais === 'PY' ? '12345678' : tx("Isento ou Número","Exento o número")} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '10px', color: '#f8fafc', padding: '12px', outline: 'none', fontSize: '13px', boxSizing: 'border-box' }} />
           </div>
 
           <div>
@@ -559,7 +559,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                       <input type="checkbox" disabled={v.permissoes?.admin || false} checked={v.permissoes?.admin || v.permissoes?.produtos || false} onChange={e => atualizarPermissaoVendedor(v.id, 'produtos', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#0284c7' }} />
-                      📦 Produtos e Compras
+                      {tx("📦 Produtos e Compras","📦 Productos y compras")}
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#cbd5e1' }}>
                       <input type="checkbox" disabled={v.permissoes?.admin || false} checked={v.permissoes?.admin || v.permissoes?.clientes || false} onChange={e => atualizarPermissaoVendedor(v.id, 'clientes', e.target.checked)} style={{ width: '16px', height: '16px', accentColor: '#d97706' }} />
@@ -597,7 +597,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
           <label style={{padding:'11px 16px',borderRadius:'10px',border:'1px solid #38bdf8',background:'#020617',color:'#7dd3fc',fontWeight:900,cursor:'pointer'}}>✓ {tx('Validar arquivo','Validar archivo','Validate file')}<input type="file" accept="application/json,.json" onChange={e=>validarArquivoBackup(e.target.files?.[0])} style={{display:'none'}}/></label>
           {ZENOS_RUNTIME.isHomologacao && <button disabled={!arquivoBackupSelecionado || processandoBackup} onClick={restaurarBackupHomologacao} style={{padding:'11px 16px',borderRadius:'10px',border:'1px solid #f59e0b',background:'#451a03',color:'#fbbf24',fontWeight:900,cursor:'pointer'}}>↩ {tx('Restaurar em Homologação Vazia','Restaurar en Homologación Vacía','Restore to Empty Test Environment')}</button>}
         </div>
-        <div style={{fontSize:'11px',color:backupValidadoNestaSessao?'#86efac':'#fbbf24',fontWeight:800}}>{backupValidadoNestaSessao?'✓ Backup desta sessão exportado e validado. Operações de limpeza podem prosseguir após reautenticação.':'⚠ A zona de limpeza fica protegida até existir backup validado nesta sessão.'}</div>
+        <div style={{fontSize:'11px',color:backupValidadoNestaSessao?'#86efac':'#fbbf24',fontWeight:800}}>{backupValidadoNestaSessao?tx("✓ Backup desta sessão exportado e validado. Operações de limpeza podem prosseguir após reautenticação.","✓ Copia de seguridad de esta sesión exportada y validada. Las operaciones de limpieza pueden continuar tras volver a autenticarse."):tx("⚠ A zona de limpeza fica protegida até existir backup validado nesta sessão.","⚠ La zona de limpieza permanece protegida hasta que exista una copia de seguridad validada en esta sesión.")}</div>
       </div>
 
       <div style={{ backgroundColor: '#2e0a16', border: '1px solid rgba(244, 63, 94, 0.4)', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -625,7 +625,7 @@ export default function Configuracoes({ commitOperacaoNegocio, userId, operadorA
                 </div>
                 <div style={{ display: 'flex', gap: '12px' }}>
                   <button onClick={() => setModalResetAberto(false)} type="button" style={{ flex: 1, padding: '12px', backgroundColor: '#020617', border: '1px solid #334155', color: '#94a3b8', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}>{tx('Cancelar','Cancelar','Cancel')}</button>
-                  <button onClick={() => { if (!selProdutos && !selClientes && !selVendas && !selCaixa && !selDespesas) { return avisarZen('warning','Nada selecionado','Selecione ao menos uma categoria.'); } setEtapaAviso(2); }} type="button" style={{ flex: 1, padding: '12px', backgroundColor: '#e11d48', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}>{tx('Avançar ➔','Avanzar ➔','Next ➔')}</button>
+                  <button onClick={() => { if (!selProdutos && !selClientes && !selVendas && !selCaixa && !selDespesas) { return avisarZen('warning',tx("Nada selecionado","Nada seleccionado"),tx("Selecione ao menos uma categoria.","Seleccione al menos una categoría.")); } setEtapaAviso(2); }} type="button" style={{ flex: 1, padding: '12px', backgroundColor: '#e11d48', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer' }}>{tx('Avançar ➔','Avanzar ➔','Next ➔')}</button>
                 </div>
               </>
             ) : (

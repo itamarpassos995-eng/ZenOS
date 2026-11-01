@@ -220,12 +220,12 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
   const totalFinalBRL = Math.max(0, (subtotalBrutoBRL + acrescBRL) - descBRL);
 
   const catalogoFormasPagamento = [
-    { id: 'boleto', rotulo: 'Boleto / Faturado', moedaOrigem: 'BRL', icone: '📄', aPrazo: true },
-    { id: 'prazo', rotulo: 'Fiado / Crediário', moedaOrigem: 'BRL', icone: '📒', aPrazo: true },
-    { id: 'cheque', rotulo: 'Cheque Pré-Datado', moedaOrigem: 'BRL', icone: '📝', aPrazo: true },
-    { id: 'cartao_credito', rotulo: 'Cartão de Crédito', moedaOrigem: 'BRL', icone: '💳', aPrazo: true },
-    { id: 'dinheiro', rotulo: 'Dinheiro (Pagto Imediato)', moedaOrigem: 'BRL', icone: '💵', aPrazo: false }, 
-    { id: 'pix', rotulo: 'Pix (Pagto Imediato)', moedaOrigem: 'BRL', icone: '⚡', aPrazo: false }, 
+    { id: 'boleto', rotulo: tx("Boleto / Faturado","Boleto / Facturado"), moedaOrigem: 'BRL', icone: '📄', aPrazo: true },
+    { id: 'prazo', rotulo: tx("Fiado / Crediário","Crédito / Financiación"), moedaOrigem: 'BRL', icone: '📒', aPrazo: true },
+    { id: 'cheque', rotulo: tx("Cheque Pré-Datado","Cheque posdatado"), moedaOrigem: 'BRL', icone: '📝', aPrazo: true },
+    { id: 'cartao_credito', rotulo: tx("Cartão de Crédito","Tarjeta de crédito"), moedaOrigem: 'BRL', icone: '💳', aPrazo: true },
+    { id: 'dinheiro', rotulo: tx("Dinheiro (Pagto Imediato)","Efectivo (pago inmediato)"), moedaOrigem: 'BRL', icone: '💵', aPrazo: false },
+    { id: 'pix', rotulo: tx("Pix (Pagto Imediato)","Pix (pago inmediato)"), moedaOrigem: 'BRL', icone: '⚡', aPrazo: false },
   ];
 
   const [qtdParcelas, setQtdParcelas] = useState(1);
@@ -239,9 +239,9 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
   const podeFinalizarCompra = totalFinalBRL > 0 && totalPagoConvertidoBRL >= (totalFinalBRL - 0.05);
 
   const abrirFechamento = async () => {
-    if (itensCompra.length === 0 || totalFinalBRL <= 0) return avisarZen('warning','Entrada vazia','Adicione produtos à nota de entrada.');
+    if (itensCompra.length === 0 || totalFinalBRL <= 0) return avisarZen('warning',tx("Entrada vazia","Entrada vacía"),tx("Adicione produtos à nota de entrada.","Agregue productos al documento de entrada."));
     if (!fornecedorSelecionado) {
-        const confirmou = await confirmarZen({ titulo:'Entrada sem fornecedor', mensagem:'Você não selecionou um fornecedor. Deseja registrar a entrada de estoque de forma avulsa?', confirmarTexto:'Continuar sem fornecedor' });
+        const confirmou = await confirmarZen({ titulo:tx("Entrada sem fornecedor","Entrada sin proveedor"), mensagem:tx("Você não selecionou um fornecedor. Deseja registrar a entrada de estoque de forma avulsa?","No seleccionó un proveedor. ¿Desea registrar la entrada de existencias sin proveedor?"), confirmarTexto:tx("Continuar sem fornecedor","Continuar sin proveedor") });
         if (!confirmou) return;
     }
     setPagamentosLancados([]); 
@@ -576,7 +576,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
               <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: '8px', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '14px', overflow: 'hidden', zIndex: 50, maxHeight: '200px', overflowY: 'auto', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
                 {fornecedoresSugeridos.map((f, index) => (
                   <div key={f.id || `f-${index}`} onMouseDown={(e) => { e.preventDefault(); selecionarFornecedor(f); }} style={{ padding: '12px 20px', borderBottom: '1px solid #1e293b', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div><strong style={{ color: '#f8fafc', fontSize: '14px' }}>{f.nome}</strong><br/><span style={{ color: '#64748b', fontSize: '11px' }}>Doc: {f.documento}</span></div><span style={{ color: '#a855f7', fontSize: '11px', fontWeight: 800 }}>{tx('Vincular ➜','Vincular ➜','Link ➜')}</span>
+                    <div><strong style={{ color: '#f8fafc', fontSize: '14px' }}>{f.nome}</strong><br/><span style={{ color: '#64748b', fontSize: '11px' }}>{tx("Doc:","Doc.:")} {f.documento}</span></div><span style={{ color: '#a855f7', fontSize: '11px', fontWeight: 800 }}>{tx('Vincular ➜','Vincular ➜','Link ➜')}</span>
                   </div>
                 ))}
               </div>
@@ -598,7 +598,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
                   const estaFocado = index === indiceFocoBusca;
                   return (
                     <div key={prod.id} onClick={() => { setItemParaAdicionar(prod); setQtdDigitadaRapida('1'); }} onMouseEnter={() => setIndiceFocoBusca(index)} style={{ padding: '14px 20px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', backgroundColor: estaFocado ? '#431407' : 'transparent' }}>
-                      <div><div style={{ fontWeight: 700, color: '#f8fafc', fontSize: '15px' }}>{prod.nome}</div><div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>SKU: {prod.sku} • Estoque Atual: <strong style={{ color: '#f97316' }}>{prod.estoque} {prod.unidadeMedida}</strong></div></div>
+                      <div><div style={{ fontWeight: 700, color: '#f8fafc', fontSize: '15px' }}>{prod.nome}</div><div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>SKU: {prod.sku} {tx("• Estoque Atual:","• Existencias actuales:")} <strong style={{ color: '#f97316' }}>{prod.estoque} {prod.unidadeMedida}</strong></div></div>
                       <div style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'right' }}>{tx('Último Custo','Último Costo','Last Cost')}<br/><span style={{ color: '#fff', fontWeight: 900, fontSize: '14px' }}>{fmt(prod.custoBRL || 0)}</span></div>
                     </div>
                   );
@@ -610,7 +610,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
 
         <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', display: 'flex', flexDirection: 'column', minHeight: '300px' }}>
           <div style={{ padding: '16px 20px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', letterSpacing: '1px', textTransform: 'uppercase' }}>Lista de Entrada ({itensCompra.length})</span>
+            <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', letterSpacing: '1px', textTransform: 'uppercase' }}>{tx("Lista de Entrada (","Lista de entrada (")}{itensCompra.length})</span>
           </div>
           <div style={{ padding: '8px', flex: 1, overflowY: 'auto', maxHeight: '400px' }}>
             {itensCompra.length === 0 ? <div style={{ padding: '60px 20px', textAlign: 'center', color: '#475569', fontSize: '14px' }}>{tx('Aguardando bipes ou buscas...','Esperando escaneos o búsquedas...','Waiting for scans or searches...')}</div> : itensCompra.map(item => (
@@ -668,7 +668,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <button onClick={abrirFechamento} style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)', border: '1px solid #fdba74', color: '#fff', padding: '18px', borderRadius: '14px', fontSize: '15px', fontWeight: 900, cursor: 'pointer', textAlign: 'center', boxShadow: '0 4px 15px rgba(249, 115, 22, 0.3)', width: '100%', boxSizing: 'border-box' }}>
-            [F10] Finalizar Entrada no Estoque
+            {tx("[F10] Finalizar Entrada no Estoque","[F10] Finalizar entrada de existencias")}
           </button>
         </div>
       </div>
@@ -691,7 +691,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1500, padding: '16px' }}>
           <div style={{ backgroundColor: '#0b1120', border: '1px solid #ea580c', borderRadius: '24px', width: '100%', maxWidth: '820px', maxHeight: '92vh', overflowY: 'auto', padding: '28px', color: '#fff', boxSizing: 'border-box' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <div><span style={{ fontSize: '11px', fontWeight: 800, color: '#f97316', letterSpacing: '1px', textTransform: 'uppercase' }}>{tx('Ficha Cadastral Universal','Ficha Universal','Universal Record')}</span><h3 style={{ fontSize: '18px', fontWeight: 900, margin: '2px 0 0 0' }}>{produtoEmEdicao ? `Editar: ${produtoEmEdicao.nome}` : 'Cadastrar Novo Produto na Base'}</h3></div>
+              <div><span style={{ fontSize: '11px', fontWeight: 800, color: '#f97316', letterSpacing: '1px', textTransform: 'uppercase' }}>{tx('Ficha Cadastral Universal','Ficha Universal','Universal Record')}</span><h3 style={{ fontSize: '18px', fontWeight: 900, margin: '2px 0 0 0' }}>{produtoEmEdicao ? `Editar: ${produtoEmEdicao.nome}` : tx("Cadastrar Novo Produto na Base","Registrar nuevo producto en la base")}</h3></div>
               <button onClick={() => setModalProdutoAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#64748b', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>✕</button>
             </div>
             
@@ -787,7 +787,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div>
                 <span style={{ fontSize: '11px', fontWeight: 900, color: '#f97316', letterSpacing: '1px', textTransform: 'uppercase' }}>{tx('Lançamento Financeiro','Movimiento Financiero','Financial Entry')}</span>
-                <h3 style={{ fontSize: '18px', fontWeight: 900, margin: '4px 0 0 0' }}>Fornecedor: {fornecedorSelecionado ? fornecedorSelecionado.nome : (nomeFornecedorVulso || 'Avulso / Não Informado')}</h3>
+                <h3 style={{ fontSize: '18px', fontWeight: 900, margin: '4px 0 0 0' }}>{tx("Fornecedor:","Proveedor:")} {fornecedorSelecionado ? fornecedorSelecionado.nome : (nomeFornecedorVulso || tx("Avulso / Não Informado","Ocasional / No informado"))}</h3>
               </div>
               <button onClick={() => setModalFechamentoAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #334155', color: '#94a3b8', borderRadius: '10px', width: '36px', height: '36px', cursor: 'pointer', fontWeight: 900 }}>✕</button>
             </div>
@@ -849,7 +849,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
             )}
             
             <button onClick={adicionarPagamento} style={{ width: '100%', padding: '14px', background: 'linear-gradient(135deg, #f97316, #ea580c)', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '15px', marginBottom: '20px', boxShadow: '0 4px 15px rgba(234, 88, 12, 0.3)', boxSizing: 'border-box' }}>
-              + Confirmar Parcela / Pagamento
+              {tx("+ Confirmar Parcela / Pagamento","+ Confirmar cuota / pago")}
             </button>
             
             <div style={{ maxHeight: '120px', overflowY: 'auto', marginBottom: '20px', background: '#020617', padding: '10px', borderRadius: '12px', border: '1px solid #1e293b' }}>
@@ -869,7 +869,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
               <button onClick={() => setModalFechamentoAberto(false)} style={{ flex: 1, padding: '14px', backgroundColor: '#020617', border: '1px solid #1e293b', color: '#cbd5e1', borderRadius: '12px', cursor: 'pointer', fontWeight: 800, fontSize: '13px' }}>{tx('Cancelar','Cancelar','Cancel')}</button>
               <button onClick={() => concluirEntradaMercadoria()} disabled={!podeFinalizarCompra || processandoCompra} style={{ flex: 2, padding: '14px', background: (podeFinalizarCompra && !processandoCompra) ? 'linear-gradient(135deg, #10b981, #059669)' : '#1e293b', border: 'none', color: (podeFinalizarCompra && !processandoCompra) ? '#fff' : '#64748b', borderRadius: '12px', cursor: (podeFinalizarCompra && !processandoCompra) ? 'pointer' : 'not-allowed', fontWeight: 900, fontSize: '14px', boxShadow: podeFinalizarCompra ? '0 4px 15px rgba(16, 185, 129, 0.4)' : 'none' }}>
-                Confirmar Entrada e Somar Estoque ✓
+                {tx("Confirmar Entrada e Somar Estoque ✓","Confirmar entrada y sumar existencias ✓")}
               </button>
             </div>
           </div>

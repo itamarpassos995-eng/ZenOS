@@ -1,4 +1,5 @@
 import React,{useEffect,useRef,useState} from 'react';
+import {mensagemFiscalLocalizada} from '../core/fiscalErrorUi.js';
 export default function FiscalCredenciaisForm({registro,chamar,onSaved,tx=pt=>pt}){
  const [ambiente,setAmbiente]=useState('homologacao'),[idToken,setId]=useState(''),[csc,setCsc]=useState(''),[arquivo,setArquivo]=useState(null),[senha,setSenha]=useState(''),[aceite,setAceite]=useState(false),[ocupado,setOcupado]=useState(false),[erro,setErro]=useState(''),[sucesso,setSucesso]=useState(false);
  const input=useRef(null);const nfce=registro.tiposDocumento?.includes('nfce');
@@ -17,13 +18,13 @@ export default function FiscalCredenciaisForm({registro,chamar,onSaved,tx=pt=>pt
    if(!ativo.current)return;
    if(!resposta.data?.credenciais?.recebidoEm)throw Error('FISCAL_RESPOSTA_INVALIDA');
    limpar();setSucesso(true);onSaved(resposta.data);
-  }catch(error){if(ativo.current)setErro(String(error?.code||'').includes('invalid-argument')||String(error?.code||'').includes('failed-precondition')?error.message:tx('Não foi possível confirmar o armazenamento seguro. Atualize o status antes de tentar novamente.','No se pudo confirmar el almacenamiento seguro. Actualiza el estado antes de reintentar.','Secure storage could not be confirmed. Refresh status before retrying.'));}
+  }catch(error){if(ativo.current)setErro(String(error?.code||'').includes('invalid-argument')||String(error?.code||'').includes('failed-precondition')?mensagemFiscalLocalizada(error,tx,'credenciais'):tx('Não foi possível confirmar o armazenamento seguro. Atualize o status antes de tentar novamente.','No se pudo confirmar el almacenamiento seguro. Actualiza el estado antes de reintentar.','Secure storage could not be confirmed. Refresh status before retrying.'));}
   finally{if(ativo.current)setOcupado(false);}
  };
  return <form className="fiscal-onboard-form" onSubmit={salvar}>
   <h3>{tx('Certificado e credenciais','Certificado y credenciales','Certificate and credentials')}</h3>
   <p>{tx('Preencha com seu contador. Os valores são enviados ao cofre seguro e não ficam salvos neste dispositivo.','Completa con tu contador. Los valores se envían al almacén seguro y no se guardan en este dispositivo.','Complete with your accountant. Values are sent to the secure vault and are not saved on this device.')}</p>
-  {registro.credenciais&&<p role="status">{tx('Recebido: ','Recibido: ','Received: ')}{[registro.credenciais.certificadoRecebido?'Certificado A1':null,registro.credenciais.homologacao?.cscRecebido?'CSC homologação':null,registro.credenciais.producao?.cscRecebido?'CSC produção':null].filter(Boolean).join(' · ')}. {tx('Validação pendente; emissão bloqueada.','Validación pendiente; emisión bloqueada.','Validation pending; issuing blocked.')}</p>}
+  {registro.credenciais&&<p role="status">{tx('Recebido: ','Recibido: ','Received: ')}{[registro.credenciais.certificadoRecebido?'Certificado A1':null,registro.credenciais.homologacao?.cscRecebido?tx("CSC homologação","CSC de homologación"):null,registro.credenciais.producao?.cscRecebido?tx("CSC produção","CSC de producción"):null].filter(Boolean).join(' · ')}. {tx('Validação pendente; emissão bloqueada.','Validación pendiente; emisión bloqueada.','Validation pending; issuing blocked.')}</p>}
   <fieldset disabled={ocupado} style={{border:0,padding:0}}>
    <div className="fiscal-onboard-grid">
     <label className="fiscal-onboard-field"><span>{tx('Certificado digital A1 (.pfx / .p12)','Certificado digital A1 (.pfx / .p12)','A1 digital certificate (.pfx / .p12)')}</span><input ref={input} type="file" accept=".pfx,.p12" onChange={e=>{setArquivo(e.target.files?.[0]||null);setSucesso(false);}}/></label>

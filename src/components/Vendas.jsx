@@ -54,15 +54,15 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
   const moedasReimpressao = moedasAtivasRecibo(cotacoesReimpressao);
 
   const pedirConfirmacaoZen = ({ titulo, mensagem, detalhes = [], confirmarTexto = null, variante = 'warning' }) =>
-    new Promise(resolve => setModalZen({ variante, titulo, mensagem, detalhes, confirmarTexto, cancelarTexto: 'Cancelar', resolver: resolve }));
+    new Promise(resolve => setModalZen({ variante, titulo, mensagem, detalhes, confirmarTexto, cancelarTexto: tx("Cancelar","Cancelar"), resolver: resolve }));
 
   const avisarZen = ({ titulo, mensagem, detalhes = [], variante = 'info' }) =>
     setModalZen({ variante, titulo, mensagem, detalhes, apenasConfirmar: true });
 
   const iniciarDevolucao = (venda) => {
-    if (patenteUsuario !== 'gerencia') return avisarZen({ variante:'danger', titulo:'Acesso negado', mensagem:tx('Apenas a Gerência pode processar devoluções.', 'Solo Gerencia puede procesar devoluciones.', 'Management access required.') });
-    if (venda.estado === 'cancelada') return avisarZen({ variante:'warning', titulo:'Venda já cancelada', mensagem:tx('Esta venda já foi totalmente cancelada.', 'Esta venta ya fue cancelada.', 'This sale is already canceled.') });
-    if (!ehVendaFaturada(venda)) return avisarZen({variante:'warning',titulo:'Documento não faturado',mensagem:'Pré-pedidos e orçamentos não admitem estorno. Somente vendas efetivamente faturadas podem gerar devolução.'});
+    if (patenteUsuario !== 'gerencia') return avisarZen({ variante:'danger', titulo:tx("Acesso negado","Acceso denegado"), mensagem:tx('Apenas a Gerência pode processar devoluções.', 'Solo Gerencia puede procesar devoluciones.', 'Management access required.') });
+    if (venda.estado === 'cancelada') return avisarZen({ variante:'warning', titulo:tx("Venda já cancelada","Venta ya cancelada"), mensagem:tx('Esta venda já foi totalmente cancelada.', 'Esta venta ya fue cancelada.', 'This sale is already canceled.') });
+    if (!ehVendaFaturada(venda)) return avisarZen({variante:'warning',titulo:tx("Documento não faturado","Documento no facturado"),mensagem:tx("Pré-pedidos e orçamentos não admitem estorno. Somente vendas efetivamente faturadas podem gerar devolução.","Los prepedidos y presupuestos no admiten reversiones. Solo las ventas efectivamente facturadas pueden generar devoluciones.")});
 
     setVendaSendoDevolvida(venda);
     const itensIniciais = {};
@@ -113,14 +113,14 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
   const calcularTotalDevolucaoBRL = () => calcularValorDevolucaoAtual(vendaSendoDevolvida || {}, itensParaDevolver);
 
   const arquivarDocumentoNaoFaturado = async venda => {
-    if (patenteUsuario !== 'gerencia') return avisarZen({variante:'danger',titulo:'Acesso negado',mensagem:'Somente a gerência pode retirar pré-pedidos e orçamentos do histórico.'});
-    if (!ehDocumentoPendente(venda)) return avisarZen({variante:'danger',titulo:'Operação bloqueada',mensagem:'Somente orçamentos e pré-pedidos ainda não faturados podem ser excluídos.'});
-    const confirmou = await pedirConfirmacaoZen({titulo:'Excluir documento não faturado?',mensagem:'O documento será ocultado do histórico operacional, mas preservado para auditoria. Nenhuma devolução, estorno, alteração de estoque ou baixa de fiado será criada.',confirmarTexto:'Excluir'});
+    if (patenteUsuario !== 'gerencia') return avisarZen({variante:'danger',titulo:tx("Acesso negado","Acceso denegado"),mensagem:tx("Somente a gerência pode retirar pré-pedidos e orçamentos do histórico.","Solo la gerencia puede retirar prepedidos y presupuestos del historial.")});
+    if (!ehDocumentoPendente(venda)) return avisarZen({variante:'danger',titulo:tx("Operação bloqueada","Operación bloqueada"),mensagem:tx("Somente orçamentos e pré-pedidos ainda não faturados podem ser excluídos.","Solo se pueden eliminar presupuestos y prepedidos que aún no se hayan facturado.")});
+    const confirmou = await pedirConfirmacaoZen({titulo:tx("Excluir documento não faturado?","¿Eliminar documento no facturado?"),mensagem:tx("O documento será ocultado do histórico operacional, mas preservado para auditoria. Nenhuma devolução, estorno, alteração de estoque ou baixa de fiado será criada.","El documento se ocultará del historial operativo, pero se conservará para auditoría. No se generarán devoluciones, reversiones, cambios de existencias ni liquidaciones de crédito."),confirmarTexto:'Excluir'});
     if (!confirmou) return;
     const base = Array.isArray(historicoVendasCompleto) ? historicoVendasCompleto : historicoVendas;
     const encontrados = (base || []).filter(v=>String(v?.id)===String(venda.id));
     const atual = encontrados.length === 1 ? encontrados[0] : null;
-    if (!atual || !ehDocumentoPendente(atual) || typeof commitOperacaoNegocio !== 'function') return avisarZen({variante:'danger',titulo:'Exclusão bloqueada',mensagem:'O documento mudou ou a confirmação remota está indisponível. Nenhum dado foi alterado.'});
+    if (!atual || !ehDocumentoPendente(atual) || typeof commitOperacaoNegocio !== 'function') return avisarZen({variante:'danger',titulo:tx("Exclusão bloqueada","Eliminación bloqueada"),mensagem:tx("O documento mudou ou a confirmação remota está indisponível. Nenhum dado foi alterado.","Se modificó el documento o la confirmación remota no está disponible. No se modificó ningún dato.")});
     const alterado = {...atual,estado:'excluida',arquivadoEm:new Date().toISOString(),arquivadoPor:operadorAtivo?.id||'admin'};
     const proposto = base.map(v=>String(v?.id)===String(atual.id)?alterado:v);
     try {
@@ -133,19 +133,19 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
       setHistoricoVendas(resultado.values?.historicoVendas || proposto);
       if (vendaExpandida===atual.id)setVendaExpandida(null);
     } catch(error) {
-      avisarZen({variante:'danger',titulo:'Documento preservado',mensagem:'A nuvem não confirmou a operação. Nada foi excluído ou estornado.',detalhes:[error?.message||String(error)]});
+      avisarZen({variante:'danger',titulo:tx("Documento preservado","Documento conservado"),mensagem:tx("A nuvem não confirmou a operação. Nada foi excluído ou estornado.","La nube no confirmó la operación. No se eliminó ni revirtió nada."),detalhes:[error?.message||String(error)]});
     }
   };
 
   const confirmarDevolucao = async () => {
     if (devolucaoEmAndamentoRef.current) return;
-    if (!ehVendaFaturada(vendaSendoDevolvida)) return avisarZen({variante:'danger',titulo:'Estorno bloqueado',mensagem:'Este documento não é uma venda faturada. Nenhum movimento financeiro foi realizado.'});
+    if (!ehVendaFaturada(vendaSendoDevolvida)) return avisarZen({variante:'danger',titulo:tx("Estorno bloqueado","Reversión bloqueada"),mensagem:tx("Este documento não é uma venda faturada. Nenhum movimento financeiro foi realizado.","Este documento no es una venta facturada. No se realizó ningún movimiento financiero.")});
     devolucaoEmAndamentoRef.current = true;
     setProcessandoDevolucao(true);
     try {
     const totalEstornoBRL = calcularTotalDevolucaoBRL();
     const custoEstornoBRL = calcularCustoDevolucaoAtual(itensParaDevolver);
-    if (totalEstornoBRL <= 0) return avisarZen({ variante:'warning', titulo:'Nenhum item selecionado', mensagem:tx('Selecione pelo menos 1 item para devolver.', 'Seleccione al menos 1 ítem.', 'Select at least 1 item.') });
+    if (totalEstornoBRL <= 0) return avisarZen({ variante:'warning', titulo:tx("Nenhum item selecionado","Ningún artículo seleccionado"), mensagem:tx('Selecione pelo menos 1 item para devolver.', 'Seleccione al menos 1 ítem.', 'Select at least 1 item.') });
 
     if (metodoReembolso === 'credito_fiado' && !vendaSendoDevolvida?.clienteId) {
       return avisarZen({ variante:'warning', titulo:tx('Cliente não vinculado','Cliente no vinculado','Customer not linked'), mensagem:tx('Esta venda não tem cliente. Escolha Dinheiro, Pix ou Voucher.','Esta venta no tiene cliente. Elija Efectivo, Pix o Voucher.','This sale has no customer. Choose Cash, Pix or Voucher.') });
@@ -161,7 +161,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
         detalhes:[
           `Caixa: ${caixaReembolsoSelecionado?.sessao?.operadorNome || '—'}`,
           `Devolução solicitada: ${fmt(totalEstornoBRL, 'BRL')}`,
-          'Selecione outro caixa aberto com saldo suficiente ou use Pix/Banco ou Voucher.'
+          tx("Selecione outro caixa aberto com saldo suficiente ou use Pix/Banco ou Voucher.","Seleccione otra caja abierta con saldo suficiente o utilice Pix/Banco o Vale.")
         ]
       });
     }
@@ -190,7 +190,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
       const sessaoAtualizada = (sessoesCaixa || []).find(s => String(s.id) === String(sessaoReembolsoId) && s.status === 'aberta');
       const resumoAtualizado = sessaoAtualizada ? calcularResumoSessao({ sessao: sessaoAtualizada, historicoVendas, caixaMovimentos }) : null;
       if (!resumoAtualizado || totalEstornoBRL > Number(resumoAtualizado.saldoEsperado || 0) + 0.001) {
-        return avisarZen({ variante:'danger', titulo:tx('Saldo do caixa mudou','El saldo de caja cambió','Register balance changed'), mensagem:tx('O caixa selecionado não possui mais saldo físico suficiente para esta devolução.','La caja seleccionada ya no posee saldo físico suficiente para esta devolución.','The selected register no longer has enough physical cash for this return.'), detalhes:[`Disponível agora: ${fmt(resumoAtualizado?.saldoEsperado || 0,'BRL')}`, `Devolução: ${fmt(totalEstornoBRL,'BRL')}`, 'Selecione outro caixa com saldo ou use Pix/Banco ou Voucher.'] });
+        return avisarZen({ variante:'danger', titulo:tx('Saldo do caixa mudou','El saldo de caja cambió','Register balance changed'), mensagem:tx('O caixa selecionado não possui mais saldo físico suficiente para esta devolução.','La caja seleccionada ya no posee saldo físico suficiente para esta devolución.','The selected register no longer has enough physical cash for this return.'), detalhes:[`Disponível agora: ${fmt(resumoAtualizado?.saldoEsperado || 0,'BRL')}`, `Devolução: ${fmt(totalEstornoBRL,'BRL')}`, tx("Selecione outro caixa com saldo ou use Pix/Banco ou Voucher.","Seleccione otra caja con saldo o utilice Pix/Banco o Vale.")] });
       }
     }
 
@@ -258,7 +258,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
       if (typeof commitOperacaoNegocio !== 'function') await registrarEventosEstoque({ db, userId, eventos: eventosEstoque });
     } catch (erro) {
       console.error('[ZenOS][ATT02] Falha ao preparar devolução:', erro);
-      avisarZen({ variante:'danger', titulo:tx('Estorno não concluído','Reversión no concluida','Refund not completed'), mensagem:erro.message || 'Não foi possível preparar a devolução sem risco de inconsistência.' });
+      avisarZen({ variante:'danger', titulo:tx('Estorno não concluído','Reversión no concluida','Refund not completed'), mensagem:erro.message || tx("Não foi possível preparar a devolução sem risco de inconsistência.","No se pudo preparar la devolución sin riesgo de inconsistencias.") });
       return;
     }
 
@@ -420,7 +420,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
       if (novoVoucher && setVouchers) setVouchers(confirmados.vouchers || vouchersPropostos);
     } catch (err) {
       console.error('[ZenOS][ATT10.2] Devolução não confirmada:', err);
-      avisarZen({ variante:'danger', titulo:tx('Estorno não concluído','Reversión no concluida','Refund not completed'), mensagem:tx('A nuvem não confirmou a devolução. Estoque, histórico, caixa e fiado foram preservados.','La nube no confirmó la devolución. Stock, historial, caja y crédito fueron preservados.','The cloud did not confirm the return. Stock, history, cash and credit were preserved.'), detalhes:[err?.message || 'Falha de persistência'] });
+      avisarZen({ variante:'danger', titulo:tx('Estorno não concluído','Reversión no concluida','Refund not completed'), mensagem:tx('A nuvem não confirmou a devolução. Estoque, histórico, caixa e fiado foram preservados.','La nube no confirmó la devolución. Stock, historial, caja y crédito fueron preservados.','The cloud did not confirm the return. Stock, history, cash and credit were preserved.'), detalhes:[err?.message || tx("Falha de persistência","Error de persistencia")] });
       return;
     }
 
@@ -472,9 +472,9 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
       <div style={{ display: 'flex', justifyContent: 'center', padding: '20px' }}>
         <div style={{ backgroundColor: '#fff', color: '#000', borderRadius: '12px', width: '100%', maxWidth: '350px', padding: '0', overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
           <div id="area-cupom-reimpressao" style={{ padding: '20px', fontFamily: 'monospace', fontSize: '12px' }}>
-            <div style={{ textAlign: 'center', marginBottom: '10px' }}>{perfilRecibo.mostrarLogoRecibo !== false && perfilRecibo.logoLoja && <img src={perfilRecibo.logoLoja} alt="Logo" style={{maxWidth:'110px',maxHeight:'55px',objectFit:'contain'}}/>}<h2 style={{ margin: '0 0 4px 0', fontSize: '16px' }}>{perfilRecibo.nomeFantasia || 'ZenOS - SISTEMA DE GESTÃO'}</h2><div style={{ fontSize: '10px' }}>{tx('Cupom Não Fiscal - 2ª Via','Ticket No Fiscal - 2ª Copia','Non-Fiscal Receipt - 2nd Copy')}<br/>{cupomParaImprimir.dataHora}</div></div>
+            <div style={{ textAlign: 'center', marginBottom: '10px' }}>{perfilRecibo.mostrarLogoRecibo !== false && perfilRecibo.logoLoja && <img src={perfilRecibo.logoLoja} alt="Logo" style={{maxWidth:'110px',maxHeight:'55px',objectFit:'contain'}}/>}<h2 style={{ margin: '0 0 4px 0', fontSize: '16px' }}>{perfilRecibo.nomeFantasia || tx("ZenOS - SISTEMA DE GESTÃO","ZenOS - SISTEMA DE GESTIÓN")}</h2><div style={{ fontSize: '10px' }}>{tx('Cupom Não Fiscal - 2ª Via','Ticket No Fiscal - 2ª Copia','Non-Fiscal Receipt - 2nd Copy')}<br/>{cupomParaImprimir.dataHora}</div></div>
             <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
-            <div style={{ marginBottom: '8px', fontSize: '11px' }}><strong>{tx('Comanda:','Comanda:','Tab:')}</strong> {cupomParaImprimir.id}<br/><strong>{tx('Cliente:','Cliente:','Customer:')}</strong> {cupomParaImprimir.clienteNome || 'Consumidor Balcão'}</div>
+            <div style={{ marginBottom: '8px', fontSize: '11px' }}><strong>{tx('Comanda:','Comanda:','Tab:')}</strong> {cupomParaImprimir.id}<br/><strong>{tx('Cliente:','Cliente:','Customer:')}</strong> {cupomParaImprimir.clienteNome || tx("Consumidor Balcão","Consumidor de mostrador")}</div>
             <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '11px' }}>
               <thead><tr><th style={{ paddingBottom: '4px' }}>{tx('Qtd','Cant.','Qty')}</th><th style={{ paddingBottom: '4px' }}>{tx('Item','Ítem','Item')}</th><th style={{ textAlign: 'right', paddingBottom: '4px' }}>{tx('Vl.Un','Val.Un','Unit Price')}</th><th style={{ textAlign: 'right', paddingBottom: '4px' }}>{tx('Total','Total','Total')}</th></tr></thead>
@@ -516,16 +516,16 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
           <h2 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>{tx('Histórico de Vendas & Devoluções', 'Historial de Ventas', 'Sales History & Refunds')}</h2>
           <span style={{ fontSize: '13px', color: '#64748b' }}>{tx('Consulte cupons, gerencie estornos parciais, devoluções e emissão de vouchers.', 'Consulte recibos y devoluciones.', 'View receipts and process returns.')}</span>
         </div>
-        <button onClick={()=>setMostrarVouchers(v=>!v)} style={{background:mostrarVouchers?'#5b21b6':'#1e1b4b',border:'1px solid #8b5cf6',color:'#e9d5ff',padding:'10px 16px',borderRadius:10,fontWeight:900,cursor:'pointer'}}>🎟️ Vouchers ({(vouchers||[]).filter(v=>v.status==='ativo' && Number(v.saldoBRL||0)>0).length} ativos)</button>
+        <button onClick={()=>setMostrarVouchers(v=>!v)} style={{background:mostrarVouchers?'#5b21b6':'#1e1b4b',border:'1px solid #8b5cf6',color:'#e9d5ff',padding:'10px 16px',borderRadius:10,fontWeight:900,cursor:'pointer'}}>{tx("🎟️ Vouchers (","🎟️ Vales (")}{(vouchers||[]).filter(v=>v.status==='ativo' && Number(v.saldoBRL||0)>0).length} {tx("ativos)","activos)")}</button>
       </div>
 
       {mostrarVouchers && <div className="no-print" style={{background:'#0b1120',border:'1px solid #8b5cf6',borderRadius:16,padding:18}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,marginBottom:14}}><div><div style={{fontWeight:900,color:'#e9d5ff',fontSize:16}}>🎟️ {tx('Central de Vouchers','Central de Vouchers','Voucher Center')}</div><div style={{fontSize:12,color:'#94a3b8'}}>{tx('Consulte saldo, origem e situação dos vales emitidos.','Consulte saldo, origen y estado de los vales emitidos.','View balance, source and status of issued vouchers.')}</div></div><div style={{fontSize:12,color:'#c4b5fd',fontWeight:800}}>Total: {(vouchers||[]).length}</div></div>
-        {(vouchers||[]).length===0 ? <div style={{padding:18,color:'#64748b',textAlign:'center'}}>{tx('Nenhum voucher emitido.','Ningún voucher emitido.','No voucher issued.')}</div> : <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}><thead><tr style={{color:'#94a3b8',borderBottom:'1px solid #1e293b',textAlign:'left'}}><th style={{padding:'8px 6px'}}>{tx('Código','Código','Code')}</th><th>{tx('Saldo','Saldo','Balance')}</th><th>{tx('Valor original','Valor original','Original value')}</th><th>{tx('Status','Estado','Status')}</th><th>{tx('Origem','Origen','Source')}</th><th>{tx('Emitido por','Emitido por','Issued by')}</th><th>{tx('Data','Fecha','Date')}</th><th style={{textAlign:'right'}}>{tx('Ações','Acciones','Actions')}</th></tr></thead><tbody>{(vouchers||[]).map(v=><tr key={v.codigo} style={{borderBottom:'1px solid #1e293b',color:'#cbd5e1'}}><td style={{padding:'10px 6px',fontWeight:900,color:'#c4b5fd'}}>{v.codigo}</td><td style={{fontWeight:900,color:Number(v.saldoBRL||0)>0?'#34d399':'#64748b'}}>{fmt(Number(v.saldoBRL||0),'BRL')}</td><td>{fmt(Number(v.valorOriginalBRL||0),'BRL')}</td><td><span style={{padding:'3px 8px',borderRadius:999,background:v.status==='ativo'?'#064e3b':'#1e293b',color:v.status==='ativo'?'#6ee7b7':'#94a3b8',fontWeight:800}}>{v.status||'—'}</span></td><td>{v.origemVendaId||'—'}</td><td>{v.criadoPor||'—'}<div style={{fontSize:10,color:'#64748b',marginTop:3}}>Impressões: {(v.impressoes||[]).length}</div></td><td>{v.criadoEm?new Date(v.criadoEm).toLocaleString('pt-BR'):'—'}</td><td style={{textAlign:'right'}}><button onClick={()=>imprimirVoucher(v)} style={{background:'#082f49',border:'1px solid #38bdf8',color:'#7dd3fc',padding:'6px 10px',borderRadius:8,fontWeight:900,cursor:'pointer'}}>🖨️ {tx('Imprimir','Imprimir','Print')}</button></td></tr>)}</tbody></table></div>}
+        {(vouchers||[]).length===0 ? <div style={{padding:18,color:'#64748b',textAlign:'center'}}>{tx('Nenhum voucher emitido.','Ningún voucher emitido.','No voucher issued.')}</div> : <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}><thead><tr style={{color:'#94a3b8',borderBottom:'1px solid #1e293b',textAlign:'left'}}><th style={{padding:'8px 6px'}}>{tx('Código','Código','Code')}</th><th>{tx('Saldo','Saldo','Balance')}</th><th>{tx('Valor original','Valor original','Original value')}</th><th>{tx('Status','Estado','Status')}</th><th>{tx('Origem','Origen','Source')}</th><th>{tx('Emitido por','Emitido por','Issued by')}</th><th>{tx('Data','Fecha','Date')}</th><th style={{textAlign:'right'}}>{tx('Ações','Acciones','Actions')}</th></tr></thead><tbody>{(vouchers||[]).map(v=><tr key={v.codigo} style={{borderBottom:'1px solid #1e293b',color:'#cbd5e1'}}><td style={{padding:'10px 6px',fontWeight:900,color:'#c4b5fd'}}>{v.codigo}</td><td style={{fontWeight:900,color:Number(v.saldoBRL||0)>0?'#34d399':'#64748b'}}>{fmt(Number(v.saldoBRL||0),'BRL')}</td><td>{fmt(Number(v.valorOriginalBRL||0),'BRL')}</td><td><span style={{padding:'3px 8px',borderRadius:999,background:v.status==='ativo'?'#064e3b':'#1e293b',color:v.status==='ativo'?'#6ee7b7':'#94a3b8',fontWeight:800}}>{v.status||'—'}</span></td><td>{v.origemVendaId||'—'}</td><td>{v.criadoPor||'—'}<div style={{fontSize:10,color:'#64748b',marginTop:3}}>{tx("Impressões:","Impresiones:")} {(v.impressoes||[]).length}</div></td><td>{v.criadoEm?new Date(v.criadoEm).toLocaleString('pt-BR'):'—'}</td><td style={{textAlign:'right'}}><button onClick={()=>imprimirVoucher(v)} style={{background:'#082f49',border:'1px solid #38bdf8',color:'#7dd3fc',padding:'6px 10px',borderRadius:8,fontWeight:900,cursor:'pointer'}}>🖨️ {tx('Imprimir','Imprimir','Print')}</button></td></tr>)}</tbody></table></div>}
       </div>}
 
       <div className="no-print" style={{display:'flex',flexWrap:'wrap',gap:8,alignItems:'center'}}>
-        <span style={{fontSize:12,fontWeight:800,color:'#94a3b8'}}>Filtrar documentos:</span>
+        <span style={{fontSize:12,fontWeight:800,color:'#94a3b8'}}>{tx("Filtrar documentos:","Filtrar documentos:")}</span>
         {[['todos','Todos'],['venda','Vendas'],['pre_pedido','Pré-pedidos'],['orcamento','Orçamentos']].map(([valor,rotulo]) => (
           <button key={valor} type="button" onClick={()=>{setFiltroTipoDocumento(valor);setLimiteHistorico(50);}} aria-pressed={filtroTipoDocumento===valor} style={{padding:'8px 12px',borderRadius:9,border:'1px solid '+(filtroTipoDocumento===valor?'#38bdf8':'#334155'),background:filtroTipoDocumento===valor?'#082f49':'#0f172a',color:'#e2e8f0',fontSize:12,cursor:'pointer',fontWeight:800}}>{rotulo}</button>
         ))}
@@ -557,7 +557,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
                     <td style={{ padding: '16px 12px', textAlign: 'right', fontWeight: 900, color: venda.estado === 'cancelada' ? '#64748b' : '#34d399', fontSize: '15px' }}>{fmt(obterFinanceiroVenda(venda).totalLiquidoBRL, 'BRL')}</td>
                     <td style={{ padding: '16px 12px', textAlign: 'center' }}>
                       {venda.estado === 'cancelada' ? <span style={{ backgroundColor: 'rgba(244, 63, 94, 0.1)', color: '#f43f5e', border: '1px solid #f43f5e', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>{tx('Cancelada Total', 'Cancelada', 'Canceled')}</span>
-                      : ehDocumentoPendente(venda) ? <span style={{background:'rgba(59,130,246,.1)',color:'#93c5fd',border:'1px solid #2563eb',padding:'4px 10px',borderRadius:6,fontSize:11,fontWeight:800}}>{venda.tipoDocumento==='pre_pedido'?'Pré-pedido':'Orçamento'}</span>
+                      : ehDocumentoPendente(venda) ? <span style={{background:'rgba(59,130,246,.1)',color:'#93c5fd',border:'1px solid #2563eb',padding:'4px 10px',borderRadius:6,fontSize:11,fontWeight:800}}>{venda.tipoDocumento==='pre_pedido'?tx("Pré-pedido","Pedido anticipado"):tx("Orçamento","Presupuesto")}</span>
                       : venda.estado === 'parcial' ? <span style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#fbbf24', border: '1px solid #f59e0b', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>{tx('Devolução Parcial', 'Devol. Parcial', 'Partial Return')}</span>
                       : <span style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid #10b981', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>{tx('Concluída', 'Concluida', 'Completed')}</span>}
                     </td>
@@ -566,7 +566,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
                       {ehVendaFaturada(venda) && (
                         <button onClick={() => iniciarDevolucao(venda)} style={{ backgroundColor: 'rgba(244, 63, 94, 0.1)', border: '1px solid #f43f5e', color: '#fb7185', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>⚙️ {tx('Estorno', 'Devolución', 'Refund')}</button>
                       )}
-                      {patenteUsuario === 'gerencia' && ehDocumentoPendente(venda) && <button type="button" onClick={()=>void arquivarDocumentoNaoFaturado(venda)} style={{background:'rgba(239,68,68,.07)',border:'1px solid #f87171',color:'#fda4af',padding:'6px 12px',borderRadius:8,fontSize:11,fontWeight:800,cursor:'pointer'}}>Excluir</button>}
+                      {patenteUsuario === 'gerencia' && ehDocumentoPendente(venda) && <button type="button" onClick={()=>void arquivarDocumentoNaoFaturado(venda)} style={{background:'rgba(239,68,68,.07)',border:'1px solid #f87171',color:'#fda4af',padding:'6px 12px',borderRadius:8,fontSize:11,fontWeight:800,cursor:'pointer'}}>{tx("Excluir","Eliminar")}</button>}
                     </td>
                   </tr>
 
@@ -596,7 +596,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
                                     <td style={{ textAlign: 'right', fontWeight: 700, color: '#34d399' }}>{fmt(qtdOriginal * (it.precoPraticadoBRL||0), 'BRL')}</td>
                                     <td style={{ textAlign: 'right' }}>
                                       {qtdDevolvida > 0 
-                                        ? <span style={{ color: '#fb7185', fontSize: '11px', fontWeight: 800 }}>-{qtdDevolvida} Devolvido(s)</span>
+                                        ? <span style={{ color: '#fb7185', fontSize: '11px', fontWeight: 800 }}>-{qtdDevolvida} {tx("Devolvido(s)","Devuelto(s)")}</span>
                                         : <span style={{ color: '#64748b', fontSize: '11px' }}>OK</span>}
                                     </td>
                                   </tr>
@@ -606,7 +606,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
                           </table>
                           {Array.isArray(venda.devolucoes) && venda.devolucoes.length > 0 && <div style={{marginTop:14,borderTop:'1px solid #1e293b',paddingTop:12}}>
                             <div style={{fontSize:11,fontWeight:900,color:'#fbbf24',textTransform:'uppercase',marginBottom:8}}>{tx('Devoluções / Vouchers desta venda','Devoluciones / Vouchers de esta venta','Returns / Vouchers from this sale')}</div>
-                            {venda.devolucoes.map(dev => <div key={dev.id} style={{display:'flex',gap:12,flexWrap:'wrap',fontSize:11,color:'#cbd5e1',padding:'6px 0'}}><span>{dev.createdAt?new Date(dev.createdAt).toLocaleString('pt-BR'):dev.id}</span><strong style={{color:'#fb7185'}}>{fmt(dev.valorBRL||0,'BRL')}</strong><span>{dev.metodoReembolso==='voucher'?'Voucher':dev.metodoReembolso==='credito_fiado'?'Abate no fiado':dev.metodoReembolso==='pix'?'Pix / Banco':'Dinheiro da Gaveta'}</span>{dev.voucherCodigo && <span style={{color:'#c4b5fd',fontWeight:900}}>🎟️ {dev.voucherCodigo}</span>}</div>)}
+                            {venda.devolucoes.map(dev => <div key={dev.id} style={{display:'flex',gap:12,flexWrap:'wrap',fontSize:11,color:'#cbd5e1',padding:'6px 0'}}><span>{dev.createdAt?new Date(dev.createdAt).toLocaleString('pt-BR'):dev.id}</span><strong style={{color:'#fb7185'}}>{fmt(dev.valorBRL||0,'BRL')}</strong><span>{dev.metodoReembolso==='voucher'?tx("Voucher","Vale"):dev.metodoReembolso==='credito_fiado'?tx("Abate no fiado","Descuento en cuenta corriente"):dev.metodoReembolso==='pix'?tx("Pix / Banco","Pix / Banco"):tx("Dinheiro da Gaveta","Efectivo del cajón")}</span>{dev.voucherCodigo && <span style={{color:'#c4b5fd',fontWeight:900}}>🎟️ {dev.voucherCodigo}</span>}</div>)}
                           </div>}
                         </div>
                       </td>
@@ -626,7 +626,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
           <div style={{ backgroundColor: '#0b1120', border: '1px solid #f43f5e', borderRadius: '24px', width: '100%', maxWidth: '850px', maxHeight: '90vh', overflowY: 'auto', padding: '28px', color: '#fff', boxShadow: '0 25px 50px rgba(0,0,0,0.85)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <div><span style={{ fontSize: '11px', fontWeight: 900, color: '#f43f5e', letterSpacing: '1px', textTransform: 'uppercase' }}>{tx('Motor de Devoluções (RMA)', 'Motor de Devoluciones', 'Returns Engine')}</span><h3 style={{ fontSize: '20px', fontWeight: 900, margin: '2px 0 0 0' }}>Estorno de Itens • Comanda {vendaSendoDevolvida?.id}</h3></div>
+              <div><span style={{ fontSize: '11px', fontWeight: 900, color: '#f43f5e', letterSpacing: '1px', textTransform: 'uppercase' }}>{tx('Motor de Devoluções (RMA)', 'Motor de Devoluciones', 'Returns Engine')}</span><h3 style={{ fontSize: '20px', fontWeight: 900, margin: '2px 0 0 0' }}>{tx("Estorno de Itens • Comanda","Devolución de artículos • Comanda")} {vendaSendoDevolvida?.id}</h3></div>
               <button onClick={() => setModalDevolucaoAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#64748b', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>✕</button>
             </div>
 
@@ -669,7 +669,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
                       <label style={{display:'block',fontSize:10,fontWeight:900,color:'#94a3b8',marginBottom:6}}>{tx('CAIXA DE ORIGEM DO DINHEIRO','CAJA DE ORIGEN DEL DINERO','SOURCE CASH REGISTER')}</label>
                       <select value={sessaoReembolsoId} onChange={e=>setSessaoReembolsoId(e.target.value)} style={{width:'100%',padding:10,borderRadius:8,border:'1px solid #6366f1',background:'#020617',color:'#fff',fontWeight:800}}>
                         <option value="">{tx('Selecione um caixa aberto','Seleccione una caja abierta','Select an open register')}</option>
-                        {caixasAbertos.map(({sessao,resumo}) => <option key={sessao.id} value={sessao.id}>{sessao.operadorNome} • disponível {fmt(resumo.saldoEsperado || 0,'BRL')}</option>)}
+                        {caixasAbertos.map(({sessao,resumo}) => <option key={sessao.id} value={sessao.id}>{sessao.operadorNome} {tx("• disponível","• disponible")} {fmt(resumo.saldoEsperado || 0,'BRL')}</option>)}
                       </select>
                       {caixasAbertos.length === 0 && <div style={{fontSize:10,color:'#fb7185',marginTop:6}}>{tx('Nenhum turno de caixa está aberto. Use Pix/Banco ou Voucher.','Ningún turno de caja está abierto. Use Pix/Banco o Voucher.','No cash shift is open. Use Pix/Bank or Voucher.')}</div>}
                     </div>
@@ -682,7 +682,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
               <div style={{ backgroundColor: 'rgba(244, 63, 94, 0.1)', border: '1px solid rgba(244, 63, 94, 0.3)', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <span style={{ fontSize: '11px', fontWeight: 800, color: '#f43f5e', textTransform: 'uppercase' }}>{tx('3. Confirmação Final do Estorno', '3. Confirmación de Devolución', '3. Refund Confirmation')}</span>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}><span style={{ fontSize: '14px', color: '#cbd5e1' }}>{tx('Total a Devolver:','Total a Devolver:','Total to Return:')}</span><span style={{ fontSize: '28px', fontWeight: 900, color: '#f43f5e' }}>{fmt(calcularTotalDevolucaoBRL())}</span></div>
-                <button onClick={confirmarDevolucao} disabled={processandoDevolucao || calcularTotalDevolucaoBRL() === 0} style={{ padding: '16px', background: (processandoDevolucao || calcularTotalDevolucaoBRL() === 0) ? '#334155' : 'linear-gradient(135deg, #e11d48, #be123c)', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: (processandoDevolucao || calcularTotalDevolucaoBRL() === 0) ? 'not-allowed' : 'pointer' }}>{processandoDevolucao ? 'Confirmando...' : tx('Confirmar Estorno / Devolução', 'Confirmar Devolución', 'Confirm Refund')}</button>
+                <button onClick={confirmarDevolucao} disabled={processandoDevolucao || calcularTotalDevolucaoBRL() === 0} style={{ padding: '16px', background: (processandoDevolucao || calcularTotalDevolucaoBRL() === 0) ? '#334155' : 'linear-gradient(135deg, #e11d48, #be123c)', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: (processandoDevolucao || calcularTotalDevolucaoBRL() === 0) ? 'not-allowed' : 'pointer' }}>{processandoDevolucao ? tx("Confirmando...","Confirmando...") : tx('Confirmar Estorno / Devolução', 'Confirmar Devolución', 'Confirm Refund')}</button>
               </div>
             </div>
           </div>

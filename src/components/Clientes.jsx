@@ -24,14 +24,14 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
   const [modalZen, setModalZen] = useState(null);
 
   const catalogoFormas = [
-    { id: 'dinheiro_brl', rotulo: 'Dinheiro (R$)', moedaOrigem: 'BRL', icone: '💵' }, 
-    { id: 'dinheiro_usd', rotulo: 'Dólar ($)', moedaOrigem: 'USD', icone: '💵' },
-    { id: 'dinheiro_pyg', rotulo: 'Guarani (₲)', moedaOrigem: 'PYG', icone: '💵' }, 
+    { id: 'dinheiro_brl', rotulo: tx("Dinheiro (R$)","Efectivo (R$)"), moedaOrigem: 'BRL', icone: '💵' },
+    { id: 'dinheiro_usd', rotulo: tx("Dólar ($)","Dólar ($)"), moedaOrigem: 'USD', icone: '💵' },
+    { id: 'dinheiro_pyg', rotulo: tx("Guarani (₲)","Guaraní (₲)"), moedaOrigem: 'PYG', icone: '💵' },
     { id: 'dinheiro_eur', rotulo: 'Euro (€)', moedaOrigem: 'EUR', icone: '💶' },
     { id: 'pix', rotulo: 'Pix QR Code', moedaOrigem: 'BRL', icone: '⚡' }, 
-    { id: 'cartaoCredito', rotulo: 'Cartão Crédito', moedaOrigem: 'BRL', icone: '💳' },
-    { id: 'cartaoDebito', rotulo: 'Cartão Débito', moedaOrigem: 'BRL', icone: '💳' }, 
-    { id: 'voucher', rotulo: 'Voucher / Vale', moedaOrigem: 'BRL', icone: '🎟️' },
+    { id: 'cartaoCredito', rotulo: tx("Cartão Crédito","Tarjeta de crédito"), moedaOrigem: 'BRL', icone: '💳' },
+    { id: 'cartaoDebito', rotulo: tx("Cartão Débito","Tarjeta de débito"), moedaOrigem: 'BRL', icone: '💳' },
+    { id: 'voucher', rotulo: tx("Voucher / Vale","Vale"), moedaOrigem: 'BRL', icone: '🎟️' },
     { id: 'cheque', rotulo: 'Cheque', moedaOrigem: 'BRL', icone: '📝' }
   ];
 
@@ -106,7 +106,7 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
       setClientes(clientesConfirmados);
       setModalClienteAberto(false);
     } catch (erro) {
-      setModalZen({ variante:'danger', titulo:tx('Cliente não salvo','Cliente no guardado','Customer not saved'), mensagem:tx('A nuvem não confirmou o cadastro. Nenhuma alteração foi considerada concluída.','La nube no confirmó el registro. Ningún cambio fue considerado concluido.','The cloud did not confirm the registration. No change was considered complete.'), detalhes:[erro?.message || 'Falha de persistência'], apenasConfirmar:true });
+      setModalZen({ variante:'danger', titulo:tx('Cliente não salvo','Cliente no guardado','Customer not saved'), mensagem:tx('A nuvem não confirmou o cadastro. Nenhuma alteração foi considerada concluída.','La nube no confirmó el registro. Ningún cambio fue considerado concluido.','The cloud did not confirm the registration. No change was considered complete.'), detalhes:[erro?.message || tx("Falha de persistência","Error de persistencia")], apenasConfirmar:true });
     }
   };
 
@@ -119,7 +119,7 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
       titulo:tx('Excluir cliente?','¿Eliminar cliente?','Delete customer?'),
       mensagem:tx('Confirme a exclusão deste cadastro de cliente.','Confirme la eliminación de este registro de cliente.','Confirm deletion of this customer record.'),
       confirmarTexto:tx('Excluir','Eliminar','Delete'),
-      cancelarTexto:'Cancelar',
+      cancelarTexto:tx("Cancelar","Cancelar"),
       apenasConfirmar:false,
       aoConfirmar: async () => {
         const listaProposta = clientes.filter(c => c.id !== id);
@@ -127,12 +127,12 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
           let clientesConfirmados = listaProposta;
           if (typeof commitOperacaoNegocio === 'function') {
             const confirmado = await commitOperacaoNegocio({ changes:[{ field:'clientes', value:listaProposta, storageSuffix:'clientes' }] });
-            if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou a exclusão.');
+            if (!confirmado?.cloudOk) throw confirmado?.error || new Error(tx("A nuvem não confirmou a exclusão.","La nube no confirmó la eliminación."));
             clientesConfirmados = confirmado.values?.clientes || listaProposta;
           }
           setClientes(clientesConfirmados);
         } catch (erro) {
-          setModalZen({ variante:'danger', titulo:tx('Cliente não excluído','Cliente no eliminado','Customer not deleted'), mensagem:tx('A nuvem não confirmou a exclusão. O cadastro foi preservado.','La nube no confirmó la eliminación. El registro fue preservado.','The cloud did not confirm deletion. The record was preserved.'), detalhes:[erro?.message || 'Falha de persistência'], apenasConfirmar:true });
+          setModalZen({ variante:'danger', titulo:tx('Cliente não excluído','Cliente no eliminado','Customer not deleted'), mensagem:tx('A nuvem não confirmou a exclusão. O cadastro foi preservado.','La nube no confirmó la eliminación. El registro fue preservado.','The cloud did not confirm deletion. The record was preserved.'), detalhes:[erro?.message || tx("Falha de persistência","Error de persistencia")], apenasConfirmar:true });
         }
       },
     });
@@ -165,8 +165,8 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
     const clienteAtual = vinculados.length===1 ? vinculados[0] : null;
     if (!clienteAtual || String(clienteAtual.nome || '').trim()!==String(clienteReceberFiado?.nome || '').trim()
       || Math.round(Number(clienteAtual.saldoDevedorBRL || 0)*100)!==Math.round(Number(clienteReceberFiado?.saldoDevedorBRL || 0)*100)) {
-      return setModalZen({variante:'warning',titulo:'Conta atualizada',
-        mensagem:'O cadastro ou saldo desta conta mudou. Feche o recebimento, confira o extrato atualizado e abra novamente. Nenhum valor foi recebido.',
+      return setModalZen({variante:'warning',titulo:tx("Conta atualizada","Cuenta actualizada"),
+        mensagem:tx("O cadastro ou saldo desta conta mudou. Feche o recebimento, confira o extrato atualizado e abra novamente. Nenhum valor foi recebido.","Se modificó el registro o el saldo de esta cuenta. Cierre el cobro, revise el extracto actualizado y ábralo nuevamente. No se recibió ningún importe."),
         apenasConfirmar:true});
     }
     // Nomes nas vendas e no livro são fotografias históricas: podem ser
@@ -176,13 +176,13 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
       clienteId:clienteAtual.id,historicoVendas,livroFinanceiro,
     });
     if(conflitosVinculo.length) {
-      return setModalZen({variante:'danger',titulo:'Conta com vínculo financeiro inconsistente',
-        mensagem:'O ID do cliente no lançamento financeiro é diferente do ID da venda original. Nenhum recebimento foi registrado. Confira os registros antes de baixar.',
+      return setModalZen({variante:'danger',titulo:tx("Conta com vínculo financeiro inconsistente","Cuenta con vínculo financiero inconsistente"),
+        mensagem:tx("O ID do cliente no lançamento financeiro é diferente do ID da venda original. Nenhum recebimento foi registrado. Confira os registros antes de baixar.","El ID del cliente en el movimiento financiero es diferente al ID de la venta original. No se registró ningún cobro. Revise los registros antes de liquidar."),
         detalhes:conflitosVinculo.slice(0,3).map(c=>`Venda ${c.vendaId}: ID na venda ${c.clienteIdVenda} / ID no financeiro ${c.clienteIdFinanceiro}`),apenasConfirmar:true});
     }
     const formaCfg = catalogoFormas.find(f => f.id === formaAmortizacaoSel) || catalogoFormas[0];
     const leitura = interpretarValorMonetario(valorAmortizacaoInput, formaCfg.moedaOrigem);
-    if (!leitura.ok) return setModalZen({ variante:'warning', titulo:'Valor monetário inválido', mensagem:leitura.erro, apenasConfirmar:true });
+    if (!leitura.ok) return setModalZen({ variante:'warning', titulo:tx("Valor monetário inválido","Importe monetario inválido"), mensagem:leitura.erro, apenasConfirmar:true });
     const valorOriginal = leitura.valor;
     const valBRL = converterParaBRL(valorOriginal, formaCfg.moedaOrigem || moeda);
     if (valBRL <= 0) return setModalZen({ variante:'warning', titulo:tx('Valor inválido','Valor inválido','Invalid amount'), mensagem:tx('Informe um valor válido para recebimento.','Informe un valor válido para el cobro.','Enter a valid amount to receive.'), apenasConfirmar:true });
@@ -264,12 +264,12 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
       if (mov && typeof setCaixaMovimentos === 'function') setCaixaMovimentos(caixaConfirmado);
     } catch (err) {
       console.error('[ZenOS][ATT10.2] Falha no recebimento:', err);
-      return setModalZen({ variante:'danger', titulo:tx('Recebimento não concluído','Cobro no concluido','Payment not completed'), mensagem:tx('A nuvem não confirmou o recebimento. Nenhum saldo foi alterado.','La nube no confirmó el cobro. Ningún saldo fue alterado.','The cloud did not confirm the payment. No balance was changed.'), detalhes:[err?.message || 'Falha de persistência'], apenasConfirmar:true });
+      return setModalZen({ variante:'danger', titulo:tx('Recebimento não concluído','Cobro no concluido','Payment not completed'), mensagem:tx('A nuvem não confirmou o recebimento. Nenhum saldo foi alterado.','La nube no confirmó el cobro. Ningún saldo fue alterado.','The cloud did not confirm the payment. No balance was changed.'), detalhes:[err?.message || tx("Falha de persistência","Error de persistencia")], apenasConfirmar:true });
     } finally {
       recebimentoEmAndamentoRef.current = false;
     }
 
-    setModalZen({ variante:'success', titulo:tx('Recebimento registrado','Cobro registrado','Payment recorded'), mensagem:`${fmt(valBRL, 'BRL')} recebidos de ${clienteReceberFiado.nome}.`, detalhes:[`Saldo anterior: ${fmt(saldoAntes, 'BRL')}`, `Saldo atual: ${fmt(saldoDepois, 'BRL')}`, dinheiroFisico ? 'Entrada registrada na gaveta do turno.' : 'Recebimento financeiro sem movimentar a gaveta física.'], apenasConfirmar:true });
+    setModalZen({ variante:'success', titulo:tx('Recebimento registrado','Cobro registrado','Payment recorded'), mensagem:`${fmt(valBRL, 'BRL')} recebidos de ${clienteReceberFiado.nome}.`, detalhes:[`Saldo anterior: ${fmt(saldoAntes, 'BRL')}`, `Saldo atual: ${fmt(saldoDepois, 'BRL')}`, dinheiroFisico ? tx("Entrada registrada na gaveta do turno.","Ingreso registrado en la caja del turno.") : tx("Recebimento financeiro sem movimentar a gaveta física.","Cobro financiero sin movimiento en la caja física.")], apenasConfirmar:true });
     setModalReceberFiadoAberto(false);
     setClienteReceberFiado(null);
     setComprovanteFiado(comprovanteDeRecebimento(financeiro));
@@ -315,22 +315,22 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
       {inconsistenciasVinculoFiado.length > 0 && (
         <details style={{border:'1px solid #f59e0b',background:'#1f160a',borderRadius:12,padding:14}}>
           <summary style={{color:'#fde68a',fontSize:13,fontWeight:900,cursor:'pointer'}}>
-            ⚠ Conferência histórica do fiado: {inconsistenciasVinculoFiado.length} venda(s) com observações — somente leitura
+            {tx("⚠ Conferência histórica do fiado:","⚠ Revisión histórica del crédito:")} {inconsistenciasVinculoFiado.length} {tx("venda(s) com observações — somente leitura","venta(s) con observaciones — solo lectura")}
           </summary>
           <div style={{marginTop:8,fontSize:12,color:'#e2e8f0'}}>
-            Esta conferência não movimenta valores. Nome diferente com o mesmo ID é uma informação histórica, não motivo para bloquear recebimento nem alterar dívida.
+            {tx("Esta conferência não movimenta valores. Nome diferente com o mesmo ID é uma informação histórica, não motivo para bloquear recebimento nem alterar dívida.","Esta revisión no mueve importes. Un nombre diferente con el mismo ID es información histórica, no un motivo para bloquear el cobro ni modificar la deuda.")}
           </div>
           {inconsistenciasVinculoFiado.slice(0,8).map(item => (
             <div key={item.vendaId} style={{borderTop:'1px solid #6b4e1d',padding:'10px 0',marginTop:8,color:'#fff',fontSize:12,overflowWrap:'anywhere'}}>
-              <div><strong>Venda:</strong> {item.vendaId} · <strong>Fiado:</strong> {fmt(item.valorFiadoBRL,'BRL')}</div>
-              <div><strong>Nome na venda:</strong> {item.vendaNome} · <strong>Cliente vinculado atualmente:</strong> {item.clienteAtualNome}</div>
-              <div><strong>ID da venda:</strong> {item.clienteIdVenda || 'Ausente'} · <strong>ID no Livro Financeiro:</strong> {item.clienteIdFinanceiro}</div>
-              <div><strong>Nome no Livro Financeiro:</strong> {item.clienteNomeFinanceiro}</div>
+              <div><strong>{tx("Venda:","Venta:")}</strong> {item.vendaId} · <strong>{tx("Fiado:","Crédito:")}</strong> {fmt(item.valorFiadoBRL,'BRL')}</div>
+              <div><strong>{tx("Nome na venda:","Nombre en la venta:")}</strong> {item.vendaNome} · <strong>{tx("Cliente vinculado atualmente:","Cliente vinculado actualmente:")}</strong> {item.clienteAtualNome}</div>
+              <div><strong>{tx("ID da venda:","ID de la venta:")}</strong> {item.clienteIdVenda || tx("Ausente","Ausente")} · <strong>{tx("ID no Livro Financeiro:","ID en el libro financiero:")}</strong> {item.clienteIdFinanceiro}</div>
+              <div><strong>{tx("Nome no Livro Financeiro:","Nombre en el libro financiero:")}</strong> {item.clienteNomeFinanceiro}</div>
               <div style={{color:'#fbbf24'}}>{item.problemas.join(' • ')}</div>
             </div>
           ))}
           {inconsistenciasVinculoFiado.length > 8 &&
-            <div style={{color:'#fbbf24',fontSize:11}}>Exibindo as 8 primeiras divergências. Nenhuma correção automática foi realizada.</div>}
+            <div style={{color:'#fbbf24',fontSize:11}}>{tx("Exibindo as 8 primeiras divergências. Nenhuma correção automática foi realizada.","Se muestran las primeras 8 diferencias. No se realizó ninguna corrección automática.")}</div>}
         </details>
       )}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0b1120', padding: '16px 20px', borderRadius: '16px', border: '1px solid #1e293b', gap: '16px' }}>
@@ -398,7 +398,7 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
                         <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center' }}>
                           {temDivida && (
                             <button onClick={() => abrirRecebimentoFiado(cli)} type="button" style={{ backgroundColor: '#064e3b', border: '1px solid #10b981', color: '#34d399', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 900, cursor: 'pointer' }}>
-                              Receber Conta
+                              {tx("Receber Conta","Cobrar cuenta")}
                             </button>
                           )}
                           <button onClick={() => setClienteExtrato(cli)} type="button" style={{ backgroundColor: '#111827', border: '1px solid #334155', color: '#cbd5e1', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>📒 {tx('Extrato','Extracto','Statement')}</button>
@@ -480,7 +480,7 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
                   </select>
                 </div>
                 <div>
-                  <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>Limite de Crédito ({moeda})</label>
+                  <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx("Limite de Crédito (","Límite de crédito (")}{moeda})</label>
                   <input type="text" value={formCliente.limiteCreditoBRL} onChange={e => setFormCliente({ ...formCliente, limiteCreditoBRL: e.target.value })} placeholder="1000.00" style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #38bdf8', borderRadius: '8px', color: '#38bdf8', fontWeight: 900, padding: '12px', outline: 'none', marginTop: '4px', boxSizing: 'border-box' }} />
                 </div>
               </div>
@@ -495,8 +495,8 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
 
       <ZenModal aberto={!!modalZen} variante={modalZen?.variante} titulo={modalZen?.titulo} mensagem={modalZen?.mensagem} detalhes={modalZen?.detalhes} confirmarTexto={modalZen?.confirmarTexto||'OK'} cancelarTexto={modalZen?.cancelarTexto||'Cancelar'} apenasConfirmar={modalZen?.apenasConfirmar} onConfirmar={()=>{ const fn=modalZen?.aoConfirmar; setModalZen(null); if(fn) fn(); }} onCancelar={()=>setModalZen(null)} />
 
-      {comprovanteFiado && <div className="no-print" role="region" aria-label="Compartilhar recibo de fiado" style={{position:'fixed',right:16,bottom:18,zIndex:2200,width:'min(300px,calc(100vw - 32px))',padding:12,background:'#0b1120',border:'1px solid #25d366',borderRadius:14,boxShadow:'0 15px 40px #0009',color:'#f8fafc'}}>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,marginBottom:9}}><strong style={{fontSize:12}}>Recibo confirmado · {comprovanteFiado.id}</strong><button type="button" onClick={()=>setComprovanteFiado(null)} aria-label="Fechar compartilhamento" style={{background:'transparent',border:0,color:'#94a3b8',cursor:'pointer'}}>✕</button></div>
+      {comprovanteFiado && <div className="no-print" role="region" aria-label={tx("Compartilhar recibo de fiado","Compartir recibo de crédito")} style={{position:'fixed',right:16,bottom:18,zIndex:2200,width:'min(300px,calc(100vw - 32px))',padding:12,background:'#0b1120',border:'1px solid #25d366',borderRadius:14,boxShadow:'0 15px 40px #0009',color:'#f8fafc'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,marginBottom:9}}><strong style={{fontSize:12}}>{tx("Recibo confirmado ·","Recibo confirmado ·")} {comprovanteFiado.id}</strong><button type="button" onClick={()=>setComprovanteFiado(null)} aria-label={tx("Fechar compartilhamento","Cerrar opciones para compartir")} style={{background:'transparent',border:0,color:'#94a3b8',cursor:'pointer'}}>✕</button></div>
         <ZenShareButton documento={comprovanteFiado} perfilLoja={perfilLoja} tipo="recibo"/>
       </div>}
       {clienteExtrato && (() => {
@@ -514,7 +514,7 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
               <div><div style={{ color:'#38bdf8', fontSize:11, fontWeight:900, letterSpacing:1 }}>{tx('CONTA CORRENTE DO CLIENTE','CUENTA CORRIENTE DEL CLIENTE','CUSTOMER ACCOUNT')}</div><h3 style={{ margin:'4px 0 0', fontSize:20 }}>{clienteAtual.nome}</h3><div style={{ color:'#94a3b8', fontSize:12, marginTop:4 }}>{tx('Saldo atual cadastrado:','Saldo actual registrado:','Current registered balance:')} <strong style={{color:'#fb7185'}}>{fmt(clienteAtual.saldoDevedorBRL||0,'BRL')}</strong></div></div>
               <button onClick={()=>setClienteExtrato(null)} style={{width:36,height:36,borderRadius:9,border:'1px solid #334155',background:'#020617',color:'#94a3b8',cursor:'pointer'}}>✕</button>
             </div>
-            {saldoDivergente && <div role="alert" style={{padding:'12px 16px',background:'#451a03',borderBottom:'1px solid #f59e0b',color:'#fde68a',fontSize:12,fontWeight:800}}>⚠ Divergência no fiado: cadastro {fmt(saldoCadastrado,'BRL')} e último saldo auditado {fmt(saldoAuditado,'BRL')}. Confira os lançamentos antes de receber; nenhum saldo foi alterado automaticamente.</div>}
+            {saldoDivergente && <div role="alert" style={{padding:'12px 16px',background:'#451a03',borderBottom:'1px solid #f59e0b',color:'#fde68a',fontSize:12,fontWeight:800}}>{tx("⚠ Divergência no fiado: cadastro","⚠ Diferencia en el crédito: registro")} {fmt(saldoCadastrado,'BRL')} {tx("e último saldo auditado","y último saldo auditado")} {fmt(saldoAuditado,'BRL')}{tx(". Confira os lançamentos antes de receber; nenhum saldo foi alterado automaticamente.",". Revise los movimientos antes de cobrar; no se modificó ningún saldo automáticamente.")}</div>}
             <div style={{ padding:14, color:'#94a3b8', fontSize:11, borderBottom:'1px solid #1e293b' }}>{tx('O extrato auditável começa com os novos lançamentos da ATT 07. O histórico anterior não é reconstruído por inferência.','El extracto auditable comienza con los nuevos movimientos de ATT 07. El historial anterior no se reconstruye por inferencia.','The auditable statement starts with new ATT 07 entries. Previous history is not reconstructed by inference.')}</div>
             <div style={{ overflow:'auto', maxHeight:'58vh' }}>
               <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,minWidth:760}}><thead><tr style={{color:'#64748b',textTransform:'uppercase',fontSize:10,borderBottom:'1px solid #1e293b'}}><th style={{padding:12,textAlign:'left'}}>{tx('Data','Fecha','Date')}</th><th style={{textAlign:'left'}}>{tx('Tipo','Tipo','Type')}</th><th style={{textAlign:'left'}}>{tx('Descrição','Descripción','Description')}</th><th style={{textAlign:'right'}}>{tx('Débito','Débito','Debit')}</th><th style={{textAlign:'right'}}>{tx('Crédito','Crédito','Credit')}</th><th style={{textAlign:'right'}}>{tx('Saldo','Saldo','Balance')}</th><th style={{textAlign:'left',paddingLeft:14}}>{tx('Forma / Operador','Forma / Operador','Method / Operator')}</th></tr></thead><tbody>
@@ -539,7 +539,7 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
               </div>
             </div>
             
-            <label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800 }}>Valor a Receber / Quitar ({moeda}):</label>
+            <label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800 }}>{tx("Valor a Receber / Quitar (","Importe a cobrar / liquidar (")}{moeda}):</label>
             <input type="text" ref={inputValorAmortizacaoRef} value={valorAmortizacaoInput} onChange={e => setValorAmortizacaoInput(e.target.value)} placeholder="0.00" onFocus={e=>e.target.select()} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #10b981', borderRadius: '12px', color: '#34d399', fontSize: '24px', fontWeight: 900, textAlign: 'center', padding: '14px', outline: 'none', marginTop: '8px', marginBottom: '16px', boxSizing: 'border-box' }} autoFocus />
 
             <label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800 }}>{tx('Forma de Recebimento:','Forma de Cobro:','Payment Method:')}</label>
