@@ -1,0 +1,36 @@
+name: Blindagem Financeira V1
+on:
+  pull_request:
+    paths:
+      - 'src/App.jsx'
+      - 'src/core/financialAudit.js'
+      - 'src/core/salesFinancials.js'
+      - 'src/core/cashReconciliation.js'
+      - 'scripts/financial-audit-v1.test.mjs'
+      - '.github/workflows/financial-audit-v1.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  auditoria-financeira:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar dependências
+        run: npm ci
+      - name: Compilar ZenOS
+        run: npm run build
+      - name: Testar consistência financeira e caixa
+        run: node --test scripts/financial-audit-v1.test.mjs
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+      - name: Testar livro financeiro no emulador local
+        run: npm run test:att07:emulator
+      - name: Verificar ausência de imports Firestore no módulo de auditoria
+        run: |
+          ! grep -E "firebase/firestore|onSnapshot|getDocs|runTransaction" src/core/financialAudit.js
