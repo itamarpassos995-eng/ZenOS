@@ -153,8 +153,8 @@ assert.equal(novaCotacao.esperado.PYG,30000);
 assert.equal(novaCotacao.totalEsperadoBRL,330);
 assert.equal(converterValoresFisicosParaBRL({BRL:'300,00',PYG:'40.000'},{PYG:1200}).totalBRL,333.33);
 // O total visível do fechamento deve respeitar a moeda escolhida.
-assert.match(app,/totalMovimentoNaMoedaSelecionada/);
-assert.match(app,/fmt\(totalMovimentoNaMoedaSelecionada\(\), moedaTotalCaixa\)/);
+assert.match(app,/const moedaTotalCaixa =/);
+assert.match(app,/fmt\(calcularTotalMovBRL\(\), moedaTotalCaixa\)/);
 assert.doesNotMatch(app,/TOTAL FÍSICO INFORMADO • CONVERTIDO PARA BRL/);
 
 console.log('ZenOS caixa: testes de regressão P0 aprovados.');
