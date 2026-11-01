@@ -176,5 +176,5 @@ assert.match(app,/conciliacaoFisica\.esperado\?\.\[m\]/);
 assert.match(app,/conciliacaoFisica\.contado\?\.\[m\]/);
 assert.match(app,/conciliacaoFisica\.diferencas\?\.\[m\]/);
 assert.match(app,/Equivalente total esperado em BRL/);
-assert.doesNotMatch(app,/`Saldo esperado: \\${fmt\(saldoEsperadoBRL, 'BRL'\)\}`/);
+assert.doesNotMatch(app,/detalhes:\s*\[\s*`Saldo esperado:/);
 console.log('ZenOS caixa: testes de regressão P0 aprovados.');
