@@ -1476,9 +1476,24 @@ export default function App() {
         : temQuebra ? tx("As quantidades físicas por moeda não conferem. Confira o demonstrativo individual no comprovante.","Las cantidades físicas por moneda no coinciden. Revise el detalle individual del comprobante.")
           : tx("A contagem física confere com os valores esperados em cada moeda.","El conteo físico coincide con los importes esperados en cada moneda."),
       detalhes: [
-        `Saldo esperado: ${fmt(saldoEsperadoBRL, 'BRL')}`,
-        `Total contado: ${fmt(valInformadoBRL, 'BRL')}`,
-        `Diferença: ${conciliacaoFisica.confiavel ? fmt(diferenca, 'BRL') : 'INDETERMINADA'}`,
+        tx('Demonstrativo físico por moeda:','Detalle físico por moneda:','Physical amounts by currency:'),
+        ...['BRL','PYG','USD','EUR'].filter(m =>
+          Number(conciliacaoFisica.esperado?.[m] || 0) !== 0 ||
+          Number(conciliacaoFisica.contado?.[m] || 0) !== 0 ||
+          Number(conciliacaoFisica.diferencas?.[m] || 0) !== 0
+        ).map(m => {
+          const casas = m === 'PYG' ? 0 : 2;
+          const formatarNativo = valor => Number(valor || 0).toLocaleString(
+            idioma === 'es' ? 'es-PY' : idioma === 'en' ? 'en-US' : 'pt-BR',
+            {minimumFractionDigits:casas, maximumFractionDigits:casas}
+          );
+          return `${m} — ${tx('Esperado','Esperado','Expected')}: ${formatarNativo(conciliacaoFisica.esperado?.[m])} | ${tx('Contado','Contado','Counted')}: ${formatarNativo(conciliacaoFisica.contado?.[m])} | ${tx('Diferença','Diferencia','Difference')}: ${conciliacaoFisica.confiavel ? formatarNativo(conciliacaoFisica.diferencas?.[m]) : tx('não conclusiva','no concluyente','not conclusive')}`;
+        }),
+        ...(conciliacaoFisica.confiavel ? [
+          `${tx('Equivalente total esperado em BRL','Equivalente total esperado en BRL','Total expected equivalent in BRL')}: ${fmt(saldoEsperadoBRL, 'BRL')}`,
+          `${tx('Equivalente total contado em BRL','Equivalente total contado en BRL','Total counted equivalent in BRL')}: ${fmt(valInformadoBRL, 'BRL')}`,
+          `${tx('Diferença equivalente em BRL','Diferencia equivalente en BRL','Equivalent difference in BRL')}: ${fmt(diferenca, 'BRL')}`
+        ] : []),
         ...conciliacaoFisica.pendencias.slice(0, 4),
         janelaImpressao ? tx("Comprovante aberto para impressão.","Comprobante abierto para imprimir.") : tx("A impressão foi bloqueada pelo navegador; o fechamento ficou registrado.","El navegador bloqueó la impresión; el cierre quedó registrado."),
       ],
