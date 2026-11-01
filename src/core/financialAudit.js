@@ -42,6 +42,8 @@ export function auditarFinanceiroVenda(venda = {}) {
 /** Auditoria apenas dos registros já fornecidos; sem acesso a rede/Firestore. */
 export function auditarPeriodoFinanceiro({lojaId, vendas=[], inicio, fim}={}) {
   if (!lojaId || !inicio || !fim || !Number.isFinite(Date.parse(inicio)) || !Number.isFinite(Date.parse(fim)) || Date.parse(inicio)>Date.parse(fim)) throw new Error('Loja e período válidos são obrigatórios');
+  // Segurança multitenant: nunca aceitar um registro explicitamente de outra loja.
+  if (vendas.some(v => v.lojaId != null && String(v.lojaId) !== String(lojaId))) throw new Error('Venda de outra empresa detectada na auditoria');
   const lista = vendas.filter(v => {
     const data = Date.parse(v.createdAt || '');
     return Number.isFinite(data) && data>=Date.parse(inicio) && data<=Date.parse(fim);
