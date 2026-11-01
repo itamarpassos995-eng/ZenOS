@@ -1058,7 +1058,11 @@ export default function App() {
     }
     return resultado;
   };
-  const calcularTotalMovBRL = () => converterValoresFisicosParaBRL(valoresMovCaixa, taxasCambio).totalBRL ?? NaN;
+  // Os valores nativos nunca são somados entre moedas. Apenas a apresentação
+  // usa o câmbio vigente; a gaveta e a auditoria mantêm a composição original.
+  const totalMovimentoConvertido = converterValoresFisicosParaBRL(valoresMovCaixa, taxasCambio);
+  const calcularTotalMovBRL = () => totalMovimentoConvertido.ok ? totalMovimentoConvertido.totalBRL : NaN;
+  const moedaTotalCaixa = ['BRL', 'USD', 'EUR', 'PYG'].includes(moeda) ? moeda : 'BRL';
   const resetarValoresCaixa = () => setValoresMovCaixa({ BRL: '', USD: '', EUR: '', PYG: '' });
 
   const abrirTurnoDeCaixa = async () => {
@@ -1130,6 +1134,32 @@ export default function App() {
     if (!movimentoValidado) return;
     const valBRL = movimentoValidado.totalBRL;
     if (valBRL <= 0) return avisarAppZen({ variante:'warning', titulo:tx("Valor inválido","Importe inválido"), mensagem:tx('Insira um valor válido.', 'Ingrese un valor válido.', 'Enter a valid amount.') });
+    if (tipoMovCaixa === 'sangria') {
+      // A comparação em BRL continua como guarda legada, mas NÃO pode
+      // autorizar sacar PYG/USD/EUR sem a quantia física dessa moeda.
+      const fisicoAntesDaSangria = calcularConciliacaoFisicaMultimoeda({
+        sessao: sessaoAtiva, historicoVendas, caixaMovimentos,
+        contagem: {}, taxas: taxasCambio,
+      });
+      if (!fisicoAntesDaSangria.confiavel) {
+        return avisarAppZen({
+          variante:'warning',
+          titulo:tx('Caixa exige conciliação','La caja requiere conciliación','Cash reconciliation required'),
+          mensagem:tx('Não é seguro autorizar a sangria: existem movimentos sem composição física confirmada. Confira a gaveta e os registros antes da retirada.','No es seguro autorizar el retiro: hay movimientos sin composición física confirmada. Revise la caja y los registros.','Cash withdrawal blocked: physical currency composition is not reliable. Reconcile before withdrawing.'),
+        });
+      }
+      const faltaMoeda = Object.entries(movimentoValidado.valoresNativos).find(([codigo,quantia]) =>
+        Number(quantia) > Number(fisicoAntesDaSangria.esperado[codigo] || 0) + (codigo === 'PYG' ? 0 : 0.001)
+      );
+      if (faltaMoeda) {
+        return avisarAppZen({
+          variante:'danger',
+          titulo:tx('Saldo insuficiente na moeda escolhida','Saldo insuficiente en la moneda seleccionada','Insufficient balance in selected currency'),
+          mensagem:tx('A retirada excede a quantidade física disponível na moeda selecionada, mesmo que o total convertido seja suficiente.','El retiro supera el efectivo disponible en la moneda elegida, aunque el total convertido sea suficiente.','Withdrawal exceeds the physical balance in the selected currency, even if converted total is sufficient.'),
+          detalhes:[`Moeda: ${faltaMoeda[0]}`],
+        });
+      }
+    }
     if (tipoMovCaixa === 'sangria' && valBRL > saldoSessaoFisicoBRL + 0.001) {
       return avisarAppZen({ variante:'danger', titulo:tx("Saldo insuficiente na gaveta","Saldo insuficiente en caja"), mensagem:tx('A sangria não pode ser maior que o dinheiro físico disponível.', 'La sangría no puede superar el efectivo disponible.', 'Cash drop cannot exceed physical cash available.'), detalhes:[`Solicitado: ${fmt(valBRL,'BRL')}`, tx('Saldo esperado oculto até o fechamento cego.','Saldo esperado oculto hasta el cierre ciego.','Expected balance hidden until blind closeout.')] });
     }
@@ -1169,7 +1199,7 @@ export default function App() {
       }],
       guards: [
         { type:'cash_session_open', sessionId:sessaoAtiva.id },
-        ...(tipoMovCaixa === 'sangria' ? [{ type:'cash_balance_at_least', sessionId:sessaoAtiva.id, amount:valBRL, message:tx('O saldo físico do caixa mudou em outro terminal. A sangria não foi realizada.','El saldo físico de caja cambió en otro terminal. El retiro no fue realizado.','The physical cash balance changed on another terminal. The cash drop was not performed.') }] : []),
+        ...(tipoMovCaixa === 'sangria' ? [{ type:'cash_native_balance_at_least', sessionId:sessaoAtiva.id, valoresNativos:movimentoValidado.valoresNativos, taxas:{...taxasCambio} }, { type:'cash_balance_at_least', sessionId:sessaoAtiva.id, amount:valBRL, message:tx('O saldo físico do caixa mudou em outro terminal. A sangria não foi realizada.','El saldo físico de caja cambió en otro terminal. El retiro no fue realizado.','The physical cash balance changed on another terminal. The cash drop was not performed.') }] : []),
       ],
       operationKey: `mov-caixa:${novoMov.id}`,
     });
@@ -1383,9 +1413,10 @@ export default function App() {
         ${!conciliacaoFisica.confiavel ? `<div style="margin-top:5px;font-weight:bold;">${tx('RECONCILIAÇÃO INCONCLUSIVA:','CONCILIACIÓN NO CONCLUYENTE:','INCONCLUSIVE RECONCILIATION:')} ${conciliacaoFisica.pendencias.map(escaparHTML).join(' | ')}</div>` : ''}
 
         <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
-        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('SALDO ESPERADO:','SALDO ESPERADO:','EXPECTED BALANCE:')}</span><span>${fmt(saldoEsperadoBRL, 'BRL')}${conciliacaoFisica.confiavel ? '' : ' (REFERENCIAL)'}</span></div>
-        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('TOTAL CONTADO:','TOTAL CONTADO:','TOTAL COUNTED:')}</span><span>${fmt(valInformadoBRL, 'BRL')}</span></div>
-        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('DIFERENÇA:','DIFERENCIA:','DIFFERENCE:')}</span><span>${conciliacaoFisica.confiavel ? fmt(diferenca, 'BRL') : 'INDETERMINADA'}</span></div>
+        <div style="font-size:10px;margin-bottom:5px;">${tx('Os totais abaixo são equivalentes convertidos no câmbio do fechamento. Os saldos físicos de cada moeda constam na conciliação acima.','Los totales siguientes son equivalentes convertidos al tipo de cambio del cierre. Los saldos físicos por moneda figuran arriba.','Totals below are converted equivalents at closing rates. Physical balances by currency are shown above.')}</div>
+        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('SALDO ESPERADO:','SALDO ESPERADO:','EXPECTED BALANCE:')}</span><span>${fmt(saldoEsperadoBRL, moedaTotalCaixa)} (${moedaTotalCaixa})${conciliacaoFisica.confiavel ? '' : ' (REFERENCIAL)'}</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('TOTAL CONTADO:','TOTAL CONTADO:','TOTAL COUNTED:')}</span><span>${fmt(valInformadoBRL, moedaTotalCaixa)} (${moedaTotalCaixa})</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('DIFERENÇA:','DIFERENCIA:','DIFFERENCE:')}</span><span>${conciliacaoFisica.confiavel ? fmt(diferenca, moedaTotalCaixa) + ' (' + moedaTotalCaixa + ')' : 'INDETERMINADA'}</span></div>
         <div style="text-align:center;font-weight:bold;margin-top:8px;">${descQuebra}</div>
 
         <div style="margin-top:36px;text-align:center;">_________________________________<br/>${tx('Assinatura do Operador','Firma del Operador','Operator Signature')}<br/>${escaparHTML(sessaoAtiva.operadorNome)}</div>
@@ -1970,8 +2001,8 @@ export default function App() {
                 </div>
                 {tipoMovCaixa === 'fechamento' && (
                   <div style={{ marginTop:'14px', padding:'12px 14px', borderRadius:'12px', background:'#020617', border:'1px solid #1e293b' }}>
-                    <div style={{fontSize:'10px',fontWeight:900,letterSpacing:'1px',color:'#64748b',marginBottom:'5px'}}>{tx('TOTAL FÍSICO INFORMADO • CONVERTIDO PARA BRL','TOTAL FÍSICO INFORMADO • CONVERTIDO A BRL','PHYSICAL TOTAL ENTERED • CONVERTED TO BRL')}</div>
-                    <div style={{fontSize:'20px',fontWeight:950,color:'#f8fafc'}}>{Number.isFinite(calcularTotalMovBRL()) ? fmt(calcularTotalMovBRL(), 'BRL') : tx('Corrija os valores digitados', 'Corrija los importes', 'Correct the entered amounts')}</div>
+                    <div style={{fontSize:'10px',fontWeight:900,letterSpacing:'1px',color:'#64748b',marginBottom:'5px'}}>{tx('TOTAL FÍSICO INFORMADO • MOEDA SELECIONADA','TOTAL FÍSICO INFORMADO • MONEDA SELECCIONADA','PHYSICAL TOTAL ENTERED • SELECTED CURRENCY') + ' (' + moedaTotalCaixa + ')'}</div>
+                    <div style={{fontSize:'20px',fontWeight:950,color:'#f8fafc'}}>{Number.isFinite(calcularTotalMovBRL()) ? fmt(calcularTotalMovBRL(), moedaTotalCaixa) : tx('Corrija os valores digitados', 'Corrija los importes', 'Correct the entered amounts')}</div>
                     <div style={{fontSize:'10px',color:'#64748b',marginTop:'5px'}}>{tx('O saldo esperado pelo ZenOS permanece oculto até a auditoria ser concluída.','El saldo esperado por ZenOS permanece oculto hasta finalizar la auditoría.','The balance expected by ZenOS remains hidden until the audit is completed.')}</div>
                   </div>
                 )}

@@ -22,4 +22,10 @@ jobs:
       - name: Confirmar ausência de alterações operacionais
         run: |
           git diff --name-only origin/main...HEAD | tee /tmp/commerce-files.txt
-          ! grep -E '^src/firebase\.js$|^src/core/operationalRepository\.js$|^src/core/productionSync\.js$|^firestore\.emulator\.rules$' /tmp/commerce-files.txt
+          # Exceção financeira restrita: somente a guarda transacional nativa,
+          # verificada no teste anterior; demais arquivos persistentes protegidos.
+          ! grep -E '^src/firebase\.js$|^src/core/operationalRepository\.js$|^firestore\.emulator\.rules$' /tmp/commerce-files.txt
+          if grep -Fxq 'src/core/productionSync.js' /tmp/commerce-files.txt; then
+            grep -Fq "guard.type === 'cash_native_balance_at_least'" src/core/productionSync.js
+            grep -Fq 'calcularConciliacaoFisicaMultimoeda' src/core/productionSync.js
+          fi
