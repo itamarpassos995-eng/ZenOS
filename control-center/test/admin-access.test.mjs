@@ -1,0 +1,15 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {authorizeAdmin,assertAdminAccess} from '../src/domain/admin-access.mjs';
+import {assertTenantAccess} from '../src/domain/tenant-access.mjs';
+const owner={subject:'admin-1',active:true,roles:['owner'],mfaVerified:true};
+test('admin owner autenticado com MFA pode gerenciar plano',()=>assert.equal(authorizeAdmin(owner,'subscriptions:write'),true));
+test('MFA é exigido para ações sensíveis',()=>assert.equal(authorizeAdmin({...owner,mfaVerified:false},'subscriptions:write'),false));
+test('support não aprova cobrança',()=>assert.equal(authorizeAdmin({...owner,roles:['support']},'payments:write'),false));
+test('auditor tem somente leitura',()=>{assert.equal(authorizeAdmin({...owner,roles:['auditor']},'audit:read'),true);assert.equal(authorizeAdmin({...owner,roles:['auditor']},'admins:manage'),false)});
+test('conta desativada não acessa',()=>assert.equal(authorizeAdmin({...owner,active:false},'organizations:read'),false));
+test('nega ações não previstas',()=>assert.throws(()=>assertAdminAccess(owner,'finance:delete-all'),/ACCESS_DENIED/));
+test('cliente só enxerga próprio tenant',()=>assert.equal(assertTenantAccess({authenticatedUid:'loja-1',organizationUid:'loja-1'}),'loja-1'));
+test('cliente não enxerga outra empresa',()=>assert.throws(()=>assertTenantAccess({authenticatedUid:'loja-1',organizationUid:'loja-2'}),/TENANT_ACCESS_DENIED/));
+test('email ou dados não autenticados não concedem acesso',()=>assert.throws(()=>assertTenantAccess({authenticatedUid:'',organizationUid:'loja-1'}),/UNAUTHENTICATED/));
+test('cliente não pode gerenciar contrato',()=>assert.throws(()=>assertTenantAccess({authenticatedUid:'loja-1',organizationUid:'loja-1',action:'subscriptions:write'}),/ACTION_NOT_ALLOWED/));

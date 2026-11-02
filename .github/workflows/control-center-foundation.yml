@@ -1,0 +1,53 @@
+name: Control Center Foundation
+on:
+  pull_request:
+    paths:
+      - 'control-center/**'
+      - '.github/workflows/control-center-foundation.yml'
+  workflow_dispatch:
+jobs:
+  domain-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: control-center
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm test
+  postgres-migration-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: control_test
+          POSTGRES_PASSWORD: disposable_test_password
+          POSTGRES_DB: control_center_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U control_test -d control_center_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGPASSWORD: disposable_test_password
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGUSER: control_test
+      PGDATABASE: control_center_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install psql client
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+      - name: Apply isolated migration
+        run: psql -v ON_ERROR_STOP=1 -f control-center/migrations/001_foundation.sql
+      - name: Validate uniqueness, isolation identifiers and financial constraints
+        run: psql -v ON_ERROR_STOP=1 -f control-center/test/postgres-foundation.sql
