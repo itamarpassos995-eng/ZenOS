@@ -1,0 +1,21 @@
+name: Control Center Foundation
+on:
+  pull_request:
+    paths:
+      - 'control-center/**'
+      - '.github/workflows/control-center-foundation.yml'
+  workflow_dispatch:
+jobs:
+  domain-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: control-center
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm test
