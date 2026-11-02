@@ -22,7 +22,7 @@ test('asset estático version.json gerado pelo Vite, sem função ou Firebase',(
  const rule=vercel.headers.find(h=>h.source==='/version.json');
  assert.match(rule.headers[0].value,/no-store/);
  const controller=readFileSync(new URL('../src/core/autoUpdate.js',import.meta.url),'utf8');
- assert.match(controller,/fetcher\\('\/version\\.json'/);
+ assert.ok(controller.includes("fetcher('/version.json'"));
  assert.doesNotMatch(controller,/firebase\/firestore|caches\\.delete|localStorage\\.clear/);
 });
 test('nunca recarrega durante operação ativa',async()=>{
