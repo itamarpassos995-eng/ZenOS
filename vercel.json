@@ -42,7 +42,7 @@
       ]
     },
     {
-      "source": "/api/version",
+      "source": "/version.json",
       "headers": [
         {
           "key": "Cache-Control",
