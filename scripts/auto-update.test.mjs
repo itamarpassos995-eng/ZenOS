@@ -25,6 +25,15 @@ test('asset estático version.json gerado pelo Vite, sem função ou Firebase',(
  assert.ok(controller.includes("fetcher('/version.json'"));
  for (const forbidden of ['firebase/firestore', 'caches.delete', 'localStorage.clear', 'indexedDB.deleteDatabase']) assert.ok(!controller.includes(forbidden));
 });
+test('App só libera reload fora do PDV e sem gravações pendentes',()=>{
+ const app=readFileSync(new URL('../src/App.jsx',import.meta.url),'utf8');
+ for (const marker of [
+  'registerAutoUpdateSafetyProvider', "ecraAtual !== 'hub'",
+  "statusSincronizacao !== 'SINCRONIZADO'", 'operadorAtivo',
+  'syncWriteQueueRef.current.values()', 'syncDeferredRemoteRef.current.size',
+  'syncCamposRef.current.values()', 'reconciliacaoFiadoEmAndamentoRef.current',
+ ]) assert.ok(app.includes(marker), 'Proteção ausente: '+marker);
+});
 test('nunca recarrega durante operação ativa',async()=>{
  const h=harness({safe:false});await h.ctrl.poll();h.clock(1_000_000);assert.equal(h.ctrl.evaluate(),false);assert.equal(h.reloads(),0);
 });
