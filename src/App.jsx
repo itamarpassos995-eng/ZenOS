@@ -11,6 +11,7 @@ import { inspectLocalSchemaVersion, PERSISTENCE_STATUS_EVENT, notifyPersistenceS
 import { persistV1OperationFieldSafe, persistV1BusinessOperationSafe, recordSyncMetric } from './core/productionSync';
 import { cloneSyncValue, hasLocalSyncChange, syncValuesEqual } from './core/syncMerge';
 import { zenosStorage } from './core/storage';
+import { registerAutoUpdateSafetyProvider } from './core/autoUpdate.js';
 import { obterFinanceiroVenda } from './core/salesFinancials';
 import { auditarFinanceiroVenda } from './core/financialAudit';
 import { registroEhDoDiaLocal } from './core/dates';
@@ -186,6 +187,26 @@ export default function App() {
   const [inboxPrivadoAberto, setInboxPrivadoAberto] = useState(false);
   const [pedidoPrivadoSolicitado, setPedidoPrivadoSolicitado] = useState(null);
   const usaFilaPrivada = import.meta.env.VITE_ZENOS_PRIVATE_ORDERS_ENABLED === 'true';
+
+  // AutoUpdate: autorização fail-closed apenas na tela neutra sem operador ativo.
+  // Nenhuma consulta Firestore; observa somente os estados e filas já existentes.
+  useEffect(() => registerAutoUpdateSafetyProvider(() => {
+    if (!userId || carregandoAuth || operadorAtivo || ecraAtual !== 'hub' ||
+        !nuvemSincronizada || statusSincronizacao !== 'SINCRONIZADO' ||
+        falhaBootstrapNuvem || erroSincronizacao ||
+        modalAppZen || modalCambioAberto || modalPlanosAberto ||
+        modalPerfilRapido || assistenteIAAberto || inboxPrivadoAberto ||
+        pedidoPrivadoSolicitado || reconciliacaoFiadoEmAndamentoRef.current) return false;
+    if ([...syncWriteQueueRef.current.values()].some(fila => fila.running || fila.desired)) return false;
+    if (syncDeferredRemoteRef.current.size > 0) return false;
+    if ([...syncCamposRef.current.values()].some(campo => campo.status !== 'SINCRONIZADO')) return false;
+    return true;
+  }), [
+    userId, carregandoAuth, operadorAtivo, ecraAtual, nuvemSincronizada,
+    statusSincronizacao, falhaBootstrapNuvem, erroSincronizacao, modalAppZen,
+    modalCambioAberto, modalPlanosAberto, modalPerfilRapido, assistenteIAAberto,
+    inboxPrivadoAberto, pedidoPrivadoSolicitado,
+  ]);
   useEffect(() => {
     setPedidosOnlineConhecidos(null);
     setTotalPedidosPrivados(0);
