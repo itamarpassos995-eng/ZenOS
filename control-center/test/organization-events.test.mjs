@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {validateEvent,applyEventToMockState,blankMockState} from '../src/domain/organization-events.mjs';
+const base={eventId:'evt-abc123456',eventType:'organization.registered.v1',version:1,organizationUid:'uid-abc123456',occurredAt:'2026-11-01T12:00:00.000Z',source:'zenos-backend',payload:{displayName:'Loja Teste'}};
+test('empresa aparece no cadastro de simulação',()=>{const x=applyEventToMockState(blankMockState(),base);assert.equal(x.state.organizations.get(base.organizationUid).name,'Loja Teste');});
+test('reenvio do mesmo evento não duplica empresa',()=>{const first=applyEventToMockState(blankMockState(),base);const second=applyEventToMockState(first.state,base);assert.equal(second.duplicate,true);assert.equal(second.state.organizations.size,1);});
+test('cadastro é atualizado por UID, não pelo nome',()=>{const first=applyEventToMockState(blankMockState(),base);const second=applyEventToMockState(first.state,{...base,eventId:'evt-abc123457',payload:{displayName:'Loja Atualizada'}});assert.equal(second.state.organizations.size,1);assert.equal(second.state.organizations.get(base.organizationUid).name,'Loja Atualizada');});
+test('recusa UID vazio ou origem não confiável',()=>{assert.throws(()=>validateEvent({...base,organizationUid:''}),/INVALID_TENANT/);assert.throws(()=>validateEvent({...base,source:'browser'}),/UNTRUSTED/);});
+test('teste liberado por evento sem aprovação administrativa',()=>{let s=applyEventToMockState(blankMockState(),base).state;s=applyEventToMockState(s,{...base,eventId:'evt-trial1234',eventType:'trial.started.v1',payload:{}}).state;assert.equal(s.organizations.get(base.organizationUid).status,'trial');});
+test('solicitação de módulo entra na fila de simulação',()=>{let s=applyEventToMockState(blankMockState(),base).state;s=applyEventToMockState(s,{...base,eventId:'evt-request123',eventType:'commercial.requested.v1',payload:{requestType:'fiscal'}}).state;assert.equal(s.requests.length,1);assert.equal(s.requests[0].status,'pending');});
+test('nunca aceita solicitação sem empresa conhecida',()=>{assert.throws(()=>applyEventToMockState(blankMockState(),{...base,eventId:'evt-request123',eventType:'commercial.requested.v1',payload:{requestType:'fiscal'}}),/UNKNOWN_ORGANIZATION/);});
