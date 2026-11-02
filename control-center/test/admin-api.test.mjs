@@ -1,0 +1,13 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createAdminApi} from '../src/api/http.mjs';
+import {createPostgresRepository} from '../src/api/postgres-repository.mjs';
+const owner={subject:'verified-admin',active:true,roles:['owner'],mfaVerified:true};
+const repo={listOrganizations:async()=>[{id:'test',display_name:'Loja Exemplo'}],getOverview:async()=>({organizations:1})};
+test('health sem dados de clientes',async()=>{const api=createAdminApi({verifySession:async()=>null,repository:repo});assert.equal((await api({path:'/health'})).status,200)});
+test('sem sessão não expõe lista',async()=>{const api=createAdminApi({verifySession:async()=>null,repository:repo});assert.equal((await api({path:'/api/organizations'})).status,401)});
+test('usuário comum não acessa administração',async()=>{const api=createAdminApi({verifySession:async()=>({subject:'loja1',active:true,roles:[]}),repository:repo});assert.equal((await api({path:'/api/organizations'})).status,403)});
+test('admin ativo pode consultar dados autorizados',async()=>{const api=createAdminApi({verifySession:async()=>owner,repository:repo});const r=await api({path:'/api/organizations'});assert.equal(r.status,200);assert.equal(r.body.organizations.length,1)});
+test('POST bloqueado por padrão',async()=>{const api=createAdminApi({verifySession:async()=>owner,repository:repo});assert.equal((await api({method:'POST',path:'/api/organizations'})).status,405)});
+test('erros internos não vazam detalhes',async()=>{const api=createAdminApi({verifySession:async()=>owner,repository:{...repo,getOverview:async()=>{throw Error('secret')}}});const r=await api({path:'/api/overview'});assert.equal(r.status,503);assert.equal(JSON.stringify(r).includes('secret'),false)});
+test('repo parametriza paginação com limite máximo',async()=>{let q;const r=createPostgresRepository({query:async(...args)=>{q=args;return {rows:[]}}});await r.listOrganizations({limit:10000});assert.deepEqual(q[1],[100]);assert.ok(q[0].includes('LIMIT $1'))});
