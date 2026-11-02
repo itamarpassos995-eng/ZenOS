@@ -9,7 +9,7 @@ function cookies(headers){const result={};for(const item of (headers.cookie||'')
 }
 const output=(status,body,extra={})=>({status,headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store',
   'content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
-  'referrer-policy':'no-referrer','x-content-type-options':'nosniff',...extra},body});
+  'referrer-policy':'same-origin','x-content-type-options':'nosniff',...extra},body});
 const redirect=(url,extra={})=>output(303,'',{location:url,...extra});
 const invalid=()=>output(401,page('Acesso não autorizado','<p>Entre novamente ou confira seu código de verificação.</p><a href="/auth/login">Entrar com Google</a>'));
 export function createAuthHttp({store,verifyGoogle,handleApi,origin,clientId,clientSecret,fetchImpl=fetch}){

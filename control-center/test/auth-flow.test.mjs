@@ -39,9 +39,12 @@ test('fluxo completo PostgreSQL: Google → enrollment → TOTP → API → logo
   assert.equal((await f.handle({url:callback,headers:{cookie:jar(start)}})).status,401,'OAuth state não reutilizável');
   assert.equal((await f.handle({url:'/api/overview',headers:{cookie}})).status,401,'Google sem MFA não acessa');
   const mfa=await f.handle({url:'/auth/mfa',headers:{cookie}});assert.equal(mfa.status,200);
+  assert.equal(mfa.headers['referrer-policy'],'same-origin','formulário mantém origem local sem enviar referência para outros sites');
   const secret=mfa.body.match(/<code>([A-Z2-7]+)<\/code>/)[1],csrf=mfa.body.match(/name="csrf" value="([^"]+)"/)[1];
   const body=new URLSearchParams({csrf,code:totp(secret,f.time())}).toString();
   assert.equal((await f.handle({method:'POST',url:'/auth/mfa',headers:{cookie,origin:'https://evil.test'},body})).status,403);
+  assert.equal((await f.handle({method:'POST',url:'/auth/mfa',headers:{cookie,origin:'null'},body})).status,403);
+  assert.equal((await f.handle({method:'POST',url:'/auth/mfa',headers:{cookie},body})).status,403);
   const login=await f.handle({method:'POST',url:'/auth/mfa',headers:{cookie,origin},body});assert.equal(login.status,303);
   const session=jar(login);
   assert.equal((await f.handle({url:'/api/overview',headers:{cookie:session}})).status,200);
