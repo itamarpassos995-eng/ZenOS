@@ -57,6 +57,8 @@ function zenosHomologacaoPinBridge() {
 }
 
 export default defineConfig(({ mode }) => ({
+  // SHA injetado pelo build da Vercel; sem SHA válido o AutoUpdate não age.
+  define: { __ZENOS_BUILD_ID__: JSON.stringify(process.env.VERCEL_GIT_COMMIT_SHA || '') },
   build: {
     rollupOptions: {
       input: {
