@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createAutoUpdateController} from '../src/core/autoUpdate.js';
-import handler, {resolveBuildVersion} from '../api/version.js';
+import {readFileSync} from 'node:fs';
 
 const A='a'.repeat(40), B='b'.repeat(40);
 const harness=({safe=true,online=true,visible=true,focused=false,remote=B,version=A}={})=>{
@@ -14,11 +14,16 @@ const harness=({safe=true,online=true,visible=true,focused=false,remote=B,versio
   });
   return {ctrl,win,doc,clock:ms=>{t+=ms},setSafe:x=>{safe=x},setFocused:x=>{focused=x},setRemote:x=>{remote=x},reloads:()=>reloads};
 };
-test('endpoint GET no-store sem Firebase',()=>{
-  const headers={};const res={setHeader:(k,v)=>{headers[k]=v;return res},status:n=>{res.code=n;return res},json:x=>{res.body=x;return res}};
-  const previous=process.env.VERCEL_GIT_COMMIT_SHA;process.env.VERCEL_GIT_COMMIT_SHA=A;
-  try{handler({method:'GET'},res);assert.equal(res.code,200);assert.equal(res.body.version,A);assert.match(headers['Cache-Control'],/no-store/)}finally{if(previous===undefined)delete process.env.VERCEL_GIT_COMMIT_SHA;else process.env.VERCEL_GIT_COMMIT_SHA=previous}
-  assert.equal(resolveBuildVersion({VERCEL_GIT_COMMIT_SHA:'bad'}),null);
+test('asset estático version.json gerado pelo Vite, sem função ou Firebase',()=>{
+ const vite=readFileSync(new URL('../vite.config.js',import.meta.url),'utf8');
+ const vercel=JSON.parse(readFileSync(new URL('../vercel.json',import.meta.url),'utf8'));
+ assert.match(vite,/fileName: 'version.json'/);
+ assert.match(vite,/__ZENOS_BUILD_ID__/);
+ const rule=vercel.headers.find(h=>h.source==='/version.json');
+ assert.match(rule.headers[0].value,/no-store/);
+ const controller=readFileSync(new URL('../src/core/autoUpdate.js',import.meta.url),'utf8');
+ assert.match(controller,/fetcher\\('\/version\\.json'/);
+ assert.doesNotMatch(controller,/firebase\/firestore|caches\\.delete|localStorage\\.clear/);
 });
 test('nunca recarrega durante operação ativa',async()=>{
  const h=harness({safe:false});await h.ctrl.poll();h.clock(1_000_000);assert.equal(h.ctrl.evaluate(),false);assert.equal(h.reloads(),0);
