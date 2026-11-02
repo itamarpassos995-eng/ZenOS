@@ -4,6 +4,10 @@ import App from './App.jsx'
 import EnvironmentBanner from './components/EnvironmentBanner.jsx'
 import CommerceVitrinePreview from './components/CommerceVitrinePreview.jsx'
 import './index.css'
+import { startAutoUpdate } from './core/autoUpdate.js'
+
+// Somente consulta a versão Vercel; o App autoriza reload quando totalmente seguro.
+startAutoUpdate(__ZENOS_BUILD_ID__)
 
 // Rota independente e somente leitura. Não inicializa o fluxo de vendas do App.
 const previewMatch = window.location.pathname.match(/^\/loja\/([^/]+)\/?$/)

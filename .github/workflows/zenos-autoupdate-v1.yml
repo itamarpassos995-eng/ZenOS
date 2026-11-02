@@ -1,0 +1,27 @@
+name: ZenOS AutoUpdate V1
+on:
+  pull_request:
+    paths:
+      - 'src/core/autoUpdate.js'
+      - 'src/App.jsx'
+      - 'src/main.jsx'
+      - 'vite.config.js'
+      - 'vercel.json'
+      - 'scripts/auto-update.test.mjs'
+      - '.github/workflows/zenos-autoupdate-v1.yml'
+  workflow_dispatch:
+jobs:
+  verify:
+    env:
+      VERCEL_GIT_COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: node --test scripts/auto-update.test.mjs
+      - run: npm run build
+      - run: node -e "const fs=require('fs');const v=JSON.parse(fs.readFileSync('dist/version.json','utf8'));if(v.version!==process.env.VERCEL_GIT_COMMIT_SHA)process.exit(1)"
