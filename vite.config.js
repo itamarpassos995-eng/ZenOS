@@ -5,6 +5,26 @@ import { resolve } from 'node:path'
 
 const PIN_ITERATIONS = 120000
 
+const resolveBuildSha = () => {
+  const sha = String(process.env.VERCEL_GIT_COMMIT_SHA || '').trim().toLowerCase()
+  return /^[a-f0-9]{40}$/.test(sha) ? sha : null
+}
+
+// Asset estático, sem execução serverless, banco ou custo por função.
+function zenosVersionAssetPlugin() {
+  return {
+    name: 'zenos-version-asset',
+    apply: 'build',
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'version.json',
+        source: JSON.stringify({ version: resolveBuildSha() }),
+      })
+    },
+  }
+}
+
 function zenosHomologacaoPinBridge() {
   return {
     name: 'zenos-homologacao-pin-bridge',
@@ -57,8 +77,8 @@ function zenosHomologacaoPinBridge() {
 }
 
 export default defineConfig(({ mode }) => ({
-  // SHA injetado pelo build da Vercel; sem SHA válido o AutoUpdate não age.
-  define: { __ZENOS_BUILD_ID__: JSON.stringify(process.env.VERCEL_GIT_COMMIT_SHA || '') },
+  // Mesmo SHA para o JS e o arquivo estático: sem SHA válido, AutoUpdate fica inativo.
+  define: { __ZENOS_BUILD_ID__: JSON.stringify(resolveBuildSha() || '') },
   build: {
     rollupOptions: {
       input: {
@@ -69,6 +89,7 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     react(),
+    zenosVersionAssetPlugin(),
     mode === 'homologacao' ? zenosHomologacaoPinBridge() : null,
   ].filter(Boolean),
 }))
