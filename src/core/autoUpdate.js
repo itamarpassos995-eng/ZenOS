@@ -1,4 +1,4 @@
-// ZenOS AutoUpdate V1: consulta apenas /api/version (Vercel), nunca o Firestore.
+// ZenOS AutoUpdate V1: consulta apenas /version.json (asset estático Vercel), nunca o Firestore.
 // Fail-closed: sem sinal explícito de segurança vindo do App, NUNCA recarrega.
 export const UPDATE_SAFETY_EVENT = 'zenos:auto-update-safety';
 const SHA_RE = /^[0-9a-f]{40}$/i;
@@ -65,7 +65,7 @@ export function createAutoUpdateController({
       const controller = typeof AbortController === 'function' ? new AbortController() : null;
       const timeout = controller ? setTimeout(() => controller.abort(), 8_000) : null;
       try {
-        const response = await fetcher('/api/version', {
+        const response = await fetcher('/version.json', {
           method: 'GET', cache: 'no-store', credentials: 'same-origin',
           headers: { Accept: 'application/json' },
           ...(controller ? { signal: controller.signal } : {}),
