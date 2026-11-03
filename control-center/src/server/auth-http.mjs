@@ -66,7 +66,8 @@ export function createAuthHttp({store,verifyGoogle,handleApi,origin,clientId,cli
       if(!c.zenos_admin_session)return invalid();
       const auth=await handleApi({method:'GET',path:'/api/overview',headers});
       if(auth.status!==200)return invalid();
-      const status=syncStatus();
+      const admin=await store.verifySession(c.zenos_admin_session);
+      if(!admin?.roles?.includes('owner'))return output(403,page('Acesso negado','Somente o administrador proprietário pode executar a importação.'));
       if(method==='POST'){
         const form=new URLSearchParams(body);
         if(!verifySyncCsrf(c.zenos_admin_session,form.get('csrf')))return output(403,'');
