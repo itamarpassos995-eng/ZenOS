@@ -1,3 +1,4 @@
+import {renderControlCenter} from './control-center-ui.mjs';
 import {createHash} from 'node:crypto';
 import {randomToken} from './auth-store.mjs';
 const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -60,14 +61,13 @@ export function createAuthHttp({store,verifyGoogle,handleApi,origin,clientId,cli
       if(c.zenos_admin_session)await store.logout(c.zenos_admin_session);
       return redirect('/',{'set-cookie':cookie('zenos_admin_session','',0)});
     }
-    if(method==='GET'&&u.pathname==='/'){
+    if(method==='GET'&&['/','/clientes','/mensalidades','/planos','/solicitacoes','/relatorios','/configuracoes'].includes(u.pathname)){
       if(!c.zenos_admin_session)return output(200,page('Sua central de gestão','<p>Acesso administrativo exclusivo. Entre com Google e confirme o código do autenticador.</p><a href="/auth/login">Entrar com Google</a>'));
       const overview=await handleApi({method,path:'/api/overview',headers});
       if(overview.status!==200)return invalid();
       const list=await handleApi({method,path:'/api/organizations',headers});
       if(list.status!==200)return output(list.status,page('Dados indisponíveis','<p>Tente novamente mais tarde.</p>'));
-      const o=overview.body;
-      return output(200,page('Visão geral',`<section><p>Empresas: <strong>${escape(o.organizations)}</strong> · Assinaturas ativas: <strong>${escape(o.active_subscriptions)}</strong> · Testes: <strong>${escape(o.trials)}</strong> · Cobranças vencidas: <strong>${escape(o.overdue_invoices)}</strong></p></section><section><h2>Empresas</h2><table><tr><th>Nome</th><th>País</th></tr>${list.body.organizations.map(row=>`<tr><td>${escape(row.display_name)}</td><td>${escape(row.country||'—')}</td></tr>`).join('')}</table>${list.body.organizations.length?'':'<p>Nenhuma empresa cadastrada nesta homologação.</p>'}<small>Exibição limitada às 25 empresas mais recentes.</small></section><form method="post" action="/auth/logout"><button>Sair</button></form>`));
+      return output(200,renderControlCenter(u.pathname,overview.body,list.body.organizations));
     }
     if(u.pathname.startsWith('/api/')||u.pathname==='/health'){
       const result=await handleApi({method,path:u.pathname,headers});return {...result,body:JSON.stringify(result.body)};
