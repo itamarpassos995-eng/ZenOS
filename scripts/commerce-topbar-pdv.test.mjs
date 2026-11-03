@@ -57,6 +57,14 @@ test('nenhum arquivo de persistência Firestore nem regras foi modificado',()=>{
  const allowedCashGuard='src/core/productionSync.js';
  const allowedReadOnlyAudit='src/core/financialAudit.js';
  const allowedCashHistory='src/core/cashHistoryDisplay.js';
+ const allowedInventory='src/core/inventory.js';
+ if(changed.includes(allowedInventory)){
+   const source=read(allowedInventory);
+   assert.doesNotMatch(source,/firebase\/firestore|\bonSnapshot\s*\(|\bgetDocs(?:FromServer)?\s*\(|\bgetDoc(?:FromServer)?\s*\(|\brunTransaction\s*\(/,
+    'Motor de estoque deve continuar cálculo puro, sem Firestore');
+   assert.ok(changed.includes('scripts/inventory-negative-stock.test.mjs'),
+    'Alteração no motor de estoque exige testes de regressão dedicados');
+ }
  if(changed.includes(allowedCashHistory)){
    const source=read(allowedCashHistory);
    assert.doesNotMatch(source,/firebase\/firestore|\bonSnapshot\s*\(|\bgetDocs(?:FromServer)?\s*\(|\bgetDoc(?:FromServer)?\s*\(|\brunTransaction\s*\(/,'Histórico nativo não pode acessar o Firestore');
@@ -80,7 +88,7 @@ test('nenhum arquivo de persistência Firestore nem regras foi modificado',()=>{
    /(^|\/)firestore[^/]*\.rules$/.test(path)||
    /^src\/firebase[^/]*\.[jt]s$/.test(path)||
    /^functions\//.test(path)||
-   (/^src\/core\//.test(path)&&!uiOnlyCore.has(path)&&path!==allowedFinancialCore&&path!==allowedCashGuard&&path!==allowedReadOnlyAudit&&path!==allowedCashHistory)
+   (/^src\/core\//.test(path)&&!uiOnlyCore.has(path)&&path!==allowedFinancialCore&&path!==allowedCashGuard&&path!==allowedReadOnlyAudit&&path!==allowedCashHistory&&path!==allowedInventory)
  );
  assert.deepEqual(protectedPaths,[],'A mudança visual não pode alterar persistência nem regras');
 });
