@@ -1,0 +1,25 @@
+name: Cartoes multimoeda PDV e caixa
+on:
+  pull_request:
+    paths:
+      - 'src/components/PDV.jsx'
+      - 'src/components/Clientes.jsx'
+      - 'src/core/cashSession.js'
+      - 'src/App.jsx'
+      - 'scripts/card-multicurrency.test.mjs'
+      - '.github/workflows/card-multicurrency-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test scripts/card-multicurrency.test.mjs scripts/att083-check.mjs
+      - run: npm run build
