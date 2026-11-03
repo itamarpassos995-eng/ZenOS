@@ -25,14 +25,16 @@ export const obterEstoqueProduto = (produto = {}) => {
 
   const vitrineInformada = normalizarQuantidadeEstoque(produto.estoqueVitrine);
   const galpaoInformado = normalizarQuantidadeEstoque(produto.estoqueGalpao);
-  const somaLocalizacoes = vitrineInformada + galpaoInformado;
-  const totalInformado = normalizarQuantidadeEstoque(produto.estoque);
+  const permiteNegativo = produto.permitirEstoqueNegativo === true;
+  const totalInformado = permiteNegativo ? numberOrZero(produto.estoque) : normalizarQuantidadeEstoque(produto.estoque);
+  const galpaoCanonico = permiteNegativo ? numberOrZero(produto.estoqueGalpao) : galpaoInformado;
+  const somaLocalizacoes = vitrineInformada + galpaoCanonico;
 
   if (!temVitrine && !temGalpao) {
     return {
       estoque: totalInformado,
-      estoqueVitrine: totalInformado,
-      estoqueGalpao: 0,
+      estoqueVitrine: Math.max(0, totalInformado),
+      estoqueGalpao: Math.min(0, totalInformado),
       reconciliado: false,
       legadoSemLocalizacao: true,
     };
@@ -43,13 +45,13 @@ export const obterEstoqueProduto = (produto = {}) => {
     return {
       estoque: totalCanonico,
       estoqueVitrine: vitrineInformada,
-      estoqueGalpao: galpaoInformado,
+      estoqueGalpao: galpaoCanonico,
       reconciliado: false,
       legadoSemLocalizacao: false,
     };
   }
 
-  const estoqueGalpao = Math.min(galpaoInformado, totalCanonico);
+  const estoqueGalpao = permiteNegativo ? Math.min(galpaoCanonico, totalCanonico) : Math.min(galpaoInformado, totalCanonico);
   const estoqueVitrine = Math.max(0, totalCanonico - estoqueGalpao);
 
   return {
@@ -82,7 +84,7 @@ export const preverBaixaEstoqueProduto = (produto, quantidade) => {
   return {
     saldo,
     movimento: { vitrine: baixaVitrine, galpao: baixaGalpao, total: baixaVitrine + baixaGalpao },
-    suficiente: qtd <= saldo.estoque + EPSILON,
+    suficiente: produto?.permitirEstoqueNegativo === true || qtd <= saldo.estoque + EPSILON,
     solicitado: qtd,
   };
 };
@@ -98,7 +100,7 @@ export const baixarEstoqueProduto = (produto, quantidade) => {
     };
   }
 
-  if (qtd - saldo.estoque > EPSILON) {
+  if (produto?.permitirEstoqueNegativo !== true && qtd - saldo.estoque > EPSILON) {
     const erro = new Error(`Estoque insuficiente para ${produto?.nome || produto?.sku || 'produto'}. Disponível: ${saldo.estoque}; solicitado: ${qtd}.`);
     erro.code = 'ZENOS_ESTOQUE_INSUFICIENTE';
     erro.produtoId = produto?.id;
@@ -109,10 +111,13 @@ export const baixarEstoqueProduto = (produto, quantidade) => {
 
   const baixaVitrine = Math.min(saldo.estoqueVitrine, qtd);
   const restante = qtd - baixaVitrine;
-  const baixaGalpao = Math.min(saldo.estoqueGalpao, restante);
+  // Quando autorizado, o déficit é debitado integralmente no depósito;
+  // vitrine nunca fica negativa. Preserva o movimento total e a auditoria.
+  const baixaGalpao = produto?.permitirEstoqueNegativo === true ? restante : Math.min(saldo.estoqueGalpao, restante);
 
   const estoqueVitrine = Math.max(0, saldo.estoqueVitrine - baixaVitrine);
-  const estoqueGalpao = Math.max(0, saldo.estoqueGalpao - baixaGalpao);
+  const estoqueGalpao = produto?.permitirEstoqueNegativo === true
+    ? saldo.estoqueGalpao - baixaGalpao : Math.max(0, saldo.estoqueGalpao - baixaGalpao);
   const estoque = estoqueVitrine + estoqueGalpao;
 
   return {
@@ -137,7 +142,7 @@ export const baixarEstoqueProduto = (produto, quantidade) => {
 const distribuirReposicaoLegada = (produto, quantidade) => {
   const qtd = normalizarQuantidadeEstoque(quantidade);
   const vitrineRaw = normalizarQuantidadeEstoque(produto?.estoqueVitrine);
-  const galpaoRaw = normalizarQuantidadeEstoque(produto?.estoqueGalpao);
+  const galpaoRaw = produto?.permitirEstoqueNegativo === true ? numberOrZero(produto?.estoqueGalpao) : normalizarQuantidadeEstoque(produto?.estoqueGalpao);
 
   // Compatibilidade com o caso observado: produto cadastrado somente no depósito.
   if (vitrineRaw <= EPSILON && galpaoRaw > EPSILON) {
