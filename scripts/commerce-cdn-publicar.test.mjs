@@ -110,12 +110,13 @@ test('nunca lê listas ou caminhos arbitrários',()=>{
   assert.throws(()=>documentUrl('lojas','../outros'),/caminho-firestore-invalido/);
 });
 
-test('Blob usa store-id sem prefixo e flags REST oficiais',async()=>{
+test('Blob utiliza SDK oficial sem endpoint privado nem store ID fixo',async()=>{
  const {readFileSync}=await import('node:fs');
  const code=readFileSync('api/commerce/_lib/commerceGoogle.js','utf8');
- assert.match(code,/'x-vercel-blob-store-id':'fKepXWjAeW2ueMrB'/);
- assert.match(code,/'x-allow-overwrite':'1'/);
- assert.match(code,/'x-add-random-suffix':'0'/);
+ assert.match(code,/import \{put as vercelBlobPut\} from '@vercel\/blob'/);
+ assert.match(code,/allowOverwrite:true/);
+ assert.match(code,/addRandomSuffix:false/);
+ assert.doesNotMatch(code,/x-vercel-blob-store-id|https:\/\/vercel\.com\/api\/blob/);
 });
 
 test('publicador não faz leitura de estoque nem coleção para catálogo vindo do V2',async()=>{
