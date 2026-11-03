@@ -74,7 +74,8 @@ export function createAuthHttp({store,verifyGoogle,handleApi,origin,clientId,cli
       if(['suspend','restore'].includes(action)&&form.get('confirm')!=='SIM')return output(400,page('Confirmação obrigatória','Digite SIM.'));
       try{await operations.update({id:form.get('id'),action,days:Number(form.get('days')),note:form.get('note'),adminSubject:admin.subject});}
       catch{return output(400,page('Operação não concluída','<a href="/clientes">Voltar aos clientes</a>'));}
-      return redirect('/clientes');
+      const q=String(form.get('return_q')||'').slice(0,120),p=Math.max(1,Math.min(100000,Number(form.get('return_page'))||1));
+      return redirect('/clientes?'+new URLSearchParams({q,page:String(p)}).toString());
     }
     if(u.pathname==='/admin/sync-organizations'&&(method==='GET'||method==='POST')){
       if(!c.zenos_admin_session)return invalid();
@@ -97,9 +98,20 @@ export function createAuthHttp({store,verifyGoogle,handleApi,origin,clientId,cli
       if(!c.zenos_admin_session)return output(200,page('Sua central de gestão','<p>Acesso administrativo exclusivo. Entre com Google e confirme o código do autenticador.</p><a href="/auth/login">Entrar com Google</a>'));
       const overview=await handleApi({method,path:'/api/overview',headers});
       if(overview.status!==200)return invalid();
-      const list=await handleApi({method,path:'/api/organizations',headers});
-      if(list.status!==200)return output(list.status,page('Dados indisponíveis','<p>Tente novamente mais tarde.</p>'));
-      return output(200,renderControlCenter(u.pathname,overview.body,u.pathname==='/clientes'&&u.searchParams.get('q')?list.body.organizations.filter(r=>r.display_name.toLocaleLowerCase('pt-BR').includes(u.searchParams.get('q').toLocaleLowerCase('pt-BR'))):list.body.organizations,u.pathname==='/clientes'&&operations?(await operations.list()).filter(r=>!u.searchParams.get('q')||r.display_name.toLocaleLowerCase('pt-BR').includes(u.searchParams.get('q').toLocaleLowerCase('pt-BR'))):[],c.zenos_admin_session&&u.pathname==='/clientes'&&(await store.verifySession(c.zenos_admin_session))?.roles?.includes('owner')?syncCsrf(c.zenos_admin_session):''));
+      const isClients=u.pathname==='/clientes';
+      const admin=isClients?await store.verifySession(c.zenos_admin_session):null;
+      const owner=Boolean(admin?.roles?.includes('owner')&&admin?.mfaVerified===true);
+      const q=(u.searchParams.get('q')||'').slice(0,120);
+      const rawPage=Number(u.searchParams.get('page')||1);
+      const page=Number.isSafeInteger(rawPage)?Math.max(1,Math.min(100000,rawPage)):1;
+      const controls=isClients&&owner&&operations?await operations.list({q,page,pageSize:25}):{rows:[],total:0,page:1,pages:1};
+      let rows=[];
+      if(!isClients){
+        const list=await handleApi({method,path:'/api/organizations',headers});
+        if(list.status!==200)return output(list.status,page('Dados indisponíveis','<p>Tente novamente mais tarde.</p>'));
+        rows=list.body.organizations;
+      }
+      return output(200,renderControlCenter(u.pathname,overview.body,rows,controls,owner?syncCsrf(c.zenos_admin_session):'',q));
     }
     if(u.pathname.startsWith('/api/')||u.pathname==='/health'){
       const result=await handleApi({method,path:u.pathname,headers});return {...result,body:JSON.stringify(result.body)};
