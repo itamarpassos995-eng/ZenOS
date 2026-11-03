@@ -1,3 +1,4 @@
+import {syncStatus,syncCsrf,verifySyncCsrf,startSync} from './organization-sync.mjs';
 import {renderControlCenter} from './control-center-ui.mjs';
 import {createHash} from 'node:crypto';
 import {randomToken} from './auth-store.mjs';
@@ -60,6 +61,23 @@ export function createAuthHttp({store,verifyGoogle,handleApi,origin,clientId,cli
       // Exact Origin check above prevents cross-site logout. No credential in body.
       if(c.zenos_admin_session)await store.logout(c.zenos_admin_session);
       return redirect('/',{'set-cookie':cookie('zenos_admin_session','',0)});
+    }
+    if(u.pathname==='/admin/sync-organizations'&&(method==='GET'||method==='POST')){
+      if(!c.zenos_admin_session)return invalid();
+      const auth=await handleApi({method:'GET',path:'/api/overview',headers});
+      if(auth.status!==200)return invalid();
+      const admin=await store.verifySession(c.zenos_admin_session);
+      if(!admin?.roles?.includes('owner'))return output(403,page('Acesso negado','Somente o administrador proprietário pode executar a importação.'));
+      if(method==='POST'){
+        const form=new URLSearchParams(body);
+        if(!verifySyncCsrf(c.zenos_admin_session,form.get('csrf')))return output(403,'');
+        startSync();return redirect('/admin/sync-organizations');
+      }
+      const s=syncStatus();
+      const action=s.state==='running'?'<p>Importação em andamento. Atualize esta página para consultar o resultado.</p>':
+        s.configured?`<form method="post" action="/admin/sync-organizations"><input type="hidden" name="csrf" value="${syncCsrf(c.zenos_admin_session)}"><button>Importar empresas agora</button></form>`:
+        '<p>Credencial FIREBASE_SERVICE_ACCOUNT_JSON ausente no serviço Render. Nenhuma importação executada.</p>';
+      return output(200,page('Sincronização de empresas',`<section><p>Estado: ${escape(s.state)}</p><p>Resultado: ${escape(s.result||'—')}</p>${action}</section><a href="/clientes">Voltar aos clientes</a>`));
     }
     if(method==='GET'&&['/','/clientes','/mensalidades','/planos','/solicitacoes','/relatorios','/configuracoes'].includes(u.pathname)){
       if(!c.zenos_admin_session)return output(200,page('Sua central de gestão','<p>Acesso administrativo exclusivo. Entre com Google e confirme o código do autenticador.</p><a href="/auth/login">Entrar com Google</a>'));
