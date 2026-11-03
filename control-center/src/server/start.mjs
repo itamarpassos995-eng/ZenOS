@@ -1,3 +1,4 @@
+import {ensureOperationsSchema,listOrganizationControls,updateOrganizationControl} from './organization-operations.mjs';
 import {createServer} from 'node:http';
 import {createDatabasePool} from './database.mjs';
 import {createGoogleIdentityVerifier} from './google-identity.mjs';
@@ -16,11 +17,13 @@ const store=createAuthStore({pool,box,bootstrapEmail:env.CONTROL_CENTER_BOOTSTRA
 const verifySession=createSessionVerifier({verifyProviderToken:token=>store.verifySession(token)});
 const handleApi=createAdminApi({verifySession,repository:createPostgresRepository(pool)});
 const handle=createAuthHttp({store,verifyGoogle,handleApi,origin:env.CONTROL_CENTER_ORIGIN,
-  clientId:env.GOOGLE_CLIENT_ID,clientSecret:env.GOOGLE_CLIENT_SECRET});
+  clientId:env.GOOGLE_CLIENT_ID,clientSecret:env.GOOGLE_CLIENT_SECRET,
+  operations:{list:()=>listOrganizationControls(pool),update:args=>updateOrganizationControl(pool,args)}});
 // Fail before listening when authentication migrations have not been applied.
 await pool.query('SELECT token_hash FROM admin_sessions LIMIT 0');
 await pool.query('SELECT secret_cipher,enabled FROM admin_mfa_state LIMIT 0');
 await store.cleanup();
+await ensureOperationsSchema(pool);
 // Conservative process-wide limiter: never trusts spoofable X-Forwarded-For.
 let windowStart=Date.now(),requests=0;
 const server=createServer(async(req,res)=>{
