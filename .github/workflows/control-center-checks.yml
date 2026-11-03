@@ -1,0 +1,30 @@
+name: Control Center checks
+on:
+  pull_request:
+    paths:
+      - 'control-center/**'
+      - '.github/workflows/control-center-checks.yml'
+  push:
+    branches:
+      - feat/control-center-google-mfa-base
+    paths:
+      - 'control-center/**'
+      - '.github/workflows/control-center-checks.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: control-center
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: control-center/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: node --check src/server/auth-http.mjs
+      - run: node --check src/server/control-center-ui.mjs
+      - run: node --check src/server/organization-operations.mjs
