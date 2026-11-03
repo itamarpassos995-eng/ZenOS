@@ -19,3 +19,10 @@ test('integra sessão verificada e SQL parametrizado por adaptadores simulados',
   await app.close();
 });
 test('health responde ao banco de teste',async()=>assert.equal(await databaseHealth({query:async()=>({rows:[{ok:1}]})}),true));
+test('TLS obrigatório valida certificado e ignora parâmetros de URL que enfraquecem SSL',async()=>{
+  let config;class Pool{constructor(c){config=c}}
+  await createDatabasePool({connectionString:'postgresql://test.invalid/db?sslmode=no-verify&ssl=false',pgModule:{Pool},requireTls:true});
+  assert.deepEqual(config.ssl,{rejectUnauthorized:true});
+  assert.equal(new URL(config.connectionString).searchParams.has('sslmode'),false);
+  assert.equal(new URL(config.connectionString).searchParams.has('ssl'),false);
+});

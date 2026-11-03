@@ -1,1 +1,21 @@
-{"name":"zenos-control-center-foundation","private":true,"version":"0.1.0","type":"module","scripts":{"test":"node --test test/*.test.mjs"},"engines":{"node":">=20"}}
+{
+  "name": "zenos-control-center-foundation",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "start": "node src/server/start.mjs",
+    "sync:organizations": "node scripts/sync-organizations.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "jose": "^6.2.15",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.14"
+  }
+}

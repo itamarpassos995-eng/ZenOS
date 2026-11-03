@@ -2,8 +2,8 @@
 export function createPostgresRepository(pool){
   if(!pool||typeof pool.query!=='function')throw new Error('INVALID_DB_POOL');
   return {
-    async listOrganizations({limit=25}={}){
-      const safeLimit=Math.max(1,Math.min(100,Number.isInteger(limit)?limit:25));
+    async listOrganizations({limit=1000}={}){
+      const safeLimit=Math.max(1,Math.min(1000,Number.isInteger(limit)?limit:1000));
       const result=await pool.query('SELECT id, firebase_uid, display_name, country, created_at FROM organizations ORDER BY created_at DESC, id DESC LIMIT $1',[safeLimit]);
       return result.rows;
     },

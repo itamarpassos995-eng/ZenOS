@@ -1,25 +1,29 @@
-# ZenOS Control Center — Fundação isolada (Fase 1, em homologação)
+# ZenOS Control Center — homologação isolada
 
-**Não é código de produção.** Diretório independente, não importado pelo aplicativo Vite do ZenOS, sem deploy, sem integração com Firebase ou clientes reais.
+Aplicação administrativa independente dentro desta branch. Não importada pelo Vite do ZenOS, sem alteração no Firebase ou nos dados dos clientes.
 
-## Escopo entregue
-- Primeira migration PostgreSQL para organizações, planos, módulos, assinaturas, períodos de teste, solicitações, cobrança, pagamento, inbox/outbox e trilha administrativa.
-- Invariantes de identidade por Firebase UID, unicidade de eventos, moeda explícita, valores exatos, isolamento por organização e auditoria.
-- Contrato inicial de eventos de cadastro, sem requerer que a API administrativa esteja online durante o cadastro.
+## Estado atual
+- Fundação `001_foundation.sql`: 17 tabelas confirmadas pelo usuário no PostgreSQL Render de homologação via DBeaver com TLS em 02/11/2026. Não repetir a execução.
+- Fluxo Google → cadastro/validação TOTP → sessão → painel somente leitura → logout implementado em `src/server/start.mjs`.
+- Validação de assinatura Google, PKCE/state/nonce, MFA persistente com bloqueio/replay, sessões revogáveis e papéis do PostgreSQL.
+- Painel inicial com contagens e lista de empresas do PostgreSQL. Não existe sincronização de clientes reais ou requisição Firebase.
+- `002_admin_mfa_state.sql` e `003_admin_auth.sql`: preparadas e testadas em PostgreSQL isolado (PGlite), NÃO aplicadas ao Render.
+- Código não publicado. Faltam cliente OAuth Google, URL HTTPS separada, secrets do serviço e aplicação das migrations de autenticação.
 
-## Escopo NÃO implementado
-- Nenhuma API conectada a produção, nenhuma autenticação administrativa, MFA, servidor Web ou interface.
-- Nenhum banco PostgreSQL provisionado; nenhuma migration executada.
-- Nenhuma alteração em cadastro, login, teste ou módulos do ZenOS.
-- Sem sincronização real com Firebase, sem cobrança automática e sem bloqueios.
+## Executar
+Requer Node 22, configuração servidor conforme `.env.example` e banco EXCLUSIVO `zenos_control_center_homologacao` com as migrations aplicadas. `npm start` nunca aplica migrations.
 
-## Próximas etapas
-1. Definir repositório autônomo do Control Center (sem permissão de criação de repositório nesta etapa, o esqueleto permanece em diretório isolado nesta branch).
-2. Escolher fornecedor PostgreSQL e autenticação admin, com custos aprovados.
-3. Implementar o serviço de ingestão server-side com autenticação, inbox idempotente, outbox durável, retries e reconciliação.
-4. Implementar MFA/RBAC e testes automatizados completos em ambiente isolado.
-5. Validar regras Firestore, triggers e cadastro real em emulador antes de integrar.
-6. Separar em projeto Vercel próprio após aprovação. Nunca deploy de `zen-os` por esta branch.
+```sh
+npm ci --omit=dev
+npm start
+```
 
-## Regra irrevogável
-A liberação do teste de novos clientes **permanece imediata e independente** da disponibilidade do Control Center. A central recebe o evento depois, nunca autoriza o início do teste.
+Para testes: `npm ci` e `npm test`. Testes não conectam Firebase, Render ou Google real. Integração executa SQL em PostgreSQL WASM e simula troca de tokens OAuth; assinatura JWT é testada separadamente com chaves RSA.
+
+Configuração externa e recuperação: [GOOGLE_MFA_SETUP.md](docs/GOOGLE_MFA_SETUP.md).
+O Dockerfile é opcional e exige contexto de build `control-center/`. Nenhum plano pago é contratado por estes arquivos.
+
+## Limites
+A interface server-side inicial não substitui a prévia visual premium. Não existem ainda ingestão autenticada exposta, sincronização operacional, cobrança automática ou bloqueios de clientes.
+
+A liberação do teste de novos clientes permanece imediata e independente da disponibilidade do Control Center. A central recebe o evento depois, nunca autoriza o início do teste.
