@@ -21,13 +21,13 @@ const auth=await fetch('https://oauth2.googleapis.com/token',{method:'POST',head
 if(!auth.ok)throw Error('GOOGLE_TOKEN_REQUEST_FAILED_'+auth.status);
 const token=(await auth.json()).access_token;
 const pool=new Pool({connectionString:url,ssl:{rejectUnauthorized:true},max:2});
-let pageToken='',scanned=0,eligible=0,inserted=0,updated=0,skipped=0,pages=0;
+let pageToken='',scanned=0,eligible=0,inserted=0,updated=0,skipped=0,unnamed=0,pages=0;
 const field=(fields,name)=>fields?.[name]?.stringValue??'';
 try{
  do{
   const endpoint=new URL('https://firestore.googleapis.com/v1/projects/'+project+'/databases/(default)/documents/lojas');
   endpoint.searchParams.set('pageSize','100');
-  endpoint.searchParams.set('mask.fieldPaths','nomeLoja');
+  for(const key of ['nomeLoja','nome','razaoSocial','nomeFantasia','emailAdmin'])endpoint.searchParams.append('mask.fieldPaths',key);
   if(pageToken)endpoint.searchParams.set('pageToken',pageToken);
   const response=await fetch(endpoint,{headers:{authorization:'Bearer '+token}});
   if(!response.ok)throw Error('FIRESTORE_READ_FAILED_'+response.status);
@@ -36,8 +36,9 @@ try{
   for(const doc of data.documents||[]){
    scanned++;
    const uid=doc.name.split('/').at(-1);
-   const name=String(field(doc.fields,'nomeLoja')).trim();
-   if(!uid||!name){skipped++;continue;}
+   if(!uid){skipped++;continue;}
+   const name=String(field(doc.fields,'nomeLoja')||field(doc.fields,'nomeFantasia')||field(doc.fields,'razaoSocial')||field(doc.fields,'nome')||field(doc.fields,'emailAdmin')||'Empresa sem nome · '+uid.slice(0,8)).trim();
+   if(!field(doc.fields,'nomeLoja'))unnamed++;
    eligible++;items.push({uid,name});
   }
   if(apply&&items.length){
@@ -55,5 +56,6 @@ try{
   }
   pageToken=data.nextPageToken||'';
  }while(pageToken);
- console.log(JSON.stringify({source:'lojas',project,pages,scanned,eligible,skipped,inserted,updated,mode:apply?'applied':'dry-run'}));
+ const dbCount=apply?(await pool.query('SELECT COUNT(*)::integer AS total FROM organizations')).rows[0].total:null;
+ console.log(JSON.stringify({source:'lojas',project,pages,scanned,eligible,skipped,unnamed,inserted,updated,postgres_total:dbCount,mode:apply?'applied':'dry-run'}));
 }finally{await pool.end();}
