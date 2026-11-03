@@ -62,37 +62,19 @@ export function createAuthHttp({store,verifyGoogle,handleApi,origin,clientId,cli
       if(c.zenos_admin_session)await store.logout(c.zenos_admin_session);
       return redirect('/',{'set-cookie':cookie('zenos_admin_session','',0)});
     }
-    if(u.pathname==='/admin/organizations'&&(method==='GET'||method==='POST')){
+    if(u.pathname==='/admin/organizations')return redirect('/clientes');
+    if(u.pathname==='/clientes'&&method==='POST'){
       if(!c.zenos_admin_session||!operations)return invalid();
       const admin=await store.verifySession(c.zenos_admin_session);
-      if(!admin?.roles?.includes('owner')||admin.mfaVerified!==true)return output(403,page('Acesso negado','Acesso exclusivo ao proprietário autenticado.'));
-      if(method==='POST'){
-        const form=new URLSearchParams(body);
-        if(!verifySyncCsrf(c.zenos_admin_session,form.get('csrf')))return output(403,'');
-        const id=form.get('id'),action=form.get('action');
-        if(!['suspend','restore','bonus','note'].includes(action))return output(400,page('Ação inválida',''));
-        if((action==='suspend'||action==='restore')&&form.get('confirm')!=='SIM')return output(400,page('Confirmação obrigatória','Digite SIM para confirmar.'));
-        try{await operations.update({id,action,days:Number(form.get('days')),note:form.get('note'),adminSubject:admin.subject});}
-        catch{return output(400,page('Operação não concluída','<p>Confira os dados e tente novamente.</p><a href="/admin/organizations">Voltar</a>'));}
-        return redirect('/admin/organizations');
-      }
-      const rows=await operations.list();
-      const csrf=syncCsrf(c.zenos_admin_session);
-      const forms=rows.map(r=>`<tr><td>${escape(r.display_name)}<br><small>${escape(r.firebase_uid)}</small></td>
-      <td>${escape(r.administrative_status==='suspended'?'Suspenso (interno)':'Regular (interno)')}</td>
-      <td>${escape(r.bonus_days)} dias</td>
-      <td><form method="post"><input type="hidden" name="csrf" value="${csrf}"><input type="hidden" name="id" value="${escape(r.id)}">
-      <input type="hidden" name="action" value="${r.administrative_status==='suspended'?'restore':'suspend'}">
-      <input name="confirm" placeholder="Digite SIM" size="8" required>
-      <button>${r.administrative_status==='suspended'?'Restaurar':'Suspender'} status interno</button></form>
-      <form method="post"><input type="hidden" name="csrf" value="${csrf}"><input type="hidden" name="id" value="${escape(r.id)}">
-      <input type="hidden" name="action" value="bonus"><input name="days" type="number" min="1" max="365" value="7" required style="width:70px">
-      <button>Registrar dias de bônus</button></form>
-      <form method="post"><input type="hidden" name="csrf" value="${csrf}"><input type="hidden" name="id" value="${escape(r.id)}">
-      <input type="hidden" name="action" value="note"><input name="note" maxlength="500" value="${escape(r.internal_note)}" placeholder="Nota interna"><button>Salvar nota</button></form></td></tr>`).join('');
-      return output(200,page('Gestão administrativa de clientes',
-        '<p><strong>Somente homologação.</strong> Status, bônus e notas são registrados e auditados no PostgreSQL. Não bloqueiam o login nem concedem dias no ZenOS de produção.</p>'+
-        '<p>Empresas carregadas: '+rows.length+'</p><section style="overflow-x:auto"><table><thead><tr><th>Empresa</th><th>Status interno</th><th>Bônus registrado</th><th>Ações</th></tr></thead><tbody>'+forms+'</tbody></table></section><a href="/clientes">Voltar</a>'));
+      if(!admin?.roles?.includes('owner')||admin.mfaVerified!==true)return output(403,page('Acesso negado',''));
+      const form=new URLSearchParams(body);
+      if(!verifySyncCsrf(c.zenos_admin_session,form.get('csrf')))return output(403,'');
+      const action=form.get('action');
+      if(!['suspend','restore','bonus','note'].includes(action))return output(400,'');
+      if(['suspend','restore'].includes(action)&&form.get('confirm')!=='SIM')return output(400,page('Confirmação obrigatória','Digite SIM.'));
+      try{await operations.update({id:form.get('id'),action,days:Number(form.get('days')),note:form.get('note'),adminSubject:admin.subject});}
+      catch{return output(400,page('Operação não concluída','<a href="/clientes">Voltar aos clientes</a>'));}
+      return redirect('/clientes');
     }
     if(u.pathname==='/admin/sync-organizations'&&(method==='GET'||method==='POST')){
       if(!c.zenos_admin_session)return invalid();
@@ -117,7 +99,7 @@ export function createAuthHttp({store,verifyGoogle,handleApi,origin,clientId,cli
       if(overview.status!==200)return invalid();
       const list=await handleApi({method,path:'/api/organizations',headers});
       if(list.status!==200)return output(list.status,page('Dados indisponíveis','<p>Tente novamente mais tarde.</p>'));
-      return output(200,renderControlCenter(u.pathname,overview.body,u.pathname==='/clientes'&&u.searchParams.get('q')?list.body.organizations.filter(r=>r.display_name.toLocaleLowerCase('pt-BR').includes(u.searchParams.get('q').toLocaleLowerCase('pt-BR'))):list.body.organizations));
+      return output(200,renderControlCenter(u.pathname,overview.body,u.pathname==='/clientes'&&u.searchParams.get('q')?list.body.organizations.filter(r=>r.display_name.toLocaleLowerCase('pt-BR').includes(u.searchParams.get('q').toLocaleLowerCase('pt-BR'))):list.body.organizations,u.pathname==='/clientes'&&operations?(await operations.list()).filter(r=>!u.searchParams.get('q')||r.display_name.toLocaleLowerCase('pt-BR').includes(u.searchParams.get('q').toLocaleLowerCase('pt-BR'))):[],c.zenos_admin_session&&u.pathname==='/clientes'&&(await store.verifySession(c.zenos_admin_session))?.roles?.includes('owner')?syncCsrf(c.zenos_admin_session):''));
     }
     if(u.pathname.startsWith('/api/')||u.pathname==='/health'){
       const result=await handleApi({method,path:u.pathname,headers});return {...result,body:JSON.stringify(result.body)};
