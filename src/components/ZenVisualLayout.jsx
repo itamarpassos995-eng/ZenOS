@@ -144,6 +144,9 @@ export function ZenTopbar({
   setIdioma,
   moeda,
   setMoeda,
+  moedaPadrao = 'BRL',
+  onSalvarMoedaPadrao,
+  salvandoMoedaPadrao = false,
   onCambio,
   operador,
   patente,
@@ -161,7 +164,7 @@ export function ZenTopbar({
     <div className="zen-topbar-actions">
       <div className={cx('zen-sync-pill', `sync-${String(status || '').toLowerCase()}`)} title={statusTitle || status}><i/> <span>{labelSync}</span></div>
       <label className="zen-top-control"><span>🌐</span><select value={idioma} onChange={e => setIdioma(e.target.value)}><option value="pt">Português (PT)</option><option value="es">Español (ES)</option><option value="en">English (EN)</option></select></label>
-      <label className="zen-top-control"><span>🇧🇷</span><select value={moeda} onChange={e => setMoeda(e.target.value)}><option value="BRL">BRL (R$)</option><option value="USD">USD ($)</option><option value="EUR">EUR (€)</option><option value="PYG">PYG (₲)</option></select><button onClick={onCambio} title={tx('Ajustar cotações','Ajustar cotizaciones','Adjust exchange rates')}>⚙</button></label>
+      <div className="zen-top-control"><span>💱</span><select aria-label={tx("Moeda de exibição","Moneda de visualización","Display currency")} value={moeda} onChange={e => setMoeda(e.target.value)}><option value="BRL">BRL (R$)</option><option value="USD">USD ($)</option><option value="EUR">EUR (€)</option><option value="PYG">PYG (₲)</option></select><button type="button" onClick={onCambio} title={tx("Ajustar cotações","Ajustar cotizaciones","Adjust exchange rates")}>⚙</button>{onSalvarMoedaPadrao && <button type="button" disabled={salvandoMoedaPadrao || moedaPadrao === moeda} onClick={onSalvarMoedaPadrao} title={tx("Salvar moeda selecionada como padrão desta empresa","Guardar moneda seleccionada como predeterminada de esta empresa","Save selected currency as company default")} style={{fontWeight:800,fontSize:11,opacity:salvandoMoedaPadrao||moedaPadrao===moeda?.6:1}}>{salvandoMoedaPadrao?tx("Salvando…","Guardando…","Saving…"):moedaPadrao===moeda?tx("Padrão ✓","Predeterminada ✓","Default ✓"):tx("Salvar padrão","Guardar predeterminada","Save default")}</button>}</div>
       {onAbrirPedidosLoja && <button type="button" className="zen-commerce-topbar-btn" onClick={onAbrirPedidosLoja}
         title={tx('Abrir pedidos da loja online no PDV','Abrir pedidos de la tienda online en caja','Open online store orders in POS')}
         aria-label={tx('Pedidos da loja online','Pedidos de la tienda online','Online store orders')}>
