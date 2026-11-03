@@ -80,7 +80,8 @@ export const preverBaixaEstoqueProduto = (produto, quantidade) => {
   if (qtd <= 0) return { saldo, movimento: { vitrine: 0, galpao: 0, total: 0 }, suficiente: true };
   const baixaVitrine = Math.min(saldo.estoqueVitrine, qtd);
   const restante = Math.max(0, qtd - baixaVitrine);
-  const baixaGalpao = Math.min(saldo.estoqueGalpao, restante);
+  const baixaGalpao = produto?.permitirEstoqueNegativo === true
+    ? restante : Math.min(Math.max(0, saldo.estoqueGalpao), restante);
   return {
     saldo,
     movimento: { vitrine: baixaVitrine, galpao: baixaGalpao, total: baixaVitrine + baixaGalpao },
