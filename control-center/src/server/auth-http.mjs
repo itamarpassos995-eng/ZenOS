@@ -99,7 +99,7 @@ export function createAuthHttp({store,verifyGoogle,handleApi,origin,clientId,cli
       if(overview.status!==200)return invalid();
       const list=await handleApi({method,path:'/api/organizations',headers});
       if(list.status!==200)return output(list.status,page('Dados indisponíveis','<p>Tente novamente mais tarde.</p>'));
-      return output(200,renderControlCenter(u.pathname,overview.body,u.pathname==='/clientes'&&u.searchParams.get('q')?list.body.organizations.filter(r=>r.display_name.toLocaleLowerCase('pt-BR').includes(u.searchParams.get('q').toLocaleLowerCase('pt-BR'))):list.body.organizations,u.pathname==='/clientes'&&operations?(await operations.list()).filter(r=>!u.searchParams.get('q')||r.display_name.toLocaleLowerCase('pt-BR').includes(u.searchParams.get('q').toLocaleLowerCase('pt-BR'))):[],c.zenos_admin_session?syncCsrf(c.zenos_admin_session):''));
+      return output(200,renderControlCenter(u.pathname,overview.body,u.pathname==='/clientes'&&u.searchParams.get('q')?list.body.organizations.filter(r=>r.display_name.toLocaleLowerCase('pt-BR').includes(u.searchParams.get('q').toLocaleLowerCase('pt-BR'))):list.body.organizations,u.pathname==='/clientes'&&operations?(await operations.list()).filter(r=>!u.searchParams.get('q')||r.display_name.toLocaleLowerCase('pt-BR').includes(u.searchParams.get('q').toLocaleLowerCase('pt-BR'))):[],c.zenos_admin_session&&u.pathname==='/clientes'&&(await store.verifySession(c.zenos_admin_session))?.roles?.includes('owner')?syncCsrf(c.zenos_admin_session):''));
     }
     if(u.pathname.startsWith('/api/')||u.pathname==='/health'){
       const result=await handleApi({method,path:u.pathname,headers});return {...result,body:JSON.stringify(result.body)};
