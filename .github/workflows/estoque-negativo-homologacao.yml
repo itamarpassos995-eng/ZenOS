@@ -1,0 +1,23 @@
+name: Estoque negativo por produto (homologacao)
+on:
+  pull_request:
+    paths:
+      - 'src/core/inventory.js'
+      - 'src/components/PDV.jsx'
+      - 'scripts/inventory-negative-stock.test.mjs'
+      - '.github/workflows/estoque-negativo-homologacao.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test scripts/inventory-negative-stock.test.mjs
+      - run: npm run build
