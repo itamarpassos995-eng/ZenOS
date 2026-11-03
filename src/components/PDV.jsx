@@ -484,6 +484,10 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   };
 
   const salvarProdutoPDV = async () => {
+    if (produtoEmEdicaoPDV?.permitirEstoqueNegativo === true && formProdutoPDV.permitirEstoqueNegativo !== true && Number(produtoEmEdicaoPDV.estoque) < 0) {
+      return mostrarZen('warning', tx('Saldo negativo pendente','Saldo negativo pendiente','Outstanding negative stock'),
+        tx('Regularize o estoque antes de desativar esta opção.','Regularice el stock antes de desactivar esta opción.','Reconcile stock before disabling this option.'));
+    }
     if (!formProdutoPDV.nome.trim()) return mostrarZen('warning', tx("Nome obrigatório","Nombre obligatorio"), tx('Informe o nome do produto.', 'Informe el nombre del producto.', 'Enter product name.'));
     const custo = parseFloat(String(formProdutoPDV.custoBRL).replace(',', '.')) || 0;
     const preco = parseFloat(String(formProdutoPDV.precoBRL).replace(',', '.')) || 0;
