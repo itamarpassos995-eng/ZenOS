@@ -1,0 +1,22 @@
+name: Fechamento caixa moeda de exibicao
+on:
+  pull_request:
+    paths:
+      - 'src/App.jsx'
+      - 'scripts/cash-closing-display-currency.test.mjs'
+      - '.github/workflows/cash-closing-display-currency-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test scripts/cash-closing-display-currency.test.mjs scripts/card-multicurrency.test.mjs
+      - run: npm run build

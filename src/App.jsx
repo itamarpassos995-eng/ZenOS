@@ -1099,6 +1099,9 @@ export default function App() {
   const totalMovimentoConvertido = converterValoresFisicosParaBRL(valoresMovCaixa, taxasCambio);
   const calcularTotalMovBRL = () => totalMovimentoConvertido.ok ? totalMovimentoConvertido.totalBRL : NaN;
   const moedaTotalCaixa = ['BRL', 'USD', 'EUR', 'PYG'].includes(moeda) ? moeda : 'BRL';
+  // Os agregados financeiros são BRL equivalentes: converter o valor, não só o símbolo.
+  // Não altera saldos nativos, contagens nem a operação crítica do fechamento.
+  const fmtEquivalenteCaixa = valorBRL => fmt(converterDeBRL(valorBRL, moedaTotalCaixa), moedaTotalCaixa);
   const resetarValoresCaixa = () => setValoresMovCaixa({ BRL: '', USD: '', EUR: '', PYG: '' });
 
   const abrirTurnoDeCaixa = async () => {
@@ -1462,9 +1465,9 @@ export default function App() {
 
         <div style="border-bottom:1px dashed #000;margin:10px 0;"></div>
         <div style="font-size:10px;margin-bottom:5px;">${tx('Os totais abaixo são equivalentes convertidos no câmbio do fechamento. Os saldos físicos de cada moeda constam na conciliação acima.','Los totales siguientes son equivalentes convertidos al tipo de cambio del cierre. Los saldos físicos por moneda figuran arriba.','Totals below are converted equivalents at closing rates. Physical balances by currency are shown above.')}</div>
-        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('SALDO ESPERADO:','SALDO ESPERADO:','EXPECTED BALANCE:')}</span><span>${fmt(saldoEsperadoBRL, moedaTotalCaixa)} (${moedaTotalCaixa})${conciliacaoFisica.confiavel ? '' : ' (REFERENCIAL)'}</span></div>
-        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('TOTAL CONTADO:','TOTAL CONTADO:','TOTAL COUNTED:')}</span><span>${fmt(valInformadoBRL, moedaTotalCaixa)} (${moedaTotalCaixa})</span></div>
-        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('DIFERENÇA:','DIFERENCIA:','DIFFERENCE:')}</span><span>${conciliacaoFisica.confiavel ? fmt(diferenca, moedaTotalCaixa) + ' (' + moedaTotalCaixa + ')' : 'INDETERMINADA'}</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('SALDO ESPERADO:','SALDO ESPERADO:','EXPECTED BALANCE:')}</span><span>${fmtEquivalenteCaixa(saldoEsperadoBRL)} (${moedaTotalCaixa})${conciliacaoFisica.confiavel ? '' : ' (REFERENCIAL)'}</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('TOTAL CONTADO:','TOTAL CONTADO:','TOTAL COUNTED:')}</span><span>${fmtEquivalenteCaixa(valInformadoBRL)} (${moedaTotalCaixa})</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:bold;"><span>${tx('DIFERENÇA:','DIFERENCIA:','DIFFERENCE:')}</span><span>${conciliacaoFisica.confiavel ? fmtEquivalenteCaixa(diferenca) + ' (' + moedaTotalCaixa + ')' : 'INDETERMINADA'}</span></div>
         <div style="text-align:center;font-weight:bold;margin-top:8px;">${descQuebra}</div>
 
         <div style="margin-top:36px;text-align:center;">_________________________________<br/>${tx('Assinatura do Operador','Firma del Operador','Operator Signature')}<br/>${escaparHTML(sessaoAtiva.operadorNome)}</div>
@@ -1514,9 +1517,13 @@ export default function App() {
         : temQuebra ? tx("As quantidades físicas por moeda não conferem. Confira o demonstrativo individual no comprovante.","Las cantidades físicas por moneda no coinciden. Revise el detalle individual del comprobante.")
           : tx("A contagem física confere com os valores esperados em cada moeda.","El conteo físico coincide con los importes esperados en cada moneda."),
       detalhes: [
-        `Saldo esperado: ${fmt(saldoEsperadoBRL, 'BRL')}`,
-        `Total contado: ${fmt(valInformadoBRL, 'BRL')}`,
-        `Diferença: ${conciliacaoFisica.confiavel ? fmt(diferenca, 'BRL') : 'INDETERMINADA'}`,
+        `${tx('Saldo esperado','Saldo esperado','Expected balance')}: ${fmtEquivalenteCaixa(saldoEsperadoBRL)} (${moedaTotalCaixa}, ${tx('equivalente','equivalente','equivalent')})`,
+        `${tx('Total contado','Total contado','Counted total')}: ${fmtEquivalenteCaixa(valInformadoBRL)} (${moedaTotalCaixa}, ${tx('equivalente','equivalente','equivalent')})`,
+        `${tx('Diferença','Diferencia','Difference')}: ${conciliacaoFisica.confiavel ? fmtEquivalenteCaixa(diferenca) : 'INDETERMINADA'}`,
+        ...['BRL','PYG','USD','EUR'].map(codigo => {
+          const f = valor => fmt(Number(valor || 0), codigo);
+          return `${codigo}: ${tx('esperado','esperado','expected')} ${f(conciliacaoFisica.esperado?.[codigo])} · ${tx('contado','contado','counted')} ${f(conciliacaoFisica.contado?.[codigo])}${conciliacaoFisica.confiavel ? ` · ${tx('diferença','diferencia','difference')} ${f(conciliacaoFisica.diferencas?.[codigo])}` : ''}`;
+        }),
         ...conciliacaoFisica.pendencias.slice(0, 4),
         janelaImpressao ? tx("Comprovante aberto para impressão.","Comprobante abierto para imprimir.") : tx("A impressão foi bloqueada pelo navegador; o fechamento ficou registrado.","El navegador bloqueó la impresión; el cierre quedó registrado."),
       ],
@@ -2078,7 +2085,7 @@ export default function App() {
                 {tipoMovCaixa === 'fechamento' && (
                   <div style={{ marginTop:'14px', padding:'12px 14px', borderRadius:'12px', background:'#020617', border:'1px solid #1e293b' }}>
                     <div style={{fontSize:'10px',fontWeight:900,letterSpacing:'1px',color:'#64748b',marginBottom:'5px'}}>{tx('TOTAL FÍSICO INFORMADO • MOEDA SELECIONADA','TOTAL FÍSICO INFORMADO • MONEDA SELECCIONADA','PHYSICAL TOTAL ENTERED • SELECTED CURRENCY') + ' (' + moedaTotalCaixa + ')'}</div>
-                    <div style={{fontSize:'20px',fontWeight:950,color:'#f8fafc'}}>{Number.isFinite(calcularTotalMovBRL()) ? fmt(calcularTotalMovBRL(), moedaTotalCaixa) : tx('Corrija os valores digitados', 'Corrija los importes', 'Correct the entered amounts')}</div>
+                    <div style={{fontSize:'20px',fontWeight:950,color:'#f8fafc'}}>{Number.isFinite(calcularTotalMovBRL()) ? fmtEquivalenteCaixa(calcularTotalMovBRL()) : tx('Corrija os valores digitados', 'Corrija los importes', 'Correct the entered amounts')}</div>
                     <div style={{fontSize:'10px',color:'#64748b',marginTop:'5px'}}>{tx('O saldo esperado pelo ZenOS permanece oculto até a auditoria ser concluída.','El saldo esperado por ZenOS permanece oculto hasta finalizar la auditoría.','The balance expected by ZenOS remains hidden until the audit is completed.')}</div>
                   </div>
                 )}
