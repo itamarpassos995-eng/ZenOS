@@ -144,6 +144,11 @@ const distribuirReposicaoLegada = (produto, quantidade) => {
   const vitrineRaw = normalizarQuantidadeEstoque(produto?.estoqueVitrine);
   const galpaoRaw = produto?.permitirEstoqueNegativo === true ? numberOrZero(produto?.estoqueGalpao) : normalizarQuantidadeEstoque(produto?.estoqueGalpao);
 
+  // Déficit registrado no depósito precisa ser compensado pela reposição,
+  // sem criar saldo de vitrine positivo enquanto há dívida no depósito.
+  if (produto?.permitirEstoqueNegativo === true && galpaoRaw < -EPSILON) {
+    return { vitrine: 0, galpao: qtd, total: qtd };
+  }
   // Compatibilidade com o caso observado: produto cadastrado somente no depósito.
   if (vitrineRaw <= EPSILON && galpaoRaw > EPSILON) {
     return { vitrine: 0, galpao: qtd, total: qtd };
