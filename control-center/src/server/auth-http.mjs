@@ -103,8 +103,8 @@ export function createAuthHttp({store,verifyGoogle,handleApi,origin,clientId,cli
       const owner=Boolean(admin?.roles?.includes('owner')&&admin?.mfaVerified===true);
       const q=(u.searchParams.get('q')||'').slice(0,120);
       const rawPage=Number(u.searchParams.get('page')||1);
-      const page=Number.isSafeInteger(rawPage)?Math.max(1,Math.min(100000,rawPage)):1;
-      const controls=isClients&&owner&&operations?await operations.list({q,page,pageSize:25}):{rows:[],total:0,page:1,pages:1};
+      const pageNumber=Number.isSafeInteger(rawPage)?Math.max(1,Math.min(100000,rawPage)):1;
+      const controls=isClients&&owner&&operations?await operations.list({q,page:pageNumber,pageSize:25}):{rows:[],total:0,page:1,pages:1};
       let rows=[];
       if(!isClients){
         const list=await handleApi({method,path:'/api/organizations',headers});
