@@ -214,7 +214,10 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       setDescontoTexto('0');
       // Pedido do Blob ainda é uma solicitação, não um pré-pedido gravado no Firestore.
       // Orçamento, pré-pedido e venda só serão criados pelos fluxos normais do PDV.
-      setPrePedidoEmAbertoId(pedido.origem === 'commerce-cdn-privado' ? null : pedido.id);
+      // Pedido online é solicitação comercial, não pré-pedido operacional.
+      // Vincular seu ID ao guard de liquidação bloqueia o caixa porque esse ID
+      // ainda não existe como documento pendente em historicoVendas.
+      setPrePedidoEmAbertoId(null);
       operacaoDocumentoRef.current = { assinatura: null, id: null, instante: null };
       setModalResgateAberto(false);
       mostrarZen('info', tx('Pedido Online Carregado!','¡Pedido Online Cargado!','Online Order Loaded!'), tx(`Pedido de ${pedido.clienteNome || 'Cliente'} carregado no caixa. Confira e finalize a venda.`,'Pedido cargado en caja. Verifique y finalice.','Order loaded into register. Verify and complete sale.'));
