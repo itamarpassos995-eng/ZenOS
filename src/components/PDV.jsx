@@ -492,7 +492,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     const estoqueVitrineNovo = Math.max(0, parseInt(String(formProdutoPDV.estoqueVitrine)) || 0);
     const estoqueGalpaoNovo = Math.max(0, parseInt(String(formProdutoPDV.estoqueGalpao)) || 0);
     const estoque = produtoEmEdicaoPDV
-      ? Math.max(0, Number(normalizarProduto(produtoEmEdicaoPDV).estoque) || 0)
+      ? Number(normalizarProduto(produtoEmEdicaoPDV).estoque) || 0
       : estoqueVitrineNovo + estoqueGalpaoNovo;
 
     if (skuJaExiste(produtos, formProdutoPDV.sku, produtoEmEdicaoPDV)) return mostrarZen('danger', tx('SKU duplicado','SKU duplicado','Duplicate SKU'), `${tx('Já existe outro produto com o SKU','Ya existe otro producto con el SKU','Another product already uses SKU')} ${formProdutoPDV.sku}. ${tx('Use um SKU diferente.','Use un SKU diferente.','Use a different SKU.')}`);
@@ -505,6 +505,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       precoBRL: preco,
       preco2BRL: preco2,
       preco3BRL: preco3,
+      permitirEstoqueNegativo: formProdutoPDV.permitirEstoqueNegativo === true,
       estoque,
       estoqueVitrine: usoUnicoEncomendado ? 0 : (produtoEmEdicaoPDV ? normalizarProduto(produtoEmEdicaoPDV).estoqueVitrine : estoqueVitrineNovo),
       estoqueGalpao: usoUnicoEncomendado ? 0 : (produtoEmEdicaoPDV ? normalizarProduto(produtoEmEdicaoPDV).estoqueGalpao : estoqueGalpaoNovo),
@@ -1862,6 +1863,10 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                 <div><label style={{ minHeight:28, display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#38bdf8', fontWeight: 700 }}>{tx('Vitrine / Loja','Exhibición / Tienda','Display / Store')}</label><input type="number" disabled={Boolean(produtoEmEdicaoPDV)} value={formProdutoPDV.estoqueVitrine ?? 0} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, estoqueVitrine: e.target.value })} style={{ width: '100%', height:40, backgroundColor: '#0b1120', border: '1px solid #0369a1', borderRadius: '8px', color: '#38bdf8', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '10px', outline: 'none', boxSizing: 'border-box', opacity: produtoEmEdicaoPDV ? .65 : 1 }} /></div>
                 <div><label style={{ minHeight:28, display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#a855f7', fontWeight: 700 }}>{tx('Galpão / Depósito','Depósito / Almacén','Warehouse / Storage')}</label><input type="number" disabled={Boolean(produtoEmEdicaoPDV)} value={formProdutoPDV.estoqueGalpao ?? 0} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, estoqueGalpao: e.target.value })} style={{ width: '100%', height:40, backgroundColor: '#0b1120', border: '1px solid #7e22ce', borderRadius: '8px', color: '#a855f7', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '10px', outline: 'none', boxSizing: 'border-box', opacity: produtoEmEdicaoPDV ? .65 : 1 }} /></div>
               </div>
+              <label style={{display:'flex',alignItems:'center',gap:10,padding:'12px',marginBottom:12,border:'1px solid #334155',borderRadius:10,color:'#e2e8f0',cursor:'pointer'}}>
+                <input type="checkbox" checked={formProdutoPDV.permitirEstoqueNegativo === true} onChange={(e)=>setFormProdutoPDV({...formProdutoPDV,permitirEstoqueNegativo:e.target.checked})} />
+                <span style={{fontSize:13,fontWeight:800}}>{tx('Permitir estoque negativo neste produto','Permitir stock negativo en este producto','Allow negative stock for this product')}</span>
+              </label>
               {produtoEmEdicaoPDV && <div style={{fontSize:10,color:'#64748b',marginTop:-4,marginBottom:10}}>{tx('Para alterar estoque de produto existente, use as movimentações auditadas de Vitrine/Depósito no Catálogo.','Para alterar el stock de un producto existente, use los movimientos auditados de Exhibición/Depósito en el Catálogo.','To change stock for an existing product, use audited Display/Warehouse movements in the Catalog.')}</div>}
             </div>
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
