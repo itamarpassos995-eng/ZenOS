@@ -154,7 +154,8 @@ assert.equal(novaCotacao.totalEsperadoBRL,330);
 assert.equal(converterValoresFisicosParaBRL({BRL:'300,00',PYG:'40.000'},{PYG:1200}).totalBRL,333.33);
 // O total visível do fechamento deve respeitar a moeda escolhida.
 assert.match(app,/const moedaTotalCaixa =/);
-assert.match(app,/fmt\(calcularTotalMovBRL\(\), moedaTotalCaixa\)/);
+assert.match(app,/const fmtEquivalenteCaixa = valorBRL => fmt\(converterDeBRL\(valorBRL, moedaTotalCaixa\), moedaTotalCaixa\)/);
+assert.match(app,/fmtEquivalenteCaixa\(calcularTotalMovBRL\(\)\)/);
 assert.doesNotMatch(app,/TOTAL FÍSICO INFORMADO • CONVERTIDO PARA BRL/);
 
 // Movimentos antigos em moeda estrangeira sem quantia física não podem
@@ -167,8 +168,8 @@ const movimentoSemNativo=calcularConciliacaoFisicaMultimoeda({
 assert.equal(movimentoSemNativo.confiavel,false);
 assert.equal(movimentoSemNativo.esperado.BRL,0);
 assert.ok(movimentoSemNativo.pendencias.some(p=>p.includes('faltam valores físicos nativos')));
-assert.match(app,/fmt\(saldoEsperadoBRL, moedaTotalCaixa\)/);
-assert.match(app,/fmt\(valInformadoBRL, moedaTotalCaixa\)/);
+assert.match(app,/fmtEquivalenteCaixa\(saldoEsperadoBRL\)/);
+assert.match(app,/fmtEquivalenteCaixa\(valInformadoBRL\)/);
 
 assert.match(app,/FLUXO DE CAIXA — EQUIVALENTES EM BRL/);
 assert.match(app,/TIPOS DE CAMBIO DEL CIERRE/);
