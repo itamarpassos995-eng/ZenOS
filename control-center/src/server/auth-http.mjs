@@ -14,7 +14,7 @@ const output=(status,body,extra={})=>({status,headers:{'content-type':'text/html
   'referrer-policy':'same-origin','x-content-type-options':'nosniff',...extra},body});
 const redirect=(url,extra={})=>output(303,'',{location:url,...extra});
 const invalid=()=>output(401,page('Acesso não autorizado','<p>Entre novamente ou confira seu código de verificação.</p><a href="/auth/login">Entrar com Google</a>'));
-export function createAuthHttp({store,verifyGoogle,handleApi,origin,clientId,clientSecret,fetchImpl=fetch}){
+export function createAuthHttp({store,verifyGoogle,handleApi,origin,clientId,clientSecret,fetchImpl=fetch,operations}){
   const base=new URL(origin);
   if(base.protocol!=='https:'||base.origin!==origin||!clientId||!clientSecret)throw Error('OAUTH_CONFIG_REQUIRED');
   const callback=origin+'/auth/google/callback';
@@ -61,6 +61,38 @@ export function createAuthHttp({store,verifyGoogle,handleApi,origin,clientId,cli
       // Exact Origin check above prevents cross-site logout. No credential in body.
       if(c.zenos_admin_session)await store.logout(c.zenos_admin_session);
       return redirect('/',{'set-cookie':cookie('zenos_admin_session','',0)});
+    }
+    if(u.pathname==='/admin/organizations'&&(method==='GET'||method==='POST')){
+      if(!c.zenos_admin_session||!operations)return invalid();
+      const admin=await store.verifySession(c.zenos_admin_session);
+      if(!admin?.roles?.includes('owner')||admin.mfaVerified!==true)return output(403,page('Acesso negado','Acesso exclusivo ao proprietário autenticado.'));
+      if(method==='POST'){
+        const form=new URLSearchParams(body);
+        if(!verifySyncCsrf(c.zenos_admin_session,form.get('csrf')))return output(403,'');
+        const id=form.get('id'),action=form.get('action');
+        if(!['suspend','restore','bonus','note'].includes(action))return output(400,page('Ação inválida',''));
+        if((action==='suspend'||action==='restore')&&form.get('confirm')!=='SIM')return output(400,page('Confirmação obrigatória','Digite SIM para confirmar.'));
+        try{await operations.update({id,action,days:Number(form.get('days')),note:form.get('note'),adminSubject:admin.subject});}
+        catch{return output(400,page('Operação não concluída','<p>Confira os dados e tente novamente.</p><a href="/admin/organizations">Voltar</a>'));}
+        return redirect('/admin/organizations');
+      }
+      const rows=await operations.list();
+      const csrf=syncCsrf(c.zenos_admin_session);
+      const forms=rows.map(r=>`<tr><td>${escape(r.display_name)}<br><small>${escape(r.firebase_uid)}</small></td>
+      <td>${escape(r.administrative_status==='suspended'?'Suspenso (interno)':'Regular (interno)')}</td>
+      <td>${escape(r.bonus_days)} dias</td>
+      <td><form method="post"><input type="hidden" name="csrf" value="${csrf}"><input type="hidden" name="id" value="${escape(r.id)}">
+      <input type="hidden" name="action" value="${r.administrative_status==='suspended'?'restore':'suspend'}">
+      <input name="confirm" placeholder="Digite SIM" size="8" required>
+      <button>${r.administrative_status==='suspended'?'Restaurar':'Suspender'} status interno</button></form>
+      <form method="post"><input type="hidden" name="csrf" value="${csrf}"><input type="hidden" name="id" value="${escape(r.id)}">
+      <input type="hidden" name="action" value="bonus"><input name="days" type="number" min="1" max="365" value="7" required style="width:70px">
+      <button>Registrar dias de bônus</button></form>
+      <form method="post"><input type="hidden" name="csrf" value="${csrf}"><input type="hidden" name="id" value="${escape(r.id)}">
+      <input type="hidden" name="action" value="note"><input name="note" maxlength="500" value="${escape(r.internal_note)}" placeholder="Nota interna"><button>Salvar nota</button></form></td></tr>`).join('');
+      return output(200,page('Gestão administrativa de clientes',
+        '<p><strong>Somente homologação.</strong> Status, bônus e notas são registrados e auditados no PostgreSQL. Não bloqueiam o login nem concedem dias no ZenOS de produção.</p>'+
+        '<p>Empresas carregadas: '+rows.length+'</p><section style="overflow-x:auto"><table><thead><tr><th>Empresa</th><th>Status interno</th><th>Bônus registrado</th><th>Ações</th></tr></thead><tbody>'+forms+'</tbody></table></section><a href="/clientes">Voltar</a>'));
     }
     if(u.pathname==='/admin/sync-organizations'&&(method==='GET'||method==='POST')){
       if(!c.zenos_admin_session)return invalid();
