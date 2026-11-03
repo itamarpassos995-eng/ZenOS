@@ -15,6 +15,7 @@ const db=getFirestore(app);
 const pool=new Pool({connectionString:databaseUrl,ssl:{rejectUnauthorized:true},max:2});
 let cursor=null,scanned=0,inserted=0,updated=0,skipped=0;
 const dryRun=process.env.CONTROL_CENTER_SYNC_APPLY!=='true';
+if(!dryRun && process.env.CONTROL_CENTER_SYNC_CONFIRM!=='IMPORTAR_LOJAS_HOMOLOGACAO')throw Error('EXPLICIT_IMPORT_CONFIRMATION_REQUIRED');
 try{
   do{
     let query=db.collection('lojas').orderBy(FieldPath.documentId()).limit(100);
