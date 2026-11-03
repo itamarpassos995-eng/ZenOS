@@ -29,8 +29,10 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
     { id: 'dinheiro_pyg', rotulo: tx("Guarani (₲)","Guaraní (₲)"), moedaOrigem: 'PYG', icone: '💵' },
     { id: 'dinheiro_eur', rotulo: 'Euro (€)', moedaOrigem: 'EUR', icone: '💶' },
     { id: 'pix', rotulo: 'Pix QR Code', moedaOrigem: 'BRL', icone: '⚡' }, 
-    { id: 'cartaoCredito', rotulo: tx("Cartão Crédito","Tarjeta de crédito"), moedaOrigem: 'BRL', icone: '💳' },
-    { id: 'cartaoDebito', rotulo: tx("Cartão Débito","Tarjeta de débito"), moedaOrigem: 'BRL', icone: '💳' },
+    ...([moeda,...['BRL','PYG','USD','EUR'].filter(m=>m!==moeda)].filter(m=>['BRL','PYG','USD','EUR'].includes(m))).flatMap(m => [
+      {id: m==='BRL' ? 'cartaoCredito' : `cartaoCredito_${m.toLowerCase()}`, rotulo:`${tx('Cartão Crédito','Tarjeta de crédito','Credit Card')} (${m})`,moedaOrigem:m,icone:'💳'},
+      {id: m==='BRL' ? 'cartaoDebito' : `cartaoDebito_${m.toLowerCase()}`, rotulo:`${tx('Cartão Débito','Tarjeta de débito','Debit Card')} (${m})`,moedaOrigem:m,icone:'💳'},
+    ]),
     { id: 'voucher', rotulo: tx("Voucher / Vale","Vale"), moedaOrigem: 'BRL', icone: '🎟️' },
     { id: 'cheque', rotulo: 'Cheque', moedaOrigem: 'BRL', icone: '📝' }
   ];
@@ -225,6 +227,7 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
       referenciaId: recebimentoId,
       valor: valBRL,
       formaPagamento: formaAmortizacaoSel,
+      detalhes: {moedaOrigem:formaCfg.moedaOrigem,valorOriginal,taxaCambioAplicada:valorOriginal/valBRL},
       createdAt,
       afetaCaixaFisico: dinheiroFisico,
       afetaResultado: false,
