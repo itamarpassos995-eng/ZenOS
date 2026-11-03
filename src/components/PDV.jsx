@@ -69,7 +69,15 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   useEffect(() => {
     if (abrirFilaOnlineToken > 0) setModalResgateAberto(true);
   }, [abrirFilaOnlineToken]);
-  const [prePedidoEmAbertoId, setPrePedidoEmAbertoId] = useState(rascunhoInicial?.prePedidoEmAbertoId || null);
+  // Rascunhos antigos de pedidos online podem conter um vínculo inválido com
+  // pré-pedido operacional. Só corrigir quando os itens provarem a origem online.
+  // Rascunhos de pré-pedidos reais continuam sujeitos à confirmação do servidor.
+  const [prePedidoEmAbertoId, setPrePedidoEmAbertoId] = useState(() => {
+    const id = rascunhoInicial?.prePedidoEmAbertoId;
+    const itens = rascunhoInicial?.itensVenda || [];
+    if (id && itens.length && itens.every(item => String(item?.id || '').startsWith(`ON-${id}-`))) return null;
+    return id || null;
+  });
   const PAGINA_PEDIDOS_ONLINE = 50;
   const [pedidosRecentes, setPedidosRecentes] = useState([]);
   const [pedidosAnteriores, setPedidosAnteriores] = useState([]);
