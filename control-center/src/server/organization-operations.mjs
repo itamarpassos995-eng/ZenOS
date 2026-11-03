@@ -8,13 +8,21 @@ export async function ensureOperationsSchema(pool){
   updated_at timestamptz NOT NULL DEFAULT now()
  )`);
 }
-export async function listOrganizationControls(pool){
+export async function listOrganizationControls(pool,{q='',page=1,pageSize=25}={}){
+ const search=String(q).trim().slice(0,120);
+ const p=Number.isSafeInteger(page)?Math.max(1,Math.min(page,100000)):1;
+ const size=Number.isSafeInteger(pageSize)?Math.max(1,Math.min(pageSize,100)):25;
+ const where="WHERE ($1 = '' OR o.display_name ILIKE '%' || $1 || '%' OR o.firebase_uid ILIKE '%' || $1 || '%')";
+ const count=await pool.query('SELECT COUNT(*)::integer AS total FROM organizations o '+where,[search]);
+ const total=count.rows[0]?.total??0;
+ const pages=Math.max(1,Math.ceil(total/size));
+ const safePage=Math.min(p,pages);
  const {rows}=await pool.query(`SELECT o.id,o.firebase_uid,o.display_name,o.country,
  COALESCE(c.administrative_status,'regular') administrative_status,
  COALESCE(c.bonus_days,0) bonus_days,COALESCE(c.internal_note,'') internal_note
  FROM organizations o LEFT JOIN organization_controls c ON c.organization_id=o.id
- ORDER BY lower(o.display_name),o.id LIMIT 1000`);
- return rows;
+ ${where} ORDER BY lower(o.display_name),o.id LIMIT $2 OFFSET $3`,[search,size,(safePage-1)*size]);
+ return {rows,total,page:safePage,pages,pageSize:size};
 }
 export async function updateOrganizationControl(pool,{id,action,days,note,adminSubject}){
  if(!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(id))throw Error('INVALID_ID');
