@@ -142,6 +142,24 @@ export function calcularConciliacaoEletronicaSessao({ sessao, livroFinanceiro = 
   const cartaoCreditoSaidas = somar(creditoLancamentos, 'saida');
   const cartaoDebitoEntradas = somar(debitoLancamentos, 'entrada');
   const cartaoDebitoSaidas = somar(debitoLancamentos, 'saida');
+  // Conciliar recebíveis eletrônicos por moeda REAL da maquininha.
+  // Não soma números de PYG com BRL. O campo valor do livro permanece BRL
+  // apenas para os demonstrativos equivalentes/históricos já existentes.
+  const recebiveisPorMoeda = {};
+  for (const lancamento of [...creditoLancamentos,...debitoLancamentos]) {
+    const tipo = classificar(lancamento);
+    const moeda = String(lancamento?.detalhes?.moedaOrigem || 'BRL').toUpperCase();
+    const chave = `${tipo}:${moeda}`;
+    const entry = recebiveisPorMoeda[chave] || {tipo,moeda,entradasNativas:0,saidasNativas:0,liquidoNativo:0,equivalenteBRL:0};
+    const valorNativo = Number(lancamento?.detalhes?.valorOriginal ?? lancamento?.valor ?? 0);
+    const valorEquivalente = n(lancamento?.valor);
+    const sinal = lancamento?.direcao === 'saida' ? -1 : 1;
+    if (sinal > 0) entry.entradasNativas += valorNativo;
+    else entry.saidasNativas += valorNativo;
+    entry.liquidoNativo += sinal*valorNativo;
+    entry.equivalenteBRL += sinal*valorEquivalente;
+    recebiveisPorMoeda[chave] = entry;
+  }
   return {
     // aliases preservados para a UI aprovada da ATT 07.1
     pixRegistrado: pixEntradas,
@@ -158,5 +176,6 @@ export function calcularConciliacaoEletronicaSessao({ sessao, livroFinanceiro = 
     pixLancamentos,
     cartaoCreditoLancamentos: creditoLancamentos,
     cartaoDebitoLancamentos: debitoLancamentos,
+    recebiveisPorMoeda,
   };
 }
