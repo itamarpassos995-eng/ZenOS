@@ -22,3 +22,21 @@ test('non-integrated actions cannot pretend success',()=>{
  assert.match(html,/disabled/);
  assert.match(html,/pendentes de integração/);
 });
+
+test('gestao aparece em cada linha e nao cria segunda lista de empresas',()=>{
+ const data={rows:[{id:'123',firebase_uid:'loja-a',display_name:'Loja A',country:'BR',administrative_status:'regular',bonus_days:0,internal_note:''}],total:1001,page:2,pages:41};
+ const html=renderControlCenter('/clientes',overview,[],data,'csrf-token','Loja');
+ assert.equal((html.match(/Loja A/g)||[]).length,1);
+ assert.match(html,/Gerenciar/);
+ assert.match(html,/Página 2 de 41/);
+ assert.match(html,/name="q"/);
+ assert.match(html,/value="Loja"/);
+ assert.match(html,/page=3/);
+ assert.doesNotMatch(html,/Abrir gestão de empresas/);
+});
+test('empresa maliciosa e nota interna escapadas no painel',()=>{
+ const data={rows:[{id:'123',firebase_uid:'loja-a',display_name:'<img src=x>',country:'BR',administrative_status:'regular',bonus_days:0,internal_note:'"><script>alert(1)</script>'}],total:1,page:1,pages:1};
+ const html=renderControlCenter('/clientes',overview,[],data,'csrf-token');
+ assert.doesNotMatch(html,/<img src=x>|<script>/);
+ assert.match(html,/&lt;img src=x&gt;/);
+});

@@ -18,6 +18,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - run: npm ci
       - run: npm test
   postgres-migration-test:
     runs-on: ubuntu-latest
@@ -51,3 +52,9 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f control-center/migrations/001_foundation.sql
       - name: Validate uniqueness, isolation identifiers and financial constraints
         run: psql -v ON_ERROR_STOP=1 -f control-center/test/postgres-foundation.sql
+
+      - name: Validate additional migrations in disposable CI database
+        run: |
+          psql -v ON_ERROR_STOP=1 -f control-center/migrations/002_admin_mfa_state.sql
+          psql -v ON_ERROR_STOP=1 -f control-center/migrations/003_admin_auth.sql
+          psql -v ON_ERROR_STOP=1 -f control-center/migrations/004_saas_operations.sql

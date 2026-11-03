@@ -16,9 +16,9 @@ export async function processCommercialEvent({pool,input,verifiedSource,verified
     if(inserted.rowCount===0){await client.query('COMMIT');begun=false;return {duplicate:true,processed:false};}
     if(event.eventType==='organization.registered.v1'){
       await client.query(
-        `INSERT INTO organizations (firebase_uid,display_name,country) VALUES ($1,$2,$3)
-         ON CONFLICT (firebase_uid) DO UPDATE SET display_name=EXCLUDED.display_name,updated_at=now()`,
-        [event.organizationUid,event.payload.displayName.trim(),event.payload.country||null]
+        `INSERT INTO organizations (firebase_uid,display_name,country,last_synced_at,source_updated_at) VALUES ($1,$2,$3,now(),$4)
+         ON CONFLICT (firebase_uid) DO UPDATE SET display_name=EXCLUDED.display_name,country=EXCLUDED.country,updated_at=now(),last_synced_at=now(),source_updated_at=EXCLUDED.source_updated_at WHERE organizations.source_updated_at IS NULL OR organizations.source_updated_at<EXCLUDED.source_updated_at`,
+        [event.organizationUid,event.payload.displayName.trim(),event.payload.country||null,event.occurredAt]
       );
     }else if(event.eventType==='commercial.requested.v1'){
       const saved=await client.query(

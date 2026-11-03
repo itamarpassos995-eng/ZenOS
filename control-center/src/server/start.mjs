@@ -1,4 +1,7 @@
-import {ensureOperationsSchema,listOrganizationControls,updateOrganizationControl} from './organization-operations.mjs';
+import {migrateOperations} from './migrations.mjs';
+import {createSaasService} from './saas-service.mjs';
+import {createIntegration} from './integration.mjs';
+import {ensureOperationsSchema,listOrganizationControls} from './organization-operations.mjs';
 import {createServer} from 'node:http';
 import {createDatabasePool} from './database.mjs';
 import {createGoogleIdentityVerifier} from './google-identity.mjs';
@@ -16,14 +19,18 @@ const pool=await createDatabasePool({requireTls:true});
 const store=createAuthStore({pool,box,bootstrapEmail:env.CONTROL_CENTER_BOOTSTRAP_EMAIL});
 const verifySession=createSessionVerifier({verifyProviderToken:token=>store.verifySession(token)});
 const handleApi=createAdminApi({verifySession,repository:createPostgresRepository(pool)});
+const saas=createSaasService(pool);
+const integration=createIntegration({pool,secret:env.CONTROL_CENTER_INTEGRATION_SECRET,origin:env.CONTROL_CENTER_INTEGRATION_ORIGIN,enabled:env.CONTROL_CENTER_INTEGRATION_ENABLED==='true'});
 const handle=createAuthHttp({store,verifyGoogle,handleApi,origin:env.CONTROL_CENTER_ORIGIN,
   clientId:env.GOOGLE_CLIENT_ID,clientSecret:env.GOOGLE_CLIENT_SECRET,
-  operations:{list:()=>listOrganizationControls(pool),update:args=>updateOrganizationControl(pool,args)}});
+  saas,integration,operations:{list:args=>listOrganizationControls(pool,args)}});
 // Fail before listening when authentication migrations have not been applied.
 await pool.query('SELECT token_hash FROM admin_sessions LIMIT 0');
 await pool.query('SELECT secret_cipher,enabled FROM admin_mfa_state LIMIT 0');
 await store.cleanup();
 await ensureOperationsSchema(pool);
+await migrateOperations(pool);
+await saas.recurring();
 // Conservative process-wide limiter: never trusts spoofable X-Forwarded-For.
 let windowStart=Date.now(),requests=0;
 const server=createServer(async(req,res)=>{
@@ -37,5 +44,8 @@ const server=createServer(async(req,res)=>{
 });
 server.requestTimeout=15000;server.headersTimeout=10000;
 server.listen(Number(env.PORT||3000),env.CONTROL_CENTER_BIND||'127.0.0.1',()=>console.log('Control Center homologation listening'));
+let jobRunning=false;
+const jobs=setInterval(async()=>{if(jobRunning)return;jobRunning=true;try{await integration.dispatch();}catch{console.error('Integration job failed');}finally{jobRunning=false;}},30000);jobs.unref();
+const billing=setInterval(()=>saas.recurring().catch(()=>console.error('Billing job failed')),3600000);billing.unref();
 const cleanup=setInterval(()=>store.cleanup().catch(()=>{}),300000);cleanup.unref();
-for(const signal of ['SIGTERM','SIGINT'])process.once(signal,()=>{clearInterval(cleanup);server.close(()=>pool.end().finally(()=>process.exit(0)));});
+for(const signal of ['SIGTERM','SIGINT'])process.once(signal,()=>{clearInterval(cleanup);clearInterval(jobs);clearInterval(billing);server.close(()=>pool.end().finally(()=>process.exit(0)));});

@@ -14,13 +14,17 @@ const output=(status,body,extra={})=>({status,headers:{'content-type':'text/html
   'referrer-policy':'same-origin','x-content-type-options':'nosniff',...extra},body});
 const redirect=(url,extra={})=>output(303,'',{location:url,...extra});
 const invalid=()=>output(401,page('Acesso não autorizado','<p>Entre novamente ou confira seu código de verificação.</p><a href="/auth/login">Entrar com Google</a>'));
-export function createAuthHttp({store,verifyGoogle,handleApi,origin,clientId,clientSecret,fetchImpl=fetch,operations}){
+export function createAuthHttp({store,verifyGoogle,handleApi,origin,clientId,clientSecret,fetchImpl=fetch,operations,saas,integration}){
   const base=new URL(origin);
   if(base.protocol!=='https:'||base.origin!==origin||!clientId||!clientSecret)throw Error('OAUTH_CONFIG_REQUIRED');
   const callback=origin+'/auth/google/callback';
   return async function handle({method='GET',url='/',headers={},body=''}){
     if(url.length>16384)return output(414,'');
     const u=new URL(url,origin),c=cookies(headers);
+    if(u.pathname==='/internal/events'&&method==='POST'){
+      if(!integration)return output(503,'');
+      try{const r=await integration.incoming({body,headers});return {...r,headers:{'content-type':'application/json','cache-control':'no-store'},body:JSON.stringify(r.body)};}catch{return output(400,'Evento não aceito');}
+    }
     if(method==='POST' && headers.origin!==origin)return output(403,'');
     if(method==='GET'&&u.pathname==='/auth/login'){
       const state=randomToken(),browser=randomToken(),nonce=randomToken(),verifier=randomToken();
@@ -63,18 +67,23 @@ export function createAuthHttp({store,verifyGoogle,handleApi,origin,clientId,cli
       return redirect('/',{'set-cookie':cookie('zenos_admin_session','',0)});
     }
     if(u.pathname==='/admin/organizations')return redirect('/clientes');
-    if(u.pathname==='/clientes'&&method==='POST'){
-      if(!c.zenos_admin_session||!operations)return invalid();
+    if(['/clientes','/mensalidades','/planos','/solicitacoes'].includes(u.pathname)&&method==='POST'){
+      if(!c.zenos_admin_session||!saas)return invalid();
       const admin=await store.verifySession(c.zenos_admin_session);
-      if(!admin?.roles?.includes('owner')||admin.mfaVerified!==true)return output(403,page('Acesso negado',''));
+      if(!admin||admin.mfaVerified!==true)return output(403,'Acesso negado');
       const form=new URLSearchParams(body);
       if(!verifySyncCsrf(c.zenos_admin_session,form.get('csrf')))return output(403,'');
-      const action=form.get('action');
-      if(!['suspend','restore','bonus','note'].includes(action))return output(400,'');
-      if(['suspend','restore'].includes(action)&&form.get('confirm')!=='SIM')return output(400,page('Confirmação obrigatória','Digite SIM.'));
-      try{await operations.update({id:form.get('id'),action,days:Number(form.get('days')),note:form.get('note'),adminSubject:admin.subject});}
-      catch{return output(400,page('Operação não concluída','<a href="/clientes">Voltar aos clientes</a>'));}
-      return redirect('/clientes');
+      const input=Object.fromEntries([...form].filter(([k])=>k!=='csrf'&&!k.startsWith('return_')));
+      if(input.action==='plan')input.module_ids=form.getAll('module_ids').join(',');
+      const permitted={'/clientes':['note','suspend','restore','bonus','subscribe','change_plan','cancel_subscription','grant','invoice'],'/mensalidades':['invoice','payment','discount','void'],'/planos':['plan','module'],'/solicitacoes':['request']};
+      if(!permitted[u.pathname].includes(input.action))return output(400,'Ação inválida');
+      try{await saas.mutate(admin,input);}catch(e){
+        const messages={FORBIDDEN:'Seu perfil não permite esta ação.',COMMAND_ALREADY_PENDING:'Esta empresa já possui um comando pendente. Aguarde a confirmação.',CONFIRM_ORGANIZATION_REQUIRED:'Confirme o identificador exato da empresa.',SUBSCRIPTION_REQUIRED:'Cadastre uma assinatura antes de conceder dias.',CURRENCY_MISMATCH:'A moeda do recebimento deve ser igual à da cobrança.',OVERPAYMENT:'O pagamento excede o saldo.',IDEMPOTENCY_CONFLICT:'Este envio já foi usado com outros dados. Reabra o formulário.',ACTIVE_SUBSCRIPTION_EXISTS:'A empresa já possui assinatura; mudança de plano exige revisão da vigência.',PRICE_NOT_FOUND:'Não existe preço vigente para o plano e moeda selecionados.'};
+        const result=renderControlCenter(u.pathname,{organizations:0,active_subscriptions:0,trials:0,overdue_invoices:0},[]);
+        return output(e.message==='FORBIDDEN'?403:400,result.replace('<h1>',`<div class="notice" role="alert">Operação não concluída: ${escape(messages[e.message]||'Confira os dados, valores, datas e motivo antes de tentar novamente.')} <a href="${u.pathname}">Voltar</a></div><h1>`));
+      }
+      const params=new URLSearchParams();for(const k of ['q','page','country','status','sort','manage']){const v=form.get('return_'+k);if(v)params.set(k,v.slice(0,120));}
+      return redirect(u.pathname+'?'+params.toString());
     }
     if(u.pathname==='/admin/sync-organizations'&&(method==='GET'||method==='POST')){
       if(!c.zenos_admin_session)return invalid();
@@ -97,9 +106,24 @@ export function createAuthHttp({store,verifyGoogle,handleApi,origin,clientId,cli
       if(!c.zenos_admin_session)return output(200,page('Sua central de gestão','<p>Acesso administrativo exclusivo. Entre com Google e confirme o código do autenticador.</p><a href="/auth/login">Entrar com Google</a>'));
       const overview=await handleApi({method,path:'/api/overview',headers});
       if(overview.status!==200)return invalid();
-      const list=await handleApi({method,path:'/api/organizations',headers});
-      if(list.status!==200)return output(list.status,page('Dados indisponíveis','<p>Tente novamente mais tarde.</p>'));
-      return output(200,renderControlCenter(u.pathname,overview.body,u.pathname==='/clientes'&&u.searchParams.get('q')?list.body.organizations.filter(r=>r.display_name.toLocaleLowerCase('pt-BR').includes(u.searchParams.get('q').toLocaleLowerCase('pt-BR'))):list.body.organizations,u.pathname==='/clientes'&&operations?(await operations.list()).filter(r=>!u.searchParams.get('q')||r.display_name.toLocaleLowerCase('pt-BR').includes(u.searchParams.get('q').toLocaleLowerCase('pt-BR'))):[],c.zenos_admin_session&&u.pathname==='/clientes'&&(await store.verifySession(c.zenos_admin_session))?.roles?.includes('owner')?syncCsrf(c.zenos_admin_session):''));
+      const isClients=u.pathname==='/clientes';
+      const admin=await store.verifySession(c.zenos_admin_session);
+      const owner=Boolean(admin?.roles?.some(r=>['owner','billing','support','auditor'].includes(r))&&admin?.mfaVerified===true);
+      const q=(u.searchParams.get('q')||'').slice(0,120);
+      const rawPage=Number(u.searchParams.get('page')||1);
+      const pageNumber=Number.isSafeInteger(rawPage)?Math.max(1,Math.min(100000,rawPage)):1;
+      const context={roles:admin.roles,q,page:pageNumber,country:u.searchParams.get('country')||'',status:u.searchParams.get('status')||'',sort:u.searchParams.get('sort')||'name',manage:u.searchParams.get('manage')||'',integrationEnabled:integration?.enabled===true};
+      const data=saas?await saas.snapshot(admin):null;
+      if(context.manage&&!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(context.manage))return output(400,'Identificador inválido');
+      const detail=isClients&&saas&&context.manage?await saas.detail(admin,context.manage):null;
+      const controls=isClients&&operations?await operations.list({...context,pageSize:25}):{rows:[],total:0,page:1,pages:1};
+      let rows=isClients&&!owner?controls.rows.map(({display_name,country})=>({display_name,country})):[];
+      if(!isClients){
+        const list=await handleApi({method,path:'/api/organizations',headers});
+        if(list.status!==200)return output(list.status,page('Dados indisponíveis','<p>Tente novamente mais tarde.</p>'));
+        rows=list.body.organizations;
+      }
+      return output(200,renderControlCenter(u.pathname,overview.body,rows,controls,owner?syncCsrf(c.zenos_admin_session):'',q,{data,detail,context}));
     }
     if(u.pathname.startsWith('/api/')||u.pathname==='/health'){
       const result=await handleApi({method,path:u.pathname,headers});return {...result,body:JSON.stringify(result.body)};

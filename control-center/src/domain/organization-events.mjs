@@ -11,6 +11,7 @@ export function validateEvent(event) {
   if (!event.payload || typeof event.payload !== 'object' || Array.isArray(event.payload)) throw new Error('INVALID_PAYLOAD');
   if (JSON.stringify(event).length > 16384) throw new Error('EVENT_TOO_LARGE');
   if (event.eventType === 'organization.registered.v1') {
+    if (event.payload.country!=null && !/^[A-Z]{2}$/.test(event.payload.country)) throw new Error('INVALID_COUNTRY');
     if (typeof event.payload.displayName !== 'string' || !event.payload.displayName.trim() || event.payload.displayName.length > 180) throw new Error('INVALID_ORG_NAME');
   }
   if (event.eventType === 'commercial.requested.v1' && typeof event.payload.requestType !== 'string') throw new Error('INVALID_REQUEST_TYPE');
