@@ -725,8 +725,11 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     { id: 'dinheiro_pyg', rotulo: tx('Guarani (₲)', 'Guaraní (₲)', 'Guarani (₲)'), moedaOrigem: 'PYG', icone: '💵' }, 
     { id: 'dinheiro_eur', rotulo: tx('Euro (€)', 'Euro (€)', 'Euro (€)'), moedaOrigem: 'EUR', icone: '💶' },
     { id: 'pix', rotulo: 'Pix QR Code', moedaOrigem: 'BRL', icone: '⚡' }, 
-    { id: 'cartaoCredito', rotulo: tx('Cartão Crédito', 'Tarjeta Crédito', 'Credit Card'), moedaOrigem: 'BRL', icone: '💳' },
-    { id: 'cartaoDebito', rotulo: tx('Cartão Débito', 'Tarjeta Débito', 'Debit Card'), moedaOrigem: 'BRL', icone: '💳' }, 
+    // Os IDs antigos são mantidos para BRL. Cada maquininha usa a moeda cobrada.
+    ...([moeda,...['BRL','PYG','USD','EUR'].filter(m=>m!==moeda)].filter(m=>['BRL','PYG','USD','EUR'].includes(m))).flatMap(m => [
+      { id: m === 'BRL' ? 'cartaoCredito' : `cartaoCredito_${m.toLowerCase()}`, rotulo: `${tx('Cartão Crédito','Tarjeta Crédito','Credit Card')} (${m})`, moedaOrigem:m, icone:'💳' },
+      { id: m === 'BRL' ? 'cartaoDebito' : `cartaoDebito_${m.toLowerCase()}`, rotulo: `${tx('Cartão Débito','Tarjeta Débito','Debit Card')} (${m})`, moedaOrigem:m, icone:'💳' },
+    ]),
     { id: 'voucher', rotulo: 'Voucher', moedaOrigem: 'BRL', icone: '🎟️' },
     { id: 'cheque', rotulo: 'Cheque', moedaOrigem: 'BRL', icone: '📝' }, 
     { id: 'crediario', rotulo: tx('Crediário / Fiado', 'Fiado / Crédito', 'Store Credit'), moedaOrigem: 'BRL', icone: '📒' }
@@ -751,9 +754,9 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   const abrirCheckoutAposValidacoes = () => {
     if (itensVenda.length === 0 || totalFinalBRL <= 0) return mostrarZen('warning', tx("Venda vazia","Venta vacía"), tx('Adicione produtos à venda.', 'Añada productos.', 'Add products.'));
     setPagamentosLancados([]);
-    setFormaSelecionada('dinheiro_brl');
+    setFormaSelecionada(moeda === 'PYG' ? 'dinheiro_pyg' : moeda === 'USD' ? 'dinheiro_usd' : moeda === 'EUR' ? 'dinheiro_eur' : 'dinheiro_brl');
     setMoedaTrocoEscolhida(moeda);
-    setValorLancamentoInput(converterDeBRL(totalFinalBRL, 'BRL').toFixed(2));
+    setValorLancamentoInput(moeda === 'PYG' ? String(Math.round(converterDeBRL(totalFinalBRL, moeda))) : converterDeBRL(totalFinalBRL, moeda).toFixed(2));
     setVendaSucesso(false);
     setModalFechamentoAberto(true);
   };
@@ -1050,7 +1053,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
         taxasCambioTroco: tipoFinalizacao === 'venda' && trocoTotalBRL >= 0.01 ? { ...taxasCambio } : null,
         pagamentos: tipoFinalizacao === 'venda' ? [...pagamentosLancados] : [],
         taxasCambio: { BRL: 1, ...(taxasCambio || {}) },
-        detalhesPagamento: tipoFinalizacao === 'venda' ? (pagamentosLancados.map(p => `${p.rotulo}: ${(parseFloat(p.valorOriginal)||0).toFixed(2)}`).join(' • ') || tx('Dinheiro', 'Efectivo', 'Cash')) : docRotulo,
+        detalhesPagamento: tipoFinalizacao === 'venda' ? (pagamentosLancados.map(p => `${p.rotulo}: ${p.moedaOrigem === 'PYG' ? Math.round(Number(p.valorOriginal)||0) : (parseFloat(p.valorOriginal)||0).toFixed(2)} ${p.moedaOrigem || 'BRL'}`).join(' • ') || tx('Dinheiro', 'Efectivo', 'Cash')) : docRotulo,
         estado: estadoFinal,
         tipoDocumento: tipoFinalizacao
       };
@@ -1121,6 +1124,8 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                 valorOriginal: Number(pag.valorOriginal ?? 0),
                 valorRecebidoConvertidoBRL: Number(pag.valorConvertidoBRL || 0),
                 taxaCambioAplicada: Number(pag.taxaCambioAplicada || 1),
+                // Recebível eletrônico separado por moeda/forma, não entra na gaveta.
+                formaEletronica: String(pag.formaId || '').startsWith('cartao') ? 'cartao' : null,
                 trocoVendaMoeda: novaVenda.moedaTrocoInfo,
                 trocoVendaOriginal: Number(novaVenda.trocoOriginal || 0),
               },
@@ -2034,7 +2039,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                     <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', fontSize: '13px', borderBottom: '1px solid #1e293b' }}>
                       <span style={{ color: '#cbd5e1', fontWeight: 600 }}>{p.icone} {p.rotulo}</span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <strong style={{ color: '#fff', fontSize: '14px' }}>{p.valorOriginal.toFixed(2)}</strong>
+                        <strong style={{ color: '#fff', fontSize: '14px' }}>{p.moedaOrigem === 'PYG' ? Math.round(p.valorOriginal).toLocaleString('es-PY') : p.valorOriginal.toFixed(2)} {p.moedaOrigem}</strong>
                         <button onClick={() => setPagamentosLancados(pagamentosLancados.filter(x => x.id !== p.id))} style={{ color: '#f43f5e', backgroundColor: 'rgba(244, 63, 94, 0.1)', border: 'none', borderRadius: '6px', width: '24px', height: '24px', cursor: 'pointer', fontWeight: 900 }}>✕</button>
                       </div>
                     </div>
