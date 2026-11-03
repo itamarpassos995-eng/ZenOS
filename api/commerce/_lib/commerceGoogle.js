@@ -105,6 +105,17 @@ export async function putPublicBlob(pathname,body,{putImpl=vercelBlobPut,content
   }
   const url=new URL(result.url);
   if(url.protocol!=='https:'||!url.hostname.endsWith('.public.blob.vercel-storage.com')||url.pathname!=='/'+pathname)throw Error('blob-resposta-invalida');
+  // A leitura pública utiliza um hostname configurado separadamente. Impedir
+  // sucesso falso se o token gravou em outro Blob Store.
+  const configuredOrigin=process.env.ZENOS_COMMERCE_CDN_ORIGIN;
+  if(configuredOrigin){
+    let expected;
+    try{expected=new URL(configuredOrigin);}catch{throw Error('blob-origem-configurada-invalida');}
+    if(expected.protocol!=='https:'||expected.pathname!=='/'||expected.search||expected.hash||
+      expected.username||expected.password||expected.port||
+      !expected.hostname.endsWith('.public.blob.vercel-storage.com'))throw Error('blob-origem-configurada-invalida');
+    if(url.origin!==expected.origin)throw Error('blob-origem-divergente');
+  }
   return result.url;
 }
 export async function migrarFotosPublicas(snapshot,{put=putPublicBlob}={}){
