@@ -22,6 +22,8 @@ const input=(action,fields={})=>({action,key:randomUUID(),reason:'Teste controla
 test('SaaS: moedas, idempotência, saldo, isolamento, auditoria e recorrência',async()=>{
  const f=await fixture();try{
   const {service:s,db,org,other}=f;
+  const auditor=(await db.query("INSERT INTO admin_users(external_subject,email) VALUES('google:auditor','auditor@test.local') RETURNING id")).rows[0];await db.query("INSERT INTO admin_roles(admin_id,role) VALUES($1,'auditor')",[auditor.id]);
+  await assert.rejects(s.mutate({subject:'google:auditor',mfaVerified:true},input('invoice',{id:org,currency:'BRL',amount:'10',due_at:'2026-11-10'})),/FORBIDDEN/);
   await assert.rejects(s.mutate({...owner,mfaVerified:false},input('plan')),/MFA_REQUIRED/);
   await assert.rejects(s.mutate({subject:'forjado',mfaVerified:true},input('plan')),/FORBIDDEN/);
   const p=await s.mutate(owner,input('plan',{code:'basic',title:'Básico',trial_days:'7',currency:'BRL',amount:'100.0000'}));
