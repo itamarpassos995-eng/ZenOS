@@ -42,3 +42,10 @@ Escopo: leitura do código da branch `feat/control-center-google-mfa-base` e con
 `test/license-command.test.mjs`: testes de transições, idempotência, bônus e precedência de suspensão.
 
 **Limitação:** este incremento é somente domínio e testes de unidade. Não implementa bloqueio real, pagamentos, deploy ou sincronização automática.
+
+## Achado crítico confirmado no ZenOS principal (src/App.jsx, main)
+- O `onAuthStateChanged(auth, async user => ...)` usa `user.uid` para ler `doc(db,"lojas",user.uid)`. Isso confirma a relação atual entre o UID autenticado e o ID da loja nesse fluxo de login, mas não garante que todos os documentos legados sigam o mesmo padrão.
+- O estado da loja é obtido de `dadosLoja.status || 'aguardando_pagamento'`. A lógica atual converte `aguardando_pagamento` para `ativo` se a data de criação for de até 7 dias. O teste gratuito é calculado no cliente; não é uma autorização servidor-side.
+- `statusLoja === 'ativo'` determina se o terminal de login de operadores é exibido. A ausência de autorização servidor-side nesse trecho significa que uma mudança de estado apenas no Control Center não produz bloqueio real.
+- Uma implementação de bloqueio não pode depender exclusivamente dessa condição React: as APIs de escrita e as regras de segurança do Firestore também devem impor o controle por empresa, sem leitura adicional em cada clique. Antes de ativar, auditar as regras reais e as rotas de escrita, desenhar política de sessão e garantir rollback.
+- Não alterar `src/App.jsx` ou regras Firestore na produção nesta etapa. Criar testes isolados de autorização com loja A/B e sessão já aberta antes de conectar comandos.
