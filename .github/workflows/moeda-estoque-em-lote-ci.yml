@@ -1,0 +1,24 @@
+name: Moeda padrao e estoque negativo em lote
+on:
+  pull_request:
+    paths:
+      - 'src/App.jsx'
+      - 'src/components/Produtos.jsx'
+      - 'src/components/ZenVisualLayout.jsx'
+      - 'scripts/currency-default-bulk-negative-stock.test.mjs'
+      - '.github/workflows/moeda-estoque-em-lote-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test scripts/currency-default-bulk-negative-stock.test.mjs scripts/inventory-negative-stock.test.mjs
+      - run: npm run build

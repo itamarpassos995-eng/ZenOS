@@ -143,6 +143,8 @@ export default function App() {
   const [temaUi, setTemaUi] = useState('dark');
   const [idioma, setIdioma] = useUiLanguage(zenosStorage);
   const [moeda, setMoeda] = useState('BRL');
+  const [moedaPadrao, setMoedaPadrao] = useState('BRL');
+  const [salvandoMoedaPadrao, setSalvandoMoedaPadrao] = useState(false);
   
   const [mostrarPainelExecutivo, setMostrarPainelExecutivo] = useState(false);
   const [valoresTopoVisiveis, setValoresTopoVisiveis] = useState(true);
@@ -480,6 +482,7 @@ export default function App() {
         setUsuarioAutenticado(user.email);
         // ATT 08.1: isolamento absoluto por conta. Nenhum perfil/regra/câmbio da sessão anterior permanece em RAM.
         const perfilCacheUsuario = lerPerfilLojaLocal(user.uid);
+        setMoeda('BRL'); setMoedaPadrao('BRL');
         setPerfilLoja(perfilCacheUsuario);
         setPerfilRapidoRascunho(perfilCacheUsuario);
         setRegrasDesconto({ ...REGRAS_DESCONTO_PADRAO });
@@ -622,6 +625,7 @@ export default function App() {
       } else {
         // SEM USUÁRIO (DESLOGADO): Destrói os dados locais da memória RAM
         setUsuarioAutenticado(null); setUserId(null); setStatusLoja(null); setOperadorAtivo(null);
+        setMoeda('BRL'); setMoedaPadrao('BRL');
         setNuvemSincronizada(false);
         setFalhaBootstrapNuvem(null);
         setProdutos([]); setClientes([]); setHistoricoVendas([]); setCaixaMovimentos([]); setDespesas([]); setHistoricoCompras([]); setFornecedores([]); setVouchers([]); setLivroFinanceiro([]); setSessoesCaixa([]); setRegrasDesconto({ ...REGRAS_DESCONTO_PADRAO }); setRegrasComissao(normalizarRegrasComissao(REGRAS_COMISSAO_PADRAO)); setVendedores([]); setPerfilLoja(normalizarPerfilLoja({})); setPerfilRapidoRascunho(normalizarPerfilLoja({})); setTaxasCambio({ ...TAXAS_CAMBIO_PADRAO }); setTaxasInput({ ...TAXAS_INPUT_PADRAO });
@@ -699,12 +703,16 @@ export default function App() {
           const pf = normalizarPerfilLoja({});
           setPerfilLoja(pf);
           setPerfilRapidoRascunho(pf);
+          setMoeda('BRL'); setMoedaPadrao('BRL');
           limparPerfilLojaLocal(userId);
           setTaxasCambio({ ...TAXAS_CAMBIO_PADRAO });
           setTaxasInput({ ...TAXAS_INPUT_PADRAO });
           return;
         }
         const config = snap.data() || {};
+        const moedaConfig = ['BRL','PYG','USD','EUR'].includes(config.moedaPadrao) ? config.moedaPadrao : 'BRL';
+        setMoedaPadrao(moedaConfig);
+        setMoeda(prev => prev === moedaPadrao ? moedaConfig : prev);
         const pf = normalizarPerfilLoja(config.perfilLoja || {});
         setPerfilLoja(prev => syncValuesEqual(prev, pf) ? prev : pf);
         setPerfilRapidoRascunho(prev => syncValuesEqual(prev, pf) ? prev : pf);
@@ -847,6 +855,22 @@ export default function App() {
     setModalPerfilRapido(false);
   };
 
+  const salvarMoedaPadrao = async () => {
+    if (!userId || !operadorAtivo || !(operadorAtivo.id === 'admin' || operadorAtivo.permissoes?.admin || patenteUsuario === 'gerencia')) return;
+    if (!['BRL','PYG','USD','EUR'].includes(moeda) || salvandoMoedaPadrao) return;
+    setSalvandoMoedaPadrao(true);
+    notifyPersistenceStatus({status:'SALVANDO',field:'configuracoes'});
+    try {
+      await setDoc(doc(db,'lojas',userId,'dados','configuracoes'),
+        {moedaPadrao:moeda,updatedAtClient:new Date().toISOString(),updatedAtServer:serverTimestamp()}, {merge:true});
+      setMoedaPadrao(moeda);
+      notifyPersistenceStatus({status:'SINCRONIZADO',field:'configuracoes'});
+    } catch (error) {
+      notifyPersistenceStatus({status:'ERRO',field:'configuracoes',error:error?.message||String(error)});
+      console.error('[ZenOS] Não foi possível salvar moeda padrão:',error);
+    } finally { setSalvandoMoedaPadrao(false); }
+  };
+
   const fazerLogout = async () => {
     // Na seleção de operador o modal global não está montado; sair diretamente.
     // Com operador autenticado, manter a confirmação administrativa existente.
@@ -868,6 +892,7 @@ export default function App() {
     setRegrasComissao(normalizarRegrasComissao(REGRAS_COMISSAO_PADRAO));
     setVendedores([]);
     setPerfilLoja(normalizarPerfilLoja({}));
+    setMoeda('BRL'); setMoedaPadrao('BRL');
     setPerfilRapidoRascunho(normalizarPerfilLoja({}));
     setTaxasCambio({ ...TAXAS_CAMBIO_PADRAO });
     setTaxasInput({ ...TAXAS_INPUT_PADRAO });
@@ -1877,6 +1902,9 @@ export default function App() {
           setIdioma,
           moeda,
           setMoeda,
+          moedaPadrao,
+          onSalvarMoedaPadrao: temPermissao('admin') || patenteUsuario === 'gerencia' ? salvarMoedaPadrao : undefined,
+          salvandoMoedaPadrao,
           onCambio: () => setModalCambioAberto(true),
           operador: operadorAtivo?.nome || 'Admin',
           patente: patenteUsuario,

@@ -25,6 +25,8 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
   const [buscaProdutoTexto, setBuscaProdutoTexto] = useState('');
   const [mostrarInativos, setMostrarInativos] = useState(false);
   const [modalExcluir, setModalExcluir] = useState(null);
+  const [confirmarEstoqueNegativoTodos, setConfirmarEstoqueNegativoTodos] = useState(false);
+  const [salvandoEstoqueNegativoTodos, setSalvandoEstoqueNegativoTodos] = useState(false);
   const [senhaExclusao, setSenhaExclusao] = useState('');
   
   const [modalProdutoAberto, setModalProdutoAberto] = useState(false);
@@ -67,6 +69,38 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
   const podeGerenciarProdutos = patenteUsuario==='gerencia'
     || operadorAtivo?.permissoes?.admin===true
     || operadorAtivo?.permissoes?.produtos===true;
+
+  const todosPermitemNegativo = produtos.length > 0 && produtos.every(p => p.permitirEstoqueNegativo === true);
+  const atualizarEstoqueNegativoTodos = async () => {
+    if (!podeGerenciarProdutos || salvandoEstoqueNegativoTodos || !produtos.length) return;
+    const habilitar = !todosPermitemNegativo;
+    if (!habilitar && produtos.some(p => Number(p.estoque) < 0)) {
+      setConfirmarEstoqueNegativoTodos(false);
+      return mostrarZen('warning',
+        tx('Há produtos com estoque negativo','Hay productos con stock negativo','Products have negative stock'),
+        tx('Regularize os saldos negativos antes de desativar a permissão para todos.','Regularice los saldos negativos antes de desactivar el permiso para todos.','Reconcile negative stock before disabling this permission for all.'));
+    }
+    setConfirmarEstoqueNegativoTodos(false);
+    setSalvandoEstoqueNegativoTodos(true);
+    try {
+      if (typeof commitOperacaoNegocio !== 'function') throw new Error('Sincronização não disponível.');
+      const proposta = produtos.map(p => ({...p, permitirEstoqueNegativo: habilitar}));
+      const confirmado = await commitOperacaoNegocio({
+        changes:[{field:'produtos',value:proposta,storageSuffix:'produtos'}],
+      });
+      if (!confirmado?.cloudOk) throw confirmado?.error || new Error('Alteração não confirmada pelo servidor.');
+      setProdutos(confirmado.values?.produtos || proposta);
+      mostrarZen('info',
+        habilitar ? tx('Estoque negativo ativado','Stock negativo activado','Negative stock enabled')
+                  : tx('Estoque negativo desativado','Stock negativo desactivado','Negative stock disabled'),
+        habilitar ? tx('Todos os produtos podem ser vendidos além do saldo disponível.','Todos los productos permiten ventas superiores al stock disponible.','All products allow sales beyond available stock.')
+                  : tx('Todos os produtos voltaram a exigir estoque suficiente.','Todos los productos vuelven a exigir stock suficiente.','All products now require sufficient stock.'));
+    } catch (erro) {
+      mostrarZen('danger',tx('Alteração não confirmada','Cambio no confirmado','Change not confirmed'),
+        tx('Nenhuma alteração local foi aplicada. Confira a sincronização e tente novamente.','No se aplicó ningún cambio local. Revise la sincronización e inténtelo otra vez.','No local changes were applied. Check synchronization and retry.'),
+        [erro?.message || String(erro)]);
+    } finally { setSalvandoEstoqueNegativoTodos(false); }
+  };
 
   const buscarCadastroPeloSkuAntigo = async () => {
     if(!podeGerenciarProdutos||buscandoSkuHistorico)return;
@@ -655,6 +689,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div><h2 style={{ fontSize: '24px', fontWeight: 900, color: '#ffffff', margin: 0 }}>{t ? t('catalogoTitulo') : tx("Catálogo","Catálogo")}</h2><span style={{ fontSize: '13px', color: '#64748b' }}>{t ? t('catalogoSub') : tx("Gerenciamento","Administración")}</span></div>
         <div style={{ display: 'flex', gap: '10px' }}>
+          {podeGerenciarProdutos && <button type="button" disabled={salvandoEstoqueNegativoTodos || !produtos.length} onClick={()=>setConfirmarEstoqueNegativoTodos(true)} title={tx('Altera todos os produtos desta empresa com confirmação do servidor','Cambia todos los productos de esta empresa con confirmación del servidor','Update all products in this company with server confirmation')} style={{border:'1px solid #f59e0b',borderRadius:10,padding:'9px 12px',background:todosPermitemNegativo?'#451a03':'#064e3b',color:'#fff',fontWeight:800,cursor:'pointer'}}>{salvandoEstoqueNegativoTodos?tx('Salvando…','Guardando…','Saving…'):todosPermitemNegativo?tx('Bloquear estoque negativo em todos','Bloquear stock negativo en todos','Disable negative stock for all'):tx('Permitir estoque negativo em todos','Permitir stock negativo en todos','Allow negative stock for all')}</button>}
           <label style={{display:'flex',alignItems:'center',gap:6,color:'#94a3b8',fontSize:11,fontWeight:800}}><input type="checkbox" checked={mostrarInativos} onChange={e=>setMostrarInativos(e.target.checked)}/> {tx('Mostrar inativos','Mostrar inactivos','Show inactive')}</label>{podeGerenciarProdutos && <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
             <input aria-label={tx("SKU original","SKU original")} inputMode="text" placeholder={tx("SKU (ex. SKU-63346)","SKU (ej.: SKU-63346)")} value={skuHistoricoBusca} onChange={e=>setSkuHistoricoBusca(e.target.value)} style={{width:155,maxWidth:'100%',background:'#020617',color:'#f8fafc',border:'1px solid #334155',borderRadius:8,padding:'10px 8px'}}/>
             <button type="button" disabled={buscandoSkuHistorico} onClick={buscarCadastroPeloSkuAntigo} title={tx("Localiza somente o SKU original informado, sem varrer todos os índices","Busca únicamente el SKU original ingresado, sin recorrer todos los índices")} style={{background:'#164e63',color:'#e0f2fe',border:'1px solid #38bdf8',borderRadius:8,padding:'10px',fontWeight:800}}>{buscandoSkuHistorico?tx("Conferindo...","Verificando..."):tx("Recuperar produto por SKU","Recuperar producto por SKU")}</button>
@@ -1007,6 +1042,11 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
         </div>
       )}
     
+      <ZenModal aberto={confirmarEstoqueNegativoTodos} variante="warning"
+        titulo={todosPermitemNegativo?tx('Bloquear estoque negativo em todos','Bloquear stock negativo en todos','Disable negative stock for all'):tx('Permitir estoque negativo em todos','Permitir stock negativo en todos','Allow negative stock for all')}
+        mensagem={tx('Esta ação altera a permissão de venda de todos os produtos da empresa, sem alterar saldos, preços ou histórico. Confirme para gravar no servidor.','Esta acción cambia el permiso de venta de todos los productos de esta empresa, sin alterar saldos, precios ni historial. Confirme para guardar en el servidor.','This changes the sales permission for every product in this company without modifying balances, prices, or history. Confirm to save on the server.')}
+        confirmarTexto={tx('Confirmar alteração','Confirmar cambio','Confirm change')} cancelarTexto={tx('Cancelar','Cancelar','Cancel')}
+        onConfirmar={atualizarEstoqueNegativoTodos} onCancelar={()=>setConfirmarEstoqueNegativoTodos(false)} />
       <ZenModal aberto={!!modalZen} variante={modalZen?.variante} titulo={modalZen?.titulo} mensagem={modalZen?.mensagem} detalhes={modalZen?.detalhes} apenasConfirmar={true} onConfirmar={()=>setModalZen(null)} onCancelar={()=>setModalZen(null)} />
       <ZenModal aberto={confirmarAuditoriaCompleta} variante="warning"
         titulo="Auditoria completa de índices — uso excepcional"
