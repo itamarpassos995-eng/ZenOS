@@ -4,6 +4,7 @@ on:
     paths:
       - 'src/components/PDV.jsx'
       - 'scripts/recovery/preorder-server-confirmation.test.mjs'
+      - 'scripts/pdv-online-order-preorder-guard.test.mjs'
       - '.github/workflows/p0-preorder-server-confirmation.yml'
   workflow_dispatch:
 permissions:
@@ -18,5 +19,5 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - run: node --test scripts/recovery/preorder-server-confirmation.test.mjs
+      - run: node --test scripts/recovery/preorder-server-confirmation.test.mjs scripts/pdv-online-order-preorder-guard.test.mjs
       - run: npm run build
