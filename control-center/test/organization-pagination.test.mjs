@@ -10,9 +10,9 @@ test('consulta somente 25 empresas por pagina e busca no PostgreSQL',async()=>{
  assert.equal(result.pages,41);
  assert.equal(result.page,2);
  assert.equal(result.rows.length,1);
- assert.deepEqual(calls[0].args,['Loja']);
- assert.deepEqual(calls[1].args,['Loja',25,25]);
- assert.match(calls[1].sql,/LIMIT \$2 OFFSET \$3/);
+ assert.deepEqual(calls[0].args,['Loja','','']);
+ assert.deepEqual(calls[1].args,['Loja','','',25,25]);
+ assert.match(calls[1].sql,/LIMIT \$4 OFFSET \$5/);
  assert.match(calls[1].sql,/ILIKE/);
 });
 
@@ -22,7 +22,7 @@ test('ultima pagina invalida e limitada ao total, sem buscar toda a base',async(
  const result=await listOrganizationControls(pool,{page:99999,pageSize:25});
  assert.equal(result.page,1);
  assert.equal(result.pages,1);
- assert.deepEqual(params,['',25,0]);
+ assert.deepEqual(params,['','','',25,0]);
 });
 
 test('busca nao concatena entrada de usuario ao SQL',async()=>{

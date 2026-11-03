@@ -12,7 +12,7 @@ export function createAdminApi({verifySession,repository}){
     try{assertAdminAccess(session,'organizations:read')}catch{return json(403,{error:'FORBIDDEN'})}
     try{
       if(path==='/api/overview')return json(200,await repository.getOverview());
-      const organizations=await repository.listOrganizations({limit:1000});
+      const organizations=await repository.listOrganizations({limit:25});
       return json(200,{organizations});
     }catch{return json(503,{error:'SERVICE_UNAVAILABLE'})}
   }
