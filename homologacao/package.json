@@ -1,0 +1,1 @@
+{"name":"zenos-money-isolated-test","private":true,"version":"0.0.0","scripts":{"build":"cd .. && npm ci --ignore-scripts --no-audit --no-fund && npm run build:money-test"}}

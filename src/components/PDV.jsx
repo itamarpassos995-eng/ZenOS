@@ -22,7 +22,7 @@ import { getOperationalSnapshot } from '../core/operationalRepository';
 import { autoriaDoDocumento, autoriaDoOperador, resolverAutoriaVenda } from '../core/salesAttribution';
 import { indexarProdutosPDV, indexarClientesPDV, buscarProdutosPDV, buscarClientesPDV } from '../core/pdvSearch';
 
-export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizados,
+export default function PDV({ moneyContext = null, abrirFilaOnlineToken = 0, onPedidosOnlineAtualizados,
   pedidoPrivadoSolicitado, onPedidoPrivadoRecebido, perfilLoja, taxasCambio = {}, registrarFinanceiro, commitOperacaoCritica, commitVendaCritica, recarregarDadosPDV, vouchers = [], setVouchers, userId, produtos, setProdutos, clientes, setClientes, moeda, fmt, t, tx, converterDeBRL, converterParaBRL, historicoVendas, setHistoricoVendas, patenteUsuario, idioma, regrasDesconto, vendedores = [], operadorAtivo, sessaoAtiva }) {
   const [rascunhoInicial] = useState(() => lerRascunhoPDV(userId, operadorAtivo?.id));
   const [avisoRascunhoRecuperado, setAvisoRascunhoRecuperado] = useState(Boolean(rascunhoInicial?.itensVenda?.length));
@@ -98,7 +98,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   // Enquanto o índice não estiver provisionado, há fallback seguro para
   // páginas limitadas por ID, sem esconder pedidos antigos ou baixar toda a coleção.
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || moneyContext?.isolated) return;
     let ativo = true;
     let cancelar = () => {};
     setPedidosRecentes([]);
@@ -198,7 +198,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
             produtoOriginalSku: prodExistente.sku,
             qtd,
             precoPraticadoBRL: preco,
-            precoTexto: converterDeBRL(preco, moeda).toFixed(2)
+            precoTexto: moneyContext ? moneyContext.priceInput(preco, moeda) : converterDeBRL(preco, moeda).toFixed(2)
           };
         }
 
@@ -210,7 +210,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
           nome: item.nome || 'Item Loja Online',
           qtd,
           precoPraticadoBRL: preco,
-          precoTexto: converterDeBRL(preco, moeda).toFixed(2),
+          precoTexto: moneyContext ? moneyContext.priceInput(preco, moeda) : converterDeBRL(preco, moeda).toFixed(2),
           custoBRL: 0
         };
       });
@@ -323,6 +323,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     if (vendaSucesso) return;
     salvarRascunhoPDV(userId, operadorAtivo?.id, {
       itensVenda, autoriaAtendimento, descontoTexto, nomeClienteVulso,
+      ...(moneyContext ? {moneyOperationCurrency:moeda,moneyOperationRates:taxasCambio} : {}),
       clienteSelecionadoPDV: clienteSelecionadoPDV ? {
         id: clienteSelecionadoPDV.id, nome: clienteSelecionadoPDV.nome,
       } : null,
@@ -391,7 +392,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       const novosItens = itensVenda.map(item => {
         const prodOriginal = obterProdutoCatalogoSeguro(item, 'reprecificação por cliente');
         const novoPrecoBRL = aplicarPrecoPorPerfilCliente(prodOriginal, cli);
-        return { ...item, precoPraticadoBRL: novoPrecoBRL, precoTexto: converterDeBRL(novoPrecoBRL, moeda).toFixed(2) };
+        return { ...item, precoPraticadoBRL: novoPrecoBRL, precoTexto: moneyContext ? moneyContext.priceInput(novoPrecoBRL, moeda) : converterDeBRL(novoPrecoBRL, moeda).toFixed(2) };
       });
       setClienteSelecionadoPDV(cli); setNomeClienteVulso(cli.nome); setFocoInputCliente(false);
       setItensVenda(novosItens);
@@ -402,7 +403,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     try {
       const novosItens = itensVenda.map(item => {
         const prodOriginal = obterProdutoCatalogoSeguro(item, 'retorno ao preço de balcão');
-        return { ...item, precoPraticadoBRL: prodOriginal.precoBRL || 0, precoTexto: converterDeBRL(prodOriginal.precoBRL || 0, moeda).toFixed(2) };
+        return { ...item, precoPraticadoBRL: prodOriginal.precoBRL || 0, precoTexto: moneyContext ? moneyContext.priceInput(prodOriginal.precoBRL || 0, moeda) : converterDeBRL(prodOriginal.precoBRL || 0, moeda).toFixed(2) };
       });
       setClienteSelecionadoPDV(null); setNomeClienteVulso('');
       setItensVenda(novosItens);
@@ -436,7 +437,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
             produtoOriginalSku: prodOriginal.sku,
             qtd: '1',
             precoPraticadoBRL: precoBase,
-            precoTexto: converterDeBRL(precoBase, moeda).toFixed(2)
+            precoTexto: moneyContext ? moneyContext.priceInput(precoBase, moeda) : converterDeBRL(precoBase, moeda).toFixed(2)
           }];
         });
       }
@@ -455,6 +456,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   };
 
   const salvarClientePDV = async () => {
+    if(moneyContext?.isolated) return mostrarZen('info',tx('Homologação','Homologación','Testing'),tx('Cadastro de clientes/fiado ainda não está integrado nesta versão de teste.','Clientes y crédito todavía no están integrados en esta versión de prueba.','Customers and credit are not integrated in this test version.'));
     if (!formClientePDV.nome.trim()) return mostrarZen('warning', tx("Nome obrigatório","Nombre obligatorio"), tx('Informe o nome do cliente.', 'Informe el nombre del cliente.', 'Enter customer name.'));
     const limiteNum = parseFloat(String(formClientePDV.limiteCreditoBRL).replace(',', '.')) || 0;
     const novoCli = normalizarCliente({ ...formClientePDV, limiteCreditoBRL: limiteNum });
@@ -477,7 +479,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
 
   const abrirCadastroProdutoPDV = () => {
     setProdutoEmEdicaoPDV(null); 
-    setFormProdutoPDV(normalizarProduto({ id: gerarIdSeguro('PROD-BALCAO'), ativo: true, sku: gerarSkuProdutoBalcao('BALCAO'), usoUnicoEncomendado: false, classificacaoUso: 'estoque', estoque: 0, estoqueVitrine: 0, estoqueGalpao: 0 }));
+    setFormProdutoPDV(normalizarProduto({ ...(moneyContext ? moneyContext.form(null) : {}), id: gerarIdSeguro('PROD-BALCAO'), ativo: true, sku: gerarSkuProdutoBalcao('BALCAO'), usoUnicoEncomendado: false, classificacaoUso: 'estoque', estoque: 0, estoqueVitrine: 0, estoqueGalpao: 0 }));
     setModalProdutoPDVAberto(true);
   };
 
@@ -486,7 +488,8 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     setFormProdutoPDV({
       ...normalizarProduto(prod), custoBRL: (prod.custoBRL || 0).toString(), precoBRL: (prod.precoBRL || 0).toString(),
       preco2BRL: (prod.preco2BRL || 0).toString(), preco3BRL: (prod.preco3BRL || 0).toString(), estoque: (prod.estoque || 0).toString(),
-      usoUnicoEncomendado: ehEncomendaUsoUnico(prod)
+      usoUnicoEncomendado: ehEncomendaUsoUnico(prod),
+      ...(moneyContext ? moneyContext.form(prod) : {})
     });
     setModalProdutoPDVAberto(true);
   };
@@ -510,7 +513,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     if (skuJaExiste(produtos, formProdutoPDV.sku, produtoEmEdicaoPDV)) return mostrarZen('danger', tx('SKU duplicado','SKU duplicado','Duplicate SKU'), `${tx('Já existe outro produto com o SKU','Ya existe otro producto con el SKU','Another product already uses SKU')} ${formProdutoPDV.sku}. ${tx('Use um SKU diferente.','Use un SKU diferente.','Use a different SKU.')}`);
     const usoUnicoEncomendado = Boolean(formProdutoPDV.usoUnicoEncomendado);
     const skuAjustado = ajustarSkuPorTipoProdutoRapido(formProdutoPDV.sku, usoUnicoEncomendado);
-    const dadosFinais = normalizarProduto({
+    let dadosFinais = normalizarProduto({
       ...formProdutoPDV,
       sku: skuAjustado,
       custoBRL: custo,
@@ -529,6 +532,10 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     if (!dadosFinais.id) dadosFinais.id = `PROD-BALCAO-${Date.now()}`;
 
     let listaProposta;
+    if (moneyContext) {
+      try { dadosFinais = moneyContext.save(dadosFinais, formProdutoPDV); }
+      catch(error) { return mostrarZen('warning',tx('Confira valores e moedas','Revise importes y monedas','Check amounts and currencies'),error.message); }
+    }
     if (produtoEmEdicaoPDV) {
       try { listaProposta = atualizarProdutoUnico(produtos, produtoEmEdicaoPDV, dadosFinais, 'edição rápida no PDV'); }
       catch (erro) { return mostrarZen('danger', tx('Edição bloqueada','Edición bloqueada','Edit blocked'), erro.message || tx('Não foi possível editar este produto com segurança.','No fue posible editar este producto con seguridad.','Could not safely edit this product.')); }
@@ -622,7 +629,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
         produtoOriginalSku: itemParaAdicionar.sku,
         qtd: String(qtdNum), 
         precoPraticadoBRL: precoBase, 
-        precoTexto: converterDeBRL(precoBase, moeda).toFixed(2) 
+        precoTexto: moneyContext ? moneyContext.priceInput(precoBase, moeda) : converterDeBRL(precoBase, moeda).toFixed(2)
       }]);
     }
     setItemParaAdicionar(null); setTermoBusca(''); 
@@ -631,7 +638,17 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
 
   const removerItem = (id) => { setItensVenda(itensVenda.filter(item => item.id !== id)); };
   const atualizarQtd = (id, valor) => { setItensVenda(itensVenda.map(item => item.id === id ? { ...item, qtd: String(Math.max(1, parseInt(valor) || 1)) } : item)); };
-  const lidarDigitacaoPreco = (id, valorDigitado) => { setItensVenda(itensVenda.map(item => item.id === id ? { ...item, precoTexto: valorDigitado, precoPraticadoBRL: converterParaBRL(parseFloat(valorDigitado.replace(',', '.')) || 0, moeda) } : item)); };
+  const lidarDigitacaoPreco = (id, valorDigitado) => {
+    if (moneyContext) {
+      setItensVenda(itensVenda.map(item => {
+        if(item.id !== id) return item;
+        try { const parsed = moneyContext.parsePrice(valorDigitado, moeda); return {...item, precoTexto:valorDigitado, precoPraticadoBRL:parsed.brl, moneyEnteredPrice:parsed.original, moneyPriceError:false}; }
+        catch { return {...item,precoTexto:valorDigitado,moneyPriceError:true}; }
+      }));
+      return;
+    }
+    setItensVenda(itensVenda.map(item => item.id === id ? { ...item, precoTexto: valorDigitado, precoPraticadoBRL: converterParaBRL(parseFloat(valorDigitado.replace(',', '.')) || 0, moeda) } : item));
+  };
 
   const [consultandoResgate, setConsultandoResgate] = useState(false);
   const resgateEmAndamentoRef = useRef(false);
@@ -642,7 +659,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     try {
       // A lista local pode estar desatualizada após outra caixa liquidar.
       // Consultar exclusivamente o servidor antes de associar um pré-pedido ao carrinho.
-      const snap = await getOperationalSnapshot(db,userId);
+      const snap = await (moneyContext?.getOperationalSnapshot ? moneyContext.getOperationalSnapshot() : getOperationalSnapshot(db,userId));
       const fila = snap.exists() && Array.isArray(snap.data()?.historicoVendas) ? snap.data().historicoVendas : null;
       if(!fila)throw new Error('A fila de documentos não foi confirmada pelo servidor.');
       const documento=fila.find(v=>String(v?.id)===String(pedido.id));
@@ -733,7 +750,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     { id: 'voucher', rotulo: 'Voucher', moedaOrigem: 'BRL', icone: '🎟️' },
     { id: 'cheque', rotulo: 'Cheque', moedaOrigem: 'BRL', icone: '📝' }, 
     { id: 'crediario', rotulo: tx('Crediário / Fiado', 'Fiado / Crédito', 'Store Credit'), moedaOrigem: 'BRL', icone: '📒' }
-  ];
+  ].filter(f=>!moneyContext?.isolated || !['voucher','crediario'].includes(f.id));
 
   const totalPagoConvertidoBRL = pagamentosLancados.reduce((acc, p) => acc + (p.valorConvertidoBRL || 0), 0);
   const saldoRestanteBRL = Math.max(0, totalFinalBRL - totalPagoConvertidoBRL);
@@ -863,6 +880,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   };
 
   const concluirTransacao = async (tipoFinalizacao) => {
+    if (moneyContext && itensVenda.some(it=>it.moneyPriceError)) return mostrarZen('warning',tx('Confira o preço','Revise el precio','Check the price'),tx('Há um preço digitado inválido. Corrija antes de finalizar.','Hay un precio inválido. Corrija antes de finalizar.','An entered price is invalid. Correct it before completing.'));
     if (operacaoEmAndamentoRef.current) return;
     if (tipoFinalizacao === 'venda' && (!podeFinalizarVenda || !sessaoAtiva)) return;
     operacaoEmAndamentoRef.current = true;
@@ -873,7 +891,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
         // Um rascunho de outro operador pode ficar ligado a um pré-pedido
         // que outro caixa já liquidou. Nenhum lançamento financeiro antes da conferência.
         try{
-          const snap=await getOperationalSnapshot(db,userId);
+          const snap=await (moneyContext?.getOperationalSnapshot ? moneyContext.getOperationalSnapshot() : getOperationalSnapshot(db,userId));
           const remoto=snap.exists()?snap.data():null;
           if(!Array.isArray(remoto?.historicoVendas))
             throw new Error('Fila não confirmada no servidor.');
@@ -936,6 +954,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       const instanteVenda = new Date(operacaoDocumentoRef.current.instante || new Date().toISOString());
       const rascunhoSeguro = salvarRascunhoPDV(userId, operadorAtivo?.id, {
         itensVenda, autoriaAtendimento, descontoTexto, nomeClienteVulso,
+      ...(moneyContext ? {moneyOperationCurrency:moeda,moneyOperationRates:taxasCambio} : {}),
         clienteSelecionadoPDV: clienteSelecionadoPDV ? {
           id: clienteSelecionadoPDV.id, nome: clienteSelecionadoPDV.nome,
         } : null,
@@ -1027,7 +1046,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       }
       const cmvVendaBRL = tipoFinalizacao === 'venda' ? calcularCmvVenda({ itens: itensDocumento }) : null;
 
-      const novaVenda = {
+      let novaVenda = {
         id: vendaId,
         createdAt: instanteVenda.toISOString(),
         dataHora: instanteVenda.toLocaleString(idioma === 'en' ? 'en-US' : idioma === 'es' ? 'es-ES' : 'pt-BR'),
@@ -1057,6 +1076,8 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
         estado: estadoFinal,
         tipoDocumento: tipoFinalizacao
       };
+
+      if (moneyContext) novaVenda = moneyContext.decorateSale({...novaVenda,moneyTenantId:userId}, {currency:moeda,discountText:descontoTexto});
 
       if (tipoFinalizacao === 'venda' && (typeof registrarFinanceiro === 'function' || typeof commitVendaCritica === 'function')) {
         try {
@@ -1238,7 +1259,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
           // o histórico autoritativo por ID sem reenviar transações.
           if (tipoFinalizacao === 'pre_pedido') {
             try {
-              const snap = await getOperationalSnapshot(db, userId);
+              const snap = await (moneyContext?.getOperationalSnapshot ? moneyContext.getOperationalSnapshot() : getOperationalSnapshot(db, userId));
               const remoto = snap.exists() ? snap.data() : null;
               const pedidos = Array.isArray(remoto?.historicoVendas) ? remoto.historicoVendas : [];
               const confirmadoNoServidor = pedidos.find(v =>
@@ -1307,6 +1328,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
 
     } catch (err) {
       console.error("Erro fatal ao finalizar documento:", err);
+      if (moneyContext && String(err?.code||'').startsWith('MONEY_')) return mostrarZen('warning',tx('Valores não confirmados','Importes no confirmados','Amounts not confirmed'),err.message);
       if (err?.code === 'ZENOS_ESTOQUE_INSUFICIENTE' || err?.code === 'ZENOS_PRODUTO_NAO_ENCONTRADO' || err?.code === 'ZENOS_PRODUTO_IDENTIDADE_DUPLICADA') {
         mostrarZen('danger', tx('Venda não concluída','Venta no concluida','Sale not completed'), err.message);
         return;
@@ -1325,9 +1347,10 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     if (!janelaImpressao) return mostrarZen('warning', tx('Impressão bloqueada','Impresión bloqueada','Printing blocked'), tx('O navegador bloqueou a janela de impressão. Permita pop-ups para o ZenOS e tente novamente.','El navegador bloqueó la ventana de impresión. Permita ventanas emergentes para ZenOS e intente nuevamente.','The browser blocked the print window. Allow pop-ups for ZenOS and try again.'));
     janelaImpressao.document.write(`
       <!DOCTYPE html><html><head><title>${tx('Cupom','Comprobante','Receipt')}</title><style>@page{margin:0;size:${larguraCssRecibo(perfilRecibo)} auto;}body{font-family:monospace;font-size:12px;color:#000;background:#fff;margin:0;padding:10px;width:${larguraCssRecibo(perfilRecibo)};box-sizing:border-box;}table{width:100%;border-collapse:collapse;font-size:11px;}th,td{padding:3px 0;}</style></head>
-      <body>${elementoCupom.innerHTML}<script>window.onload=function(){window.focus();window.print();setTimeout(function(){window.close();},500);};</script></body></html>
+      <body>${elementoCupom.innerHTML}${moneyContext ? '' : '<script>window.onload=function(){window.focus();window.print();setTimeout(function(){window.close();},500);};</script>'}</body></html>
     `);
     janelaImpressao.document.close();
+    if (moneyContext) { janelaImpressao.focus(); janelaImpressao.print(); }
   };
 
   const limparParaNovaVenda = () => {
@@ -1598,12 +1621,12 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                   <thead><tr><th>{tx('Qtd','Cant.','Qty')}</th><th>{tx('Item','Ítem','Item')}</th><th style={{ textAlign: 'right' }}>{tx('Vl. Un','Val. Un.','Unit Price')}</th><th style={{ textAlign: 'right' }}>{tx('Total','Total','Total')}</th></tr></thead>
                   <tbody>
                     {vendaConcluidaObj.itens.map((it, idx) => (
-                      <tr key={idx}><td>{it.qtd}</td><td>{it.nome.substring(0, 15)}</td><td style={{ textAlign: 'right' }}>{converterDeBRL(it.precoPraticadoBRL, moeda).toFixed(2)}</td><td style={{ textAlign: 'right' }}>{converterDeBRL((it.precoPraticadoBRL * it.qtd), moeda).toFixed(2)}</td></tr>
+                      <tr key={idx}><td>{it.qtd}</td><td>{it.nome.substring(0, 15)}</td><td style={{ textAlign: 'right' }}>{moneyContext && vendaConcluidaObj?.moneySnapshot ? moneyContext.receiptItem(it,vendaConcluidaObj,'unitPrice') : converterDeBRL(it.precoPraticadoBRL, moeda).toFixed(2)}</td><td style={{ textAlign: 'right' }}>{moneyContext && vendaConcluidaObj?.moneySnapshot ? moneyContext.receiptItem(it,vendaConcluidaObj,'total') : converterDeBRL((it.precoPraticadoBRL * it.qtd), moeda).toFixed(2)}</td></tr>
                     ))}
                   </tbody>
                 </table>
                 <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '14px' }}><span>{tx('TOTAL A PAGAR','TOTAL A PAGAR','TOTAL DUE')}</span><span>{fmt(vendaConcluidaObj.totalBRL)}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '14px' }}><span>{tx('TOTAL A PAGAR','TOTAL A PAGAR','TOTAL DUE')}</span><span>{moneyContext && vendaConcluidaObj.moneySnapshot ? moneyContext.formatTotal(vendaConcluidaObj) : fmt(vendaConcluidaObj.totalBRL)}</span></div>
                 <div style={{ marginTop: 6, fontSize: '10px' }}>
                   {moedasReciboAtivas.map(codigo => (
                     <div key={codigo} style={{ display:'flex', justifyContent:'space-between' }}>
@@ -1875,8 +1898,8 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
             </div>
             <div style={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', padding: '16px 20px', marginBottom: '18px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: '12px', alignItems: 'start', marginBottom: '12px' }}>
-                <div><label style={{ minHeight:28, display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Custo (R$)','Costo (R$)','Cost (R$)')}</label><input type="text" value={formProdutoPDV.custoBRL} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, custoBRL: e.target.value })} style={{ width: '100%', height:40, backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontWeight: 800, fontSize: '14px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
-                <div><label style={{ minHeight:28, display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Preço Venda (R$)','Precio Venta (R$)','Sale Price (R$)')}</label><input type="text" value={formProdutoPDV.precoBRL} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, precoBRL: e.target.value })} style={{ width: '100%', height:40, backgroundColor: '#0b1120', border: '1px solid #34d399', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
+                <div><label style={{ minHeight:28, display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{moneyContext ? tx('Custo','Costo','Cost') + ' (' + formProdutoPDV.moneyCostCurrency + ')' : tx('Custo (R$)','Costo (R$)','Cost (R$)')}</label><input type="text" aria-label={tx('Custo rápido','Costo rápido','Quick cost')} value={formProdutoPDV.custoBRL} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, custoBRL: e.target.value })} style={{ width: '100%', height:40, backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontWeight: 800, fontSize: '14px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
+                <div><label style={{ minHeight:28, display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{moneyContext ? tx('Preço Venda','Precio Venta','Sale Price') + ' (' + formProdutoPDV.moneyPriceCurrency + ')' : tx('Preço Venda (R$)','Precio Venta (R$)','Sale Price (R$)')}</label><input type="text" aria-label={tx('Preço rápido','Precio rápido','Quick price')} value={formProdutoPDV.precoBRL} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, precoBRL: e.target.value })} style={{ width: '100%', height:40, backgroundColor: '#0b1120', border: '1px solid #34d399', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
                 <div><label style={{ minHeight:28, display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#38bdf8', fontWeight: 700 }}>{tx('Vitrine / Loja','Exhibición / Tienda','Display / Store')}</label><input type="number" disabled={Boolean(produtoEmEdicaoPDV)} value={formProdutoPDV.estoqueVitrine ?? 0} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, estoqueVitrine: e.target.value })} style={{ width: '100%', height:40, backgroundColor: '#0b1120', border: '1px solid #0369a1', borderRadius: '8px', color: '#38bdf8', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '10px', outline: 'none', boxSizing: 'border-box', opacity: produtoEmEdicaoPDV ? .65 : 1 }} /></div>
                 <div><label style={{ minHeight:28, display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#a855f7', fontWeight: 700 }}>{tx('Galpão / Depósito','Depósito / Almacén','Warehouse / Storage')}</label><input type="number" disabled={Boolean(produtoEmEdicaoPDV)} value={formProdutoPDV.estoqueGalpao ?? 0} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, estoqueGalpao: e.target.value })} style={{ width: '100%', height:40, backgroundColor: '#0b1120', border: '1px solid #7e22ce', borderRadius: '8px', color: '#a855f7', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '10px', outline: 'none', boxSizing: 'border-box', opacity: produtoEmEdicaoPDV ? .65 : 1 }} /></div>
               </div>
@@ -1916,12 +1939,12 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                     <thead><tr><th>{tx('Qtd','Cant.','Qty')}</th><th>{tx('Item','Ítem','Item')}</th><th style={{ textAlign: 'right' }}>{tx('Vl. Un','Val. Un.','Unit Price')}</th><th style={{ textAlign: 'right' }}>{tx('Total','Total','Total')}</th></tr></thead>
                     <tbody>
                       {vendaConcluidaObj?.itens.map((it, idx) => (
-                        <tr key={idx}><td>{it.qtd}</td><td>{it.nome.substring(0, 15)}</td><td style={{ textAlign: 'right' }}>{converterDeBRL(it.precoPraticadoBRL, moeda).toFixed(2)}</td><td style={{ textAlign: 'right' }}>{converterDeBRL((it.precoPraticadoBRL * it.qtd), moeda).toFixed(2)}</td></tr>
+                        <tr key={idx}><td>{it.qtd}</td><td>{it.nome.substring(0, 15)}</td><td style={{ textAlign: 'right' }}>{moneyContext && vendaConcluidaObj?.moneySnapshot ? moneyContext.receiptItem(it,vendaConcluidaObj,'unitPrice') : converterDeBRL(it.precoPraticadoBRL, moeda).toFixed(2)}</td><td style={{ textAlign: 'right' }}>{moneyContext && vendaConcluidaObj?.moneySnapshot ? moneyContext.receiptItem(it,vendaConcluidaObj,'total') : converterDeBRL((it.precoPraticadoBRL * it.qtd), moeda).toFixed(2)}</td></tr>
                       ))}
                     </tbody>
                   </table>
                   <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '14px' }}><span>{tx('TOTAL A PAGAR','TOTAL A PAGAR','TOTAL DUE')}</span><span>{fmt(vendaConcluidaObj?.totalBRL)}</span></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '14px' }}><span>{tx('TOTAL A PAGAR','TOTAL A PAGAR','TOTAL DUE')}</span><span>{moneyContext && vendaConcluidaObj?.moneySnapshot ? moneyContext.formatTotal(vendaConcluidaObj) : fmt(vendaConcluidaObj?.totalBRL)}</span></div>
                   <div style={{ marginTop: 6, fontSize: '10px' }}>
                     {moedasReciboAtivas.map(codigo => (
                       <div key={codigo} style={{ display:'flex', justifyContent:'space-between' }}>
@@ -1966,11 +1989,11 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', padding: '16px', gap: '12px', marginBottom: '20px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800 }}>{tx('Total', 'Total', 'Total')}</span>
-                    <div style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff' }}>{fmt(totalFinalBRL, 'BRL')}</div>
+                    <div style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff' }}>{moneyContext ? fmt(totalFinalBRL) : fmt(totalFinalBRL, 'BRL')}</div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800 }}>{tx('Pago', 'Pagado', 'Paid')}</span>
-                    <div style={{ fontSize: '18px', fontWeight: 900, color: '#34d399' }}>{fmt(totalPagoConvertidoBRL, 'BRL')}</div>
+                    <div style={{ fontSize: '18px', fontWeight: 900, color: '#34d399' }}>{moneyContext ? fmt(totalPagoConvertidoBRL) : fmt(totalPagoConvertidoBRL, 'BRL')}</div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800 }}>{saldoRestanteBRL > 0.01 ? tx('Falta', 'Falta', 'Due') : tx('Troco na Moeda:', 'Cambio en:', 'Change in:')}</span>

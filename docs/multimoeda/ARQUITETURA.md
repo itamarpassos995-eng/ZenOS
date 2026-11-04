@@ -60,7 +60,7 @@ Uma cotação tem direção `from -> to`, com `rate` em unidades de destino por 
 - Saldos nativos separados por conta e moeda; retirada restrita à disponibilidade nativa.
 - Agregação de relatórios por moeda, sem total misto.
 
-Essas funções NÃO são um novo PDV, um novo livro persistente ou um painel paralelo. São contratos para adaptar os módulos existentes. Os componentes atuais AINDA NÃO OS CHAMAM. Testes de domínio não comprovam persistência, segurança de backend, idempotência transacional ou integração das interfaces.
+Essas funções NÃO são um novo PDV, um novo livro persistente ou um painel paralelo. São contratos para adaptar os módulos existentes. Produtos e PDV agora podem usar esses contratos por um contexto opt-in, ativado apenas na homologação estática com dados fictícios. O App oficial não ativa esse contexto. Testes de domínio não comprovam persistência, segurança de backend, idempotência transacional ou integração das interfaces.
 
 Política inicial: quantidade multiplicada por preço unitário é calculada com precisão intermediária de 8 casas; total de cada linha e CMV da linha são arredondados na precisão da moeda, com resíduo separado; total comercial soma linhas e ajustes, com arredondamento final explícito. Compatibilidade com políticas de rateio, tributação e devolução do sistema existente deve ser validada antes da ativação.
 
@@ -119,4 +119,8 @@ node scripts/release-check.mjs
 npm run build
 ```
 
-Esses comandos não ativam a arquitetura no ZenOS. O teste manual completo e os 42 critérios operacionais continuam pendentes até a integração dos componentes e da persistência.
+Esses comandos não ativam a arquitetura no App oficial. Cadastro, edição, venda à vista/cartão e comprovantes estão disponíveis na homologação estática descrita em TESTE_MANUAL.md. Os demais módulos e a persistência de backend continuam pendentes; os 42 critérios não estão integralmente homologados.
+
+## Homologação estática de Produtos/PDV
+
+O build `build:money-test` possui entrada restrita em `homologacao/`, sem App/login e sem APIs. Reutiliza os componentes de Produtos e PDV com adaptador local versionado. Substitui Firebase/runtime por módulo sem transportes, usa CSP connect-src none e só inclui a logo original entre os arquivos públicos. Não remover a proteção do build comum da branch; o preview isolado usa somente essa entrada revisada. Instruções e limitações em TESTE_MANUAL.md.

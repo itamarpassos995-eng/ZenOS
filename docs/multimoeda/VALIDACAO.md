@@ -4,7 +4,7 @@
 
 ## O que foi implementado
 
-Núcleo decimal exato, contratos puros de domínio e diagnóstico/simulação do legado. Os componentes operacionais existentes não usam os novos módulos. Nenhum preço, custo, dívida ou documento real foi modificado. A ordem de implementação integral foi preservada no repositório.
+Núcleo decimal exato, contratos puros de domínio e diagnóstico/simulação do legado. Produtos e PDV agora usam os módulos novos somente quando recebem o contexto da homologação estática. O App oficial permanece sem ativação. Nenhum preço, custo, dívida ou documento real foi modificado. A ordem de implementação integral foi preservada no repositório.
 
 ## Verificações executadas localmente
 
@@ -25,7 +25,7 @@ O projeto usado foi exclusivamente `demo-zenos-local`, com Auth `127.0.0.1:9099`
 
 | Critérios | Cobertura disponível | Situação operacional |
 |---|---|---|
-| 1–7: cadastro, edição, visualização, preferência, câmbio e moeda de preço | Preço nativo, parser, formatação, imutabilidade e revisão testados no domínio | Integração de Produtos/PDV pendente |
+| 1–7: cadastro, edição, visualização, preferência, câmbio e moeda de preço | Núcleo e teste de interface de Produtos aprovados na homologação estática | Integração com backend e alteração explícita da moeda de precificação pendentes |
 | 8–11: compra USD, venda PYG, pagamentos mistos, cartão e troco | Snapshots, custo USD→PYG, parcelas BRL/PYG e contas distintas testados no domínio | Fluxo completo pendente |
 | 12–13: caixa por moeda e disponibilidade nativa | Agregação por conta/moeda e retirada insuficiente testadas no domínio; regressão do caixa existente aprovada | Integração monetária nova pendente |
 | 14–15: fiado e contas | Saldo residual em moeda contratada testado no domínio; regressão V2 existente aprovada no emulador | Novas obrigações persistidas pendentes |
@@ -50,8 +50,14 @@ O projeto usado foi exclusivamente `demo-zenos-local`, com Auth `127.0.0.1:9099`
 
 ## Disponibilidade
 
-Branch remota `feat/multimoeda-integral-homologacao`, PR em rascunho #169. A publicação Vercel desta branch é bloqueada pelo build enquanto o isolamento remoto dos serviços não for comprovado. Não há URL operacional completa para homologação manual. Não testar esta alteração em conta de cliente ou no sistema oficial.
+Branch remota `feat/multimoeda-integral-homologacao`, PR em rascunho #169. A publicação Vercel desta branch é bloqueada pelo build enquanto o isolamento remoto dos serviços não for comprovado. Existe um build estático isolado para testar Produtos/PDV com dados fictícios locais. O endereço verificado será registrado no PR. Não é a versão operacional completa e não deve ser usado com conta de cliente ou no sistema oficial.
 
 ## Próximo trabalho necessário
 
 Integrar a arquitetura nos consumidores existentes e na persistência, concluir proteção confiável de versões, validar Commerce/fiscal/documentos/recorrências/devoluções/comissões/IA e executar os critérios ponta a ponta. O inventário estático não substitui essa implementação. Não declarar o problema de produção resolvido por esta etapa.
+
+## Integração estática de teste
+
+Foram adicionados seis testes de adaptador/transporte local (preço nativo, câmbio, pagamentos mistos, concorrência entre abas, idempotência, falha de quota, preservação do legado e PDF) e dois testes de interface executando os componentes originais de Produtos e PDV. Os testes de interface cobrem salvar/reabrir Gs. 39.990, mudança de preferência sem reinterpretação, venda com baixa de estoque e snapshot preservado após alteração de câmbio. Total da nova base: 26 testes Node e 2 testes de interface, além da suíte de regressão existente.
+
+A homologação local não comprova regras de segurança, persistência Firestore, autenticação, dispositivos remotos, fiscal, Commerce, fiado, recorrências, comissões ou devoluções. Nenhum dado real foi importado. Consulte TESTE_MANUAL.md para o escopo disponível e os passos de teste.

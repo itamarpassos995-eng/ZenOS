@@ -87,6 +87,13 @@ export function multiply(value, factor, { scale = 8, rounding = 'HALF_UP' } = {}
   const units = originalScale > scale ? roundedDivide(product, pow(originalScale - scale), rounding) : product * pow(scale - originalScale);
   return money(render(units, scale), value.currency, value.source);
 }
+export function divide(value, divisor, { scale = 12, rounding = 'HALF_UP' } = {}) {
+  assertMoney(value); precision(scale); validRounding(rounding);
+  const a = decimal(value.amount), b = decimal(divisor);
+  if (b.units <= 0n) fail('MONEY_DIVISOR', 'Divisor deve ser positivo.');
+  const units = roundedDivide(a.units * pow(b.scale + scale), b.units * pow(a.scale), rounding);
+  return money(render(units, scale), value.currency, value.source);
+}
 // Locale is explicit; currency alone cannot establish decimal separators.
 export function parseMoneyInput(input, currency, { locale, source = 'input', allowNegative = false } = {}) {
   assertCurrency(currency);

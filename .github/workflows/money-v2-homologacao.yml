@@ -20,6 +20,8 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - run: node --test scripts/money-v2.test.mjs scripts/money-operations.test.mjs scripts/money-deployment-fence.test.mjs
+      - run: node --test scripts/money-v2.test.mjs scripts/money-operations.test.mjs scripts/money-product-integration.test.mjs scripts/money-deployment-fence.test.mjs
+      - run: npx vitest run --config vitest.money-test.config.js
       - run: node --test scripts/currency-default-bulk-negative-stock.test.mjs scripts/card-multicurrency.test.mjs scripts/cash-native-history-v2.test.mjs scripts/cash-closing-display-currency.test.mjs scripts/purchase-costs-check.mjs
       - run: npm run build
+      - run: npm run build:money-test

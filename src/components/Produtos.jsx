@@ -19,7 +19,7 @@ import ZenModal from './ZenModal';
 import { calcularPrecoPorCustoEMargem, calcularMargemPorCustoEPreco, validarMargemPrecoVenda, MAX_MARGEM_PRECO_PCT } from '../core/pricing';
 import { validarCredencialGerencial } from '../core/accessControl';
 
-export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos, moeda, fmt, t, tx, fornecedoresGlobais = [], userId, operadorAtivo, planoLoja = 'basico', historicoVendas = [], historicoCompras = [], patenteUsuario, regrasDesconto, vendedores = [] }) {
+export default function Produtos({ moneyContext = null, commitOperacaoNegocio, produtos, setProdutos, moeda, fmt, t, tx, fornecedoresGlobais = [], userId, operadorAtivo, planoLoja = 'basico', historicoVendas = [], historicoCompras = [], patenteUsuario, regrasDesconto, vendedores = [] }) {
   const [gruposCadastrados, setGruposCadastrados] = useState(['Tintas Acrílicas', 'Colorimetria & Pigmentos', 'Massas e Complementos', 'Serviços Especializados', 'Acessórios & Ferramentas']);
   const [filtroGrupo, setFiltroGrupo] = useState('todos');
   const [buscaProdutoTexto, setBuscaProdutoTexto] = useState('');
@@ -315,9 +315,12 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
     return bateGrupo && bateTexto;
   });
 
-  const atualizarPrecoPorCustoEMargem = (custoStr, margemStr) => calcularPrecoPorCustoEMargem(custoStr, margemStr).valor;
+  const atualizarPrecoPorCustoEMargem = (custoStr, margemStr) => {
+    if (moneyContext) { try { return moneyContext.priceFromMargin(custoStr, margemStr, formProduto); } catch { return ''; } }
+    return calcularPrecoPorCustoEMargem(custoStr, margemStr).valor;
+  };
 
-  const atualizarMargemPorPreco = (custoStr, precoStr) => calcularMargemPorCustoEPreco(custoStr, precoStr);
+  const atualizarMargemPorPreco = (custoStr, precoStr) => moneyContext ? moneyContext.marginFromPrice(custoStr, precoStr, formProduto) : calcularMargemPorCustoEPreco(custoStr, precoStr);
 
   const abrirCadastroNovoProduto = () => {
     setRecomposicaoOriginal(null);
@@ -338,12 +341,14 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       estoqueVitrine: '0',
       estoqueGalpao: '0',
       localizacao: '',
-      margemDesejada: '40'
+      margemDesejada: '40',
+      ...(moneyContext ? moneyContext.form(null) : {})
     }));
     setModalProdutoAberto(true);
   };
 
   const abrirEdicaoProduto = (prod) => {
+    if (moneyContext && !prod.moneyPrices) return mostrarZen('warning', tx('Moeda exige conferência','Moneda requiere revisión','Currency needs review'), tx('O cadastro legado foi preservado. Confirme a moeda original antes de editar ou vender.','Se conservó el registro anterior. Confirme la moneda original antes de editar o vender.','Legacy record preserved. Verify its original currency before editing or selling.'));
     setRecomposicaoOriginal(null);
     setProdutoEmEdicao(prod);
     setSecaoFiscalExpandida(false);
@@ -363,6 +368,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       precoBRL: preco.toFixed(2),
       preco2BRL: prod.preco2BRL ? prod.preco2BRL.toFixed(2) : '',
       preco3BRL: prod.preco3BRL ? prod.preco3BRL.toFixed(2) : '',
+      ...(moneyContext ? {...moneyContext.form(prod), margemDesejada: moneyContext.margin(prod)} : {}),
       estoqueVitrine: (prod.estoqueVitrine ?? prod.estoque ?? 0).toString(),
       estoqueGalpao: (prod.estoqueGalpao ?? 0).toString(),
       localizacao: prod.localizacao || ''
@@ -454,7 +460,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       return mostrarZen('danger', tx('SKU duplicado','SKU duplicado','Duplicate SKU'), `${tx('Já existe outro produto com o SKU','Ya existe otro producto con el SKU','Another product already uses SKU')} ${formProduto.sku}.`, [tx('Use um SKU diferente para impedir movimentação no item errado.','Use un SKU diferente para evitar movimientos en el ítem equivocado.','Use a different SKU to prevent movement on the wrong item.')]);
     }
 
-    const dadosFinais = normalizarProduto({
+    let dadosFinais = normalizarProduto({
       ...formProduto,
       grupo: grupoFinal,
       custoBRL: custo,
@@ -466,6 +472,10 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       estoqueGalpao: galpao,
       localizacao: formProduto.localizacao || ''
     });
+    if (moneyContext) {
+      try { dadosFinais = moneyContext.save(dadosFinais, formProduto); }
+      catch (error) { return mostrarZen('warning',tx('Confira valores e moedas','Revise importes y monedas','Check amounts and currencies'),error.message); }
+    }
     // Cadastro novo nunca herda "ativo:false" de um registro antigo na mesclagem com a nuvem.
     if (!produtoEmEdicao && !recomposicaoOriginal) dadosFinais.ativo = true;
 
@@ -765,7 +775,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
                 <tr><td colSpan="10" style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>{tx('Nenhum produto encontrado.','Ningún producto encontrado.','No products found.')}</td></tr>
               ) : (
                 produtosListaFiltrada.map((prod) => {
-                  const custo = prod.custoBRL || 0; const preco = prod.precoBRL || 0; const margem = preco > 0 ? (((preco - custo) / preco) * 100).toFixed(1) : 0;
+                  const custo = prod.custoBRL || 0; const preco = prod.precoBRL || 0; const margem = moneyContext && prod.moneyPrices ? moneyContext.margin(prod) : preco > 0 ? (((preco - custo) / preco) * 100).toFixed(1) : 0;
                   const ehServico = prod.tipoItem === 'servico';
                   return (
                     <tr key={`${prod.id}-${prod.sku}`} style={{ borderBottom: '1px solid #1e293b' }}>
@@ -805,11 +815,11 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
                           <span title={tx('Último custo do fornecedor','Último costo del proveedor','Last supplier cost')} style={{ backgroundColor: 'rgba(168, 85, 247, 0.08)', border: '1px solid rgba(168, 85, 247, 0.2)', borderRadius: '4px', padding: '0 4px', fontSize: '9px', fontWeight: 800, color: '#c4b5fd', textAlign: 'center' }}>CF</span>
                           <span style={{ color: '#c4b5fd' }}>{Number.isFinite(prod.ultimoCustoFornecedorBRL) && prod.ultimoCustoFornecedorBRL >= 0 ? fmt(prod.ultimoCustoFornecedorBRL) : '—'}</span>
                           <span title={tx('Custo médio/efetivo atual','Costo medio/efectivo actual','Current average/effective cost')} style={{ backgroundColor: 'rgba(34, 211, 238, 0.08)', border: '1px solid rgba(34, 211, 238, 0.2)', borderRadius: '4px', padding: '0 4px', fontSize: '9px', fontWeight: 800, color: '#67e8f9', textAlign: 'center' }}>CMV</span>
-                          <span style={{ color: '#67e8f9' }}>{fmt(custo)}</span>
+                          <span style={{ color: '#67e8f9' }}>{moneyContext ? moneyContext.display(prod, 'custoBRL', moeda) : fmt(custo)}</span>
                         </div>
                       </td>
-                      <td style={{ padding: '16px 12px', textAlign: 'right', fontWeight: 900, color: '#34d399', fontSize: '15px' }}>{fmt(preco)}</td>
-                      <td style={{ padding: '16px 12px', textAlign: 'right', fontWeight: 700, color: prod.habilitarPreco2 ? '#38bdf8' : '#475569' }}>{prod.habilitarPreco2 && prod.preco2BRL > 0 ? fmt(prod.preco2BRL) : '—'}</td>
+                      <td style={{ padding: '16px 12px', textAlign: 'right', fontWeight: 900, color: '#34d399', fontSize: '15px' }}>{moneyContext ? moneyContext.display(prod, 'precoBRL', moeda) : fmt(preco)}</td>
+                      <td style={{ padding: '16px 12px', textAlign: 'right', fontWeight: 700, color: prod.habilitarPreco2 ? '#38bdf8' : '#475569' }}>{prod.habilitarPreco2 && prod.preco2BRL > 0 ? (moneyContext ? moneyContext.display(prod, 'preco2BRL', moeda) : fmt(prod.preco2BRL)) : '—'}</td>
                       <td style={{ padding: '16px 12px', textAlign: 'center' }}><span style={{ backgroundColor: margem >= 40 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)', color: margem >= 40 ? '#34d399' : '#fbbf24', border: `1px solid ${margem >= 40 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`, padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>{margem}%</span></td>
                       <td style={{ padding: '16px 20px', textAlign: 'right' }}><div style={{display:'flex',gap:6,justifyContent:'flex-end'}}><button onClick={() => pedirExclusao(prod)} style={{background:'#2e0a16',border:'1px solid #7f1d1d',color:'#fb7185',padding:'7px 10px',borderRadius:8,fontSize:11,fontWeight:900,cursor:'pointer'}}>{prod.ativo===false?tx("Inativo","Inactivo"):tx("Inativar","Desactivar")}</button><button onClick={() => abrirEdicaoProduto(prod)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#38bdf8', padding: '6px 14px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>{tx('Editar','Editar','Edit')}</button></div></td>
                     </tr>
@@ -875,7 +885,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 100px', gap: '10px' }}>
                   <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>SKU</label><input type="text" value={formProduto.sku} onChange={(e) => setFormProduto({ ...formProduto, sku: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 800, fontSize: '13px', padding: '8px 10px', outline: 'none' }} /></div>
-                  <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Nome do Item','Nombre del Ítem','Item Name')}</label><input type="text" value={formProduto.nome} onChange={(e) => setFormProduto({ ...formProduto, nome: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 700, fontSize: '13px', padding: '8px 10px', outline: 'none' }} /></div>
+                  <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Nome do Item','Nombre del Ítem','Item Name')}</label><input type="text" aria-label={tx('Nome do Item','Nombre del Ítem','Item Name')} value={formProduto.nome} onChange={(e) => setFormProduto({ ...formProduto, nome: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 700, fontSize: '13px', padding: '8px 10px', outline: 'none' }} /></div>
                   <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Unid','Unid','Unit')}</label><select value={formProduto.unidadeMedida} onChange={(e) => setFormProduto({ ...formProduto, unidadeMedida: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#38bdf8', fontSize: '12px', fontWeight: 900, padding: '8px', outline: 'none' }}><option value="UN">UN</option><option value="KG">KG</option><option value="L">L</option><option value="M">M</option><option value="M²">M²</option><option value="CX">CX</option><option value="KIT">KIT</option></select></div>
                 </div>
 
@@ -940,11 +950,12 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
 
             <div style={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', padding: '16px 20px', marginBottom: '18px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: '12px', alignItems: 'start', marginBottom: '8px' }}>
-                <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Custo (R$)','Costo (R$)','Cost (R$)')}</label><input type="text" value={formProduto.custoBRL} onChange={(e) => setFormProduto({ ...formProduto, custoBRL: e.target.value, precoBRL: atualizarPrecoPorCustoEMargem(e.target.value, formProduto.margemDesejada) })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontWeight: 800, fontSize: '14px', textAlign: 'right', padding: '6px 10px', outline: 'none' }} /></div>
+                {moneyContext && <div style={{gridColumn:'1 / -1',display:'flex',gap:16,alignItems:'center',color:'#cbd5e1',fontSize:12}}><label>{tx('Moeda do custo','Moneda del costo','Cost currency')} <select aria-label={tx('Moeda do custo','Moneda del costo','Cost currency')} disabled={Boolean(produtoEmEdicao)} value={formProduto.moneyCostCurrency} onChange={e=>setFormProduto({...formProduto,moneyCostCurrency:e.target.value})}>{['BRL','PYG','USD','EUR'].map(c=><option key={c}>{c}</option>)}</select></label><label>{tx('Moeda do preço','Moneda del precio','Price currency')} <select aria-label={tx('Moeda do preço','Moneda del precio','Price currency')} disabled={Boolean(produtoEmEdicao)} value={formProduto.moneyPriceCurrency} onChange={e=>setFormProduto({...formProduto,moneyPriceCurrency:e.target.value})}>{['BRL','PYG','USD','EUR'].map(c=><option key={c}>{c}</option>)}</select></label><span>{produtoEmEdicao?tx('Moedas originais preservadas','Monedas originales conservadas','Original currencies preserved'):tx('Novos campos usam a moeda predeterminada','Los nuevos campos usan la moneda predeterminada','New fields use the default currency')}</span></div>}
+                <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{moneyContext ? tx('Custo','Costo','Cost') + ' (' + formProduto.moneyCostCurrency + ')' : tx('Custo (R$)','Costo (R$)','Cost (R$)')}</label><input type="text" aria-label={tx('Custo do produto','Costo del producto','Product cost')} value={formProduto.custoBRL} onChange={(e) => setFormProduto({ ...formProduto, custoBRL: e.target.value, precoBRL: atualizarPrecoPorCustoEMargem(e.target.value, formProduto.margemDesejada) })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontWeight: 800, fontSize: '14px', textAlign: 'right', padding: '6px 10px', outline: 'none' }} /></div>
                 <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Margem sobre venda (%)','Margen sobre venta (%)','Margin on sale (%)')}</label><input type="number" min="0" max={MAX_MARGEM_PRECO_PCT} step="0.1" value={formProduto.margemDesejada} onChange={(e) => setFormProduto({ ...formProduto, margemDesejada: e.target.value, precoBRL: atualizarPrecoPorCustoEMargem(formProduto.custoBRL, e.target.value) })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: `1px solid ${validarMargemPrecoVenda(formProduto.margemDesejada).ok ? '#334155' : '#f43f5e'}`, borderRadius: '8px', color: validarMargemPrecoVenda(formProduto.margemDesejada).ok ? '#fbbf24' : '#fb7185', fontWeight: 800, fontSize: '14px', textAlign: 'right', padding: '6px 10px', outline: 'none' }} /></div>
-                <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Preço Venda','Precio Venta','Sale Price')}</label><input type="text" value={formProduto.precoBRL} onChange={(e) => setFormProduto({ ...formProduto, precoBRL: e.target.value, margemDesejada: atualizarMargemPorPreco(formProduto.custoBRL, e.target.value) })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: '1px solid #34d399', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', padding: '6px 10px', outline: 'none' }} /></div>
-                <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#38bdf8', fontWeight: 700 }}>{tx('Vitrine / Loja','Exhibición / Tienda','Display / Store')}</label><input type="number" disabled={formProduto.tipoItem === 'servico' || Boolean(produtoEmEdicao)} value={formProduto.estoqueVitrine} onChange={(e) => setFormProduto({ ...formProduto, estoqueVitrine: e.target.value })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: '1px solid #0369a1', borderRadius: '8px', color: '#38bdf8', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '6px', outline: 'none' }} /></div>
-                <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#a855f7', fontWeight: 700 }}>{tx('Galpão / Depósito','Depósito / Almacén','Warehouse / Storage')}</label><input type="number" disabled={formProduto.tipoItem === 'servico' || Boolean(produtoEmEdicao)} value={formProduto.estoqueGalpao} onChange={(e) => setFormProduto({ ...formProduto, estoqueGalpao: e.target.value })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: '1px solid #7e22ce', borderRadius: '8px', color: '#a855f7', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '6px', outline: 'none' }} /></div>
+                <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Preço Venda','Precio Venta','Sale Price')}{moneyContext ? ' (' + formProduto.moneyPriceCurrency + ')' : ''}</label><input type="text" aria-label={tx('Preço de venda do produto','Precio de venta del producto','Product sale price')} value={formProduto.precoBRL} onChange={(e) => setFormProduto({ ...formProduto, precoBRL: e.target.value, margemDesejada: atualizarMargemPorPreco(formProduto.custoBRL, e.target.value) })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: '1px solid #34d399', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', padding: '6px 10px', outline: 'none' }} /></div>
+                <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#38bdf8', fontWeight: 700 }}>{tx('Vitrine / Loja','Exhibición / Tienda','Display / Store')}</label><input type="number" disabled={formProduto.tipoItem === 'servico' || Boolean(produtoEmEdicao)} aria-label={tx('Estoque vitrine','Stock en exhibición','Display stock')} value={formProduto.estoqueVitrine} onChange={(e) => setFormProduto({ ...formProduto, estoqueVitrine: e.target.value })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: '1px solid #0369a1', borderRadius: '8px', color: '#38bdf8', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '6px', outline: 'none' }} /></div>
+                <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#a855f7', fontWeight: 700 }}>{tx('Galpão / Depósito','Depósito / Almacén','Warehouse / Storage')}</label><input type="number" disabled={formProduto.tipoItem === 'servico' || Boolean(produtoEmEdicao)} aria-label={tx('Estoque depósito','Stock en depósito','Warehouse stock')} value={formProduto.estoqueGalpao} onChange={(e) => setFormProduto({ ...formProduto, estoqueGalpao: e.target.value })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: '1px solid #7e22ce', borderRadius: '8px', color: '#a855f7', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '6px', outline: 'none' }} /></div>
               </div>
               <div style={{fontSize:'9px',color:'#64748b',margin:'0 0 10px'}}>{tx('Margem calculada sobre a venda. Máx. 99,9%. Ex.: custo 10 + margem 40% = venda 16,67.','Margen calculada sobre la venta. Máx. 99,9%. Ej.: costo 10 + margen 40% = venta 16,67.','Margin calculated on sale price. Max. 99.9%. Ex.: cost 10 + 40% margin = sale 16.67.')}</div>
               <div style={{ borderTop: '1px solid #1e293b', paddingTop: '10px', display: 'flex', gap: '20px', alignItems: 'center' }}>
