@@ -221,6 +221,14 @@ export async function getOperationalSnapshot(db,userId){
  if(entry.route.shadow)await compareShadow(entry,snap);
  return snap;
 }
+// A missing in-memory session is not evidence that a store still uses V1.
+// Resolve the pinned route before choosing the write implementation as well.
+export async function getOperationalWriteSession(db,userId){
+ if(!db||!userId)return null;
+ const entry=await initializeRoute(db,userId);
+ if(entry.session?.failed)throw entry.session.failed;
+ return entry.session;
+}
 async function initializeRoute(db,userId){
  const map=sessionMap(db),key=String(userId);let entry=map.get(key);
  if(!entry){entry={session:null,promise:null};map.set(key,entry);
