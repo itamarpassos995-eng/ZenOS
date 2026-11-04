@@ -29,7 +29,9 @@ export async function registrarLancamentosFinanceiros({ db, userId, lancamentos 
 
 export function assinarLivroFinanceiro({ db, userId, onData, onError }) {
   if (!userId) return () => {};
-  return onSnapshot(collection(db, 'lojas', String(userId), COLECAO), (snap) => {
+  // A cache-first snapshot may have exactly the same documents as the server.
+  // App must still receive the metadata-only confirmation to release accounts.
+  return onSnapshot(collection(db, 'lojas', String(userId), COLECAO), { includeMetadataChanges: true }, (snap) => {
     const itens = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     itens.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
     onData?.(itens, { fromCache: snap.metadata?.fromCache === true, hasPendingWrites: snap.metadata?.hasPendingWrites === true });
