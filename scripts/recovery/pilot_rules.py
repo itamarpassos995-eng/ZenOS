@@ -20,16 +20,36 @@ service cloud.firestore {
 
 
 def generate(source, pilot):
-    if normalize(source) != normalize(BASELINE):
-        raise ValueError('Live rules differ from reviewed baseline; no deployment performed')
     if not re.fullmatch(r'[A-Za-z0-9_-]{1,128}', pilot):
         raise ValueError('Invalid pilot identifier')
+    stores = {pilot}
+    if normalize(source) != normalize(BASELINE):
+        # Extend only a policy this generator can reproduce exactly. Retain
+        # every previously fenced store; never reset an active V2 tenant to
+        # the legacy catch-all while onboarding another tenant.
+        match = re.search(r"function\s+pilot\(store\)\s*\{return\s+(.*?);\s*\}", source)
+        if not match:
+            raise ValueError('Live rules differ from reviewed baseline; no deployment performed')
+        expression = match.group(1).strip()
+        if not re.fullmatch(r"store=='[A-Za-z0-9_-]{1,128}'(?:\|\|store=='[A-Za-z0-9_-]{1,128}')*", expression):
+            raise ValueError('Live rules differ from reviewed baseline; no deployment performed')
+        previous = re.findall(r"store=='([A-Za-z0-9_-]{1,128})'", expression)
+        # A self-consistent predicate is insufficient: verify the entire policy.
+        expected = _render(previous)
+        if normalize(source) != normalize(expected):
+            raise ValueError('Live rules differ from reviewed baseline; no deployment performed')
+        stores.update(previous)
+    return _render(sorted(stores))
+
+
+def _render(stores):
+    predicate = '||'.join(f"store=='{store}'" for store in stores)
     template = Path(__file__).with_name('v2-fenced-prototype.rules').read_text()
     marker = ' match /databases/{database}/documents {'
     # Recursive wildcard matches zero segments in rules_version=2. Thus root
     # documents, nested collections and collection-group reads are covered.
     addition = f"""
-  function pilot(store){{return store=='{pilot}';}}
+  function pilot(store){{return {predicate};}}
   // Preserve the reviewed baseline for every non-pilot top-level tree.
   // This clause can NEVER grant access inside the pilot tree.
   match /{{top}}/{{identifier}}/{{remaining=**}} {{
