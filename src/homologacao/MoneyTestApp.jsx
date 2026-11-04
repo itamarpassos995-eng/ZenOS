@@ -49,14 +49,15 @@ export default function MoneyTestApp() {
   const convert = (value,to) => bridgeConvert(value,to,activeRates,at()).value;
   const fromBRL = (value,to=currency) => Number(convert(money(legacyDecimal(value),'BRL','legacy-ui-display'),to).amount);
   const toBRL = (value,from=currency) => Number(convert(money(legacyDecimal(value),from,'legacy-ui-input'),'BRL').amount);
-  const fmt = (value,code=currency) => formatMoney(convert(money(legacyDecimal(value),'BRL','legacy-ui-display'),code),{locale});
+  const fmt = (value,code=currency) => formatMoney(convert(money(legacyDecimal(value),'BRL','legacy-ui-display'),code),{locale,currencyDisplay:'symbol'});
   const context = {
     isolated:true,
+    symbol:code=>({BRL:"R$",PYG:"₲",USD:"US$",EUR:"€"}[code]),
     getOperationalSnapshot:async()=>({exists:()=>true,data:()=>store.read()}),
     priceInput:(value,code)=>moneyInputText(quantize(convert(money(legacyDecimal(value),'BRL','pos-price-text'),code),currencyScale(code)).value,locale),
-    form:product=>productMoneyForm(product,{defaultCurrency:state.moedaPadrao,locale}),
+    form:product=>productMoneyForm(product,{defaultCurrency:currency,viewCurrency:currency,locale,rates:state.rates,at:at()}),
     save:(product,form)=>saveProductMoney(product,form,{tenantId:MONEY_TEST_TENANT,actor:'admin',locale,rates:state.rates,at:at()}),
-    display:(product,field,code)=>product.moneyPrices ? formatProductMoney(product,field,code,state.rates,locale,at()) : tx('Conferir moeda','Revisar moneda','Review currency'),
+    display:(product,field,code)=>product.moneyPrices ? formatProductMoney(product,field,code,state.rates,locale,at(),{currencyDisplay:"symbol"}) : tx('Conferir moeda','Revisar moneda','Review currency'),
     margin:product=>productMargin(product,state.rates,at()),
     marginFromPrice:(costText,priceText,form)=>{
       try { return productMargin({moneyPrices:{values:{cost:parseMoneyInput(String(costText||'0'),form.moneyCostCurrency,{locale,source:'form-cost'}),
@@ -67,9 +68,9 @@ export default function MoneyTestApp() {
     parsePrice:(text,code)=>{const original=parseMoneyInput(text,code,{locale,source:'pos-price-input'});return{original,brl:Number(convert(original,'BRL').amount)};},
     decorateSale:(sale,options)=>decorateMoneySale(sale,{...options,rates:activeRates,locale,
       resolvePaymentAccount:p=>`synthetic-account:${p.formaId}:${p.moedaOrigem}`,changeAccountId:'synthetic-drawer'}),
-    formatTotal:sale=>formatMoney(sale.moneySnapshot.total,{locale}),
-    formatPayment:p=>formatMoney(money(legacyDecimal(p.valorOriginal),p.moedaOrigem,'saved-payment'),{locale}),
-    receiptItem:(item,sale,field)=>{const line=sale.moneySnapshot.items.find(i=>i.id===String(item.id));return line?formatMoney(line[field],{locale}):'—';},
+    formatTotal:sale=>formatMoney(convert(sale.moneySnapshot.total,currency),{locale,currencyDisplay:"symbol"}),
+    formatPayment:p=>formatMoney(convert(money(legacyDecimal(p.valorOriginal),p.moedaOrigem,'saved-payment'),currency),{locale,currencyDisplay:'symbol'}),
+    receiptItem:(item,sale,field)=>{const line=sale.moneySnapshot.items.find(i=>i.id===String(item.id));return line?formatMoney(convert(line[field],currency),{locale,currencyDisplay:"symbol"}):'—';},
   };
   const commit = operation => store.commit(operation,state.revision);
   const products = state.produtos.map(normalizarProduto);
@@ -117,9 +118,9 @@ export default function MoneyTestApp() {
           historicoVendas={state.historicoVendas} setHistoricoVendas={refresh} patenteUsuario="gerencia" idioma={language}
           regrasDesconto={{margemMinima:0,margemIdeal:0,exigirSenhaVermelho:false}} vendedores={[operator]} operadorAtivo={operator}
           sessaoAtiva={state.sessoesCaixa[0]} vouchers={[]} setVouchers={refresh}/>}
-        {screen==='historico'&&<section><h1>Vendas de teste</h1><p>Valores congelados na moeda original da operação, mesmo depois de alterar o câmbio.</p>
-          {!state.historicoVendas.length?<p>Nenhuma venda de teste salva.</p>:<table style={{width:'100%',borderCollapse:'collapse'}}><thead><tr><th>Documento</th><th>Moeda</th><th>Total original</th><th>CMV registrado</th><th>Resultado</th><th>Comprovante</th></tr></thead>
-            <tbody>{state.historicoVendas.map(sale=><tr key={sale.id} style={{borderBottom:'1px solid #334155',height:60}}><td>{sale.id}</td><td>{sale.moneySnapshot.currency}</td><td>{formatMoney(sale.moneySnapshot.total,{locale})}</td><td>{formatMoney(sale.moneySnapshot.cmv,{locale})}</td><td>{formatMoney(sale.moneySnapshot.profit,{locale})}</td><td><button onClick={()=>downloadReceipt(sale)}>Baixar PDF</button></td></tr>)}</tbody></table>}
+        {screen==='historico'&&<section><h1>Vendas de teste</h1><p>Exibição na moeda selecionada. Documentos originais preservados.</p>
+          {!state.historicoVendas.length?<p>Nenhuma venda de teste salva.</p>:<table style={{width:'100%',borderCollapse:'collapse'}}><thead><tr><th>Documento</th><th>Moeda</th><th>Total</th><th>CMV registrado</th><th>Resultado</th><th>Comprovante</th></tr></thead>
+            <tbody>{state.historicoVendas.map(sale=><tr key={sale.id} style={{borderBottom:'1px solid #334155',height:60}}><td>{sale.id}</td><td>{currency}</td><td>{formatMoney(convert(sale.moneySnapshot.total,currency),{locale,currencyDisplay:"symbol"})}</td><td>{formatMoney(convert(sale.moneySnapshot.cmv,currency),{locale,currencyDisplay:"symbol"})}</td><td>{formatMoney(convert(sale.moneySnapshot.profit,currency),{locale,currencyDisplay:"symbol"})}</td><td><button onClick={()=>downloadReceipt(sale)}>Baixar PDF</button></td></tr>)}</tbody></table>}
         </section>}
       </main>
     </ZenNavigationLayout>

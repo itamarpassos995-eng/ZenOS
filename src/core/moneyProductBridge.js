@@ -32,12 +32,19 @@ export function nativeProductValue(product, field) {
   return assertMoney(value);
 }
 export const moneyInputText = (value, locale) => value.amount.replace('.', locale === 'en-US' ? '.' : ',');
-export function productMoneyForm(product, { defaultCurrency, locale }) {
-  if (!product) return { moneyPriceCurrency: defaultCurrency, moneyCostCurrency: defaultCurrency, custoBRL: '0', precoBRL: '0', preco2BRL: '', preco3BRL: '' };
-  const sale = nativeProductValue(product, 'precoBRL'), cost = nativeProductValue(product, 'custoBRL');
-  return { moneyPriceCurrency: sale.currency, moneyCostCurrency: cost.currency,
-    ...Object.fromEntries(Object.entries(fields).map(([field, key]) => [field,
-      product.moneyPrices.values[key] ? moneyInputText(product.moneyPrices.values[key], locale) : ''])) };
+export function productMoneyForm(product, { defaultCurrency, viewCurrency = defaultCurrency, locale, rates, at }) {
+  if (!product) return { moneyPriceCurrency: viewCurrency, moneyCostCurrency: viewCurrency, custoBRL: '0', precoBRL: '0', preco2BRL: '', preco3BRL: '' };
+  const projected = Boolean(rates && at);
+  const inputs = Object.fromEntries(Object.entries(fields).map(([field, key]) => {
+    const original = product.moneyPrices.values[key];
+    if (!original) return [field, ''];
+    const value = projected ? quantize(bridgeConvert(original, viewCurrency, rates, at, 'product-edit-view').value, viewCurrency === 'PYG' ? 0 : 2).value : original;
+    return [field, moneyInputText(value, locale)];
+  }));
+  return { moneyPriceCurrency: projected ? viewCurrency : nativeProductValue(product, 'precoBRL').currency,
+    moneyCostCurrency: projected ? viewCurrency : nativeProductValue(product, 'custoBRL').currency, ...inputs,
+    ...(projected ? { moneyEditView: { productId: product.id, revision: product.moneyPrices.revision,
+      currency: viewCurrency, rates: structuredClone(rates), at, inputs } } : {}) };
 }
 export function saveProductMoney(product, form, { tenantId, actor, locale, rates, at }) {
   const parse = (field, currency) => parseMoneyInput(String(form[field] || '0'), currency, { locale, source: `product:${product.id}:${field}` });
@@ -45,6 +52,24 @@ export function saveProductMoney(product, form, { tenantId, actor, locale, rates
     cost: parse('custoBRL', form.moneyCostCurrency), sale: parse('precoBRL', form.moneyPriceCurrency),
     wholesale: parse('preco2BRL', form.moneyPriceCurrency), price3: parse('preco3BRL', form.moneyPriceCurrency),
   };
+  const view = form.moneyEditView;
+  const editConversions = [];
+  if (view) {
+    if (view.productId !== product.id || view.revision !== product.moneyPrices?.revision ||
+        form.moneyCostCurrency !== view.currency || form.moneyPriceCurrency !== view.currency)
+      fail('MONEY_EDIT_CONFLICT', 'O cadastro mudou durante a edição. Reabra antes de salvar.');
+    for (const [field, key] of Object.entries(fields)) {
+      const original = product.moneyPrices.values[key];
+      if (!original) continue;
+      const baseline = parseMoneyInput(String(view.inputs[field] || '0'), view.currency, { locale, source: 'edit-baseline' });
+      if (compare(values[key], baseline) === 0) values[key] = original;
+      else {
+        const converted = bridgeConvert(values[key], original.currency, view.rates, view.at, 'product-edit-save');
+        values[key] = quantize(converted.value, original.currency === 'PYG' ? 0 : 2).value;
+        if (converted.conversion) editConversions.push(converted.conversion);
+      }
+    }
+  }
   if (compare(values.sale, money('0', values.sale.currency, 'validation')) <= 0) fail('MONEY_PRICE', 'Informe um preço de venda maior que zero.');
   const previous = product.moneyPrices;
   if (previous && (values.sale.currency !== previous.values.sale.currency || values.cost.currency !== previous.values.cost.currency))
@@ -58,7 +83,7 @@ export function saveProductMoney(product, form, { tenantId, actor, locale, rates
   }));
   return { ...product, ...compatibility, moneyPrices: book, moneyCompatibility: { schemaVersion: 2, at, conversions,
     purpose: 'legacy-product-projection', sourceRevision: book.revision },
-    ...(previous ? { moneyPriceAudit: [...(product.moneyPriceAudit || []), { actor, at, before: previous, after: book }] } : {}) };
+    ...(previous ? { moneyPriceAudit: [...(product.moneyPriceAudit || []), { actor, at, before: previous, after: book, editConversions }] } : {}) };
 }
 export function projectProductMoney(product, rates, at) {
   if (!product.moneyPrices) return product;
@@ -66,8 +91,8 @@ export function projectProductMoney(product, rates, at) {
     Number(bridgeConvert(nativeProductValue(product, field), 'BRL', rates, at, 'pos-price-projection').value.amount)]));
   return { ...product, ...projected };
 }
-export function formatProductMoney(product, field, currency, rates, locale, at) {
-  return formatMoney(bridgeConvert(nativeProductValue(product, field), currency, rates, at).value, { locale });
+export function formatProductMoney(product, field, currency, rates, locale, at, options = {}) {
+  return formatMoney(bridgeConvert(nativeProductValue(product, field), currency, rates, at).value, { locale, ...options });
 }
 export function productMargin(product, rates, at) {
   const sale = nativeProductValue(product, 'precoBRL');

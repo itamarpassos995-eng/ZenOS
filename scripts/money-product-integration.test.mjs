@@ -70,3 +70,19 @@ test('PDF is generated from original native sale snapshot, independent of curren
   assert.match(text,/PYG 39\.990/);assert.doesNotMatch(text,/9\.197\.700/);
   assert.equal(sale.moneySnapshot.total.amount,'39990');
 });
+test('edit view follows all four currencies without rounding drift; changes use captured FX',()=>{
+  const state=createMoneyTestStore(memory(),mutex()).read(), product=state.produtos[0];
+  for(const currency of ['BRL','PYG','USD','EUR']){
+    const form=productMoneyForm(product,{defaultCurrency:currency,locale:'pt-BR',rates:state.rates,at});
+    assert.equal(form.moneyPriceCurrency,currency);assert.equal(form.moneyCostCurrency,currency);
+    const saved=saveProductMoney(product,form,{tenantId:MONEY_TEST_TENANT,actor:'admin',locale:'pt-BR',rates:{...state.rates,PYG:999},at});
+    assert.deepEqual(saved.moneyPrices.values,product.moneyPrices.values);
+  }
+  const form=productMoneyForm(product,{defaultCurrency:'BRL',locale:'pt-BR',rates:state.rates,at});
+  assert.equal(form.precoBRL,'34,77');
+  const saved=saveProductMoney(product,{...form,precoBRL:'40'},{tenantId:MONEY_TEST_TENANT,actor:'admin',locale:'pt-BR',rates:{...state.rates,PYG:999},at});
+  assert.equal(saved.moneyPrices.values.sale.amount,'46000');
+  assert.equal(saved.moneyPrices.values.sale.currency,'PYG');
+  assert.equal(saved.moneyPrices.values.cost.amount,'20000');
+  assert.equal(saved.moneyPriceAudit.at(-1).editConversions.length,1);
+});

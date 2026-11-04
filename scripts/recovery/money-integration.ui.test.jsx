@@ -15,7 +15,7 @@ const moneySelect=()=>screen.getByRole('combobox',{name:'Moeda de exibição'});
 test('cadastro real de Produtos salva 39990 PYG, reabre, preserva legado e não reinterpreta ao mudar padrão',async()=>{
   render(<MoneyTestApp/>);
   fireEvent.click(screen.getByRole('button',{name:'+ Novo Produto'}));
-  expect(screen.getByRole('combobox',{name:'Moeda do preço'}).value).toBe('PYG');
+  expect(screen.getByText('Valores em ₲ · PYG')).toBeTruthy();
   fireEvent.change(screen.getByRole('textbox',{name:'Nome do Item'}),{target:{value:'PRODUTO CRIADO NO TESTE'}});
   fireEvent.change(screen.getByRole('textbox',{name:'Custo do produto'}),{target:{value:'20.000'}});
   fireEvent.change(screen.getByRole('textbox',{name:'Preço de venda do produto'}),{target:{value:'39.990'}});
@@ -26,16 +26,17 @@ test('cadastro real de Produtos salva 39990 PYG, reabre, preserva legado e não 
   expect(product.moneyPrices.values.sale).toMatchObject({amount:'39990',currency:'PYG'});
   expect(product.moneyPrices.values.cost).toMatchObject({amount:'20000',currency:'PYG'});
   const row=screen.getByText('PRODUTO CRIADO NO TESTE').closest('tr');
-  expect(within(row).getByText('PYG 39.990')).toBeTruthy();
+  expect(within(row).getByText('₲ 39.990')).toBeTruthy();
   fireEvent.change(moneySelect(),{target:{value:'BRL'}});
   fireEvent.click(screen.getByRole('button',{name:'Salvar padrão'}));
   await waitFor(()=>expect(saved().moedaPadrao).toBe('BRL'));
   expect(saved().produtos.find(p=>p.id===product.id).moneyPrices.values.sale.amount).toBe('39990');
   fireEvent.click(within(row).getByRole('button',{name:'Editar'}));
-  expect(screen.getByRole('textbox',{name:'Preço de venda do produto'}).value).toBe('39990');
-  expect(screen.getByRole('combobox',{name:'Moeda do preço'}).value).toBe('PYG');
+  expect(screen.getByRole('textbox',{name:'Preço de venda do produto'}).value).toBe('34,77');
+  expect(screen.getByText('Valores em R$ · BRL')).toBeTruthy();
   fireEvent.click(screen.getByRole('button',{name:'Salvar Produto no Sistema'}));
   await waitFor(()=>expect(saved().produtos.find(p=>p.id===product.id).moneyPrices.revision).toBe(2));
+  expect(saved().produtos.find(p=>p.id===product.id).moneyPrices.values.sale.amount).toBe('39990');
   expect(saved().produtos.find(p=>p.id==='fixture-ambiguous').precoBRL).toBe(39990);
 });
 test('PDV existente vende fixture PYG com snapshot, baixa estoque e comprovante imutável',async()=>{
@@ -84,9 +85,9 @@ test('câmbio segue os parâmetros do sistema oficial: USD/EUR em BRL e BRL em P
   expect(Number(saved().rates.USD)).toBeCloseTo(1/5.4,14);
   expect(Number(saved().rates.EUR)).toBeCloseTo(1/6.05,14);
   fireEvent.change(moneySelect(),{target:{value:'BRL'}});
-  expect(screen.getByText('BRL 34,77')).toBeTruthy();
+  expect(screen.getByText('R$ 34,77')).toBeTruthy();
   expect(screen.queryByText('BRL 173,87')).toBe(null);
   fireEvent.change(moneySelect(),{target:{value:'PYG'}});
-  expect(screen.getByText('PYG 39.990')).toBeTruthy();
+  expect(screen.getByText('₲ 39.990')).toBeTruthy();
   expect(JSON.stringify(saved().produtos[0].moneyPrices)).toBe(before);
 });

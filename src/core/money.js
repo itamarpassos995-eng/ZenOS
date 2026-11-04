@@ -110,7 +110,7 @@ export function parseMoneyInput(input, currency, { locale, source = 'input', all
   if (!allowNegative && decimal(result.amount).units < 0n) fail('MONEY_NEGATIVE', 'Valor negativo não permitido.');
   return result;
 }
-export function formatMoney(value, { locale = 'pt-BR', scale = currencyScale(value.currency), rounding = 'HALF_UP' } = {}) {
+export function formatMoney(value, { locale = 'pt-BR', scale = currencyScale(value.currency), rounding = 'HALF_UP', currencyDisplay = 'code' } = {}) {
   const q = quantize(value, scale, rounding).value;
   const d = decimal(q.amount), negative = d.units < 0n;
   const absolute = d.units < 0n ? -d.units : d.units;
@@ -118,7 +118,7 @@ export function formatMoney(value, { locale = 'pt-BR', scale = currencyScale(val
   const whole = scaled / pow(scale), fraction = (scaled % pow(scale)).toString().padStart(scale, '0');
   const grouped = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(whole);
   const separator = new Intl.NumberFormat(locale).formatToParts(1.1).find(p => p.type === 'decimal')?.value || '.';
-  return `${negative ? '-' : ''}${value.currency} ${grouped}${scale ? separator + fraction : ''}`;
+  return `${negative ? '-' : ''}${currencyDisplay === 'symbol' ? ({BRL:'R$',PYG:'₲',USD:'US$',EUR:'€'}[value.currency]) : value.currency} ${grouped}${scale ? separator + fraction : ''}`;
 }
 export function convertMoney(value, destination, quote, { appliedAt, purpose, scale = 8, rounding = 'HALF_UP' } = {}) {
   assertMoney(value); assertCurrency(destination); precision(scale);
