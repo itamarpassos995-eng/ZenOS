@@ -1958,7 +1958,7 @@ export default function PDV({ moneyContext = null, abrirFilaOnlineToken = 0, onP
                     <>
                       <div style={{ marginTop: '10px', fontSize: '11px' }}>
                         <strong>{tx('Pagamentos (Liquidados):','Pagos (Liquidados):','Payments (Settled):')}</strong><br/>
-                        {vendaConcluidaObj?.pagamentos.map((p, idx) => <div key={idx} style={{ display: 'flex', justifyContent: 'space-between' }}><span>{p.rotulo}</span><span>{p.valorOriginal.toFixed(2)}</span></div>)}
+                        {vendaConcluidaObj?.pagamentos.map((p, idx) => <div key={idx} style={{ display: 'flex', justifyContent: 'space-between' }}><span>{p.rotulo}</span><span>{moneyContext ? moneyContext.formatPayment(p) : p.valorOriginal.toFixed(2)}</span></div>)}
                       </div>
                       {vendaConcluidaObj?.trocoBRL > 0.01 && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginTop: '4px', backgroundColor: '#e2e8f0', padding: '2px' }}><span>{tx("TROCO (","VUELTO (")}{vendaConcluidaObj.moedaTrocoInfo})</span><span>{formatarEquivalenciaBRL(vendaConcluidaObj.trocoBRL, vendaConcluidaObj.moedaTrocoInfo || 'BRL', cotacoesRecibo)}</span></div>}
                     </>
@@ -1998,7 +1998,7 @@ export default function PDV({ moneyContext = null, abrirFilaOnlineToken = 0, onP
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800 }}>{saldoRestanteBRL > 0.01 ? tx('Falta', 'Falta', 'Due') : tx('Troco na Moeda:', 'Cambio en:', 'Change in:')}</span>
                     {saldoRestanteBRL > 0.01 ? (
-                      <div style={{ fontSize: '18px', fontWeight: 900, color: '#fb7185' }}>{fmt(saldoRestanteBRL, 'BRL')}</div>
+                      <div style={{ fontSize: '18px', fontWeight: 900, color: '#fb7185' }}>{moneyContext ? fmt(saldoRestanteBRL) : fmt(saldoRestanteBRL, 'BRL')}</div>
                     ) : (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <div style={{ fontSize: '18px', fontWeight: 900, color: trocoTotalBRL > 0 ? '#fbbf24' : '#38bdf8' }}>{trocoTotalBRL > 0 ? `${converterDeBRL(trocoTotalBRL, moedaTrocoEscolhida).toFixed(2)}` : tx("QUITADO ✓","PAGADO ✓")}</div>

@@ -67,6 +67,7 @@ export default function MoneyTestApp() {
     decorateSale:(sale,options)=>decorateMoneySale(sale,{...options,rates:activeRates,locale,
       resolvePaymentAccount:p=>`synthetic-account:${p.formaId}:${p.moedaOrigem}`,changeAccountId:'synthetic-drawer'}),
     formatTotal:sale=>formatMoney(sale.moneySnapshot.total,{locale}),
+    formatPayment:p=>formatMoney(money(legacyDecimal(p.valorOriginal),p.moedaOrigem,'saved-payment'),{locale}),
     receiptItem:(item,sale,field)=>{const line=sale.moneySnapshot.items.find(i=>i.id===String(item.id));return line?formatMoney(line[field],{locale}):'—';},
   };
   const commit = operation => store.commit(operation,state.revision);

@@ -44,6 +44,7 @@ test('PDV existente vende fixture PYG com snapshot, baixa estoque e comprovante 
   fireEvent(window,new CustomEvent('zenos:adicionar-item-pdv',{detail:saved().produtos[0]}));
   expect(await screen.findByText('MASSA — TESTE 39.990')).toBeTruthy();
   fireEvent.keyDown(window,{key:'F10'});
+  expect(screen.queryByText('BRL 173,87')).toBe(null);
   const select=screen.getAllByRole('combobox').find(s=>[...s.options].some(o=>o.value==='dinheiro_pyg'));
   expect(select).toBeTruthy();
   fireEvent.change(select,{target:{value:'dinheiro_pyg'}});
