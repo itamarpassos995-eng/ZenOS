@@ -1,6 +1,6 @@
 import {exchangeRateSnapshotsEqual} from './exchangeRateGuard.js';
 import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
-import { peekV2Session } from './operationalRepository.js';
+import { getOperationalWriteSession } from './operationalRepository.js';
 import { zenosStorage } from './storage.js';
 import { getV1OperationPath, notifyPersistenceStatus, safeSetLocalJson } from './persistenceSafety.js';
 import { cloneSyncValue, mergeV1FieldThreeWay, syncValuesEqual } from './syncMerge.js';
@@ -335,7 +335,9 @@ const persistConfirmedLocalCache = (changes, values) => {
  * quota/rede indisponível. Este caminho é usado para alterações reativas simples.
  */
 export const persistV1OperationFieldsSafe = async ({ db, userId, changes = [] }) => {
-  if (peekV2Session(db, userId)) return (await import('./operationalV2.js')).persistV2BusinessOperationSafe({ db, userId, changes, budgetField:'operacao_batch' });
+  try {
+    if (await getOperationalWriteSession(db, userId)) return (await import('./operationalV2.js')).persistV2BusinessOperationSafe({ db, userId, changes, budgetField:'operacao_batch' });
+  } catch(error) { return {ok:false,cloudOk:false,error,values:{},revisions:{}}; }
   const valid = (changes || []).filter(c => c?.field);
   if (!db || !userId || valid.length === 0) {
     const error = new Error('Persistência V1 segura chamada sem db, userId ou alterações.');
@@ -436,7 +438,9 @@ export const persistV1BusinessOperationSafe = async ({
   guards = [],
   operationKey = null,
 }) => {
-  if (peekV2Session(db, userId)) return (await import('./operationalV2.js')).persistV2BusinessOperationSafe({db,userId,changes,financialEntries,stockEvents,guards,operationKey});
+  try {
+    if (await getOperationalWriteSession(db, userId)) return (await import('./operationalV2.js')).persistV2BusinessOperationSafe({db,userId,changes,financialEntries,stockEvents,guards,operationKey});
+  } catch(error) { return {ok:false,cloudOk:false,error,values:{},revisions:{}}; }
   const valid = (changes || []).filter(c => c?.field);
   const financialWriteCount = (financialEntries || []).filter(x => Number(x?.valor) > 0).length;
   const stockWriteCount = (stockEvents || []).filter(x => x?.id && x?.produtoId != null).length;
