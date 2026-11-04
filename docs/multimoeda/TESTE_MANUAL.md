@@ -19,7 +19,7 @@ Esta entrega NÃO homologa fiado, contas, compras, fiscal, Commerce, recorrênci
 1. Abra Produtos & Estoque. A moeda predeterminada inicial é PYG.
 2. O produto fictício `MASSA — TESTE 39.990` deve exibir **PYG 39.990**.
 3. Clique Editar: o preço deve ser `39990`, com moeda de preço PYG. Salve e reabra.
-4. No cabeçalho, escolha BRL. A equivalência inicial é aproximadamente **BRL 173,87**, pois 1 BRL = 230 PYG.
+4. No cabeçalho, escolha BRL. A equivalência inicial é aproximadamente **BRL 34,77**, pois 1 BRL = 1.150 PYG.
 5. Clique Salvar padrão. O produto existente continua precificado originalmente em PYG. Um novo cadastro começa em BRL.
 6. Volte para PYG. O produto deve exibir novamente **PYG 39.990**.
 7. Pelo botão de câmbio, altere 1 BRL para 460 PYG. O preço original em PYG deve continuar em 39.990; sua equivalência BRL muda.
@@ -51,3 +51,7 @@ Abrir `http://127.0.0.1:4173`. Web Locks exige contexto seguro (HTTPS ou localho
 - CSP `connect-src 'none'` bloqueia conexões de rede do aplicativo.
 - O build verifica a ausência dos identificadores Firebase de produção nos chunks.
 - A publicação comum da branch continua bloqueada. Somente o build estático isolado pode ser usado para esta homologação.
+
+## Convenção de entrada do câmbio
+
+A janela segue os mesmos parâmetros do sistema oficial: **1 USD = BRL 5,40; 1 EUR = BRL 6,05; 1 BRL = PYG 1.150**. As taxas normalizadas internas não são apresentadas como entradas do operador. USD/EUR são invertidos uma vez ao normalizar; PYG não é invertido nessa etapa. Abrir e salvar a janela não deve inverter novamente as taxas. A homologação anterior usava parâmetros de fixture diferentes (230 / 0,2 / 0,18) e uma janela com convenção diferente; não usar aquele resultado para validar os parâmetros reais do cliente.

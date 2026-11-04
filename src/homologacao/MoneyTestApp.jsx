@@ -10,6 +10,7 @@ import { createMoneyTestStore, MONEY_TEST_TENANT, MONEY_TEST_KEY } from './money
 import { chaveRascunhoPDV } from '../core/pdvDraft.js';
 import { runtimeStorageKey } from './firebaseDisabled.js';
 import { gerarPdfComprovante } from '../core/zenReceiptPdf.js';
+import { exchangeFromOperatorInputs, operatorInputsFromRates, displayOperatorInputs } from '../core/exchangeOperatorConfig.js';
 import '../index.css';
 import '../zenos-dashboard.css';
 
@@ -81,13 +82,8 @@ export default function MoneyTestApp() {
   const saveRates = async()=>{
     if(readDraft()?.itensVenda?.length) return setNotice('Conclua ou limpe o atendimento antes de alterar o câmbio nesta homologação.');
     try {
-      const rates={BRL:1};
-      for(const c of ['PYG','USD','EUR']) {
-        const value=money(legacyDecimal(draftRates[c]),'BRL','test-fx-input');
-        if(compare(value,money('0','BRL','test-fx-input'))<=0)throw Error('Informe cotações positivas.');
-        rates[c]=Number(value.amount);
-      }
-      await store.configure({rates},state.revision); setRatesOpen(false);setNotice('Câmbio de teste salvo. Valores originais e documentos anteriores preservados.');
+      const exchange=exchangeFromOperatorInputs(draftRates);
+      await store.configure({rates:exchange.rates,exchangeInputs:exchange.inputs},state.revision); setRatesOpen(false);setNotice('Câmbio de teste salvo. Valores originais e documentos anteriores preservados.');
     }catch(e){setNotice(e.message);}
   };
   const downloadReceipt=async sale=>{
@@ -104,7 +100,7 @@ export default function MoneyTestApp() {
       usuarioAutenticado:'dados-ficticios@teste.local',patenteUsuario:'gerencia',onHome:()=>setScreen('produtos'),onEditarPerfil:()=>setNotice('Empresa fictícia exclusiva de homologação.'),onSair:()=>setNotice('Esta é uma sessão local de teste, sem conta real conectada.'),tx}}
       topbarProps={{status:'OFFLINE',statusTitle:'Homologação: dados locais neste navegador, sem conexão com serviços reais',idioma:language,setIdioma:setLanguage,
         moeda:currency,setMoeda:changeCurrency,moedaPadrao:state.moedaPadrao,onSalvarMoedaPadrao:saveDefault,
-        onCambio:()=>{setDraftRates({...state.rates});setRatesOpen(true);},operador:operator.nome,patente:'gerencia',tema:theme,onAlternarTema:()=>setTheme(theme==='dark'?'light':'dark'),onTrocarOperador:()=>setNotice('Nesta homologação existe somente o administrador fictício.'),tx}}>
+        onCambio:()=>{setDraftRates(displayOperatorInputs(state.exchangeInputs||operatorInputsFromRates(state.rates)));setRatesOpen(true);},operador:operator.nome,patente:'gerencia',tema:theme,onAlternarTema:()=>setTheme(theme==='dark'?'light':'dark'),onTrocarOperador:()=>setNotice('Nesta homologação existe somente o administrador fictício.'),tx}}>
       <div style={{margin:'16px 28px',padding:14,border:'1px solid #b7791f',borderRadius:10,background:'#33220b',fontSize:13,lineHeight:1.6}}>
         <strong>HOMOLOGAÇÃO MULTIMOEDA — DADOS FICTÍCIOS</strong><br/>
         Cadastro, edição, preços, PDV à vista/cartão e comprovantes. Dados salvos somente neste navegador. Sem Firebase, serviços externos ou contas de clientes.
@@ -127,8 +123,8 @@ export default function MoneyTestApp() {
         </section>}
       </main>
     </ZenNavigationLayout>
-    {ratesOpen&&<div role="dialog" aria-label="Câmbio de teste" style={{position:'fixed',inset:0,zIndex:30000,background:'#000b',display:'grid',placeItems:'center'}}><div style={{padding:24,borderRadius:16,background:'#102030',minWidth:320}}><h2>Câmbio de teste</h2><p>1 BRL corresponde a:</p>
-      {['PYG','USD','EUR'].map(c=><label key={c} style={{display:'block',margin:12}}>{c} <input aria-label={'Cotação '+c} type="number" min="0" step="any" value={draftRates[c]} onChange={e=>setDraftRates({...draftRates,[c]:e.target.value})}/></label>)}
-      <button onClick={saveRates}>Salvar câmbio de teste</button> <button onClick={()=>setRatesOpen(false)}>Cancelar</button></div></div>}
+    {ratesOpen&&<div role="dialog" aria-label="Câmbio de teste" style={{position:'fixed',inset:0,zIndex:30000,background:'#000b',display:'grid',placeItems:'center'}}><div style={{padding:28,borderRadius:20,background:'#0b1120',border:'1px solid #6366f1',width:'min(440px,90vw)'}}><h2>{tx('Cotações do dia','Cotizaciones del día','Exchange rates')}</h2>
+      {['USD','EUR','PYG'].map(c=><label key={c} style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,margin:'14px 0',padding:14,border:'1px solid #334155',borderRadius:12,background:'#020617'}}><span>{c==='USD'?'1 Dólar (USD) =':c==='EUR'?'1 Euro (EUR) =':'1 Real (BRL) ='}</span><span style={{display:'flex',alignItems:'center',gap:8}}>{c!=='PYG'&&'R$'}<input aria-label={'Cotação '+c} type="text" inputMode="decimal" value={draftRates[c]} onChange={e=>setDraftRates({...draftRates,[c]:e.target.value})} style={{background:'#0b1120',color:c==='PYG'?'#38bdf8':'#34d399',border:'1px solid #334155',borderRadius:8,padding:10,width:100,textAlign:'right',fontWeight:900}}/>{c==='PYG'&&'₲'}</span></label>)}
+      <div style={{display:'flex',gap:12}}><button onClick={saveRates} style={{flex:1,padding:14,border:0,borderRadius:10,background:'#4f46e5',color:'#fff',fontWeight:800}}>{tx('Salvar câmbio de teste','Guardar cambio de prueba','Save test exchange rates')}</button> <button onClick={()=>setRatesOpen(false)} style={{padding:12}}>{tx('Cancelar','Cancelar','Cancel')}</button></div></div></div>}
   </div>;
 }

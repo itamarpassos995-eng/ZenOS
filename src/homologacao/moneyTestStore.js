@@ -2,6 +2,7 @@ import { createPriceBook } from '../core/moneyOperations.js';
 import { money, assertMoney, compare } from '../core/money.js';
 import { moneyHash, stableMoneyJson } from '../core/moneyLegacy.js';
 import { projectProductMoney, legacyDecimal } from '../core/moneyProductBridge.js';
+import { exchangeFromOperatorInputs } from '../core/exchangeOperatorConfig.js';
 export const MONEY_TEST_TENANT = 'synthetic-money-test-only';
 export const MONEY_TEST_KEY = 'zenos_money_homologacao_v2';
 const fail = (code, message) => { throw Object.assign(new Error(message), { code }); };
@@ -14,8 +15,9 @@ export function initialMoneyTestState() {
     ativo: true, estoque: 20, estoqueVitrine: 20, estoqueGalpao: 0, habilitarPreco2: true,
     moneyPrices: createPriceBook({ tenantId: MONEY_TEST_TENANT, id: 'fixture-massa-39990', actor: 'admin', createdAt: at,
       values: { cost: native('20000'), sale: native('39990'), wholesale: native('38000'), price3: native('0') } }) };
-  const rates = { BRL: 1, PYG: 230, USD: 0.2, EUR: 0.18 };
-  return { schemaVersion: 2, revision: 0, moedaPadrao: 'PYG', rates,
+  const exchange = exchangeFromOperatorInputs({USD:'5.40',EUR:'6.05',PYG:'1150'});
+  const rates = exchange.rates;
+  return { schemaVersion: 2, revision: 0, moedaPadrao: 'PYG', rates, exchangeInputs:exchange.inputs,
     produtos: [projectProductMoney(product, rates, at), { id:'fixture-ambiguous',sku:'TESTE-LEGADO',nome:'LEGADO — MOEDA A CONFERIR',
       tipoItem:'mercadoria',unidadeMedida:'UN',ativo:true,grupo:'Geral',estoque:5,estoqueVitrine:5,estoqueGalpao:0,custoBRL:20000,precoBRL:39990 }],
     clientes: [], historicoVendas: [], vouchers: [], financialEntries: [], stockEvents: [], recentOperations: [],
@@ -109,6 +111,11 @@ export function createMoneyTestStore(storage, withLock) {
       if(patch.rates.BRL!==1)fail('MONEY_RATE','A base BRL exige taxa 1.');
       for(const code of ['USD','EUR','PYG']) if(compare(money(legacyDecimal(patch.rates[code]),'BRL','test-fx'),money('0','BRL','test-fx'))<=0)fail('MONEY_RATE','Cotação positiva obrigatória.');
       next.rates = copy(patch.rates);
+      if(patch.exchangeInputs) {
+        const verified=exchangeFromOperatorInputs(patch.exchangeInputs);
+        if(stableMoneyJson(verified.rates)!==stableMoneyJson(patch.rates))fail('MONEY_RATE','Cotações normalizadas não correspondem às entradas.');
+        next.exchangeInputs=copy(verified.inputs);
+      } else delete next.exchangeInputs;
     }
     storage.setItem(MONEY_TEST_KEY, JSON.stringify(next)); publish(); return next;
   });

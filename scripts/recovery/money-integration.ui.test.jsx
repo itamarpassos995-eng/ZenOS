@@ -61,9 +61,32 @@ test('PDV existente vende fixture PYG com snapshot, baixa estoque e comprovante 
   const snapshot=JSON.stringify(sale);
   fireEvent.click(screen.getByRole('button',{name:'Novo Atendimento'}));
   fireEvent.click(screen.getByRole('button',{name:'⚙'}));
-  fireEvent.change(screen.getByRole('spinbutton',{name:'Cotação PYG'}),{target:{value:'460'}});
+  fireEvent.change(screen.getByRole('textbox',{name:'Cotação PYG'}),{target:{value:'460'}});
   fireEvent.click(screen.getByRole('button',{name:'Salvar câmbio de teste'}));
   await waitFor(()=>expect(saved().rates.PYG).toBe(460));
   expect(JSON.stringify(saved().historicoVendas[0])).toBe(snapshot);
   expect(saved().produtos[0].moneyPrices.values.sale.amount).toBe('39990');
+});
+
+test('câmbio segue os parâmetros do sistema oficial: USD/EUR em BRL e BRL em PYG',async()=>{
+  render(<MoneyTestApp/>);
+  const before=JSON.stringify(saved().produtos[0].moneyPrices);
+  fireEvent.click(screen.getByRole('button',{name:'⚙'}));
+  expect(screen.getByText('1 Dólar (USD) =')).toBeTruthy();
+  expect(screen.getByText('1 Euro (EUR) =')).toBeTruthy();
+  expect(screen.getByText('1 Real (BRL) =')).toBeTruthy();
+  fireEvent.change(screen.getByRole('textbox',{name:'Cotação USD'}),{target:{value:'5.40'}});
+  fireEvent.change(screen.getByRole('textbox',{name:'Cotação EUR'}),{target:{value:'6.05'}});
+  fireEvent.change(screen.getByRole('textbox',{name:'Cotação PYG'}),{target:{value:'1150'}});
+  fireEvent.click(screen.getByRole('button',{name:'Salvar câmbio de teste'}));
+  await waitFor(()=>expect(saved().revision).toBe(1));
+  expect(saved().exchangeInputs).toEqual({USD:'5.4',EUR:'6.05',PYG:'1150'});
+  expect(Number(saved().rates.USD)).toBeCloseTo(1/5.4,14);
+  expect(Number(saved().rates.EUR)).toBeCloseTo(1/6.05,14);
+  fireEvent.change(moneySelect(),{target:{value:'BRL'}});
+  expect(screen.getByText('BRL 34,77')).toBeTruthy();
+  expect(screen.queryByText('BRL 173,87')).toBe(null);
+  fireEvent.change(moneySelect(),{target:{value:'PYG'}});
+  expect(screen.getByText('PYG 39.990')).toBeTruthy();
+  expect(JSON.stringify(saved().produtos[0].moneyPrices)).toBe(before);
 });

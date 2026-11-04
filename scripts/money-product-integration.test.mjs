@@ -31,7 +31,7 @@ function fixtureSale(state,payments,trocoOriginal=0,moedaTrocoInfo=null){
 test('mixed BRL cash/PYG card and native change reconciled in actual POS adapter',()=>{
   const state=createMoneyTestStore(memory(),mutex()).read();
   const sale=fixtureSale(state,[{id:1,formaId:'cartaoCredito_pyg',moedaOrigem:'PYG',valorOriginal:20000},
-    {id:2,formaId:'dinheiro_brl',moedaOrigem:'BRL',valorOriginal:100}],3010,'PYG');
+    {id:2,formaId:'dinheiro_brl',moedaOrigem:'BRL',valorOriginal:20}],3010,'PYG');
   assert.equal(sale.moneySnapshot.total.amount,'39990');
   assert.equal(sale.moneySettlement.outstanding.amount,'0');
   assert.equal(sale.moneySettlement.change[0].amount.amount,'3010');
