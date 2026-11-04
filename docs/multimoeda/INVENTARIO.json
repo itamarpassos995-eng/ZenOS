@@ -1,0 +1,6214 @@
+{
+  "baseCommit": "db8b32d00b2b4f662d601a05efcb3da8f166c9ae",
+  "method": "Triagem estática reproduzível; não comprova cobertura completa. Revisão semântica pendente.",
+  "files": [
+    {
+      "path": "api/commerce/inbox.js",
+      "area": "Commerce",
+      "status": "pending-integration",
+      "occurrences": 4,
+      "matches": [
+        {
+          "line": 93,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 97,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 98,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 100,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "api/commerce/pedido.js",
+      "area": "Commerce",
+      "status": "pending-integration",
+      "occurrences": 3,
+      "matches": [
+        {
+          "line": 63,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 72,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 73,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/App.jsx",
+      "area": "Orquestração, importação e IA",
+      "status": "pending-integration",
+      "occurrences": 141,
+      "matches": [
+        {
+          "line": 45,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 58,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 76,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 145,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 146,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 152,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 485,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 628,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 706,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 713,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 720,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 721,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 817,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 818,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 825,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 860,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 895,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 977,
+          "signals": [
+            "contrato BRL",
+            "conversão",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 978,
+          "signals": [
+            "contrato BRL",
+            "conversão",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 980,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 981,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 986,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 987,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 995,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 999,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 1018,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1019,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1023,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1024,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1025,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1037,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1038,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1039,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1040,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1041,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1042,
+          "signals": [
+            "contrato BRL",
+            "parser numérico"
+          ]
+        },
+        {
+          "line": 1051,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1053,
+          "signals": [
+            "contrato BRL",
+            "parser numérico"
+          ]
+        },
+        {
+          "line": 1057,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1074,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1076,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1077,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1078,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1082,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1086,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 1099,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 1100,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1101,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1102,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1104,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 1105,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1110,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1118,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 1174,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1175,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1177,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1181,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 1202,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1203,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1208,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 1219,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1231,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1232,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 1233,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1246,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 1291,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 1293,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1294,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1295,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1296,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1325,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1328,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 1330,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1331,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1359,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1363,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 1365,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1366,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1367,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1376,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1378,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1381,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1397,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1407,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1425,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1426,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1427,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1428,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1429,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1430,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1431,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1432,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1433,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1434,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1435,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1439,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1440,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1444,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1445,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1446,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1447,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1448,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1449,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1460,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 1461,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1468,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1469,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1485,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 1520,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1521,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1523,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1603,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1797,
+          "signals": [
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 1818,
+          "signals": [
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 1838,
+          "signals": [
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 1933,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1934,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1965,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1966,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1988,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1989,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1990,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1991,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1992,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1993,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1995,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 2023,
+          "signals": [
+            "contrato BRL",
+            "conversão",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 2024,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 2031,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 2032,
+          "signals": [
+            "contrato BRL",
+            "conversão",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 2035,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 2038,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 2049,
+          "signals": [
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 2050,
+          "signals": [
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 2051,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 2078,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 2088,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 2096,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 2146,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 2147,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 2155,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/components/AssistenteZen.jsx",
+      "area": "Outros consumidores",
+      "status": "pending-integration",
+      "occurrences": 7,
+      "matches": [
+        {
+          "line": 18,
+          "signals": [
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 20,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 303,
+          "signals": [
+            "contrato BRL",
+            "parser numérico"
+          ]
+        },
+        {
+          "line": 431,
+          "signals": [
+            "contrato BRL",
+            "parser numérico"
+          ]
+        },
+        {
+          "line": 462,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 464,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 465,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/components/Clientes.jsx",
+      "area": "Clientes e fiado",
+      "status": "pending-integration",
+      "occurrences": 52,
+      "matches": [
+        {
+          "line": 9,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 27,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação",
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 28,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 29,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 30,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 31,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 32,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 33,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 34,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 36,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 37,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 43,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 51,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 70,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 95,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 97,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 148,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 149,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 150,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 156,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 169,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 186,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 189,
+          "signals": [
+            "contrato BRL",
+            "conversão",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 190,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 192,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 193,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 194,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 202,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 205,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 214,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 215,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 216,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 217,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 228,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 230,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 255,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 275,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 283,
+          "signals": [
+            "contrato BRL",
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 302,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 310,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 314,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 328,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 368,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 392,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 393,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 409,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 487,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 512,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 517,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 520,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 524,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 541,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/components/Comissoes.jsx",
+      "area": "Comissões, metas e bônus",
+      "status": "pending-integration",
+      "occurrences": 2,
+      "matches": [
+        {
+          "line": 259,
+          "signals": [
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 343,
+          "signals": [
+            "apresentação BRL fixa"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/components/CommerceOrderInbox.jsx",
+      "area": "Commerce",
+      "status": "pending-integration",
+      "occurrences": 2,
+      "matches": [
+        {
+          "line": 124,
+          "signals": [
+            "contrato BRL",
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 125,
+          "signals": [
+            "contrato BRL",
+            "apresentação BRL fixa"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/components/CommerceSolicitacao.jsx",
+      "area": "Commerce",
+      "status": "pending-integration",
+      "occurrences": 20,
+      "matches": [
+        {
+          "line": 69,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 139,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 173,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 178,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 199,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 226,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 471,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 902,
+          "signals": [
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 950,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1005,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1025,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1026,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1063,
+          "signals": [
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 1070,
+          "signals": [
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 1367,
+          "signals": [
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 1635,
+          "signals": [
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 1639,
+          "signals": [
+            "contrato BRL",
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 1645,
+          "signals": [
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 1650,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1651,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/components/DashboardMobile.jsx",
+      "area": "Relatórios e resultado",
+      "status": "pending-integration",
+      "occurrences": 3,
+      "matches": [
+        {
+          "line": 20,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 21,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 25,
+          "signals": [
+            "contrato BRL",
+            "parser numérico"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/components/Despesas.jsx",
+      "area": "Despesas e recorrências",
+      "status": "pending-integration",
+      "occurrences": 14,
+      "matches": [
+        {
+          "line": 8,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 59,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 71,
+          "signals": [
+            "contrato BRL",
+            "conversão",
+            "parser numérico"
+          ]
+        },
+        {
+          "line": 72,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 79,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 164,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 166,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 170,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 269,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 302,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 337,
+          "signals": [
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 360,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 381,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 440,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/components/EstoqueInteligente.jsx",
+      "area": "Outros consumidores",
+      "status": "pending-integration",
+      "occurrences": 5,
+      "matches": [
+        {
+          "line": 17,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 22,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 47,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 160,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 194,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/components/Fiscal.jsx",
+      "area": "Fiscal",
+      "status": "pending-integration",
+      "occurrences": 9,
+      "matches": [
+        {
+          "line": 133,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 164,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 165,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 197,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 205,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 206,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 207,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 212,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 213,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/components/GestaoCaixas.jsx",
+      "area": "Caixa e conciliação",
+      "status": "pending-integration",
+      "occurrences": 18,
+      "matches": [
+        {
+          "line": 26,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 34,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 35,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 36,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 37,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 38,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 39,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 40,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 41,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 42,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 43,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 44,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 45,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 46,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 47,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 49,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 62,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 70,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/components/ImportacaoVipe.jsx",
+      "area": "Outros consumidores",
+      "status": "pending-integration",
+      "occurrences": 6,
+      "matches": [
+        {
+          "line": 32,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 37,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 38,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 44,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 48,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 75,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/components/Mesas.jsx",
+      "area": "Outros consumidores",
+      "status": "pending-integration",
+      "occurrences": 9,
+      "matches": [
+        {
+          "line": 39,
+          "signals": [
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 45,
+          "signals": [
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 76,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 102,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 103,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 109,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 110,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 113,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 218,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/components/Migracao.jsx",
+      "area": "Orquestração, importação e IA",
+      "status": "pending-integration",
+      "occurrences": 3,
+      "matches": [
+        {
+          "line": 24,
+          "signals": [
+            "parser numérico"
+          ]
+        },
+        {
+          "line": 25,
+          "signals": [
+            "parser numérico"
+          ]
+        },
+        {
+          "line": 27,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/components/PDV.jsx",
+      "area": "Vendas e PDV",
+      "status": "pending-integration",
+      "occurrences": 153,
+      "matches": [
+        {
+          "line": 15,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 26,
+          "signals": [
+            "contrato BRL",
+            "conversão",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 59,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 188,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 189,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 200,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 201,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 212,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 213,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 214,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 337,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 368,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 369,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 383,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 384,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 385,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 393,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 394,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 405,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 438,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 439,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 459,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 460,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 487,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 488,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 500,
+          "signals": [
+            "contrato BRL",
+            "parser numérico"
+          ]
+        },
+        {
+          "line": 501,
+          "signals": [
+            "contrato BRL",
+            "parser numérico"
+          ]
+        },
+        {
+          "line": 502,
+          "signals": [
+            "contrato BRL",
+            "parser numérico"
+          ]
+        },
+        {
+          "line": 503,
+          "signals": [
+            "contrato BRL",
+            "parser numérico"
+          ]
+        },
+        {
+          "line": 516,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 517,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 518,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 519,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 573,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 624,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 625,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 634,
+          "signals": [
+            "contrato BRL",
+            "conversão",
+            "parser numérico"
+          ]
+        },
+        {
+          "line": 667,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 668,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 671,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 689,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 690,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 691,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 692,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 693,
+          "signals": [
+            "contrato BRL",
+            "conversão",
+            "parser numérico"
+          ]
+        },
+        {
+          "line": 695,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 696,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 697,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 710,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 723,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação",
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 724,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 725,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 726,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 727,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 728,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 729,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 730,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 731,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 733,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 734,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 735,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 738,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 739,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 741,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 743,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 745,
+          "signals": [
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 747,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 748,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 749,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 750,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 752,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 755,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 759,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 806,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 814,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 816,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 818,
+          "signals": [
+            "contrato BRL",
+            "conversão",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 819,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 820,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 821,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 822,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 830,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 838,
+          "signals": [
+            "contrato BRL",
+            "parser numérico"
+          ]
+        },
+        {
+          "line": 840,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 849,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 851,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 852,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 856,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 858,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 859,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 860,
+          "signals": [
+            "contrato BRL",
+            "conversão",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 913,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 914,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 916,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1003,
+          "signals": [
+            "contrato BRL",
+            "parser numérico"
+          ]
+        },
+        {
+          "line": 1009,
+          "signals": [
+            "contrato BRL",
+            "parser numérico"
+          ]
+        },
+        {
+          "line": 1025,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1028,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1043,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1044,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1045,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1046,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1047,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1048,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1050,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 1051,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 1053,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 1055,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 1056,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação",
+            "parser numérico"
+          ]
+        },
+        {
+          "line": 1075,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1076,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1078,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1106,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1123,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 1125,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1126,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 1165,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1167,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1168,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1203,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1397,
+          "signals": [
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 1462,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1564,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1573,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1601,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 1606,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1611,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 1649,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1707,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 1708,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1724,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1732,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1833,
+          "signals": [
+            "contrato BRL",
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 1878,
+          "signals": [
+            "contrato BRL",
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 1879,
+          "signals": [
+            "contrato BRL",
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 1919,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 1924,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1929,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 1940,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 1969,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1973,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1976,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1977,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1978,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1981,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 1982,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1984,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1998,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 2000,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 2001,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 2002,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 2003,
+          "signals": [
+            "contrato BRL",
+            "conversão",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 2042,
+          "signals": [
+            "moeda/cotação"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/components/PDVCompras.jsx",
+      "area": "Compras, estoque e custos",
+      "status": "pending-integration",
+      "occurrences": 84,
+      "matches": [
+        {
+          "line": 10,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 15,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 60,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 61,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 63,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 120,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 127,
+          "signals": [
+            "contrato BRL",
+            "parser numérico"
+          ]
+        },
+        {
+          "line": 128,
+          "signals": [
+            "contrato BRL",
+            "parser numérico"
+          ]
+        },
+        {
+          "line": 132,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 154,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 176,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 177,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 178,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 193,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 194,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 195,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 196,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 205,
+          "signals": [
+            "contrato BRL",
+            "conversão",
+            "parser numérico"
+          ]
+        },
+        {
+          "line": 209,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 213,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 217,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 218,
+          "signals": [
+            "contrato BRL",
+            "conversão",
+            "parser numérico"
+          ]
+        },
+        {
+          "line": 219,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 220,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 223,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 224,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 225,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 226,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 227,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 228,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 237,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 238,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 239,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 242,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 250,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 267,
+          "signals": [
+            "parser numérico"
+          ]
+        },
+        {
+          "line": 270,
+          "signals": [
+            "contrato BRL",
+            "conversão",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 276,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 291,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 293,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 306,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 308,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 318,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 319,
+          "signals": [
+            "contrato BRL",
+            "conversão",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 325,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 329,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 330,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 339,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 351,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 353,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 355,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 373,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 374,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 375,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 376,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 377,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 394,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 395,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 396,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 397,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 398,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 415,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 435,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 436,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 445,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 451,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 478,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 535,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 540,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 602,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 632,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 636,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 638,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 650,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 653,
+          "signals": [
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 658,
+          "signals": [
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 665,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 717,
+          "signals": [
+            "contrato BRL",
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 718,
+          "signals": [
+            "contrato BRL",
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 798,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 802,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 806,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 816,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 817,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/components/Produtos.jsx",
+      "area": "Catálogo e preços",
+      "status": "pending-integration",
+      "occurrences": 25,
+      "matches": [
+        {
+          "line": 205,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 356,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 357,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 361,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 363,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 364,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 365,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 427,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 439,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 445,
+          "signals": [
+            "contrato BRL",
+            "parser numérico"
+          ]
+        },
+        {
+          "line": 446,
+          "signals": [
+            "contrato BRL",
+            "parser numérico"
+          ]
+        },
+        {
+          "line": 447,
+          "signals": [
+            "contrato BRL",
+            "parser numérico"
+          ]
+        },
+        {
+          "line": 448,
+          "signals": [
+            "contrato BRL",
+            "parser numérico"
+          ]
+        },
+        {
+          "line": 460,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 461,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 462,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 463,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 768,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 806,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 812,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 943,
+          "signals": [
+            "contrato BRL",
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 944,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 945,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 951,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 952,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/components/Vendas.jsx",
+      "area": "Vendas e PDV",
+      "status": "pending-integration",
+      "occurrences": 60,
+      "matches": [
+        {
+          "line": 13,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 15,
+          "signals": [
+            "contrato BRL",
+            "conversão",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 53,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 77,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 78,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 79,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 113,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 146,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 147,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 148,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 156,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 160,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 163,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 170,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 171,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 178,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 192,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 193,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 234,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 236,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 238,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 240,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 268,
+          "signals": [
+            "contrato BRL",
+            "parser numérico"
+          ]
+        },
+        {
+          "line": 294,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 295,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 296,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 297,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 306,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 313,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 314,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 315,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 316,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 322,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 323,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 335,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 336,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 342,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 372,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 373,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 381,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 400,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 402,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 428,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 453,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 483,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 488,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 490,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 494,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 519,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 524,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 541,
+          "signals": [
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 557,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 586,
+          "signals": [
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 595,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 596,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 609,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 655,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 672,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 684,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 685,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/components/ZenAssistenteIA.jsx",
+      "area": "Orquestração, importação e IA",
+      "status": "pending-integration",
+      "occurrences": 93,
+      "matches": [
+        {
+          "line": 31,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 32,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 37,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 38,
+          "signals": [
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 40,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 339,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 342,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 347,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 357,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 373,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 376,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 382,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 386,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 391,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 392,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 395,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 402,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 412,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 436,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 437,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 445,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 450,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 463,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 511,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 521,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 539,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 541,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 544,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 545,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 546,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 549,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 552,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 553,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 575,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 587,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 592,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 595,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 596,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 606,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 611,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 613,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 620,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 622,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 624,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 630,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 631,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 644,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 647,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 650,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 655,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 670,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 671,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 814,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 824,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 892,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 977,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 989,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1004,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1033,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1046,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1097,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1116,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1152,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1263,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1267,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1290,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1323,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1342,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1348,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1391,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1404,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1425,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1434,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1446,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1481,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1483,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1485,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1630,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1743,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1756,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1792,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1793,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 1831,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 2232,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 2233,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 2281,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 2336,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 2337,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 2368,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 2397,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 2415,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 2444,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 2473,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/components/ZenCommerceStorefront.jsx",
+      "area": "Commerce",
+      "status": "pending-integration",
+      "occurrences": 8,
+      "matches": [
+        {
+          "line": 5,
+          "signals": [
+            "contrato BRL",
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 92,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 94,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 281,
+          "signals": [
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 363,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 376,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 377,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 379,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/components/ZenVisualLayout.jsx",
+      "area": "Orquestração, importação e IA",
+      "status": "pending-integration",
+      "occurrences": 2,
+      "matches": [
+        {
+          "line": 147,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 167,
+          "signals": [
+            "contrato BRL",
+            "apresentação BRL fixa"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/core/backupCore.js",
+      "area": "Outros consumidores",
+      "status": "pending-integration",
+      "occurrences": 1,
+      "matches": [
+        {
+          "line": 35,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/core/cashHistoryDisplay.js",
+      "area": "Caixa e conciliação",
+      "status": "pending-integration",
+      "occurrences": 4,
+      "matches": [
+        {
+          "line": 20,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 21,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 22,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 23,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/core/cashMoneyInput.js",
+      "area": "Caixa e conciliação",
+      "status": "pending-integration",
+      "occurrences": 6,
+      "matches": [
+        {
+          "line": 2,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 8,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 56,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 62,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 67,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 72,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/core/cashMovementReadOnly.js",
+      "area": "Caixa e conciliação",
+      "status": "pending-integration",
+      "occurrences": 2,
+      "matches": [
+        {
+          "line": 10,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 15,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/core/cashReconciliation.js",
+      "area": "Caixa e conciliação",
+      "status": "pending-integration",
+      "occurrences": 21,
+      "matches": [
+        {
+          "line": 1,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 10,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 11,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 36,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 64,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 65,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 66,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 79,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 80,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 83,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 98,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 99,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 101,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 102,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 103,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 118,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 119,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 133,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 134,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 135,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 136,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/core/cashSession.js",
+      "area": "Caixa e conciliação",
+      "status": "pending-integration",
+      "occurrences": 15,
+      "matches": [
+        {
+          "line": 39,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 41,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 42,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 46,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 47,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 51,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 77,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 78,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 81,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 90,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 91,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 146,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 151,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 153,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 160,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/core/clientCreditLinkAudit.js",
+      "area": "Outros consumidores",
+      "status": "pending-integration",
+      "occurrences": 2,
+      "matches": [
+        {
+          "line": 34,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 59,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/core/commerceCdnClient.js",
+      "area": "Commerce",
+      "status": "pending-integration",
+      "occurrences": 1,
+      "matches": [
+        {
+          "line": 36,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/core/commercePublicCatalog.js",
+      "area": "Commerce",
+      "status": "pending-integration",
+      "occurrences": 4,
+      "matches": [
+        {
+          "line": 26,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 32,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 35,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 68,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/core/commissionEngine.js",
+      "area": "Comissões, metas e bônus",
+      "status": "pending-integration",
+      "occurrences": 7,
+      "matches": [
+        {
+          "line": 80,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 82,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 83,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 85,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 186,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 187,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 188,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/core/commissions.js",
+      "area": "Comissões, metas e bônus",
+      "status": "pending-integration",
+      "occurrences": 6,
+      "matches": [
+        {
+          "line": 18,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 23,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 24,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 25,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 28,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 29,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/core/creditReconciliation.js",
+      "area": "Clientes e fiado",
+      "status": "pending-integration",
+      "occurrences": 4,
+      "matches": [
+        {
+          "line": 35,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 55,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 56,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 60,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/core/expensePaymentReconcile.js",
+      "area": "Despesas e recorrências",
+      "status": "pending-integration",
+      "occurrences": 2,
+      "matches": [
+        {
+          "line": 3,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 30,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/core/expenseResult.js",
+      "area": "Despesas e recorrências",
+      "status": "pending-integration",
+      "occurrences": 1,
+      "matches": [
+        {
+          "line": 9,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/core/financialAudit.js",
+      "area": "Relatórios e resultado",
+      "status": "pending-integration",
+      "occurrences": 10,
+      "matches": [
+        {
+          "line": 14,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 22,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 26,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 29,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 31,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 32,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 33,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 34,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 37,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 38,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/core/financialLedgerCore.js",
+      "area": "Persistência e livro",
+      "status": "pending-integration",
+      "occurrences": 2,
+      "matches": [
+        {
+          "line": 20,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 50,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/core/fiscalCore.js",
+      "area": "Fiscal",
+      "status": "pending-integration",
+      "occurrences": 18,
+      "matches": [
+        {
+          "line": 62,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 63,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 64,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 87,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 88,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 90,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 92,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 100,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 113,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 114,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 116,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 121,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 122,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 123,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 147,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 149,
+          "signals": [
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 152,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 153,
+          "signals": [
+            "moeda/cotação"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/core/operationalV2.js",
+      "area": "Persistência e livro",
+      "status": "pending-integration",
+      "occurrences": 1,
+      "matches": [
+        {
+          "line": 81,
+          "signals": [
+            "moeda/cotação"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/core/paymentValidation.js",
+      "area": "Outros consumidores",
+      "status": "pending-integration",
+      "occurrences": 4,
+      "matches": [
+        {
+          "line": 1,
+          "signals": [
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 3,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 4,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 17,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/core/productRecoveryCore.js",
+      "area": "Catálogo e preços",
+      "status": "pending-integration",
+      "occurrences": 1,
+      "matches": [
+        {
+          "line": 15,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/core/productionSync.js",
+      "area": "Catálogo e preços",
+      "status": "pending-integration",
+      "occurrences": 9,
+      "matches": [
+        {
+          "line": 155,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 156,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 214,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 239,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 240,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 247,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 304,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 309,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 477,
+          "signals": [
+            "moeda/cotação"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/core/purchaseCosts.js",
+      "area": "Compras, estoque e custos",
+      "status": "pending-integration",
+      "occurrences": 22,
+      "matches": [
+        {
+          "line": 29,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 32,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 36,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 37,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 42,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 43,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 44,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 46,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 47,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 48,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 60,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 63,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 64,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 65,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 66,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 67,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 68,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 69,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 77,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 79,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 83,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 84,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/core/receiptCurrency.js",
+      "area": "Recibos, PDFs e compartilhamento",
+      "status": "pending-integration",
+      "occurrences": 8,
+      "matches": [
+        {
+          "line": 2,
+          "signals": [
+            "contrato BRL",
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 8,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 11,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 19,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 22,
+          "signals": [
+            "contrato BRL",
+            "conversão"
+          ]
+        },
+        {
+          "line": 24,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 25,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 26,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/core/salesFinancials.js",
+      "area": "Relatórios e resultado",
+      "status": "pending-integration",
+      "occurrences": 28,
+      "matches": [
+        {
+          "line": 5,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 10,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 11,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 14,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 26,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 30,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 35,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 44,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 45,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 46,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 47,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 49,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 50,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 52,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 53,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 54,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 55,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 56,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 59,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 60,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 61,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 62,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 63,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 64,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 65,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 66,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 73,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 77,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/core/syncMerge.js",
+      "area": "Persistência e livro",
+      "status": "pending-integration",
+      "occurrences": 17,
+      "matches": [
+        {
+          "line": 41,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 42,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 45,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 164,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 165,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 166,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 178,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 209,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 210,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 211,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 212,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 213,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 214,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 215,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 217,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 218,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 219,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/core/v2TransactionPilot.js",
+      "area": "Outros consumidores",
+      "status": "pending-integration",
+      "occurrences": 2,
+      "matches": [
+        {
+          "line": 96,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 97,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/core/zenReceiptPdf.js",
+      "area": "Recibos, PDFs e compartilhamento",
+      "status": "pending-integration",
+      "occurrences": 9,
+      "matches": [
+        {
+          "line": 4,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 76,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 77,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 86,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 87,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 90,
+          "signals": [
+            "contrato BRL",
+            "moeda/cotação"
+          ]
+        },
+        {
+          "line": 91,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 95,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 96,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/core/zenShare.js",
+      "area": "Recibos, PDFs e compartilhamento",
+      "status": "pending-integration",
+      "occurrences": 3,
+      "matches": [
+        {
+          "line": 19,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 20,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 21,
+          "signals": [
+            "contrato BRL",
+            "apresentação BRL fixa"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "src/data.js",
+      "area": "Catálogo e preços",
+      "status": "pending-integration",
+      "occurrences": 6,
+      "matches": [
+        {
+          "line": 18,
+          "signals": [
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 83,
+          "signals": [
+            "contrato BRL",
+            "apresentação BRL fixa"
+          ]
+        },
+        {
+          "line": 85,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 87,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 89,
+          "signals": [
+            "contrato BRL"
+          ]
+        },
+        {
+          "line": 91,
+          "signals": [
+            "contrato BRL"
+          ]
+        }
+      ]
+    }
+  ]
+}
