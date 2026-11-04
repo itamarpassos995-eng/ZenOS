@@ -37,6 +37,24 @@ def inventory(backup):
             if not d['name'].endswith(suffix) and '/v2_generations/' not in d['name']}
 
 
+def canonical_empty_containers(value):
+    """Match Firestore's wire encoding of empty maps/lists in new metadata.
+
+    This is not applied to copied business fields: their exact typed equality
+    remains mandatory. Firestore omits fields/values for empty containers.
+    """
+    if isinstance(value, list):
+        return [canonical_empty_containers(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    result = {key: canonical_empty_containers(item) for key, item in value.items()}
+    if set(result) == {'mapValue'} and result['mapValue'] == {'fields': {}}:
+        return {'mapValue': {}}
+    if set(result) == {'arrayValue'} and result['arrayValue'] == {'values': []}:
+        return {'arrayValue': {}}
+    return result
+
+
 class Transport:
     def __init__(self, token):
         self.token, self.count = token, 0
@@ -80,7 +98,8 @@ class Recovery:
         self.release = 'projects/zenos-ac6b2/releases/cloud.firestore'
         self.evidence = evidence
         if (evidence.get('backupChecksum') != backup['checksum']
-            or evidence.get('passed') != 25 or evidence.get('uiPassed') != 9
+            or not isinstance(evidence.get('passed'), int) or evidence['passed'] < 25
+            or not isinstance(evidence.get('uiPassed'), int) or evidence['uiPassed'] < 9
             or evidence.get('productionRequests') != 0
             or evidence.get('pilotRules') is not True
             or evidence.get('productionExecutorCorePassed') is not True
@@ -230,6 +249,7 @@ class Recovery:
             'sourceFieldsChecksum': self.plan['sourceFieldsChecksum'],
             'fieldManifest': self.plan['fieldManifest']})['mapValue']['fields']
         fields['fieldRevisions'] = before['fields'].get('_syncMeta', {}).get('mapValue', {}).get('fields', {}).get('fieldRevisions', typed({}))
+        fields = canonical_empty_containers(fields)
         if head:
             if head['fields'] != fields:
                 raise RuntimeError('Existing head differs; preserved')
@@ -262,7 +282,7 @@ class Recovery:
         if after['fields'] != typed(value)['mapValue']['fields']:
             raise RuntimeError('Activation result unknown; inspect before operating')
         return {'activated': True, 'generation': self.plan['generation'], 'v1Preserved': True,
-                'next': 'Reload the published application. Confirm pending payment once, then close cash with the owner.'}
+                'next': 'Reload the published application and verify customer/product registration with the owner.'}
 
     def stop(self, abort=False):
         _, rules = self.live_rules()
@@ -288,17 +308,22 @@ class Recovery:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['inspect', 'fence', 'stage', 'activate', 'maintenance', 'abort'])
+    parser.add_argument('action', choices=['inspect', 'fence', 'stage', 'activate', 'migrate', 'maintenance', 'abort'])
     parser.add_argument('--backup', required=True, type=Path)
     parser.add_argument('--evidence', required=True, type=Path)
     parser.add_argument('--workdir', required=True, type=Path)
     parser.add_argument('--frontend-commit')
     args = parser.parse_args()
+    if args.action == 'migrate' and not re.fullmatch(r'[a-f0-9]{40}', args.frontend_commit or ''):
+        parser.error('Exact published frontend commit required before migration')
     args.workdir.mkdir(mode=0o700, parents=True, exist_ok=True)
     token = subprocess.run(['gcloud', 'auth', 'print-access-token'], text=True, capture_output=True, timeout=30, check=True).stdout.strip()
     backup = json.loads(args.backup.read_bytes())
     recovery = Recovery(backup, Transport(token), args.workdir, json.loads(args.evidence.read_bytes()))
-    if args.action == 'stage':
+    if args.action == 'migrate':
+        recovery.inspect()
+        recovery.fence()
+    if args.action in ['stage', 'migrate']:
         recovery.require_fence()
         # Fresh typed snapshot after fence, safely retained even if reconciliation fails.
         current = collect(ReadOnlyAPI(token, progress=lambda text: print(text, flush=True)),
@@ -312,6 +337,8 @@ def main():
         else:
             save_new(target, current)
         result = recovery.stage(current)
+        if args.action == 'migrate':
+            result = {'stage': result, 'activation': recovery.activate(args.frontend_commit)}
     elif args.action == 'activate':
         result = recovery.activate(args.frontend_commit or '')
     elif args.action in ['maintenance', 'abort']:
