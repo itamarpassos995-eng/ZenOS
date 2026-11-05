@@ -6,6 +6,28 @@ on:
 permissions:
   contents: read
 jobs:
+  high-price-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: python3 scripts/recovery/create_minimal_demo_backup.py --out /tmp/zenos-high-price-backup.json --product-price 250001
+      - name: All seven payment methods with a price above the previous fixture limit
+        env:
+          npm_config_ignore_scripts: 'true'
+          ZENOS_FENCED_RULES: '1'
+          ZENOS_PILOT_RULES: '1'
+          ZENOS_BACKUP_PATH: /tmp/zenos-high-price-backup.json
+        run: npx --yes firebase-tools@14.12.0 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.recovery-fenced.json 'npx vitest run --config vitest.recovery.config.js scripts/recovery/pdv.ui.test.jsx scripts/recovery/cadastros-v2.ui.test.jsx'
   browser-storage:
     runs-on: ubuntu-latest
     timeout-minutes: 5

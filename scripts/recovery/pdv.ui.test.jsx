@@ -11,7 +11,7 @@ const fixture=vi.hoisted(()=>({current:null}));
 vi.mock('../../src/firebase',()=>({get db(){return fixture.current?.db;}}));
 import PDV from '../../src/components/PDV.jsx';
 Object.defineProperty(globalThis,'crypto',{value:webcrypto,configurable:true});
-let commits=[],chosen;
+let commits=[],chosen,testClientId,testClientName,testVoucherCode;
 beforeAll(async()=>{
  fixture.current=await createRealFixture();const f=fixture.current;let b=f.operation;
  const changes=[];
@@ -22,16 +22,24 @@ beforeAll(async()=>{
  chosen=b.produtos.find(p=>p.tipoItem!=='servico'&&Number(p.estoqueVitrine)>20&&Number(p.precoBRL)>Number(p.custoBRL)*1.5)
   ||b.produtos.find(p=>p.tipoItem!=='servico'&&Number(p.estoqueGalpao)>20&&Number(p.precoBRL)>Number(p.custoBRL)*1.5)
   ||b.produtos.find(p=>p.tipoItem!=='servico'&&Number(p.precoBRL)>Number(p.custoBRL)*1.5);expect(chosen).toBeTruthy();
+ // Fixtures must cover this store's real price scale (including high values)
+ // without changing the restored product's price or any real client balance.
+ const maximumPrice=Math.max(...['precoBRL','preco2BRL','preco3BRL'].map(k=>Number(chosen[k]||0)));
+ const fixtureBudget=Math.max(100000,Math.ceil(maximumPrice*10)+1);
+ expect(Number.isSafeInteger(fixtureBudget)).toBe(true);
+ testClientId='EMULATOR-ONLY-CLIENT-'+f.userId;
+ testClientName='Cliente de homologacao '+f.userId;
+ testVoucherCode=('VALE-TEST-UI-'+f.userId).toUpperCase();
  const replenish=Number(chosen.estoqueVitrine??0)<=20&&Number(chosen.estoqueGalpao??chosen.estoque??0)<=20;
  const transfer=Number(chosen.estoqueVitrine)>20?0:replenish?30:Math.min(30,Number(chosen.estoqueGalpao??chosen.estoque??0));
  const seed=await persistV1BusinessOperationSafe({db:f.db,userId:f.userId,operationKey:'ui-only-fixtures',changes:[
-  {field:'clientes',baseValue:b.clientes,value:[...b.clientes,{id:'TEST-UI-CLIENT',nome:'Cliente de homologacao',limiteCreditoBRL:100000,saldoDevedorBRL:0}]},
-  {field:'vouchers',baseValue:b.vouchers,value:[...b.vouchers,{codigo:'VALE-TEST-UI',saldoBRL:100000,status:'ativo'}]},
+  {field:'clientes',baseValue:b.clientes,value:[...b.clientes,{id:testClientId,nome:testClientName,limiteCreditoBRL:fixtureBudget,saldoDevedorBRL:0}]},
+  {field:'vouchers',baseValue:b.vouchers,value:[...b.vouchers,{codigo:testVoucherCode,saldoBRL:fixtureBudget,status:'ativo'}]},
   ...(transfer?[{field:'produtos',baseValue:b.produtos,value:b.produtos.map(p=>p.id===chosen.id?{...p,estoqueVitrine:Number(p.estoqueVitrine||0)+transfer,estoqueGalpao:replenish?Number(p.estoqueGalpao??p.estoque??0):Number(p.estoqueGalpao??p.estoque??0)-transfer,estoque:replenish?Number(p.estoque||0)+transfer:p.estoque}:p)}]:[])]});expect(seed.cloudOk,seed.error?.message).toBe(true);
  f.operation=(await getOperationalSnapshot(f.db,f.userId)).data();
  chosen=f.operation.produtos.find(p=>p.id===chosen.id);
 });
-beforeEach(async()=>{commits=[];fixture.current.operation=(await getOperationalSnapshot(fixture.current.db,fixture.current.userId)).data();});
+beforeEach(async()=>{localStorage.clear();sessionStorage.clear();commits=[];fixture.current.operation=(await getOperationalSnapshot(fixture.current.db,fixture.current.userId)).data();});
 afterEach(cleanup);afterAll(async()=>fixture.current?.close());
 function Harness(){
  const initial=fixture.current.operation;
@@ -58,8 +66,8 @@ test.each(['dinheiro_brl','pix','cartaoCredito','cartaoDebito','misto','voucher'
  render(<Harness/>);
  if(method==='crediario'){
   fireEvent.focus(screen.getByPlaceholderText(/Consumidor Final/));
-  fireEvent.change(screen.getByPlaceholderText(/Consumidor Final/),{target:{value:'Cliente de homologacao'}});
-  fireEvent.mouseDown(await screen.findByText('Cliente de homologacao',{exact:true}));
+  fireEvent.change(screen.getByPlaceholderText(/Consumidor Final/),{target:{value:testClientName}});
+  fireEvent.mouseDown(await screen.findByText(testClientName,{exact:true}));
  }
  fireEvent.change(screen.getByPlaceholderText(traducoes.pt.buscaPlaceholder),{target:{value:String(chosen.sku)}});
  fireEvent.click(await screen.findByText(chosen.nome,{exact:true}));
@@ -69,7 +77,7 @@ test.each(['dinheiro_brl','pix','cartaoCredito','cartaoDebito','misto','voucher'
  expect(paymentSelect).toBeTruthy();
  const launch=(kind,amount)=>{
   fireEvent.change(paymentSelect,{target:{value:kind}});
-  if(kind==='voucher')fireEvent.change(screen.getByPlaceholderText('VALE-000000'),{target:{value:'VALE-TEST-UI'}});
+  if(kind==='voucher')fireEvent.change(screen.getByPlaceholderText('VALE-000000'),{target:{value:testVoucherCode}});
   if(amount!==undefined)fireEvent.change(screen.getByPlaceholderText('0.00'),{target:{value:String(amount)}});
   fireEvent.click(screen.getByRole('button',{name:'+ Lançar Pagamento',exact:true}));
  };
@@ -83,5 +91,5 @@ test.each(['dinheiro_brl','pix','cartaoCredito','cartaoDebito','misto','voucher'
  expect(state.produtos.find(p=>p.id===chosen.id).estoque).toBe(Number(oldProduct.estoque)-1);
  expect((await getDoc(doc(f.db,'lojas',f.userId,'dados','operacao'))).data()).toEqual(before);
  for(const entry of commits[0].result.financialEntries)expect((await getDoc(doc(f.db,'lojas',f.userId,'financeiro_livro',entry.id))).exists()).toBe(true);
- if(method==='crediario')expect(state.clientes.find(c=>c.id==='TEST-UI-CLIENT').saldoDevedorBRL).toBe(Math.round(Number(sale.totalBRL)*100)/100);
+ if(method==='crediario')expect(state.clientes.find(c=>c.id===testClientId).saldoDevedorBRL).toBe(Math.round(Number(sale.totalBRL)*100)/100);
 });

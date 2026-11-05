@@ -28,6 +28,14 @@ as evidências anteriores ficam em `certification-history` e o mesmo backup
 
 ### Armazenamento do navegador nos testes
 
+Os fixtures de voucher e crédito são proporcionais ao maior preço do produto
+selecionado, sem alterar preços ou saldos reais. Um limite fixo de 100.000 não
+serve para todos os cadastros. Cada cenário limpa somente o armazenamento local
+do navegador simulado, evitando que uma falha recupere o carrinho do teste
+anterior. Os IDs, nomes e códigos dos fixtures incluem o UID aleatório do
+emulador para não colidir com cadastros do backup. A CI também executa os nove
+testes com produto sintético de preço 250.001 no Node 26.
+
 No Node 26, o `localStorage` nativo sem arquivo não fornece a API usada pelo
 carrinho. O Vitest 2 pode manter esse objeto em vez do armazenamento do navegador.
 `browser_storage_setup.mjs` vincula os globais ao Storage real de
