@@ -1,3 +1,4 @@
+import {put as vercelBlobPut} from '@vercel/blob';
 import { createSign, createVerify, createHash, createPublicKey } from 'node:crypto';
 const PROJECT = 'zenos-ac6b2';
 const text = (v,n=128) => String(v??'').slice(0,n);
@@ -85,27 +86,36 @@ export async function getOfficialDocument(pathSegments,{fetchImpl=fetch,token}={
   if(!res.ok)throw Error('firestore-leitura-indisponivel');
   return decodeDocument(await res.json());
 }
-export async function putPublicBlob(pathname,body,{fetchImpl=fetch,contentType='application/json',maxAge=60}={}){
+export async function putPublicBlob(pathname,body,{putImpl=vercelBlobPut,contentType='application/json',maxAge=60}={}){
   if(!/^commerce\/(?:catalogos\/[a-z0-9-]+\.json|catalogos\/[a-z0-9-]+\/versoes\/[a-z0-9-]{8,48}\/pagina-[1-9]\d{0,3}\.json|fotos\/[a-zA-Z0-9_-]+\/[a-f0-9]{64}\.(?:png|jpg|webp))$/.test(pathname))throw Error('blob-caminho-invalido');
   const token=process.env.BLOB_READ_WRITE_TOKEN;
   if(!token)throw Error('blob-credencial-indisponivel');
   const bytes=Buffer.isBuffer(body)?body:Buffer.from(body);
   if(bytes.byteLength>2_000_000)throw Error('blob-grande-demais');
-  const res=await fetchImpl('https://vercel.com/api/blob/?pathname='+encodeURIComponent(pathname),{
-    method:'PUT',headers:{
-      'authorization':'Bearer '+token,
-      'x-vercel-blob-store-id':'fKepXWjAeW2ueMrB',
-      'x-api-version':'13',
-      'x-api-blob-request-id':'fKepXWjAeW2ueMrB:'+Date.now()+':'+createHash('sha256').update(pathname+Date.now()).digest('hex').slice(0,16),
-      'x-api-blob-request-attempt':'0',
-      'x-vercel-blob-access':'public','x-add-random-suffix':'0','x-allow-overwrite':'1',
-      'x-cache-control-max-age':String(maxAge),'x-content-type':contentType,
-    },body:bytes,signal:AbortSignal.timeout(15000)
-  });
-  if(!res.ok)throw Error('blob-publicacao-falhou');
-  const result=await res.json();
+  let result;
+  try{
+    // SDK oficial: usa o store associado ao token, sem ID de store fixo e API privada.
+    result=await putImpl(pathname,bytes,{access:'public',token,addRandomSuffix:false,
+      allowOverwrite:true,contentType,cacheControlMaxAge:maxAge});
+  }catch(error){
+    // Não expor token ou resposta integral do provedor em logs.
+    const code=String(error?.code||error?.name||'desconhecido').slice(0,70);
+    console.error('[Commerce CDN] Blob PUT falhou:',code);
+    throw Error('blob-publicacao-falhou');
+  }
   const url=new URL(result.url);
   if(url.protocol!=='https:'||!url.hostname.endsWith('.public.blob.vercel-storage.com')||url.pathname!=='/'+pathname)throw Error('blob-resposta-invalida');
+  // A leitura pública utiliza um hostname configurado separadamente. Impedir
+  // sucesso falso se o token gravou em outro Blob Store.
+  const configuredOrigin=process.env.ZENOS_COMMERCE_CDN_ORIGIN;
+  if(configuredOrigin){
+    let expected;
+    try{expected=new URL(configuredOrigin);}catch{throw Error('blob-origem-configurada-invalida');}
+    if(expected.protocol!=='https:'||expected.pathname!=='/'||expected.search||expected.hash||
+      expected.username||expected.password||expected.port||
+      !expected.hostname.endsWith('.public.blob.vercel-storage.com'))throw Error('blob-origem-configurada-invalida');
+    if(url.origin!==expected.origin)throw Error('blob-origem-divergente');
+  }
   return result.url;
 }
 export async function migrarFotosPublicas(snapshot,{put=putPublicBlob}={}){
