@@ -302,7 +302,17 @@ async function compareShadow(entry,snapshot){
   if(!Object.prototype.hasOwnProperty.call(legacy,field)&&entry.shadowSession.manifest?.[field]?.sourceAbsent)continue;
   // Materialization supplies empty optional arrays for the UI. Absent and empty
   // are equivalent only for these known fields, never for unknown legacy maps.
-  const a=normalize(legacy[field]??(V2_COLLECTIONS[field]?[]:undefined),field),b=normalize(v2[field],field);
+  const a=normalize(legacy[field]??(V2_COLLECTIONS[field]?[]:undefined),field);
+  let b=normalize(v2[field],field);
+  const repairs=entry.shadowSession.manifest?.[field]?.identityRepairs||[];
+  if(repairs.length&&Array.isArray(b))b=b.map((entity,index)=>{
+   const repair=repairs.find(r=>r.index===index);
+   if(!repair)return entity;
+   if(entity.id!==repair.newId)throw v2Error('V2_IDENTITY_MAPPING','Identidade V2 difere do mapeamento revisado.');
+   const id=repair.originalId?.stringValue??Number(repair.originalId?.integerValue);
+   if(typeof id!=='string'&&!Number.isSafeInteger(id))throw v2Error('V2_IDENTITY_MAPPING','ID original inválido.');
+   return {...entity,id};
+  });
   const equal=stableV2Json(a)===stableV2Json(b);if(!equal)differences.push(field);
   hashes[field]={legacy:await hashV2(stableV2Json(a)??'undefined'),v2:await hashV2(stableV2Json(b)??'undefined')};
  }

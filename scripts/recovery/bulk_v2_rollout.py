@@ -199,9 +199,10 @@ def main():
             print('Backup somente leitura: '+s,flush=True)
             b=collect(read_api(),PROJECT,s,snapshot_time())
             if not b['operationUnchangedAtEnd']:raise RuntimeError('Store changed during backup')
-            plan_v2(b);save_new(path,b)
+            save_new(path,b)
         backups[s]=json.loads(path.read_bytes());verify(backups[s])
         if backups[s]['store']!=s or backups[s]['project']!=PROJECT:raise RuntimeError('Backup scope mismatch')
+        plan_v2(backups[s])
     evidence={}
     for s in pending:
         print('Validando backup e app no emulador: '+s,flush=True)

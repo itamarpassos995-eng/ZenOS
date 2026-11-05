@@ -26,6 +26,22 @@ automaticamente. Se uma correção do executor exigir atualizar o checkout,
 as evidências anteriores ficam em `certification-history` e o mesmo backup
 é testado novamente; os backups e checkpoints de migração não são apagados.
 
+### IDs repetidos revisados
+
+A loja `XuMFgiVtcTfpIt07DVsYjSwf09v2` tinha dois clientes distintos e dois
+produtos distintos com o mesmo ID. O backup revisado tem apenas raiz e operação,
+sem referências externas ao ID repetido. `reviewed_identity_mappings.json`
+contém o checksum exato dos campos operacionais e de cada registro revisado,
+sem copiar os dados pessoais para o repositório. Somente o segundo registro de
+cada lista recebe um ID string próprio na V2; os demais campos, inclusive saldos
+e estoques, são preservados. O ID e o tipo originais ficam no mapeamento do
+manifesto, que permite reconstruir a V1 exatamente. A V1 nunca é regravada.
+
+Qualquer alteração no snapshot revisado, documento adicional, referência ambígua
+ou duplicidade não revisada interrompe a migração. Nenhuma deduplicação geral,
+exclusão ou transferência de dívidas é autorizada pelo mapeamento. Os testes
+verificam a reconstrução exata e edições independentes dos registros na V2.
+
 O parâmetro `--prepare-native` publica o backend com uma identidade operacional
 separada, com acesso Firestore `roles/datastore.user`, confirma recusa anônima,
 publica as regras nativas preservando todos os pilotos e aguarda dez minutos de

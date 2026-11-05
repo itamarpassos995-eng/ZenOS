@@ -9,6 +9,7 @@ import copy
 import json
 from urllib.parse import quote
 from backup_readonly_v2 import verify, encoded, digest
+from identity_repair import reviewed_repairs, mapped_record, original_record
 
 COLLECTIONS = {"produtos": "produtos", "clientes": "clientes",
     "historicoVendas": "vendas", "historicoCompras": "compras",
@@ -45,6 +46,7 @@ def plan_v2(backup):
     verify(backup)
     root = f"projects/{backup['project']}/databases/(default)/documents/lojas/{backup['store']}"
     op = next(d for d in backup["documents"] if d["name"] == root + "/dados/operacao")
+    identity_repairs = reviewed_repairs(backup, op)
     generation = backup["checksum"][:24]
     target = root + "/v2_generations/" + generation
     docs, manifest, used = [], {}, set()
@@ -68,7 +70,10 @@ def plan_v2(backup):
         values = typed["arrayValue"].get("values", [])
         manifest[field] = {"kind": "array", "collection": collection,
                            "count": len(values), "emptyEncoding": copy.deepcopy(typed) if not values else None}
+        if field in identity_repairs:
+            manifest[field]['identityRepairs']=identity_repairs[field]
         for index, value in enumerate(values):
+            value=mapped_record(field,index,value,identity_repairs)
             fields = value.get("mapValue", {}).get("fields", {})
             legacy_id = fields.get("codigo") if field == "vouchers" else fields.get("id")
             if legacy_id is None:
@@ -149,7 +154,7 @@ def reconstruct_fields(plan):
             docs.sort(key=lambda d: int(d["fields"]["legacyIndex"]["integerValue"]))
             if len(docs) != meta["count"] or [int(d["fields"]["legacyIndex"]["integerValue"]) for d in docs] != list(range(meta["count"])):
                 raise ValueError("Missing or duplicated array positions")
-            result[field] = ({"arrayValue": {"values": [copy.deepcopy(d["fields"]["data"]) for d in docs]}}
+            result[field] = ({"arrayValue": {"values": [original_record(i,d["fields"]["data"],meta.get('identityRepairs',[])) for i,d in enumerate(docs)]}}
                              if docs else copy.deepcopy(meta["emptyEncoding"]))
     return result
 

@@ -70,14 +70,36 @@ try{
  const change=(base,field,value)=>({field,baseValue:base[field],value});
  const commit=async(i,args)=>persistV1BusinessOperationSafe({db:dbs[i],userId,...args});
  const ok=result=>assert.equal(result.cloudOk,true,result.error?.stack||'cloud confirmation missing');
- await test('Real backup read through application repository: all entities and IDs preserved',async()=>{
+ await test('Real backup read: all entities preserved and only reviewed ID mappings applied',async()=>{
   for(const snap of snapshots)for(const f of Object.keys(V2_COLLECTIONS)){
    if(plan.fieldManifest[f]?.sourceAbsent&&f==='vendedores'){
     assert.equal(snap.data().vendedores.length,1);assert.equal(snap.data().vendedores[0].pinTrocaObrigatoria,true);
-   }else assert.equal(stableV2Json(snap.data()[f]),stableV2Json(op[f]||[]),f);
+   }else {
+    const expected=(op[f]||[]).map((entity,index)=>{
+     const repair=plan.fieldManifest[f]?.identityRepairs?.find(r=>r.index===index);
+     return repair?{...entity,id:repair.newId}:entity;
+    });
+    assert.equal(stableV2Json(snap.data()[f]),stableV2Json(expected),f);
+   }
   }
  });
  // Add demo-only fixtures only after comparing the actual restored arrays.
+ if(plan.fieldManifest.clientes?.identityRepairs?.length)await test('Reviewed client mapping keeps debts separate during a real V2 write',async()=>{
+  const b=state(0),repair=plan.fieldManifest.clientes.identityRepairs[0],target=b.clientes.find(c=>c.id===repair.newId);
+  assert(target);const original=target.saldoDevedorBRL;
+  tick();ok(await commit(0,{operationKey:'emulator-reviewed-client-edit',changes:[change(b,'clientes',b.clientes.map(c=>c.id===target.id?{...c,saldoDevedorBRL:original+1}:c))]}));
+  assert.equal(state(0).clientes.find(c=>c.id===target.id).saldoDevedorBRL,original+1);
+  assert.equal(stableV2Json(state(0).clientes.filter(c=>c.id!==target.id)),stableV2Json(b.clientes.filter(c=>c.id!==target.id)));
+  tick();const current=state(0);ok(await commit(0,{operationKey:'emulator-reviewed-client-restore',changes:[change(current,'clientes',current.clientes.map(c=>c.id===target.id?{...c,saldoDevedorBRL:original}:c))]}));
+ });
+ if(plan.fieldManifest.produtos?.identityRepairs?.length)await test('Reviewed product mapping edits only the matching SKU without merging stock',async()=>{
+  const b=state(0),repair=plan.fieldManifest.produtos.identityRepairs[0],target=b.produtos.find(p=>p.id===repair.newId);
+  assert(target);const original=target.precoBRL;
+  tick();ok(await commit(0,{operationKey:'emulator-reviewed-product-edit',changes:[change(b,'produtos',b.produtos.map(p=>p.id===target.id?{...p,precoBRL:original+1}:p))]}));
+  assert.equal(state(0).produtos.find(p=>p.id===target.id).precoBRL,original+1);
+  assert.equal(stableV2Json(state(0).produtos.filter(p=>p.id!==target.id)),stableV2Json(b.produtos.filter(p=>p.id!==target.id)));
+  tick();const current=state(0);ok(await commit(0,{operationKey:'emulator-reviewed-product-restore',changes:[change(current,'produtos',current.produtos.map(p=>p.id===target.id?{...p,precoBRL:original}:p))]}));
+ });
  if(!state(0).produtos.some(p=>p.tipoItem!=='servico')){
   tick();const b=state(0);ok(await commit(0,{operationKey:'emulator-only-product-fixture',changes:[change(b,'produtos',[...b.produtos,{id:'EMULATOR-ONLY-PRODUCT',sku:'EMULATOR-ONLY',nome:'Demo product',tipoItem:'mercadoria',precoBRL:30,custoBRL:10,estoque:30,estoqueVitrine:30,estoqueGalpao:0}])]}));
  }
