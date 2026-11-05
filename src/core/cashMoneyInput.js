@@ -8,6 +8,17 @@ const agrupamentoValido = (texto, separador) => separador === '.'
 export function interpretarValorMonetario(entrada, moeda = 'BRL', { permitirVazio = false } = {}) {
   const codigo = String(moeda || '').toUpperCase();
   if (!MOEDAS_CAIXA.includes(codigo)) return { ok: false, erro: 'Moeda não reconhecida.' };
+  // Números persistidos são unidades monetárias, nunca texto com milhar.
+  // Equivalentes em BRL podem ter precisão extra proveniente do câmbio.
+  if (typeof entrada === 'number') {
+    const fator = codigo === 'PYG' ? 1 : 100;
+    if (!Number.isFinite(entrada) || entrada < 0
+        || !Number.isSafeInteger(Math.round(entrada * fator))
+        || (codigo === 'PYG' && !Number.isInteger(entrada))) {
+      return { ok: false, erro: 'Valor numérico inválido para esta moeda.' };
+    }
+    return { ok: true, valor: Math.round((entrada + Number.EPSILON) * fator) / fator, vazio: false };
+  }
   const texto = String(entrada ?? '').trim().replace(/\s/g, '');
   if (!texto) {
     return permitirVazio

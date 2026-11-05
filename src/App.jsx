@@ -43,6 +43,7 @@ import { assinarLivroFinanceiro, registrarLancamentoFinanceiro, consultarLivroFi
 import { planejarReconciliacoesFiado } from './core/creditReconciliation.js';
 import { calcularResumoSessao, calcularConciliacaoEletronicaSessao, timestampSessao, timestampVenda, vendasDaSessao, assinaturaFinanceiraSessao } from './core/cashSession';
 import { converterValoresFisicosParaBRL, interpretarValorMonetario } from './core/cashMoneyInput';
+import { formatarValorNativoCaixa } from './core/cashHistoryDisplay.js';
 import { calcularConciliacaoFisicaMultimoeda } from './core/cashReconciliation';
 import { obterComposicaoHistoricaCaixa, formatarDinheiroNativo } from './core/cashHistoryDisplay';
 import { normalizarRegrasComissao, REGRAS_COMISSAO_PADRAO } from './core/commissionEngine';
@@ -1101,7 +1102,7 @@ export default function App() {
   const moedaTotalCaixa = ['BRL', 'USD', 'EUR', 'PYG'].includes(moeda) ? moeda : 'BRL';
   // Os agregados financeiros são BRL equivalentes: converter o valor, não só o símbolo.
   // Não altera saldos nativos, contagens nem a operação crítica do fechamento.
-  const fmtEquivalenteCaixa = valorBRL => fmt(converterDeBRL(valorBRL, moedaTotalCaixa), moedaTotalCaixa);
+  const fmtEquivalenteCaixa = valorBRL => fmt(valorBRL, moedaTotalCaixa);
   const resetarValoresCaixa = () => setValoresMovCaixa({ BRL: '', USD: '', EUR: '', PYG: '' });
 
   const abrirTurnoDeCaixa = async () => {
@@ -1521,7 +1522,7 @@ export default function App() {
         `${tx('Total contado','Total contado','Counted total')}: ${fmtEquivalenteCaixa(valInformadoBRL)} (${moedaTotalCaixa}, ${tx('equivalente','equivalente','equivalent')})`,
         `${tx('Diferença','Diferencia','Difference')}: ${conciliacaoFisica.confiavel ? fmtEquivalenteCaixa(diferenca) : 'INDETERMINADA'}`,
         ...['BRL','PYG','USD','EUR'].map(codigo => {
-          const f = valor => fmt(Number(valor || 0), codigo);
+          const f = valor => formatarValorNativoCaixa(Number(valor || 0), codigo, moedasConfig[codigo]);
           return `${codigo}: ${tx('esperado','esperado','expected')} ${f(conciliacaoFisica.esperado?.[codigo])} · ${tx('contado','contado','counted')} ${f(conciliacaoFisica.contado?.[codigo])}${conciliacaoFisica.confiavel ? ` · ${tx('diferença','diferencia','difference')} ${f(conciliacaoFisica.diferencas?.[codigo])}` : ''}`;
         }),
         ...conciliacaoFisica.pendencias.slice(0, 4),

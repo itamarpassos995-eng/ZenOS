@@ -154,7 +154,7 @@ assert.equal(novaCotacao.totalEsperadoBRL,330);
 assert.equal(converterValoresFisicosParaBRL({BRL:'300,00',PYG:'40.000'},{PYG:1200}).totalBRL,333.33);
 // O total visível do fechamento deve respeitar a moeda escolhida.
 assert.match(app,/const moedaTotalCaixa =/);
-assert.match(app,/const fmtEquivalenteCaixa = valorBRL => fmt\(converterDeBRL\(valorBRL, moedaTotalCaixa\), moedaTotalCaixa\)/);
+assert.match(app,/const fmtEquivalenteCaixa = valorBRL => fmt\(valorBRL, moedaTotalCaixa\)/);
 assert.match(app,/fmtEquivalenteCaixa\(calcularTotalMovBRL\(\)\)/);
 assert.doesNotMatch(app,/TOTAL FÍSICO INFORMADO • CONVERTIDO PARA BRL/);
 
