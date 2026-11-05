@@ -73,7 +73,7 @@ def certify(backup_path,folder,code_commit):
         f' && node scripts/recovery/v2_app_integration.mjs {q(str(backup_path))}'
         ' && npx vitest run --config vitest.recovery.config.js'
         ' scripts/recovery/pdv.ui.test.jsx scripts/recovery/cadastros-v2.ui.test.jsx'
-        f' --reporter=json --outputFile={q(str(folder/"ui.json"))}')
+        f' --reporter=default --reporter=json --outputFile={q(str(folder/"ui.json"))}')
     run(['npx','--yes','firebase-tools@14.12.0','emulators:exec','--only','auth,firestore',
         '--project','demo-zenos-local','--config','firebase.recovery-fenced.json',command],
         env=env,log=folder/'validation.log')

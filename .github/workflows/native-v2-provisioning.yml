@@ -6,6 +6,20 @@ on:
 permissions:
   contents: read
 jobs:
+  browser-storage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      matrix:
+        node: ['22','26']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx vitest run --config vitest.recovery.config.js scripts/recovery/browser-storage.ui.test.jsx scripts/recovery/native-v2-bootstrap.ui.test.jsx
   native-v2:
     runs-on: ubuntu-latest
     timeout-minutes: 15

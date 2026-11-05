@@ -26,6 +26,20 @@ automaticamente. Se uma correção do executor exigir atualizar o checkout,
 as evidências anteriores ficam em `certification-history` e o mesmo backup
 é testado novamente; os backups e checkpoints de migração não são apagados.
 
+### Armazenamento do navegador nos testes
+
+No Node 26, o `localStorage` nativo sem arquivo não fornece a API usada pelo
+carrinho. O Vitest 2 pode manter esse objeto em vez do armazenamento do navegador.
+`browser_storage_setup.mjs` vincula os globais ao Storage real de
+`jsdom.window`, antes de carregar os componentes. Isso só altera o ambiente de
+teste. A proteção do carrinho em produção continua recusando uma venda quando
+a persistência local falha. Os testes comprovam gravação/leitura real e recusa
+de confirmação diante de erro de quota. A CI cobre Node 22 e 26.
+
+Os reporters mantêm os detalhes das falhas em `validation.log` e a evidência
+estruturada em `ui.json`, para evitar diagnóstico baseado apenas no código de
+saída do processo.
+
 ### IDs repetidos revisados
 
 A loja `XuMFgiVtcTfpIt07DVsYjSwf09v2` tinha dois clientes distintos e dois
