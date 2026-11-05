@@ -42,6 +42,7 @@ test.each(['cliente','produto'])('Cadastro real: novo %s é confirmado em V2 sem
  fireEvent.click(screen.getByText('novoProdutoBtn',{selector:'button',exact:true}));
  fireEvent.change(screen.getByText('SKU',{selector:'label',exact:true}).parentElement.querySelector('input'),{target:{value:'EMULATOR-NEW-PRODUCT'}});
  fireEvent.change(screen.getByText('Nome do Item',{exact:true}).parentElement.querySelector('input'),{target:{value:'EMULATOR-ONLY-NEW-PRODUCT'}});
+ fireEvent.change(screen.getByText(/Preço Venda/,{selector:'label'}).parentElement.querySelector('input'),{target:{value:'10'}});
  fireEvent.click(screen.getByText('Salvar Produto no Sistema',{selector:'button',exact:true}));
  await waitFor(()=>expect(confirmed).toBe(1),{timeout:30000});
  }
