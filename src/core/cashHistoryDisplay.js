@@ -28,3 +28,12 @@ export function formatarDinheiroNativo(valor, moeda, idioma='pt') {
   const casas=moeda==='PYG'?0:2;
   return moeda+' '+Number(valor).toLocaleString(local,{minimumFractionDigits:casas,maximumFractionDigits:casas});
 }
+
+/** Quantia já expressa na moeda indicada: somente apresentação, sem câmbio. */
+export function formatarValorNativoCaixa(valor, codigo, config = {}) {
+  return new Intl.NumberFormat(config.locale || 'pt-BR', {
+    style: 'currency', currency: config.moeda || codigo,
+    minimumFractionDigits: codigo === 'PYG' ? 0 : 2,
+    maximumFractionDigits: codigo === 'PYG' ? 0 : 2,
+  }).format(valor);
+}
