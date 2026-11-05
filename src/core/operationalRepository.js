@@ -1,3 +1,4 @@
+import { executarLotes } from './boundedTasks.js';
 import {doc,collection,getDocFromServer,getDocFromCache,getDocsFromServer,getDocsFromCache,onSnapshot,query,orderBy,documentId,limit,startAfter,where} from 'firebase/firestore';
 import {resolveV2ReadMode} from './v2ReadMode.js';
 import {V2_TAIL_WINDOW_SIZE,shouldRearmV2Tail} from './v2TailWindow.js';
@@ -83,8 +84,7 @@ export class V2Session {
  // são usados como base para operações financeiras.
  async hydrateCollections(manifest,{cacheOnly=false}={}){
   this.records=new Map();this.values={};this.legacyFieldVersions=new Map();
-  for(const [field,meta] of Object.entries(manifest)){
-   if(meta.kind!=='array')continue;
+  await executarLotes(Object.entries(manifest).filter(([,meta])=>meta.kind==='array'),async ([field,meta])=>{
    if(!V2_COLLECTIONS[field]||meta.collection!==V2_COLLECTIONS[field])throw v2Error('V2_UNKNOWN_FIELD',`Campo V2 não integrado: ${field}.`);
    const records=new Map();this.records.set(field,records);
    await this.paged([...this.root,meta.collection],snap=>{
@@ -92,7 +92,7 @@ export class V2Session {
     if(encodeV2Id(entityIdV2(field,value.data))!==snap.id)throw v2Error('V2_ENTITY_ID','ID V2 difere do legado.');
     records.set(snap.id,{...value,routeId:snap.id});
    },{cacheOnly});
-  }
+  });
   await this.paged([...this.root,'legacy_fields'],snap=>{
    const value=snap.data();if(typeof value.field!=='string'||value.value===undefined)throw v2Error('V2_VALUE_SCHEMA','Campo legado inválido.');
    this.values[value.field]=value.value;

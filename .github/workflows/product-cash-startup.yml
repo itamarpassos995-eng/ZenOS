@@ -1,0 +1,23 @@
+name: Produtos moeda e consulta de caixas
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'scripts/product-cash-startup.test.mjs'
+      - 'scripts/recovery/product-cash-audit.ui.test.jsx'
+      - '.github/workflows/product-cash-startup.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  monetary-and-history:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test scripts/product-cash-startup.test.mjs
+      - run: npx vitest run --config vitest.recovery.config.js scripts/recovery/product-cash-audit.ui.test.jsx

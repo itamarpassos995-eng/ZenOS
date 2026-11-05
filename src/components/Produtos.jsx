@@ -1,3 +1,5 @@
+import { interpretarValorMonetario } from '../core/cashMoneyInput.js';
+import { produtoParaFormularioMonetario, valoresProdutoParaBRL } from '../core/productMoney.js';
 import { ehEncomendaUsoUnico } from '../core/orderItems';
 import React, { useState, useRef } from 'react';
 import { normalizarProduto } from '../data';
@@ -19,7 +21,7 @@ import ZenModal from './ZenModal';
 import { calcularPrecoPorCustoEMargem, calcularMargemPorCustoEPreco, validarMargemPrecoVenda, MAX_MARGEM_PRECO_PCT } from '../core/pricing';
 import { validarCredencialGerencial } from '../core/accessControl';
 
-export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos, moeda, fmt, t, tx, fornecedoresGlobais = [], userId, operadorAtivo, planoLoja = 'basico', historicoVendas = [], historicoCompras = [], patenteUsuario, regrasDesconto, vendedores = [] }) {
+export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos, moeda, converterDeBRL = v=>v, converterParaBRL = v=>v, fmt, t, tx, fornecedoresGlobais = [], userId, operadorAtivo, planoLoja = 'basico', historicoVendas = [], historicoCompras = [], patenteUsuario, regrasDesconto, vendedores = [] }) {
   const [gruposCadastrados, setGruposCadastrados] = useState(['Tintas Acrílicas', 'Colorimetria & Pigmentos', 'Massas e Complementos', 'Serviços Especializados', 'Acessórios & Ferramentas']);
   const [filtroGrupo, setFiltroGrupo] = useState('todos');
   const [buscaProdutoTexto, setBuscaProdutoTexto] = useState('');
@@ -315,9 +317,9 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
     return bateGrupo && bateTexto;
   });
 
-  const atualizarPrecoPorCustoEMargem = (custoStr, margemStr) => calcularPrecoPorCustoEMargem(custoStr, margemStr).valor;
+  const atualizarPrecoPorCustoEMargem = (custoStr, margemStr) => Number(calcularPrecoPorCustoEMargem(interpretarValorMonetario(custoStr,moeda,{permitirVazio:true}).valor||0, margemStr).valor).toFixed(moeda==='PYG'?0:2);
 
-  const atualizarMargemPorPreco = (custoStr, precoStr) => calcularMargemPorCustoEPreco(custoStr, precoStr);
+  const atualizarMargemPorPreco = (custoStr, precoStr) => calcularMargemPorCustoEPreco(interpretarValorMonetario(custoStr,moeda,{permitirVazio:true}).valor||0, interpretarValorMonetario(precoStr,moeda,{permitirVazio:true}).valor||0);
 
   const abrirCadastroNovoProduto = () => {
     setRecomposicaoOriginal(null);
@@ -358,11 +360,8 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
     const margem = preco > 0 ? (((preco - custo) / preco) * 100).toFixed(1) : '40';
     setFormProduto({
       ...normalizarProduto(prod),
-      custoBRL: custo.toFixed(2),
+      ...produtoParaFormularioMonetario(prod,moeda,converterDeBRL),
       margemDesejada: margem,
-      precoBRL: preco.toFixed(2),
-      preco2BRL: prod.preco2BRL ? prod.preco2BRL.toFixed(2) : '',
-      preco3BRL: prod.preco3BRL ? prod.preco3BRL.toFixed(2) : '',
       estoqueVitrine: (prod.estoqueVitrine ?? prod.estoque ?? 0).toString(),
       estoqueGalpao: (prod.estoqueGalpao ?? 0).toString(),
       localizacao: prod.localizacao || ''
@@ -442,10 +441,18 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       grupoFinal = novoGrupoTexto.trim();
       if (!gruposCadastrados.includes(grupoFinal)) setGruposCadastrados([...gruposCadastrados, grupoFinal]);
     }
-    const custo = Math.max(0, parseFloat(String(formProduto.custoBRL).replace(',', '.')) || 0);
-    const preco = Math.max(0, parseFloat(String(formProduto.precoBRL).replace(',', '.')) || (custo > 0 ? custo * 1.5 : 10));
-    const preco2 = formProduto.habilitarPreco2 ? (parseFloat(String(formProduto.preco2BRL).replace(',', '.')) || 0) : 0;
-    const preco3 = formProduto.habilitarPreco3 ? (parseFloat(String(formProduto.preco3BRL).replace(',', '.')) || 0) : 0;
+    let dinheiro;
+    try { dinheiro=valoresProdutoParaBRL(formProduto,moeda,converterParaBRL);
+      if(produtoEmEdicao){
+        const anteriores=produtoParaFormularioMonetario(produtoEmEdicao,moeda,converterDeBRL);
+        for(const field of ['custoBRL','precoBRL','preco2BRL','preco3BRL']){
+          if(String(formProduto[field])===anteriores[field])dinheiro[field]=Number(produtoEmEdicao[field]||0);
+        }
+      } }
+    catch(error){return mostrarZen('warning',tx('Valor inválido','Importe inválido','Invalid amount'),error.message);}
+    const {custoBRL:custo,precoBRL:preco}=dinheiro;
+    const preco2=formProduto.habilitarPreco2?dinheiro.preco2BRL:0;
+    const preco3=formProduto.habilitarPreco3?dinheiro.preco3BRL:0;
     const vitrine = Math.max(0, parseInt(formProduto.estoqueVitrine) || 0);
     const galpao = Math.max(0, parseInt(formProduto.estoqueGalpao) || 0);
     const estoqueTotal = vitrine + galpao;
@@ -754,7 +761,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
                 <th style={{ padding: '16px 12px' }}>{tx('Localização','Ubicación','Location')}</th>
                 <th style={{ padding: '16px 12px', textAlign: 'center' }}>{tx('Vitrine | Galpão','Exhibición | Depósito','Display | Warehouse')}</th>
                 <th style={{ padding: '16px 12px', textAlign: 'right' }}>{tx('Custo','Costo','Cost')}</th>
-                <th style={{ padding: '16px 12px', textAlign: 'right' }}>{tx('Preço Venda','Precio Venta','Sale Price')}</th>
+                <th style={{ padding: '16px 12px', textAlign: 'right' }}>{tx('Preço Venda','Precio Venta','Sale Price')} ({moeda})</th>
                 <th style={{ padding: '16px 12px', textAlign: 'right' }}>{tx('Atacado','Mayorista','Wholesale')}</th>
                 <th style={{ padding: '16px 12px', textAlign: 'center' }}>{tx('Margem','Margen','Margin')}</th>
                 <th style={{ padding: '16px 20px', textAlign: 'right' }}>{tx('Ações','Acciones','Actions')}</th>
@@ -940,9 +947,9 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
 
             <div style={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', padding: '16px 20px', marginBottom: '18px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: '12px', alignItems: 'start', marginBottom: '8px' }}>
-                <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Custo (R$)','Costo (R$)','Cost (R$)')}</label><input type="text" value={formProduto.custoBRL} onChange={(e) => setFormProduto({ ...formProduto, custoBRL: e.target.value, precoBRL: atualizarPrecoPorCustoEMargem(e.target.value, formProduto.margemDesejada) })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontWeight: 800, fontSize: '14px', textAlign: 'right', padding: '6px 10px', outline: 'none' }} /></div>
+                <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Custo','Costo','Cost')} ({moeda})</label><input type="text" value={formProduto.custoBRL} onChange={(e) => setFormProduto({ ...formProduto, custoBRL: e.target.value, precoBRL: atualizarPrecoPorCustoEMargem(e.target.value, formProduto.margemDesejada) })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontWeight: 800, fontSize: '14px', textAlign: 'right', padding: '6px 10px', outline: 'none' }} /></div>
                 <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Margem sobre venda (%)','Margen sobre venta (%)','Margin on sale (%)')}</label><input type="number" min="0" max={MAX_MARGEM_PRECO_PCT} step="0.1" value={formProduto.margemDesejada} onChange={(e) => setFormProduto({ ...formProduto, margemDesejada: e.target.value, precoBRL: atualizarPrecoPorCustoEMargem(formProduto.custoBRL, e.target.value) })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: `1px solid ${validarMargemPrecoVenda(formProduto.margemDesejada).ok ? '#334155' : '#f43f5e'}`, borderRadius: '8px', color: validarMargemPrecoVenda(formProduto.margemDesejada).ok ? '#fbbf24' : '#fb7185', fontWeight: 800, fontSize: '14px', textAlign: 'right', padding: '6px 10px', outline: 'none' }} /></div>
-                <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Preço Venda','Precio Venta','Sale Price')}</label><input type="text" value={formProduto.precoBRL} onChange={(e) => setFormProduto({ ...formProduto, precoBRL: e.target.value, margemDesejada: atualizarMargemPorPreco(formProduto.custoBRL, e.target.value) })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: '1px solid #34d399', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', padding: '6px 10px', outline: 'none' }} /></div>
+                <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Preço Venda','Precio Venta','Sale Price')} ({moeda})</label><input type="text" value={formProduto.precoBRL} onChange={(e) => setFormProduto({ ...formProduto, precoBRL: e.target.value, margemDesejada: atualizarMargemPorPreco(formProduto.custoBRL, e.target.value) })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: '1px solid #34d399', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', padding: '6px 10px', outline: 'none' }} /></div>
                 <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#38bdf8', fontWeight: 700 }}>{tx('Vitrine / Loja','Exhibición / Tienda','Display / Store')}</label><input type="number" disabled={formProduto.tipoItem === 'servico' || Boolean(produtoEmEdicao)} value={formProduto.estoqueVitrine} onChange={(e) => setFormProduto({ ...formProduto, estoqueVitrine: e.target.value })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: '1px solid #0369a1', borderRadius: '8px', color: '#38bdf8', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '6px', outline: 'none' }} /></div>
                 <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#a855f7', fontWeight: 700 }}>{tx('Galpão / Depósito','Depósito / Almacén','Warehouse / Storage')}</label><input type="number" disabled={formProduto.tipoItem === 'servico' || Boolean(produtoEmEdicao)} value={formProduto.estoqueGalpao} onChange={(e) => setFormProduto({ ...formProduto, estoqueGalpao: e.target.value })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: '1px solid #7e22ce', borderRadius: '8px', color: '#a855f7', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '6px', outline: 'none' }} /></div>
               </div>

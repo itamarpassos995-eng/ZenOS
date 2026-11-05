@@ -1,9 +1,45 @@
-import React from 'react';
+import React, {useState,useRef,useEffect} from 'react';
+import {db} from '../firebase';
+import {collection,query,where,orderBy,limit,startAfter,getDocsFromServer} from 'firebase/firestore';
+import {intervaloCaixa,filtrarTurnosCaixa,diferencaHistoricaCaixa} from '../core/cashAuditHistory.js';
+import {formatarDinheiroNativo} from '../core/cashHistoryDisplay.js';
 import { calcularResumoSessao, calcularConciliacaoEletronicaSessao } from '../core/cashSession';
 
-export default function GestaoCaixas({ sessoesCaixa, historicoVendas = [], caixaMovimentos = [], livroFinanceiro = [], fmt, tx }) {
-  const sessoes = sessoesCaixa || [];
-  const abertas = sessoes.filter(s => s.status === 'aberta');
+export default function GestaoCaixas({ userId, sessoesCaixa, historicoVendas = [], caixaMovimentos = [], livroFinanceiro = [], fmt, tx }) {
+  const [periodo,setPeriodo]=useState('hoje'),[inicio,setInicio]=useState(''),[fim,setFim]=useState('');
+  const [detalhe,setDetalhe]=useState(null),[erro,setErro]=useState(''),[carregando,setCarregando]=useState(false);
+  const [consultado,setConsultado]=useState(false);
+  const [paginaLivro,setPaginaLivro]=useState([]),[cursor,setCursor]=useState(null),[mais,setMais]=useState(false);
+  const consultaRef=useRef(0);
+  useEffect(()=>{consultaRef.current++;setConsultado(false);setPaginaLivro([]);setCursor(null);setMais(false);setCarregando(false);setErro('');},[periodo,inicio,fim,userId]);
+  let intervalo=null;
+  try{intervalo=intervaloCaixa(periodo,new Date(),inicio,fim);}catch{}
+  const sessoes = intervalo?filtrarTurnosCaixa(sessoesCaixa||[],intervalo):[];
+  const carregarLivro=async(proxima=false)=>{
+    if(!intervalo||!userId)return;
+    const id=++consultaRef.current;setCarregando(true);setErro('');
+    try{
+      const snap=await getDocsFromServer(query(collection(db,'lojas',String(userId),'financeiro_livro'),
+        where('createdAt','>=',intervalo.inicio),
+        where('createdAt','<',intervalo.fim),
+        orderBy('createdAt','desc'),
+        ...(proxima&&cursor?[startAfter(cursor)]:[]),limit(100)));
+      if(id!==consultaRef.current)return;
+      setConsultado(true);
+      const rows=snap.docs.map(d=>({...d.data(),id:d.id}));
+      setPaginaLivro(prev=>proxima?[...prev,...rows]:rows);setCursor(snap.docs.at(-1)||null);setMais(snap.size===100);
+    }catch(e){if(id===consultaRef.current)setErro(e.message);}
+    finally{if(id===consultaRef.current)setCarregando(false);}
+  };
+  const imprimirTurno=()=>{
+    const popup=window.open('','_blank');
+    if(!popup){setErro(tx('Impressão bloqueada pelo navegador.','Impresión bloqueada por el navegador.','Printing blocked by the browser.'));return;}
+    const section=document.getElementById('zenos-caixa-fechado-detalhe');
+    popup.document.title=tx('Comprovante de caixa — segunda via','Comprobante de caja — copia','Cash receipt — copy');
+    const pre=popup.document.createElement('pre');pre.style.whiteSpace='pre-wrap';pre.textContent=section?.innerText||section?.textContent||'';
+    popup.document.body.appendChild(pre);popup.document.close();popup.focus();popup.print();
+  };
+  const abertas = (sessoesCaixa||[]).filter(s => s.status === 'aberta');
   const resumosAbertos = abertas.map(sessao => {
     const resumo = calcularResumoSessao({ sessao, historicoVendas, caixaMovimentos });
     if (!resumo) return null;
@@ -11,7 +47,7 @@ export default function GestaoCaixas({ sessoesCaixa, historicoVendas = [], caixa
     return { ...resumo, ...eletronico };
   }).filter(Boolean);
   const dinheiroCirculando = resumosAbertos.reduce((acc, r) => acc + (Number(r.saldoEsperado) || 0), 0);
-  const ultimosLancamentos = (livroFinanceiro || []).slice(0, 30);
+  const ultimosLancamentos = paginaLivro;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '1200px', margin: '0 auto' }}>
@@ -20,6 +56,28 @@ export default function GestaoCaixas({ sessoesCaixa, historicoVendas = [], caixa
         <span style={{ fontSize: '13px', color: '#64748b' }}>{tx('Acompanhe caixas abertos, dinheiro físico e histórico de turnos sem alterar o fluxo operacional aprovado.','Acompañe cajas abiertas, dinero físico e historial de turnos sin alterar el flujo operativo aprobado.','Monitor open registers, physical cash and shift history without changing the approved operational flow.')}</span>
       </div>
 
+      <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'center'}}>
+        {[['hoje',tx('Hoje','Hoy','Today')],['mes',tx('Este mês','Este mes','This month')],['anterior',tx('Mês passado','Mes pasado','Last month')],['personalizado',tx('Personalizado','Personalizado','Custom')]].map(([id,label])=><button key={id} aria-pressed={periodo===id} onClick={()=>setPeriodo(id)}>{label}</button>)}
+        {periodo==='personalizado'&&<><input aria-label={tx('Data inicial','Fecha inicial','Start date')} type="date" value={inicio} onChange={e=>setInicio(e.target.value)}/><input aria-label={tx('Data final','Fecha final','End date')} type="date" value={fim} onChange={e=>setFim(e.target.value)}/></>}
+        {!intervalo&&<span role="alert">{tx('Informe um período válido.','Informe un período válido.','Enter a valid period.')}</span>}
+      </div>
+      {detalhe&&<section style={{background:'#0b1120',padding:24,border:'1px solid #38bdf8',borderRadius:16}}>
+        <div id="zenos-caixa-fechado-detalhe">
+          <h3>{tx('Caixa fechado — conferência e segunda via','Caja cerrada — revisión y copia','Closed shift — review and copy')}</h3>
+          <p>{detalhe.id} · {detalhe.operadorNome||detalhe.operadorId}</p>
+          <p>{tx('Abertura','Apertura','Opening')}: {detalhe.abertura||detalhe.createdAt}</p>
+          <p>{tx('Fechamento','Cierre','Closing')}: {detalhe.fechamentoLocal||detalhe.fechamento}</p>
+          <p>{tx('Sistema registrado','Sistema registrado','Recorded expected')}: {fmt(detalhe.saldoSistema,'BRL')} · {tx('Contagem registrada','Conteo registrado','Recorded count')}: {fmt(detalhe.saldoInformado,'BRL')}</p>
+          <p>{diferencaHistoricaCaixa(detalhe).pendente?tx('Auditoria pendente — diferença indeterminada','Auditoría pendiente — diferencia indeterminada','Audit pending — undetermined difference'):tx('Diferença registrada','Diferencia registrada','Recorded difference')+': '+fmt(detalhe.diferenca,'BRL')}</p>
+          {['BRL','PYG','USD','EUR'].map(m=><p key={m}>{m}: {tx('Esperado','Esperado','Expected')} {detalhe.composicaoEsperadaNativa?.[m]!=null?formatarDinheiroNativo(detalhe.composicaoEsperadaNativa[m],m):'—'} · {tx('Contado','Contado','Counted')} {detalhe.composicaoContadaNativa?.[m]!=null?formatarDinheiroNativo(detalhe.composicaoContadaNativa[m],m):'—'}</p>)}
+          <p>{tx('Resumo eletrônico registrado','Resumen electrónico registrado','Recorded electronic summary')}: {JSON.stringify(detalhe.conciliacaoEletronica||{})}</p>
+          <p>{tx('Cotação registrada','Cotización registrada','Recorded exchange rate')}: {JSON.stringify(detalhe.taxasCambioFechamento||{})}</p>
+          {(detalhe.pendenciasConciliacao||[]).map((p,i)=><p key={i}>{p}</p>)}
+          <p>{tx('Cópia do registro original. Valores antigos não foram alterados.','Copia del registro original. Los valores anteriores no se modificaron.','Copy of the original record. Previous amounts have not been changed.')}</p>
+        </div>
+        <button onClick={imprimirTurno}>{tx('Reimprimir','Reimprimir','Reprint')}</button> <button onClick={()=>setDetalhe(null)}>{tx('Fechar','Cerrar','Close')}</button>
+      </section>}
+      {erro&&<p role="alert">{erro}</p>}
       <section style={{ background:'linear-gradient(135deg,#071a16,#0b1120)', border:'1px solid rgba(16,185,129,.35)', borderRadius:20, padding:22 }}>
         <div style={{display:'flex',justifyContent:'space-between',gap:16,alignItems:'center',flexWrap:'wrap',marginBottom:18}}>
           <div><div style={{fontSize:11,fontWeight:900,color:'#34d399',letterSpacing:1.2}}>{tx('CAIXAS ABERTOS AGORA','CAJAS ABIERTAS AHORA','OPEN REGISTERS NOW')}</div><h3 style={{margin:'4px 0 0',fontSize:20,color:'#fff'}}>{tx('Visão gerencial em tempo real','Vista gerencial en tiempo real','Real-time management view')}</h3></div>
@@ -59,7 +117,7 @@ export default function GestaoCaixas({ sessoesCaixa, historicoVendas = [], caixa
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '800px' }}>
               <thead><tr style={{ borderBottom: '1px solid #1e293b', color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px' }}><th style={{ padding: '16px 8px' }}>{tx('Operador','Operador','Operator')}</th><th style={{ padding: '16px 8px' }}>{tx('Abertura','Apertura','Opening')}</th><th style={{ padding: '16px 8px' }}>{tx('Fundo Inicial','Fondo Inicial','Opening Float')}</th><th style={{ padding: '16px 8px' }}>{tx('Estado','Estado','Status')}</th><th style={{ padding: '16px 8px' }}>{tx('Fecho (Sistema)','Cierre (Sistema)','Close (System)')}</th><th style={{ padding: '16px 8px' }}>{tx('Gaveta (Real)','Caja (Real)','Drawer (Actual)')}</th><th style={{ padding: '16px 8px', textAlign: 'right' }}>{tx('Diferença','Diferencia','Difference')}</th></tr></thead>
-              <tbody>{sessoes.map(s => <tr key={s.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '13px', color: '#cbd5e1' }}><td style={{ padding: '16px 8px', fontWeight: 800, color: '#f8fafc' }}>{s.operadorNome}</td><td style={{ padding: '16px 8px', color: '#64748b' }}>{s.abertura}</td><td style={{ padding: '16px 8px' }}>{fmt(s.saldoInicial, 'BRL')}</td><td style={{ padding: '16px 8px' }}><span style={{ backgroundColor: s.status === 'aberta' ? 'rgba(16,185,129,.1)' : 'rgba(100,116,139,.1)', color: s.status === 'aberta' ? '#34d399' : '#94a3b8', padding:'4px 8px',borderRadius:6,fontWeight:900,fontSize:10 }}>{s.status === 'aberta' ? 'EM CURSO' : 'FECHADO'}</span></td><td style={{ padding: '16px 8px' }}>{s.status === 'fechada' ? fmt(s.saldoSistema, 'BRL') : '-'}</td><td style={{ padding: '16px 8px', fontWeight: 800, color: s.status === 'fechada' ? '#fff' : '#64748b' }}>{s.status === 'fechada' ? fmt(s.saldoInformado, 'BRL') : '-'}</td><td style={{ padding: '16px 8px', textAlign: 'right', fontWeight: 900, color: s.diferenca < 0 ? '#f43f5e' : (s.diferenca > 0 ? '#fbbf24' : '#34d399') }}>{s.status === 'fechada' ? (s.diferenca === 0 ? tx("CERTINHO ✅","CORRECTO ✅") : fmt(s.diferenca, 'BRL')) : '-'}</td></tr>)}</tbody>
+              <tbody>{sessoes.map(s => <tr key={s.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '13px', color: '#cbd5e1' }}><td style={{ padding: '16px 8px', fontWeight: 800, color: '#f8fafc' }}>{s.operadorNome}{s.status==='fechada'&&<div><button onClick={()=>setDetalhe(s)}>{tx('Conferir / Reimprimir','Revisar / Reimprimir','Review / Reprint')}</button></div>}</td><td style={{ padding: '16px 8px', color: '#64748b' }}>{s.abertura}</td><td style={{ padding: '16px 8px' }}>{fmt(s.saldoInicial, 'BRL')}</td><td style={{ padding: '16px 8px' }}><span style={{ backgroundColor: s.status === 'aberta' ? 'rgba(16,185,129,.1)' : 'rgba(100,116,139,.1)', color: s.status === 'aberta' ? '#34d399' : '#94a3b8', padding:'4px 8px',borderRadius:6,fontWeight:900,fontSize:10 }}>{s.status === 'aberta' ? 'EM CURSO' : 'FECHADO'}</span></td><td style={{ padding: '16px 8px' }}>{s.status === 'fechada' ? fmt(s.saldoSistema, 'BRL') : '-'}</td><td style={{ padding: '16px 8px', fontWeight: 800, color: s.status === 'fechada' ? '#fff' : '#64748b' }}>{s.status === 'fechada' ? fmt(s.saldoInformado, 'BRL') : '-'}</td><td style={{ padding: '16px 8px', textAlign: 'right', fontWeight: 900, color: diferencaHistoricaCaixa(s).pendente ? '#fbbf24' : s.diferenca < 0 ? '#f43f5e' : (s.diferenca > 0 ? '#fbbf24' : '#34d399') }}>{s.status === 'fechada' ? (diferencaHistoricaCaixa(s).pendente ? tx('Auditoria pendente','Auditoría pendiente','Audit pending') : s.diferenca === 0 ? tx("CERTINHO ✅","CORRECTO ✅") : fmt(s.diferenca, 'BRL')) : '-'}</td></tr>)}</tbody>
             </table>
           </div>
         )}
@@ -67,7 +125,9 @@ export default function GestaoCaixas({ sessoesCaixa, historicoVendas = [], caixa
 
       <section style={{background:'#0b1120',border:'1px solid #1e293b',borderRadius:20,padding:22}}>
         <div style={{marginBottom:14}}><strong style={{color:'#fff'}}>{tx('Livro Financeiro — novos lançamentos','Libro Financiero — nuevos movimientos','Financial Ledger — new entries')}</strong><div style={{fontSize:11,color:'#64748b'}}>{tx('Trilha aditiva da ATT 07. Nenhum movimento antigo é reconstruído por inferência.','Rastro aditivo de ATT 07. Ningún movimiento antiguo se reconstruye por inferencia.','ATT 07 additive trail. No old movement is reconstructed by inference.')}</div></div>
-        {ultimosLancamentos.length===0 ? <div style={{padding:28,textAlign:'center',color:'#475569'}}>{tx('Nenhum lançamento novo no Livro Financeiro.','Ningún movimiento nuevo en el Libro Financiero.','No new entries in the Financial Ledger.')}</div> : <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:11,minWidth:900}}><thead><tr style={{color:'#64748b',textTransform:'uppercase',borderBottom:'1px solid #1e293b'}}><th style={{padding:10,textAlign:'left'}}>{tx('Data','Fecha','Date')}</th><th style={{textAlign:'left'}}>{tx('Tipo','Tipo','Type')}</th><th style={{textAlign:'left'}}>{tx('Origem','Origen','Source')}</th><th style={{textAlign:'left'}}>{tx('Referência','Referencia','Reference')}</th><th style={{textAlign:'left'}}>{tx('Forma','Forma','Method')}</th><th style={{textAlign:'left'}}>{tx('Operador','Operador','Operator')}</th><th style={{textAlign:'right'}}>{tx('Valor','Valor','Amount')}</th><th style={{textAlign:'center'}}>{tx('Gaveta','Caja','Drawer')}</th><th style={{textAlign:'center'}}>{tx('Resultado','Resultado','Result')}</th></tr></thead><tbody>{ultimosLancamentos.map(l=><tr key={l.id} style={{borderBottom:'1px solid rgba(255,255,255,.05)',color:'#cbd5e1'}}><td style={{padding:10,color:'#94a3b8'}}>{l.createdAt?new Date(l.createdAt).toLocaleString('pt-BR'):'—'}</td><td style={{fontWeight:800}}>{l.tipo}</td><td>{l.origem}</td><td>{l.referenciaId}</td><td>{l.formaPagamento}</td><td>{l.operadorNome}</td><td style={{textAlign:'right',fontWeight:900,color:l.direcao==='saida'?'#fb7185':'#34d399'}}>{l.direcao==='saida'?'- ':'+ '}{fmt(l.valor,'BRL')}</td><td style={{textAlign:'center'}}>{l.afetaCaixaFisico?'✓':'—'}</td><td style={{textAlign:'center'}}>{l.afetaResultado?'✓':'—'}</td></tr>)}</tbody></table></div>}
+        <button disabled={carregando||!intervalo} onClick={()=>carregarLivro(false)}>{tx('Consultar lançamentos do período','Consultar movimientos del período','Load period entries')}</button>
+        {mais&&<button disabled={carregando} onClick={()=>carregarLivro(true)}>{tx('Carregar mais','Cargar más','Load more')}</button>}
+        {ultimosLancamentos.length===0 ? <div style={{padding:28,textAlign:'center',color:'#475569'}}>{consultado?tx('Nenhum lançamento neste período.','Ningún movimiento en este período.','No entries in this period.'):tx('Use Consultar para carregar os lançamentos do período selecionado.','Utilice Consultar para cargar los movimientos del período seleccionado.','Use Load to fetch entries for the selected period.')}</div> : <div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:11,minWidth:900}}><thead><tr style={{color:'#64748b',textTransform:'uppercase',borderBottom:'1px solid #1e293b'}}><th style={{padding:10,textAlign:'left'}}>{tx('Data','Fecha','Date')}</th><th style={{textAlign:'left'}}>{tx('Tipo','Tipo','Type')}</th><th style={{textAlign:'left'}}>{tx('Origem','Origen','Source')}</th><th style={{textAlign:'left'}}>{tx('Referência','Referencia','Reference')}</th><th style={{textAlign:'left'}}>{tx('Forma','Forma','Method')}</th><th style={{textAlign:'left'}}>{tx('Operador','Operador','Operator')}</th><th style={{textAlign:'right'}}>{tx('Valor','Valor','Amount')}</th><th style={{textAlign:'center'}}>{tx('Gaveta','Caja','Drawer')}</th><th style={{textAlign:'center'}}>{tx('Resultado','Resultado','Result')}</th></tr></thead><tbody>{ultimosLancamentos.map(l=><tr key={l.id} style={{borderBottom:'1px solid rgba(255,255,255,.05)',color:'#cbd5e1'}}><td style={{padding:10,color:'#94a3b8'}}>{l.createdAt?new Date(l.createdAt).toLocaleString('pt-BR'):'—'}</td><td style={{fontWeight:800}}>{l.tipo}</td><td>{l.origem}</td><td>{l.referenciaId}</td><td>{l.formaPagamento}</td><td>{l.operadorNome}</td><td style={{textAlign:'right',fontWeight:900,color:l.direcao==='saida'?'#fb7185':'#34d399'}}>{l.direcao==='saida'?'- ':'+ '}{fmt(l.valor,'BRL')}</td><td style={{textAlign:'center'}}>{l.afetaCaixaFisico?'✓':'—'}</td><td style={{textAlign:'center'}}>{l.afetaResultado?'✓':'—'}</td></tr>)}</tbody></table></div>}
       </section>
     </div>
   );

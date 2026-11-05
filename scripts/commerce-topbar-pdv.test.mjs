@@ -100,11 +100,21 @@ test('nenhum arquivo de persistência Firestore nem regras foi modificado',()=>{
    assert.doesNotMatch(source,/firebase\/firestore|\bonSnapshot\s*\(|\bgetDocs(?:FromServer)?\s*\(|\bgetDoc(?:FromServer)?\s*\(|\brunTransaction\s*\(/,
     'A reconciliação financeira não pode adicionar consultas ou listeners Firestore');
  }
+ const correctionModules=new Set(['src/core/productMoney.js','src/core/cashAuditHistory.js','src/core/boundedTasks.js']);
+ for(const path of correctionModules){if(changed.includes(path)){
+  assert.doesNotMatch(read(path),/firebase\/firestore|\bonSnapshot\s*\(|\brunTransaction\s*\(/,'Helpers devem permanecer puros');
+  assert.ok(changed.includes('scripts/product-cash-startup.test.mjs'),'Correção exige testes de regressão');
+ }}
+ if(changed.includes('src/core/operationalRepository.js')){
+  assert.ok(changed.includes('scripts/product-cash-startup.test.mjs'));
+  assert.match(read('src/core/operationalRepository.js'),/this\.assertComplete/);
+  assert.match(read('src/core/operationalRepository.js'),/V2_SOURCE_MISMATCH/);
+ }
  const protectedPaths=changed.filter(path=>
    /(^|\/)firestore[^/]*\.rules$/.test(path)||
    /^src\/firebase[^/]*\.[jt]s$/.test(path)||
    /^functions\//.test(path)||
-   (/^src\/core\//.test(path)&&!uiOnlyCore.has(path)&&path!==allowedFinancialCore&&path!==allowedCashGuard&&path!==allowedReadOnlyAudit&&path!==allowedCashHistory&&path!==allowedInventory&&path!==allowedCardSettlement&&path!==allowedCashMoney)
+   (/^src\/core\//.test(path)&&!uiOnlyCore.has(path)&&path!==allowedFinancialCore&&path!==allowedCashGuard&&path!==allowedReadOnlyAudit&&path!==allowedCashHistory&&path!==allowedInventory&&path!==allowedCardSettlement&&path!==allowedCashMoney&&!correctionModules.has(path)&&path!=='src/core/operationalRepository.js')
  );
  assert.deepEqual(protectedPaths,[],'A mudança visual não pode alterar persistência nem regras');
 });
