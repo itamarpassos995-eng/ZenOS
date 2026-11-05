@@ -65,6 +65,14 @@ test('nenhum arquivo de persistência Firestore nem regras foi modificado',()=>{
    assert.ok(changed.includes('scripts/card-multicurrency.test.mjs'),
     'Alteração de conciliação exige teste multimoeda dedicado');
  }
+ const allowedCashMoney='src/core/cashMoneyInput.js';
+ if(changed.includes(allowedCashMoney)){
+   const source=read(allowedCashMoney);
+   assert.doesNotMatch(source,/firebase\/firestore|\bonSnapshot\s*\(|\bgetDocs(?:FromServer)?\s*\(|\bgetDoc(?:FromServer)?\s*\(|\brunTransaction\s*\(/,
+    'Interpretação monetária deve continuar cálculo puro, sem Firestore');
+   assert.ok(changed.includes('scripts/cash-closing-display-currency.test.mjs'),
+    'Alteração monetária exige regressões de quantias nativas e equivalentes');
+ }
  const allowedInventory='src/core/inventory.js';
  if(changed.includes(allowedInventory)){
    const source=read(allowedInventory);
@@ -96,7 +104,7 @@ test('nenhum arquivo de persistência Firestore nem regras foi modificado',()=>{
    /(^|\/)firestore[^/]*\.rules$/.test(path)||
    /^src\/firebase[^/]*\.[jt]s$/.test(path)||
    /^functions\//.test(path)||
-   (/^src\/core\//.test(path)&&!uiOnlyCore.has(path)&&path!==allowedFinancialCore&&path!==allowedCashGuard&&path!==allowedReadOnlyAudit&&path!==allowedCashHistory&&path!==allowedInventory&&path!==allowedCardSettlement)
+   (/^src\/core\//.test(path)&&!uiOnlyCore.has(path)&&path!==allowedFinancialCore&&path!==allowedCashGuard&&path!==allowedReadOnlyAudit&&path!==allowedCashHistory&&path!==allowedInventory&&path!==allowedCardSettlement&&path!==allowedCashMoney)
  );
  assert.deepEqual(protectedPaths,[],'A mudança visual não pode alterar persistência nem regras');
 });
