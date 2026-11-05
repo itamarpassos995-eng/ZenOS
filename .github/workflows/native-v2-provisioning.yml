@@ -26,9 +26,19 @@ jobs:
       - run: python3 -m unittest discover -s scripts/recovery -p 'test_audit_store_routes.py'
       - run: python3 -m unittest discover -s scripts/recovery -p 'test_native_v2_release.py'
       - run: python3 -m unittest discover -s scripts/recovery -p 'test_production_recovery.py'
+      - run: python3 -m unittest discover -s scripts/recovery -p 'test_v2_plan.py'
+      - run: python3 -m unittest discover -s scripts/recovery -p 'test_bulk_v2_rollout.py'
       - run: npx vitest run --config vitest.recovery.config.js scripts/recovery/native-v2-bootstrap.ui.test.jsx
       - run: npm run build
       - name: Local emulator only — no production credentials
         env:
           npm_config_ignore_scripts: 'true'
         run: npx --yes firebase-tools@14.12.0 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.recovery-fenced.json 'node scripts/recovery/native-v2.emulator.mjs && node scripts/recovery/v2-rollout-rules.emulator.mjs'
+      - run: python3 scripts/recovery/create_minimal_demo_backup.py --out /tmp/zenos-minimal-backup.json
+      - name: Minimal store — exact restoration, executor, app and nine UI tests
+        env:
+          npm_config_ignore_scripts: 'true'
+          ZENOS_FENCED_RULES: '1'
+          ZENOS_PILOT_RULES: '1'
+          ZENOS_BACKUP_PATH: /tmp/zenos-minimal-backup.json
+        run: npx --yes firebase-tools@14.12.0 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.recovery-fenced.json 'python3 scripts/recovery/production_executor_emulator.py /tmp/zenos-minimal-backup.json && node scripts/recovery/v2_app_integration.mjs /tmp/zenos-minimal-backup.json && npx vitest run --config vitest.recovery.config.js scripts/recovery/pdv.ui.test.jsx scripts/recovery/cadastros-v2.ui.test.jsx'

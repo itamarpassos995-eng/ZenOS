@@ -13,7 +13,12 @@ import PDV from '../../src/components/PDV.jsx';
 Object.defineProperty(globalThis,'crypto',{value:webcrypto,configurable:true});
 let commits=[],chosen;
 beforeAll(async()=>{
- fixture.current=await createRealFixture();const f=fixture.current,b=f.operation;
+ fixture.current=await createRealFixture();const f=fixture.current;let b=f.operation;
+ const changes=[];
+ if(!b.produtos.some(p=>p.tipoItem!=='servico'&&Number(p.precoBRL)>Number(p.custoBRL)*1.5))changes.push({field:'produtos',baseValue:b.produtos,value:[...b.produtos,{id:'EMULATOR-ONLY-UI-PRODUCT',sku:'EMULATOR-ONLY-UI',nome:'Demo UI product',tipoItem:'mercadoria',precoBRL:30,custoBRL:10,estoque:30,estoqueVitrine:30,estoqueGalpao:0}]});
+ if(!b.sessoesCaixa.some(s=>s.status==='aberta'))changes.push({field:'sessoesCaixa',baseValue:b.sessoesCaixa,value:[...b.sessoesCaixa,{id:'EMULATOR-ONLY-UI-CASH',status:'aberta',operadorId:'admin',dataAbertura:'2026-11-05T12:00:00.000Z'}]});
+ if(changes.length){const seeded=await persistV1BusinessOperationSafe({db:f.db,userId:f.userId,operationKey:'ui-only-empty-store-fixtures',changes});expect(seeded.cloudOk,seeded.error?.message).toBe(true);b=(await getOperationalSnapshot(f.db,f.userId)).data();}
+
  chosen=b.produtos.find(p=>p.tipoItem!=='servico'&&Number(p.estoqueVitrine)>20&&Number(p.precoBRL)>Number(p.custoBRL)*1.5)
   ||b.produtos.find(p=>p.tipoItem!=='servico'&&Number(p.estoqueGalpao)>20&&Number(p.precoBRL)>Number(p.custoBRL)*1.5)
   ||b.produtos.find(p=>p.tipoItem!=='servico'&&Number(p.precoBRL)>Number(p.custoBRL)*1.5);expect(chosen).toBeTruthy();

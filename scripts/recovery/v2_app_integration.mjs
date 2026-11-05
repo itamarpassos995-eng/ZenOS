@@ -54,7 +54,7 @@ try{
  await admin([{update:{name:'projects/demo-zenos-local/databases/(default)/documents/'+opRef.path,fields:backup.documents.find(d=>d.name.endsWith('/dados/operacao')).fields}}]);const v1Before=(await getDoc(opRef)).data();
  const documents=plan.documents.map(d=>({update:{name:'projects/demo-zenos-local/databases/(default)/documents/'+root.join('/')+d.name.slice(plan.targetRoot.length),fields:d.fields},currentDocument:{exists:false}}));
  for(let i=0;i<documents.length;i+=100)await admin(documents.slice(i,i+100));
- await adminSet(root.join('/'),{schema:2,state:'ready',sequence:0,sourceChecksum:backup.checksum,fieldManifest:plan.fieldManifest,fieldRevisions:op._syncMeta.fieldRevisions});
+ await adminSet(root.join('/'),{schema:2,state:'ready',sequence:0,sourceChecksum:backup.checksum,fieldManifest:plan.fieldManifest,fieldRevisions:op._syncMeta?.fieldRevisions||{}});
  const control={mode:'v2',generation:plan.generation,sourceChecksum:backup.checksum,certificate:{sourceChecksum:backup.checksum,productionReady:true,v1WritersFenced:true,finalReconciliationPassed:true,pdvIntegrationPassed:true,rollbackPrepared:true}};
  await adminSet(`lojas/${userId}/dados/storage_control`,{...control,mode:'shadow'});
  await test('Shadow read compares all fields and detects divergence without selecting V2',async()=>{
@@ -71,8 +71,20 @@ try{
  const commit=async(i,args)=>persistV1BusinessOperationSafe({db:dbs[i],userId,...args});
  const ok=result=>assert.equal(result.cloudOk,true,result.error?.stack||'cloud confirmation missing');
  await test('Real backup read through application repository: all entities and IDs preserved',async()=>{
-  for(const snap of snapshots)for(const f of Object.keys(V2_COLLECTIONS))assert.equal(stableV2Json(snap.data()[f]),stableV2Json(op[f]||[]),f);
+  for(const snap of snapshots)for(const f of Object.keys(V2_COLLECTIONS)){
+   if(plan.fieldManifest[f]?.sourceAbsent&&f==='vendedores'){
+    assert.equal(snap.data().vendedores.length,1);assert.equal(snap.data().vendedores[0].pinTrocaObrigatoria,true);
+   }else assert.equal(stableV2Json(snap.data()[f]),stableV2Json(op[f]||[]),f);
+  }
  });
+ // Add demo-only fixtures only after comparing the actual restored arrays.
+ if(!state(0).produtos.some(p=>p.tipoItem!=='servico')){
+  tick();const b=state(0);ok(await commit(0,{operationKey:'emulator-only-product-fixture',changes:[change(b,'produtos',[...b.produtos,{id:'EMULATOR-ONLY-PRODUCT',sku:'EMULATOR-ONLY',nome:'Demo product',tipoItem:'mercadoria',precoBRL:30,custoBRL:10,estoque:30,estoqueVitrine:30,estoqueGalpao:0}])]}));
+ }
+ if(!state(0).sessoesCaixa.some(s=>s.status==='aberta')){
+  tick();const b=state(0);ok(await commit(0,{operationKey:'emulator-only-cash-fixture',changes:[change(b,'sessoesCaixa',[...b.sessoesCaixa,{id:'EMULATOR-ONLY-CASH',status:'aberta',operadorId:'admin',dataAbertura:'2026-11-05T12:00:00.000Z'}])]}));
+ }
+ await session(1).catchUp();
  // Some stores keep every unit in the warehouse. Prepare a test-only transfer
  // after certifying the exact restored data; the uploaded V1 remains unchanged.
  if(!state(0).produtos.some(p=>Number(p.estoqueVitrine)>3)){
@@ -86,7 +98,7 @@ try{
  }
  const sequenceBeforeSale=session(0).sequence;
  let lastSnapshot;stop=subscribeOperationalSnapshot(dbs[1],userId,s=>{lastSnapshot=s.data();},e=>{throw e;});
- const saleId='EMULATOR-ONLY-SALE',product=state(0).produtos.find(p=>Number(p.estoqueVitrine)>3),cash=op.sessoesCaixa.find(s=>s.status==='aberta');
+ const saleId='EMULATOR-ONLY-SALE',product=state(0).produtos.find(p=>Number(p.estoqueVitrine)>3),cash=state(0).sessoesCaixa.find(s=>s.status==='aberta');
  assert(product&&cash);const pid=product.id;
  const saleArgs=base=>({operationKey:`pdv:${saleId}`,changes:[
   change(base,'historicoVendas',[{id:saleId,estado:'concluida',totalBRL:10,sessaoId:cash.id,itens:[],observacao:'X'.repeat(2000)},...base.historicoVendas]),

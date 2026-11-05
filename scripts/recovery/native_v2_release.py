@@ -29,7 +29,8 @@ def prepare(api,folder):
     folder=Path(folder);folder.mkdir(parents=True,exist_ok=True)
     release,source=live_rules(api)
     candidate=generate(source,VIPE,native=True)
-    manifest={'project':'zenos-ac6b2','originalRelease':release,'originalSha256':checksum(source),'candidateSha256':checksum(candidate)}
+    manifest={'project':'zenos-ac6b2','originalRelease':release,'originalSha256':checksum(source),'candidateSha256':checksum(candidate),
+        'nativeEligibleFrom':dt.datetime.now(dt.timezone.utc).isoformat().replace('+00:00','Z')}
     for name,value in [('original.rules',source),('native.rules',candidate),('manifest.json',json.dumps(manifest,indent=2))]:
         with (folder/name).open('x') as file:file.write(value)
     return manifest
@@ -57,7 +58,7 @@ def publish_rules(api,folder):
 
 def enable(api,folder,commit):
     if not re.fullmatch(r'[a-f0-9]{40}',commit or ''):raise ValueError('Exact tested frontend commit required')
-    _,_,candidate=verified_plan(folder)
+    manifest,_,candidate=verified_plan(folder)
     if live_rules(api)[1]!=candidate:raise RuntimeError('Native protections are not the active rules')
     existing=api('firestore','GET',POLICY)
     fields=(existing or {}).get('fields',{})
@@ -67,11 +68,19 @@ def enable(api,folder,commit):
         if all(fields.get(k)==v for k,v in expected.items()) and 'enabledAt' in fields:
             return {'alreadyEnabled':True,'storesMigrated':0}
         raise RuntimeError('Existing activation policy differs; inspect instead of overwriting')
-    expected['enabledAt']={'timestampValue':dt.datetime.now(dt.timezone.utc).isoformat().replace('+00:00','Z')}
+    cutoff=manifest.get('nativeEligibleFrom')
+    if not cutoff:raise RuntimeError('Plan lacks native account cutoff; prepare a new release plan')
+    dt.datetime.fromisoformat(cutoff.replace('Z','+00:00'))
+    expected['enabledAt']={'timestampValue':cutoff}
     api('firestore','POST',PROJECT+'/databases/(default)/documents:commit',
         {'writes':[{'update':{'name':POLICY,'fields':expected},'currentDocument':{'exists':False}}]})
     confirmed=api('firestore','GET',POLICY)
-    if (confirmed or {}).get('fields')!=expected:raise RuntimeError('Activation not confirmed; inspect policy')
+    actual=(confirmed or {}).get('fields',{})
+    # Firestore may canonicalize timestamp fractional seconds on the wire.
+    matching=all(actual.get(k)==v for k,v in expected.items() if k!='enabledAt')
+    stamp=actual.get('enabledAt',{}).get('timestampValue')
+    if not matching or not stamp or dt.datetime.fromisoformat(stamp.replace('Z','+00:00'))!=dt.datetime.fromisoformat(cutoff.replace('Z','+00:00')):
+        raise RuntimeError('Activation not confirmed; inspect policy')
     return {'newAccountsEnabled':True,'storesMigrated':0,'frontendCommit':commit}
 
 def main():

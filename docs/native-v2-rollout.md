@@ -1,13 +1,55 @@
 # V2 nativa e migração das lojas existentes
 
+## Lote autorizado em 05/11/2026
+
+O proprietário confirmou que as seis lojas V1 restantes estão sem uso e autorizou
+a migração conjunta, além da V2 automática para novas contas. O coordenador
+`scripts/recovery/bulk_v2_rollout.py` contém os seis UIDs autorizados, preserva
+as contas já V2, faz todos os backups e valida todos no emulador antes da primeira
+migração. Não usa a evidência da VIPE/Itamar para outra loja. Testa cada backup
+com o executor real, 27 verificações de integração e 9 testes reais de interface.
+
+```bash
+python3 scripts/recovery/bulk_v2_rollout.py --workdir rollout-v2-completo --frontend-commit SHA_PUBLICADO_COMPATIVEL_COM_V2 --prepare-native
+```
+
+A execução para diante de divergência. Uma falha de teste anterior à migração
+não cerca nenhuma loja. Uma falha posterior preserva as lojas já concluídas e
+os arquivos de retomada; nunca força um sucesso nem apaga o documento V1.
+Reexecução na mesma pasta aproveita os backups/evidências do mesmo commit e
+pula as contas já confirmadas na V2. Não trocar o checkout durante o lote.
+
+O parâmetro `--prepare-native` publica o backend com uma identidade operacional
+separada, com acesso Firestore `roles/datastore.user`, confirma recusa anônima,
+publica as regras nativas preservando todos os pilotos e aguarda dez minutos de
+propagação. Habilita o gate do servidor com o SHA V2 publicado fornecido. Ainda
+é preciso publicar o frontend com a flag Vercel ligada para concluir a criação
+automática. O relatório marca explicitamente `frontendActivationPending`.
+
+As regras também recusam criar V1 em uma conta nova por uma versão antiga do
+aplicativo, antes mesmo de a função criar `storage_control`. A raiz nova deve
+usar `createdAtServer` do servidor; esse campo fica imutável. Uma V1 existente
+anterior à ativação é preservada. Conta nova em cliente desatualizado precisa
+recarregar para usar o provisionamento; não há sucesso falso ou V1 silenciosa.
+
+Lojas com módulos ainda ausentes recebem manifesto completo de campos vazios e
+defaults separados por `sourceAbsent`. A reconstrução compara exatamente todos
+os campos originais V1, sem inventar campos na origem. Se faltar a lista de
+operadores, persiste apenas o administrador padrão que o app já usaria, com
+troca obrigatória de PIN, sem sobrescrever qualquer operador existente. Nenhum produto, saldo,
+estoque ou cliente fictício é criado em produção. Fixtures de estoque/caixa para
+testes existem somente no emulador, depois da reconciliação da cópia original.
+
 ## Estado desta entrega
 
 O código permite novas contas na V2, mas a ativação vem **desligada**. Publicar
 esta branch não migra lojas existentes. VIPE e Central Motos mantêm a rota V2
 e os documentos já certificados. Não publicar regras de protótipo diretamente.
 
-Sem credencial administrativa neste ambiente, nenhum inventário ou alteração
-de produção foi executado por esta entrega. Testes usam `demo-zenos-local`.
+A sessão administrativa de produção está no Cloud Shell do proprietário. O
+inventário real confirmou nove lojas; VIPE, Central Motos e Itamar já foram
+confirmadas na V2. As seis restantes dependem do resultado do lote autorizado.
+Os testes automáticos usam somente `demo-zenos-local`.
 
 ## Levantamento das contas existentes — somente leitura
 
@@ -92,9 +134,10 @@ backup íntegro e testar o executor com esse backup. Só então executar
 `production_recovery.py migrate` com a evidência correspondente e o SHA de
 frontend confirmado. O executor cerca escritores V1, reconcilia, cria destinos
 sem sobrescrever e ativa individualmente. Não usar evidência da VIPE para outra
-empresa. Não migrar lojas em lote nem durante vendas/lançamentos em andamento.
+empresa. Fora do lote autorizado acima, não migrar lojas em lote; nunca migrar
+durante vendas/lançamentos em andamento.
 
-Não executar migração novamente na VIPE ou Central Motos. A versão das regras
+Não executar migração novamente na VIPE, Central Motos ou conta Itamar. A versão das regras
 preserva os IDs protegidos e a proteção nativa nas migrações posteriores.
 
 ## Testes reproduzíveis

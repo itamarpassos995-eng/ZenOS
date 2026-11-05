@@ -3,7 +3,7 @@ import {execFileSync} from 'node:child_process';
 import {createRequire} from 'node:module';
 import {initializeApp,deleteApp} from 'firebase/app';
 import {getAuth,connectAuthEmulator,createUserWithEmailAndPassword} from 'firebase/auth';
-import {getFirestore,connectFirestoreEmulator,doc,setDoc,getDoc,terminate} from 'firebase/firestore';
+import {getFirestore,connectFirestoreEmulator,doc,setDoc,getDoc,terminate,serverTimestamp} from 'firebase/firestore';
 import {provisionNativeV2} from '../../operational-functions/src/nativeV2.js';
 import {getOperationalSnapshot,clearOperationalSession} from '../../src/core/operationalRepository.js';
 import {persistV1BusinessOperationSafe} from '../../src/core/productionSync.js';
@@ -31,7 +31,12 @@ try {
  await adb.doc('system/storage_policy').set({newStoreSchema:2,nativeProtectionReady:true,enabledAt:Timestamp.fromMillis(100),frontendCommit:'a'.repeat(40),rulesSha256:'b'.repeat(64)});
  await assert.rejects(setDoc(doc(dbs[0],'system/storage_policy'),{newStoreSchema:2}),e=>e.code==='permission-denied');
  await assert.rejects(getDoc(doc(dbs[0],'system/storage_policy')),e=>e.code==='permission-denied');
- for(const uid of uids)await adb.doc(`lojas/${uid}`).set({createdAtServer:Timestamp.fromMillis(200)});
+ await assert.rejects(setDoc(doc(dbs[0],'lojas',uids[0]),{createdAtServer:new Date(50)}),e=>e.code==='permission-denied');
+ await setDoc(doc(dbs[0],'lojas',uids[0]),{createdAtServer:serverTimestamp()});
+ for(const [i,uid] of uids.entries())await adb.doc(`lojas/${uid}`).set({createdAtServer:Timestamp.fromMillis(i===1?50:200)});
+ // Outdated clients cannot create a fresh V1 or backdate the new root.
+ await assert.rejects(setDoc(doc(dbs[0],'lojas',uids[0],'dados','operacao'),{clientes:[]}),e=>e.code==='permission-denied');
+ await assert.rejects(setDoc(doc(dbs[0],'lojas',uids[0]),{createdAtServer:new Date(50)}),e=>e.code==='permission-denied');
  const request=uid=>({auth:{uid,token:{firebase:{sign_in_provider:'password'}}},data:{}});
  const concurrent=await Promise.all([provisionNativeV2(adb,request(uids[0])),provisionNativeV2(adb,request(uids[0]))]);
  assert.equal(concurrent.filter(x=>x.status==='created').length,1);
@@ -48,6 +53,8 @@ try {
  assert.equal(saved.cloudOk,true,saved.error?.message);
  const product=await persistV1BusinessOperationSafe({db:dbs[0],userId:uids[0],operationKey:'native-first-product',changes:[{field:'produtos',baseValue:[],value:[{id:'first-product',nome:'Native product',preco:39990,estoque:20}]}]});
  assert.equal(product.cloudOk,true,product.error?.message);
+ await setDoc(doc(dbs[0],'lojas',uids[0],'produto_indices','native-sku'),{produtoId:'first-product',sku:'native-sku'});
+ assert.equal((await getDoc(doc(dbs[0],'lojas',uids[0],'produto_indices','native-sku'))).data().produtoId,'first-product');
  clearOperationalSession(dbs[0],uids[0]);
  const reopened=(await getOperationalSnapshot(dbs[0],uids[0])).data();
  assert.equal(reopened.clientes[0].id,'first-client');

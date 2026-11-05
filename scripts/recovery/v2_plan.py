@@ -82,6 +82,47 @@ def plan_v2(backup):
             append(target + "/" + collection + "/" + identifier,
                    {"data": copy.deepcopy(value), "legacyIndex": integer(index),
                     "legacyField": string(field)})
+    # Some small V1 stores have never saved clients, vouchers or other modules.
+    # Their V2 route must support the first future write to those modules too.
+    # Mark added schema defaults separately so lossless reconstruction still
+    # proves the exact original V1 fields (absent is never treated as present).
+    for field, collection in COLLECTIONS.items():
+        if field not in manifest:
+            manifest[field] = {"kind": "array", "collection": collection,
+                "count": 0, "sourceAbsent": True, "emptyEncoding": {"arrayValue": {}}}
+    defaults = {
+        "regrasDesconto": {"verdeMax":5,"amareloMax":12,"margemIdeal":30,"margemMinima":15,
+            "exigirSenhaVermelho":True,"senhaGerente":""},
+        "regrasComissao": {"baseCalculo":"lucro","pctVerde":5,"pctAmarelo":3,"pctVermelho":1,
+            "bonusFixo":0,"protecaoPrejuizo":True,"bonusRegras":[]},
+        "_syncMeta": {"fieldRevisions":{}},
+    }
+    def default_typed(v):
+        if isinstance(v, bool): return {"booleanValue":v}
+        if isinstance(v, int): return integer(v)
+        if isinstance(v, str): return string(v)
+        if isinstance(v, list): return {"arrayValue":{"values":[default_typed(x) for x in v]}}
+        return {"mapValue":{"fields":{k:default_typed(x) for k,x in v.items()}}}
+    # Canonical empty protobuf containers match the server's round-trip shape.
+    def canonical_empty(v):
+        if isinstance(v,list): return [canonical_empty(x) for x in v]
+        if not isinstance(v,dict): return v
+        if v=={"mapValue":{"fields":{}}}: return {"mapValue":{}}
+        if v=={"arrayValue":{"values":[]}}: return {"arrayValue":{}}
+        return {k:canonical_empty(x) for k,x in v.items()}
+    if manifest['vendedores'].get('sourceAbsent'):
+        # This is the app's existing onboarding fallback, now persisted so PIN
+        # changes have a real server base. No existing operator is overwritten.
+        admin={'id':'admin','nome':'Administrador (Gerência)','patente':'gerencia','senha':'admin',
+            'pinTrocaObrigatoria':True,'percentual':0,'comissaoTipo':'lucro','permissoes':{'admin':True}}
+        append(target+'/operadores/admin',{'data':default_typed(admin),
+            'legacyIndex':integer(0),'legacyField':string('vendedores')})
+        manifest['vendedores']['count']=1
+    for field, value in defaults.items():
+        if field not in manifest:
+            append(target+"/legacy_fields/"+field,
+                {"field":string(field),"value":canonical_empty(default_typed(value))})
+            manifest[field]={"kind":"value","collection":"legacy_fields","count":1,"sourceAbsent":True}
     result = {"format": "ZENOS_V2_COPY_ONLY_PLAN_1", "generation": generation,
         "sourceChecksum": backup["checksum"], "sourceOperationUpdateTime": op["updateTime"],
         "sourceFieldsChecksum": digest(op["fields"]), "sourceOperation": op["name"],
@@ -98,6 +139,8 @@ def plan_v2(backup):
 def reconstruct_fields(plan):
     result = {}
     for field, meta in plan["fieldManifest"].items():
+        if meta.get("sourceAbsent"):
+            continue
         if meta["kind"] == "value":
             doc = next(d for d in plan["documents"] if d["name"] == plan["targetRoot"] + "/legacy_fields/" + quote(field, safe=""))
             result[field] = copy.deepcopy(doc["fields"]["value"])

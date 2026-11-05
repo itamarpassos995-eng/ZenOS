@@ -33,7 +33,7 @@ export async function createRealFixture(){
  for(let i=0;i<documents.length;i+=100)await commit(documents.slice(i,i+100).map(update=>({update,currentDocument:{exists:false}})));
  const operation=decodeFixture({mapValue:{fields:backup.documents.find(d=>d.name.endsWith('/dados/operacao')).fields}});
  const control={mode:'v2',generation:plan.generation,sourceChecksum:backup.checksum,certificate:{sourceChecksum:backup.checksum,productionReady:true,v1WritersFenced:true,finalReconciliationPassed:true,pdvIntegrationPassed:true,rollbackPrepared:true}};
- await commit([{name:prefix+generationRoot,fields:typed({schema:2,state:'ready',sequence:0,sourceChecksum:backup.checksum,fieldManifest:plan.fieldManifest,fieldRevisions:operation._syncMeta.fieldRevisions}).mapValue.fields},{name:prefix+root+'/dados/storage_control',fields:typed(control).mapValue.fields}].map(update=>({update,currentDocument:{exists:false}})));
+ await commit([{name:prefix+generationRoot,fields:typed({schema:2,state:'ready',sequence:0,sourceChecksum:backup.checksum,fieldManifest:plan.fieldManifest,fieldRevisions:operation._syncMeta?.fieldRevisions||{}}).mapValue.fields},{name:prefix+root+'/dados/storage_control',fields:typed(control).mapValue.fields}].map(update=>({update,currentDocument:{exists:false}})));
  const snapshot=await getOperationalSnapshot(db,userId);
  return {db,userId,root: generationRoot,backupChecksum:backup.checksum,operation:snapshot.data(),close:()=>deleteApp(app)};
 }

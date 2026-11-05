@@ -19,7 +19,7 @@ service cloud.firestore {
 }"""
 
 
-NATIVE = "(exists(control(store))&&get(control(store)).data.get('origin','')=='native-v2')"
+NATIVE = "(exists(control(store))&&get(control(store)).data.get('origin','')=='native-v2')||nativeCandidate(store)"
 
 
 def generate(source, pilot, *, native=False):
@@ -55,11 +55,33 @@ def _render(stores, *, native=False):
         predicate += "||" + NATIVE
     policy_fence = "&&!(top=='system'&&identifier=='storage_policy')" if native else ""
     template = Path(__file__).with_name('v2-fenced-prototype.rules').read_text()
+    native_helpers = ''
+    if native:
+        native_helpers = """
+  function nativePolicyEnabled(){
+   let p=/databases/$(database)/documents/system/storage_policy;
+   return exists(p)&&get(p).data.newStoreSchema==2&&get(p).data.nativeProtectionReady==true;
+  }
+  function nativeCandidate(store){
+   let root=/databases/$(database)/documents/lojas/$(store);
+   let p=/databases/$(database)/documents/system/storage_policy;
+   let v1=/databases/$(database)/documents/lojas/$(store)/dados/operacao;
+   return nativePolicyEnabled()&&!exists(v1)&&(!exists(root)||
+    (get(root).data.get('createdAtServer',null) is timestamp&&get(root).data.createdAtServer>=get(p).data.enabledAt));
+  }
+"""
+        template = template.replace(
+            "function legacy(store){return !exists(control(store))||get(control(store)).data.mode in ['legacy','shadow'];}",
+            "function legacy(store){return (!exists(control(store))||get(control(store)).data.mode in ['legacy','shadow'])&&!nativeCandidate(store);}")
+        template = template.replace(
+            "allow create,update: if owner(store)&&validMap(request.resource.data);",
+            "allow create: if owner(store)&&validMap(request.resource.data)&&(!nativePolicyEnabled()||request.resource.data.createdAtServer==request.time);\n   allow update: if owner(store)&&validMap(request.resource.data)&&!request.resource.data.diff(resource.data).affectedKeys().hasAny(['createdAtServer']);", 1)
     marker = ' match /databases/{database}/documents {'
     # Recursive wildcard matches zero segments in rules_version=2. Thus root
     # documents, nested collections and collection-group reads are covered.
     addition = f"""
   function pilot(store){{return {predicate};}}
+{native_helpers}
   // Preserve the reviewed baseline for every non-pilot top-level tree.
   // This clause can NEVER grant access inside the pilot tree.
   match /{{top}}/{{identifier}}/{{remaining=**}} {{

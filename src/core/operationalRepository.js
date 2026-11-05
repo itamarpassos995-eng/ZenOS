@@ -299,6 +299,7 @@ async function compareShadow(entry,snapshot){
  const normalize=(value,field)=>field==='_syncMeta'?Object.fromEntries(Object.entries(value||{}).filter(([k])=>k!=='v2Sequence')):value;
  const differences=[];const hashes={};
  for(const field of new Set([...Object.keys(legacy),...Object.keys(v2)])){
+  if(!Object.prototype.hasOwnProperty.call(legacy,field)&&entry.shadowSession.manifest?.[field]?.sourceAbsent)continue;
   // Materialization supplies empty optional arrays for the UI. Absent and empty
   // are equivalent only for these known fields, never for unknown legacy maps.
   const a=normalize(legacy[field]??(V2_COLLECTIONS[field]?[]:undefined),field),b=normalize(v2[field],field);
