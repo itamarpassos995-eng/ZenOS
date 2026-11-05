@@ -36,6 +36,7 @@ export default function ImportacaoVipe({userId,operadorAtivo,patenteUsuario,prod
     id:'VIPE-PROD-'+r.id_origen,sku:r.codigo_barras||'VIPE-'+r.id_origen,nome:r.descripcion,
     grupo:r.categoria||'Geral',custoBRL:dinheiro(r.costo_original,modo)/Number(taxaPYG),
     precoBRL:dinheiro(r.precio_original,modo)/Number(taxaPYG),
+    valoresMonetarios:{versao:1,campos:{custoBRL:{valor:dinheiro(r.costo_original,modo),moeda:'PYG'},precoBRL:{valor:dinheiro(r.precio_original,modo),moeda:'PYG'}}},
     estoque:Math.max(0,Number(String(r.existencia_migracao).replace(',','.'))),
     estoqueVitrine:0,estoqueGalpao:Math.max(0,Number(String(r.existencia_migracao).replace(',','.'))),
     ativo:true,inativo:false,arquivado:false,oculto:false,

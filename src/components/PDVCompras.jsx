@@ -1,3 +1,5 @@
+import { interpretarValorMonetario } from '../core/cashMoneyInput.js';
+import { produtoParaFormularioMonetario, registrarValoresProduto, valorProdutoBRL, atualizarQuantiaProduto } from '../core/productMoney.js';
 import React, { useState, useEffect, useRef } from 'react';
 import ZenModal from './ZenModal';
 import { normalizarProduto } from '../data';
@@ -58,7 +60,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
     if (moedaPrecoVendaRef.current === moeda) return;
     moedaPrecoVendaRef.current = moeda;
     setItensCompra(atual => atual.map(item => Number.isFinite(item.precoVendaBRL) && item.precoVendaBRL >= 0
-      ? { ...item, precoVendaTexto: converterDeBRL(item.precoVendaBRL, moeda).toFixed(2) }
+      ? { ...item, precoVendaTexto: converterDeBRL(item.precoVendaBRL, moeda).toFixed(moeda==='PYG'?0:2) }
       : item));
   }, [moeda, converterDeBRL]);
 
@@ -117,19 +119,21 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
   const abrirEdicaoProduto = (prod) => {
     setProdutoEmEdicao(prod); 
     setFormProduto({
-      ...normalizarProduto(prod), custoBRL: (prod.custoBRL || 0).toString(), precoBRL: (prod.precoBRL || 0).toString(),
+      ...normalizarProduto(prod), ...produtoParaFormularioMonetario(prod,moeda,converterDeBRL),
       estoque: (prod.estoque || 0).toString()
     });
     setModalProdutoAberto(true);
   };
   const salvarProduto = async () => {
     if (!formProduto.nome.trim()) return avisarZen('warning',tx('Produto incompleto','Producto incompleto','Incomplete product'),tx('Informe o nome do produto.','Informe el nombre del producto.','Enter the product name.'));
-    const custo = parseFloat(String(formProduto.custoBRL).replace(',', '.')) || 0;
-    const preco = parseFloat(String(formProduto.precoBRL).replace(',', '.')) || 0;
+    let dinheiroProduto;
+    try {dinheiroProduto=registrarValoresProduto(formProduto,moeda,converterParaBRL,produtoEmEdicao,converterDeBRL);}
+    catch(error){return avisarZen('warning',tx('Valor inválido','Importe inválido','Invalid amount'),error.message);}
+    const {custoBRL:custo,precoBRL:preco}=dinheiroProduto;
     const estoque = parseInt(String(formProduto.estoque)) || 0;
 
     if (skuJaExiste(produtos, formProduto.sku, produtoEmEdicao)) return avisarZen('danger',tx('SKU duplicado','SKU duplicado','Duplicate SKU'),`${tx('Já existe outro produto com o SKU','Ya existe otro producto con el SKU','Another product already uses SKU')} ${formProduto.sku}. ${tx('Use um SKU diferente.','Use un SKU diferente.','Use a different SKU.')}`);
-    const dadosFinais = normalizarProduto({ ...formProduto, custoBRL: custo, precoBRL: preco, estoque: estoque });
+    const dadosFinais = normalizarProduto({ ...formProduto, ...dinheiroProduto, estoque: estoque });
     if (!dadosFinais.id) dadosFinais.id = `PROD-${Date.now()}`;
     if (!produtoEmEdicao) dadosFinais.ativo = true;
 
@@ -151,7 +155,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
       setProdutos(produtosConfirmados);
       const produtoConfirmado = produtosConfirmados.find(p => String(p.id) === String(dadosFinais.id) && String(p.sku || '').toUpperCase() === String(dadosFinais.sku || '').toUpperCase()) || dadosFinais;
       if (produtoEmEdicao) {
-        setItensCompra(itensCompra.map(item => String(item.produtoOriginalId || item.id) === String(produtoEmEdicao.id) && String(item.produtoOriginalSku || item.sku || '').toUpperCase() === String(produtoEmEdicao.sku || '').toUpperCase() ? { ...item, ...produtoConfirmado, produtoOriginalId: produtoConfirmado.id, produtoOriginalSku: produtoConfirmado.sku, custoPraticadoBRL: custo, precoVendaBRL: produtoConfirmado.precoBRL, precoVendaTexto: converterDeBRL(produtoConfirmado.precoBRL, moeda).toFixed(2) } : item));
+        setItensCompra(itensCompra.map(item => String(item.produtoOriginalId || item.id) === String(produtoEmEdicao.id) && String(item.produtoOriginalSku || item.sku || '').toUpperCase() === String(produtoEmEdicao.sku || '').toUpperCase() ? { ...item, ...produtoConfirmado, produtoOriginalId: produtoConfirmado.id, produtoOriginalSku: produtoConfirmado.sku, custoPraticadoBRL: custo, precoVendaBRL: produtoConfirmado.precoBRL, precoVendaTexto: converterDeBRL(produtoConfirmado.precoBRL, moeda).toFixed(moeda==='PYG'?0:2) } : item));
       } else {
         setItemParaAdicionar(produtoConfirmado);
         setQtdDigitadaRapida('1');
@@ -175,7 +179,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
     const qtdNum = Math.max(1, parseInt(qtdDigitadaRapida) || 1);
     const custoBase = Number.isFinite(itemParaAdicionar.ultimoCustoFornecedorBRL) && itemParaAdicionar.ultimoCustoFornecedorBRL >= 0
       ? itemParaAdicionar.ultimoCustoFornecedorBRL
-      : itemParaAdicionar.custoBRL || 0;
+      : valorProdutoBRL(itemParaAdicionar,'custoBRL',converterParaBRL);
 
     const indiceExistente = itensCompra.findIndex(i => String(i.produtoOriginalId || i.id) === String(itemParaAdicionar.id) && String(i.produtoOriginalSku || i.sku || '').toUpperCase() === String(itemParaAdicionar.sku || '').toUpperCase());
 
@@ -191,9 +195,9 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
         produtoOriginalSku: itemParaAdicionar.sku,
         qtd: String(qtdNum), 
         custoPraticadoBRL: custoBase, 
-        custoTexto: converterDeBRL(custoBase, moeda).toFixed(2),
-        precoVendaBRL: itemParaAdicionar.precoBRL,
-        precoVendaTexto: converterDeBRL(itemParaAdicionar.precoBRL, moeda).toFixed(2)
+        custoTexto: converterDeBRL(custoBase, moeda).toFixed(moeda==='PYG'?0:2),
+        precoVendaBRL: valorProdutoBRL(itemParaAdicionar,'precoBRL',converterParaBRL),
+        precoVendaTexto: converterDeBRL(valorProdutoBRL(itemParaAdicionar,'precoBRL',converterParaBRL), moeda).toFixed(moeda==='PYG'?0:2)
       }]);
     }
     setItemParaAdicionar(null); setTermoBusca(''); 
@@ -202,14 +206,15 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
 
   const removerItem = (id) => { setItensCompra(itensCompra.filter(item => item.id !== id)); };
   const atualizarQtd = (id, valor) => { setItensCompra(itensCompra.map(item => item.id === id ? { ...item, qtd: String(Math.max(1, parseInt(valor) || 1)) } : item)); };
-  const lidarDigitacaoCusto = (id, valorDigitado) => { setItensCompra(itensCompra.map(item => item.id === id ? { ...item, custoTexto: valorDigitado, custoPraticadoBRL: converterParaBRL(parseFloat(valorDigitado.replace(',', '.')) || 0, moeda) } : item)); };
+  const lidarDigitacaoCusto = (id, valorDigitado) => { setItensCompra(itensCompra.map(item => item.id === id ? { ...item, custoTexto: valorDigitado, custoPraticadoBRL: converterParaBRL(interpretarValorMonetario(valorDigitado,moeda).valor||0, moeda), custoEntradaInvalido:!interpretarValorMonetario(valorDigitado,moeda).ok } : item)); };
   const lidarDigitacaoPrecoVenda = (id, valorDigitado) => {
-    const texto = valorDigitado.trim().replace(',', '.');
-    const valor = texto === '' ? NaN : Number(texto);
+    const parsed=interpretarValorMonetario(valorDigitado,moeda);
+    const valor=parsed.ok?parsed.valor:NaN;
     const precoBRL = Number.isFinite(valor) && valor >= 0 ? converterParaBRL(valor, moeda) : null;
     setItensCompra(atual => atual.map(item => item.id === id ? {
       ...item,
       precoVendaTexto: valorDigitado,
+      precoVendaAlterado:true,
       precoVendaBRL: Number.isFinite(precoBRL) && precoBRL >= 0 ? precoBRL : null,
     } : item));
   };
@@ -220,11 +225,11 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
   const totalFinalBRL = Math.max(0, (subtotalBrutoBRL + acrescBRL) - descBRL);
 
   const catalogoFormasPagamento = [
-    { id: 'boleto', rotulo: tx("Boleto / Faturado","Boleto / Facturado"), moedaOrigem: 'BRL', icone: '📄', aPrazo: true },
-    { id: 'prazo', rotulo: tx("Fiado / Crediário","Crédito / Financiación"), moedaOrigem: 'BRL', icone: '📒', aPrazo: true },
-    { id: 'cheque', rotulo: tx("Cheque Pré-Datado","Cheque posdatado"), moedaOrigem: 'BRL', icone: '📝', aPrazo: true },
-    { id: 'cartao_credito', rotulo: tx("Cartão de Crédito","Tarjeta de crédito"), moedaOrigem: 'BRL', icone: '💳', aPrazo: true },
-    { id: 'dinheiro', rotulo: tx("Dinheiro (Pagto Imediato)","Efectivo (pago inmediato)"), moedaOrigem: 'BRL', icone: '💵', aPrazo: false },
+    { id: 'boleto', rotulo: tx("Boleto / Faturado","Boleto / Facturado"), moedaOrigem: moeda, icone: '📄', aPrazo: true },
+    { id: 'prazo', rotulo: tx("Fiado / Crediário","Crédito / Financiación"), moedaOrigem: moeda, icone: '📒', aPrazo: true },
+    { id: 'cheque', rotulo: tx("Cheque Pré-Datado","Cheque posdatado"), moedaOrigem: moeda, icone: '📝', aPrazo: true },
+    { id: 'cartao_credito', rotulo: tx("Cartão de Crédito","Tarjeta de crédito"), moedaOrigem: moeda, icone: '💳', aPrazo: true },
+    { id: 'dinheiro', rotulo: tx("Dinheiro (Pagto Imediato)","Efectivo (pago inmediato)"), moedaOrigem: moeda, icone: '💵', aPrazo: false },
     { id: 'pix', rotulo: tx("Pix (Pagto Imediato)","Pix (pago inmediato)"), moedaOrigem: 'BRL', icone: '⚡', aPrazo: false },
   ];
 
@@ -239,6 +244,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
   const podeFinalizarCompra = totalFinalBRL > 0 && totalPagoConvertidoBRL >= (totalFinalBRL - 0.05);
 
   const abrirFechamento = async () => {
+    if(itensCompra.some(i=>i.custoEntradaInvalido))return avisarZen('warning',tx('Valor inválido','Importe inválido','Invalid amount'),tx('Confira os custos digitados e a moeda.','Revise los costos ingresados y la moneda.','Check entered costs and currency.'));
     if (itensCompra.length === 0 || totalFinalBRL <= 0) return avisarZen('warning',tx("Entrada vazia","Entrada vacía"),tx("Adicione produtos à nota de entrada.","Agregue productos al documento de entrada."));
     if (!fornecedorSelecionado) {
         const confirmou = await confirmarZen({ titulo:tx("Entrada sem fornecedor","Entrada sin proveedor"), mensagem:tx("Você não selecionou um fornecedor. Deseja registrar a entrada de estoque de forma avulsa?","No seleccionó un proveedor. ¿Desea registrar la entrada de existencias sin proveedor?"), confirmarTexto:tx("Continuar sem fornecedor","Continuar sin proveedor") });
@@ -247,7 +253,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
     setPagamentosLancados([]); 
     setFormaSelecionada('boleto');
     setQtdParcelas(1);
-    setValorLancamentoInput(converterDeBRL(totalFinalBRL, 'BRL').toFixed(2));
+    setValorLancamentoInput(converterDeBRL(totalFinalBRL, moeda).toFixed(moeda==='PYG'?0:2));
     setCompraSucesso(false); 
     setModalFechamentoAberto(true);
   };
@@ -264,7 +270,9 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
   }, []);
 
   const adicionarPagamento = () => {
-    const valorNum = parseFloat(String(valorLancamentoInput).replace(',', '.')) || 0;
+    const leitura=interpretarValorMonetario(valorLancamentoInput,configAtualForma.moedaOrigem);
+    if(!leitura.ok)return avisarZen('warning',tx('Valor inválido','Importe inválido','Invalid amount'),leitura.erro);
+    const valorNum=leitura.valor;
     if (valorNum <= 0) return;
     const configForma = catalogoFormasPagamento.find(f => f.id === formaSelecionada) || catalogoFormasPagamento[0];
     const valorBRL = converterParaBRL(valorNum, configForma.moedaOrigem);
@@ -316,7 +324,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
     const novaLista = [...pagamentosLancados, ...novosPagamentos];
     setPagamentosLancados(novaLista);
     const novoSaldo = Math.max(0, totalFinalBRL - novaLista.reduce((acc, p) => acc + p.valorConvertidoBRL, 0));
-    setValorLancamentoInput(novoSaldo > 0 ? converterDeBRL(novoSaldo, configForma.moedaOrigem).toFixed(2) : '');
+    setValorLancamentoInput(novoSaldo > 0 ? converterDeBRL(novoSaldo, configForma.moedaOrigem).toFixed(configForma.moedaOrigem==='PYG'?0:2) : '');
     setQtdParcelas(1); 
   };
 
@@ -350,7 +358,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
           const estoqueAnterior = obterEstoqueProduto(p).estoque;
           const custoMedioBRL = calcularCustoMedioMovel({
             estoqueAnterior,
-            custoAnteriorBRL: p.custoBRL,
+            custoAnteriorBRL: valorProdutoBRL(p,'custoBRL',converterParaBRL),
             quantidadeEntrada,
             custoFinalEntradaUnitarioBRL: itemComprado.custoFinalAquisicaoUnitarioBRL,
           });
@@ -368,11 +376,13 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
             referenciaId: compraId,
             createdAt: instanteCompra.toISOString(),
           }));
+          let monetario=atualizarQuantiaProduto(entrada.produto,'custoBRL',Number(converterDeBRL(custoMedioBRL,moeda).toFixed(moeda==='PYG'?0:2)),moeda,converterParaBRL);
+          if(itemComprado.precoVendaAlterado)monetario=atualizarQuantiaProduto(monetario,'precoBRL',Number(converterDeBRL(itemComprado.precoVendaBRL,moeda).toFixed(moeda==='PYG'?0:2)),moeda,converterParaBRL);
           return {
-            ...entrada.produto,
+            ...monetario,
             custoBRL: custoMedioBRL,
             ultimoCustoFornecedorBRL: itemComprado.custoPraticadoBRL,
-            precoBRL: Number.isFinite(itemComprado.precoVendaBRL) && itemComprado.precoVendaBRL >= 0
+            precoBRL: itemComprado.precoVendaAlterado && Number.isFinite(itemComprado.precoVendaBRL) && itemComprado.precoVendaBRL >= 0
               ? itemComprado.precoVendaBRL
               : p.precoBRL,
           };
@@ -391,6 +401,9 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
         operadorId: idSeguro,
         operadorNome: nomeSeguro,
         itens: itensCompraComCustos,
+        moedaDocumento:moeda,
+        totalOriginal:converterDeBRL(totalFinalBRL,moeda),
+        taxasCambio:{BRL:1,...Object.fromEntries(['PYG','USD','EUR'].map(m=>[m,converterDeBRL(1,m)]))},
         subtotalMercadoriasBRL: subtotalBrutoBRL,
         custosAdicionaisBRL: acrescBRL,
         descontoCompraBRL: descBRL,
@@ -433,7 +446,9 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
         direcao: 'saida',
         afetaGaveta: true,
         valorBRL: pag.valorConvertidoBRL,
-        detalhesMoedas: { BRL: pag.valorOriginal },
+        detalhesMoedas: { [pag.moedaOrigem||'BRL']: pag.valorOriginal },
+        detalhesMoedasNativas: { [pag.moedaOrigem||'BRL']: pag.valorOriginal },
+        moedaOrigem:pag.moedaOrigem||'BRL',
         descricao: `Compra de estoque ${novaCompra.id}`,
         compraId: novaCompra.id,
         operador: nomeSeguro,
@@ -532,7 +547,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
                   <thead><tr><th>{tx('Qtd','Cant.','Qty')}</th><th>{tx('Item (SKU)','Ítem (SKU)','Item (SKU)')}</th><th style={{ textAlign: 'right' }}>{tx('Custo Un','Costo Un.','Unit Cost')}</th><th style={{ textAlign: 'right' }}>{tx('Total','Total','Total')}</th></tr></thead>
                   <tbody>
                     {compraConcluidaObj.itens.map((it, idx) => (
-                      <tr key={idx}><td>{it.qtd}</td><td>{it.nome.substring(0, 15)}</td><td style={{ textAlign: 'right' }}>{converterDeBRL(it.custoPraticadoBRL, moeda).toFixed(2)}</td><td style={{ textAlign: 'right' }}>{converterDeBRL((it.custoPraticadoBRL * it.qtd), moeda).toFixed(2)}</td></tr>
+                      <tr key={idx}><td>{it.qtd}</td><td>{it.nome.substring(0, 15)}</td><td style={{ textAlign: 'right' }}>{converterDeBRL(it.custoPraticadoBRL, moeda).toFixed(moeda==='PYG'?0:2)}</td><td style={{ textAlign: 'right' }}>{converterDeBRL((it.custoPraticadoBRL * it.qtd), moeda).toFixed(moeda==='PYG'?0:2)}</td></tr>
                     ))}
                   </tbody>
                 </table>
@@ -599,7 +614,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
                   return (
                     <div key={prod.id} onClick={() => { setItemParaAdicionar(prod); setQtdDigitadaRapida('1'); }} onMouseEnter={() => setIndiceFocoBusca(index)} style={{ padding: '14px 20px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', backgroundColor: estaFocado ? '#431407' : 'transparent' }}>
                       <div><div style={{ fontWeight: 700, color: '#f8fafc', fontSize: '15px' }}>{prod.nome}</div><div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>SKU: {prod.sku} {tx("• Estoque Atual:","• Existencias actuales:")} <strong style={{ color: '#f97316' }}>{prod.estoque} {prod.unidadeMedida}</strong></div></div>
-                      <div style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'right' }}>{tx('Último Custo','Último Costo','Last Cost')}<br/><span style={{ color: '#fff', fontWeight: 900, fontSize: '14px' }}>{fmt(prod.custoBRL || 0)}</span></div>
+                      <div style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'right' }}>{tx('Último Custo','Último Costo','Last Cost')}<br/><span style={{ color: '#fff', fontWeight: 900, fontSize: '14px' }}>{fmt(valorProdutoBRL(prod,'custoBRL',converterParaBRL))}</span></div>
                     </div>
                   );
                 }) : <div style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>{tx('Nenhum produto localizado na base. Deseja cadastrar?','Ningún producto encontrado en la base. ¿Desea registrarlo?','No product found in the database. Would you like to register one?')}</div>}
@@ -629,11 +644,11 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                     <label style={{ fontSize: '9px', color: '#64748b' }}>{tx('Custo Un.','Costo Un.','Unit Cost')}</label>
-                    <input type="text" value={item.custoTexto !== undefined ? item.custoTexto : converterDeBRL(item.custoPraticadoBRL, moeda).toFixed(2)} onChange={(e) => lidarDigitacaoCusto(item.id, e.target.value)} onFocus={(e) => e.target.select()} style={{ width: '80px', backgroundColor: '#020617', border: '1px solid #f97316', borderRadius: '8px', color: '#fdba74', fontWeight: 800, fontSize: '13px', textAlign: 'right', padding: '6px', outline: 'none' }} />
+                    <input type="text" value={item.custoTexto !== undefined ? item.custoTexto : converterDeBRL(item.custoPraticadoBRL, moeda).toFixed(moeda==='PYG'?0:2)} onChange={(e) => lidarDigitacaoCusto(item.id, e.target.value)} onFocus={(e) => e.target.select()} style={{ width: '80px', backgroundColor: '#020617', border: '1px solid #f97316', borderRadius: '8px', color: '#fdba74', fontWeight: 800, fontSize: '13px', textAlign: 'right', padding: '6px', outline: 'none' }} />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                     <label style={{ fontSize: '9px', color: '#64748b' }}>{tx('Preço Venda','Precio Venta','Sale Price')}</label>
-                    <input type="text" inputMode="decimal" aria-label={`Preço Venda de ${item.nome}`} value={item.precoVendaTexto !== undefined ? item.precoVendaTexto : converterDeBRL(item.precoVendaBRL ?? item.precoBRL, moeda).toFixed(2)} onChange={(e) => lidarDigitacaoPrecoVenda(item.id, e.target.value)} onFocus={(e) => e.target.select()} style={{ width: '80px', backgroundColor: '#020617', border: '1px solid #34d399', borderRadius: '8px', color: '#34d399', fontWeight: 800, fontSize: '13px', textAlign: 'right', padding: '6px', outline: 'none' }} />
+                    <input type="text" inputMode="decimal" aria-label={`Preço Venda de ${item.nome}`} value={item.precoVendaTexto !== undefined ? item.precoVendaTexto : converterDeBRL(item.precoVendaBRL ?? item.precoBRL, moeda).toFixed(moeda==='PYG'?0:2)} onChange={(e) => lidarDigitacaoPrecoVenda(item.id, e.target.value)} onFocus={(e) => e.target.select()} style={{ width: '80px', backgroundColor: '#020617', border: '1px solid #34d399', borderRadius: '8px', color: '#34d399', fontWeight: 800, fontSize: '13px', textAlign: 'right', padding: '6px', outline: 'none' }} />
                   </div>
                   <div style={{ width: '85px', textAlign: 'right', fontWeight: 900, color: '#f97316', fontSize: '15px', paddingTop: '14px' }}>{fmt(Math.max(0, parseInt(item.qtd) || 0) * (item.custoPraticadoBRL || 0))}</div>
                 </div>
@@ -714,8 +729,8 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
 
             <div style={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', padding: '16px 20px', marginBottom: '18px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', alignItems: 'center' }}>
-                <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Custo de Compra (R$)','Costo de Compra (R$)','Purchase Cost (R$)')}</label><input type="text" value={formProduto.custoBRL} onChange={(e) => setFormProduto({ ...formProduto, custoBRL: e.target.value })} style={{ width: '100%', backgroundColor: '#0b1120', border: '1px solid #ea580c', borderRadius: '8px', color: '#fdba74', fontWeight: 800, fontSize: '14px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
-                <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Preço Venda PDV (R$)','Precio Venta TPV (R$)','POS Sale Price (R$)')}</label><input type="text" value={formProduto.precoBRL} onChange={(e) => setFormProduto({ ...formProduto, precoBRL: e.target.value })} style={{ width: '100%', backgroundColor: '#0b1120', border: '1px solid #34d399', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
+                <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Custo de Compra','Costo de Compra','Purchase Cost')} ({formProduto.moedaCusto||moeda})</label><input type="text" value={formProduto.custoBRL} onChange={(e) => setFormProduto({ ...formProduto, custoBRL: e.target.value })} style={{ width: '100%', backgroundColor: '#0b1120', border: '1px solid #ea580c', borderRadius: '8px', color: '#fdba74', fontWeight: 800, fontSize: '14px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
+                <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Preço Venda PDV','Precio Venta TPV','POS Sale Price')} ({formProduto.moedaPreco||moeda})</label><input type="text" value={formProduto.precoBRL} onChange={(e) => setFormProduto({ ...formProduto, precoBRL: e.target.value })} style={{ width: '100%', backgroundColor: '#0b1120', border: '1px solid #34d399', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
                 <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Estoque Atual','Stock Actual','Current Stock')}</label><input type="number" value={formProduto.estoque} onChange={(e) => setFormProduto({ ...formProduto, estoque: e.target.value })} style={{ width: '100%', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#f8fafc', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
               </div>
             </div>

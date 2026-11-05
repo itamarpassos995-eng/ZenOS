@@ -1,5 +1,5 @@
 import { interpretarValorMonetario } from '../core/cashMoneyInput.js';
-import { produtoParaFormularioMonetario, valoresProdutoParaBRL } from '../core/productMoney.js';
+import { produtoParaFormularioMonetario, registrarValoresProduto, valorProdutoBRL } from '../core/productMoney.js';
 import { ehEncomendaUsoUnico } from '../core/orderItems';
 import React, { useState, useRef } from 'react';
 import { normalizarProduto } from '../data';
@@ -30,7 +30,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
   const [confirmarEstoqueNegativoTodos, setConfirmarEstoqueNegativoTodos] = useState(false);
   const [salvandoEstoqueNegativoTodos, setSalvandoEstoqueNegativoTodos] = useState(false);
   const [senhaExclusao, setSenhaExclusao] = useState('');
-  
+
   const [modalProdutoAberto, setModalProdutoAberto] = useState(false);
   const [produtoEmEdicao, setProdutoEmEdicao] = useState(null);
   const [secaoFiscalExpandida, setSecaoFiscalExpandida] = useState(false);
@@ -292,11 +292,11 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
     ...produtos.map((p) => p.fornecedor),
     ...fornecedoresGlobais.map(f => typeof f === 'object' ? (f.nome || f.razao_social || f.nomeFantasia || f.nomeFornecedor) : f)
   ];
-  
+
   const fornecedoresCadastrados = Array.from(
     new Set(todosOsFornecedores.filter((f) => typeof f === 'string' && f.trim() !== ''))
   ).sort();
-  
+
   const [mostrarFornecedores, setMostrarFornecedores] = useState(false);
   // ---------------------------------------------------------------
 
@@ -307,7 +307,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
 
   const produtosListaFiltrada = (produtos || []).filter(p => {
     if (!p || (!mostrarInativos && p.ativo === false)) return false;
-    
+
     const nomeLower = (p.nome || '').toLowerCase();
     const skuLower = (p.sku || '').toLowerCase();
     const grupoItem = p.grupo || 'Geral';
@@ -317,9 +317,9 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
     return bateGrupo && bateTexto;
   });
 
-  const atualizarPrecoPorCustoEMargem = (custoStr, margemStr) => Number(calcularPrecoPorCustoEMargem(interpretarValorMonetario(custoStr,moeda,{permitirVazio:true}).valor||0, margemStr).valor).toFixed(moeda==='PYG'?0:2);
+  const atualizarPrecoPorCustoEMargem = (custoStr, margemStr) => Number(converterDeBRL(calcularPrecoPorCustoEMargem(converterParaBRL(interpretarValorMonetario(custoStr,formProduto.moedaCusto||moeda,{permitirVazio:true}).valor||0,formProduto.moedaCusto||moeda), margemStr).valor,formProduto.moedaPreco||moeda)).toFixed((formProduto.moedaPreco||moeda)==='PYG'?0:2);
 
-  const atualizarMargemPorPreco = (custoStr, precoStr) => calcularMargemPorCustoEPreco(interpretarValorMonetario(custoStr,moeda,{permitirVazio:true}).valor||0, interpretarValorMonetario(precoStr,moeda,{permitirVazio:true}).valor||0);
+  const atualizarMargemPorPreco = (custoStr, precoStr) => calcularMargemPorCustoEPreco(converterParaBRL(interpretarValorMonetario(custoStr,formProduto.moedaCusto||moeda,{permitirVazio:true}).valor||0,formProduto.moedaCusto||moeda), converterParaBRL(interpretarValorMonetario(precoStr,formProduto.moedaPreco||moeda,{permitirVazio:true}).valor||0,formProduto.moedaPreco||moeda));
 
   const abrirCadastroNovoProduto = () => {
     setRecomposicaoOriginal(null);
@@ -332,14 +332,15 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
     setHistoricoExpandido(false);
     setHistoricoMovimentos([]);
     // ID único por cadastro novo: evita colidir com um produto antigo/inativo de mesmo SKU+nome+grupo.
-    setFormProduto(normalizarProduto({ 
+    setFormProduto(normalizarProduto({
       id: gerarIdSeguro('PROD'),
       ativo: true,
-      sku: `SKU-${Date.now().toString().slice(-5)}`, 
+      sku: `SKU-${Date.now().toString().slice(-5)}`,
       grupo: gruposCadastrados[0],
       estoqueVitrine: '0',
       estoqueGalpao: '0',
       localizacao: '',
+      moedaCusto:moeda,moedaPreco:moeda,
       margemDesejada: '40'
     }));
     setModalProdutoAberto(true);
@@ -355,8 +356,8 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
     setHistoricoMovimentos([]);
     setFiltroHistoricoInicio('');
     setFiltroHistoricoFim('');
-    const custo = prod.custoBRL || 0;
-    const preco = prod.precoBRL || 0;
+    const custo = valorProdutoBRL(prod,'custoBRL',converterParaBRL);
+    const preco = valorProdutoBRL(prod,'precoBRL',converterParaBRL);
     const margem = preco > 0 ? (((preco - custo) / preco) * 100).toFixed(1) : '40';
     setFormProduto({
       ...normalizarProduto(prod),
@@ -442,17 +443,11 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       if (!gruposCadastrados.includes(grupoFinal)) setGruposCadastrados([...gruposCadastrados, grupoFinal]);
     }
     let dinheiro;
-    try { dinheiro=valoresProdutoParaBRL(formProduto,moeda,converterParaBRL);
-      if(produtoEmEdicao){
-        const anteriores=produtoParaFormularioMonetario(produtoEmEdicao,moeda,converterDeBRL);
-        for(const field of ['custoBRL','precoBRL','preco2BRL','preco3BRL']){
-          if(String(formProduto[field])===anteriores[field])dinheiro[field]=Number(produtoEmEdicao[field]||0);
-        }
-      } }
+    try { dinheiro=registrarValoresProduto(formProduto,moeda,converterParaBRL,produtoEmEdicao,converterDeBRL); }
     catch(error){return mostrarZen('warning',tx('Valor inválido','Importe inválido','Invalid amount'),error.message);}
     const {custoBRL:custo,precoBRL:preco}=dinheiro;
-    const preco2=formProduto.habilitarPreco2?dinheiro.preco2BRL:0;
-    const preco3=formProduto.habilitarPreco3?dinheiro.preco3BRL:0;
+    const preco2=dinheiro.preco2BRL;
+    const preco3=dinheiro.preco3BRL;
     const vitrine = Math.max(0, parseInt(formProduto.estoqueVitrine) || 0);
     const galpao = Math.max(0, parseInt(formProduto.estoqueGalpao) || 0);
     const estoqueTotal = vitrine + galpao;
@@ -464,6 +459,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
     const dadosFinais = normalizarProduto({
       ...formProduto,
       grupo: grupoFinal,
+      valoresMonetarios: dinheiro.valoresMonetarios,
       custoBRL: custo,
       precoBRL: preco,
       preco2BRL: preco2,
@@ -751,6 +747,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       )}
 
       <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', overflow: 'hidden' }}>
+
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
             <thead>
@@ -772,7 +769,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
                 <tr><td colSpan="10" style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>{tx('Nenhum produto encontrado.','Ningún producto encontrado.','No products found.')}</td></tr>
               ) : (
                 produtosListaFiltrada.map((prod) => {
-                  const custo = prod.custoBRL || 0; const preco = prod.precoBRL || 0; const margem = preco > 0 ? (((preco - custo) / preco) * 100).toFixed(1) : 0;
+                  const custo = valorProdutoBRL(prod,'custoBRL',converterParaBRL); const preco = valorProdutoBRL(prod,'precoBRL',converterParaBRL); const margem = preco > 0 ? (((preco - custo) / preco) * 100).toFixed(1) : 0;
                   const ehServico = prod.tipoItem === 'servico';
                   return (
                     <tr key={`${prod.id}-${prod.sku}`} style={{ borderBottom: '1px solid #1e293b' }}>
@@ -816,7 +813,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
                         </div>
                       </td>
                       <td style={{ padding: '16px 12px', textAlign: 'right', fontWeight: 900, color: '#34d399', fontSize: '15px' }}>{fmt(preco)}</td>
-                      <td style={{ padding: '16px 12px', textAlign: 'right', fontWeight: 700, color: prod.habilitarPreco2 ? '#38bdf8' : '#475569' }}>{prod.habilitarPreco2 && prod.preco2BRL > 0 ? fmt(prod.preco2BRL) : '—'}</td>
+                      <td style={{ padding: '16px 12px', textAlign: 'right', fontWeight: 700, color: prod.habilitarPreco2 ? '#38bdf8' : '#475569' }}>{prod.habilitarPreco2 && prod.preco2BRL > 0 ? fmt(valorProdutoBRL(prod,'preco2BRL',converterParaBRL)) : '—'}</td>
                       <td style={{ padding: '16px 12px', textAlign: 'center' }}><span style={{ backgroundColor: margem >= 40 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)', color: margem >= 40 ? '#34d399' : '#fbbf24', border: `1px solid ${margem >= 40 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`, padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>{margem}%</span></td>
                       <td style={{ padding: '16px 20px', textAlign: 'right' }}><div style={{display:'flex',gap:6,justifyContent:'flex-end'}}><button onClick={() => pedirExclusao(prod)} style={{background:'#2e0a16',border:'1px solid #7f1d1d',color:'#fb7185',padding:'7px 10px',borderRadius:8,fontSize:11,fontWeight:900,cursor:'pointer'}}>{prod.ativo===false?tx("Inativo","Inactivo"):tx("Inativar","Desactivar")}</button><button onClick={() => abrirEdicaoProduto(prod)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#38bdf8', padding: '6px 14px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>{tx('Editar','Editar','Edit')}</button></div></td>
                     </tr>
@@ -850,7 +847,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       {modalProdutoAberto && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1400 }}>
           <div style={{ backgroundColor: '#0b1120', border: '1px solid #0284c7', borderRadius: '24px', width: '100%', maxWidth: '820px', maxHeight: '92vh', overflowY: 'auto', padding: '28px', boxShadow: '0 25px 50px rgba(0,0,0,0.85)' }}>
-            
+
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div>
                 <span style={{ fontSize: '11px', fontWeight: 800, color: '#38bdf8', letterSpacing: '1px', textTransform: 'uppercase' }}>{tx('Ficha Cadastral Universal','Ficha Universal','Universal Record')}</span>
@@ -892,37 +889,37 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
                     {criandoNovoGrupo ? <input type="text" value={novoGrupoTexto} onChange={(e) => setNovoGrupoTexto(e.target.value)} placeholder={tx('Novo grupo...','Nuevo grupo...','New group...')} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #0284c7', borderRadius: '8px', color: '#38bdf8', fontSize: '12px', padding: '8px', outline: 'none' }} /> : <select value={formProduto.grupo} onChange={(e) => setFormProduto({ ...formProduto, grupo: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontSize: '12px', padding: '8px', outline: 'none' }}>{gruposCadastrados.map(g => <option key={g} value={g}>{g}</option>)}</select>}
                   </div>
                   <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Marca','Marca','Brand')}</label><input type="text" value={formProduto.marca} onChange={(e) => setFormProduto({ ...formProduto, marca: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontSize: '12px', padding: '8px 10px', outline: 'none' }} /></div>
-                  
+
                   {/* --- O Campo de Fornecedor dinâmico e inteligente --- */}
                   <div style={{ position: 'relative' }}>
                     <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Fornecedor','Proveedor','Supplier')}</label>
-                    <input 
-                      type="text" 
-                      value={formProduto.fornecedor || ''} 
+                    <input
+                      type="text"
+                      value={formProduto.fornecedor || ''}
                       onChange={(e) => {
                         setFormProduto({ ...formProduto, fornecedor: e.target.value });
                         setMostrarFornecedores(true);
-                      }} 
+                      }}
                       onFocus={() => setMostrarFornecedores(true)}
                       onBlur={() => setTimeout(() => setMostrarFornecedores(false), 250)}
                       autoComplete="off"
                       placeholder={tx('Buscar...','Buscar...','Search...')}
-                      style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontSize: '12px', padding: '8px 10px', outline: 'none' }} 
+                      style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontSize: '12px', padding: '8px 10px', outline: 'none' }}
                     />
                     {mostrarFornecedores && (
                       <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px', marginTop: '4px', zIndex: 50, maxHeight: '150px', overflowY: 'auto', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)' }}>
                         {fornecedoresCadastrados
                           .filter(f => f.toLowerCase().includes((formProduto.fornecedor || '').toLowerCase()))
                           .map((forn) => (
-                            <div 
+                            <div
                               // CHAVE ÚNICA DE STRING (Resolve o bug de não clicar quando digita)
-                              key={forn} 
+                              key={forn}
                               // EVENTO MOUSE DOWN (Resolve o bug de o campo perder o foco antes de registrar o clique)
                               onMouseDown={(e) => {
                                 e.preventDefault(); // Impede que o navegador roube o foco do input
                                 setFormProduto(prev => ({ ...prev, fornecedor: forn }));
                                 setMostrarFornecedores(false);
-                              }} 
+                              }}
                               style={{ padding: '8px 10px', color: '#cbd5e1', fontSize: '12px', cursor: 'pointer', borderBottom: '1px solid #1e293b', transition: 'background-color 0.2s' }}
                               onMouseEnter={(e) => e.target.style.backgroundColor = '#1e293b'}
                               onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
@@ -946,10 +943,21 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
             </div>
 
             <div style={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', padding: '16px 20px', marginBottom: '18px' }}>
+              <div style={{display:'flex',gap:16,marginBottom:12}}>
+                {['moedaCusto','moedaPreco'].map(campo=><label key={campo}>{campo==='moedaCusto'?tx('Moeda do custo','Moneda del costo','Cost currency'):tx('Moeda do preço','Moneda del precio','Price currency')} <select value={formProduto[campo]||moeda} onChange={e=>{
+                  const destino=e.target.value,origem=formProduto[campo]||moeda;
+                  const alterados={...formProduto,[campo]:destino};
+                  for(const field of campo==='moedaCusto'?['custoBRL']:['precoBRL','preco2BRL','preco3BRL']){
+                    const parsed=interpretarValorMonetario(formProduto[field],origem,{permitirVazio:true});
+                    if(parsed.ok)alterados[field]=Number(converterDeBRL(converterParaBRL(parsed.valor,origem),destino)).toFixed(destino==='PYG'?0:2);
+                  }
+                  setFormProduto(alterados);
+                }}>{['BRL','PYG','USD','EUR'].map(m=><option key={m}>{m}</option>)}</select></label>)}
+              </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: '12px', alignItems: 'start', marginBottom: '8px' }}>
-                <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Custo','Costo','Cost')} ({moeda})</label><input type="text" value={formProduto.custoBRL} onChange={(e) => setFormProduto({ ...formProduto, custoBRL: e.target.value, precoBRL: atualizarPrecoPorCustoEMargem(e.target.value, formProduto.margemDesejada) })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontWeight: 800, fontSize: '14px', textAlign: 'right', padding: '6px 10px', outline: 'none' }} /></div>
+                <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Custo','Costo','Cost')} ({formProduto.moedaCusto||moeda})</label><input type="text" value={formProduto.custoBRL} onChange={(e) => setFormProduto({ ...formProduto, custoBRL: e.target.value, precoBRL: atualizarPrecoPorCustoEMargem(e.target.value, formProduto.margemDesejada) })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontWeight: 800, fontSize: '14px', textAlign: 'right', padding: '6px 10px', outline: 'none' }} /></div>
                 <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Margem sobre venda (%)','Margen sobre venta (%)','Margin on sale (%)')}</label><input type="number" min="0" max={MAX_MARGEM_PRECO_PCT} step="0.1" value={formProduto.margemDesejada} onChange={(e) => setFormProduto({ ...formProduto, margemDesejada: e.target.value, precoBRL: atualizarPrecoPorCustoEMargem(formProduto.custoBRL, e.target.value) })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: `1px solid ${validarMargemPrecoVenda(formProduto.margemDesejada).ok ? '#334155' : '#f43f5e'}`, borderRadius: '8px', color: validarMargemPrecoVenda(formProduto.margemDesejada).ok ? '#fbbf24' : '#fb7185', fontWeight: 800, fontSize: '14px', textAlign: 'right', padding: '6px 10px', outline: 'none' }} /></div>
-                <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Preço Venda','Precio Venta','Sale Price')} ({moeda})</label><input type="text" value={formProduto.precoBRL} onChange={(e) => setFormProduto({ ...formProduto, precoBRL: e.target.value, margemDesejada: atualizarMargemPorPreco(formProduto.custoBRL, e.target.value) })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: '1px solid #34d399', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', padding: '6px 10px', outline: 'none' }} /></div>
+                <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Preço Venda','Precio Venta','Sale Price')} ({formProduto.moedaPreco||moeda})</label><input type="text" value={formProduto.precoBRL} onChange={(e) => setFormProduto({ ...formProduto, precoBRL: e.target.value, margemDesejada: atualizarMargemPorPreco(formProduto.custoBRL, e.target.value) })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: '1px solid #34d399', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', padding: '6px 10px', outline: 'none' }} /></div>
                 <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#38bdf8', fontWeight: 700 }}>{tx('Vitrine / Loja','Exhibición / Tienda','Display / Store')}</label><input type="number" disabled={formProduto.tipoItem === 'servico' || Boolean(produtoEmEdicao)} value={formProduto.estoqueVitrine} onChange={(e) => setFormProduto({ ...formProduto, estoqueVitrine: e.target.value })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: '1px solid #0369a1', borderRadius: '8px', color: '#38bdf8', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '6px', outline: 'none' }} /></div>
                 <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#a855f7', fontWeight: 700 }}>{tx('Galpão / Depósito','Depósito / Almacén','Warehouse / Storage')}</label><input type="number" disabled={formProduto.tipoItem === 'servico' || Boolean(produtoEmEdicao)} value={formProduto.estoqueGalpao} onChange={(e) => setFormProduto({ ...formProduto, estoqueGalpao: e.target.value })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: '1px solid #7e22ce', borderRadius: '8px', color: '#a855f7', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '6px', outline: 'none' }} /></div>
               </div>
@@ -1017,7 +1025,8 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '320px', overflowY: 'auto' }}>
                         {historicoMovimentos.map((mov) => (
                           <div key={mov.id} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '10px', padding: '10px 12px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
                               <strong style={{ color: '#e2e8f0', fontSize: '12px' }}>{mov.tipo === 'transferencia_interna' ? `↔ ${tx('Transferência interna','Transferencia interna','Internal transfer')}` : mov.tipo === 'venda' ? `🛒 ${tx('Venda','Venta','Sale')}` : mov.tipo === 'devolucao' ? `↩ ${tx('Devolução','Devolución','Return')}` : mov.tipo === 'compra_entrada' ? `📦 ${tx('Entrada de compra','Entrada de compra','Purchase entry')}` : mov.tipo}</strong>
                               <span style={{ color: '#64748b', fontSize: '10px' }}>{mov.createdAt ? new Date(mov.createdAt).toLocaleString('pt-BR') : '—'}</span>
                             </div>
@@ -1048,7 +1057,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
           </div>
         </div>
       )}
-    
+
       <ZenModal aberto={confirmarEstoqueNegativoTodos} variante="warning"
         titulo={todosPermitemNegativo?tx('Bloquear estoque negativo em todos','Bloquear stock negativo en todos','Disable negative stock for all'):tx('Permitir estoque negativo em todos','Permitir stock negativo en todos','Allow negative stock for all')}
         mensagem={tx('Esta ação altera a permissão de venda de todos os produtos da empresa, sem alterar saldos, preços ou histórico. Confirme para gravar no servidor.','Esta acción cambia el permiso de venta de todos los productos de esta empresa, sin alterar saldos, precios ni historial. Confirme para guardar en el servidor.','This changes the sales permission for every product in this company without modifying balances, prices, or history. Confirm to save on the server.')}

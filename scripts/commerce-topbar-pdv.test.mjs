@@ -100,10 +100,10 @@ test('nenhum arquivo de persistência Firestore nem regras foi modificado',()=>{
    assert.doesNotMatch(source,/firebase\/firestore|\bonSnapshot\s*\(|\bgetDocs(?:FromServer)?\s*\(|\bgetDoc(?:FromServer)?\s*\(|\brunTransaction\s*\(/,
     'A reconciliação financeira não pode adicionar consultas ou listeners Firestore');
  }
- const correctionModules=new Set(['src/core/productMoney.js','src/core/cashAuditHistory.js','src/core/boundedTasks.js']);
+ const correctionModules=new Set(['src/core/productMoney.js','src/core/cashAuditHistory.js','src/core/boundedTasks.js','src/core/commercePublicCatalog.js','src/core/syncMerge.js']);
  for(const path of correctionModules){if(changed.includes(path)){
   assert.doesNotMatch(read(path),/firebase\/firestore|\bonSnapshot\s*\(|\brunTransaction\s*\(/,'Helpers devem permanecer puros');
-  assert.ok(changed.includes('scripts/product-cash-startup.test.mjs'),'Correção exige testes de regressão');
+  assert.ok(changed.includes('scripts/product-cash-startup.test.mjs')||changed.includes('scripts/native-product-money.test.mjs'),'Correção exige testes de regressão');
  }}
  if(changed.includes('src/core/operationalRepository.js')){
   assert.ok(changed.includes('scripts/product-cash-startup.test.mjs'));

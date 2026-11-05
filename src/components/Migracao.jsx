@@ -1,9 +1,10 @@
+import { registrarValoresProduto } from '../core/productMoney.js';
 import React, { useState } from 'react';
 import { normalizarProduto, normalizarCliente } from '../data';
 import ZenModal from './ZenModal';
 import ImportacaoVipe from './ImportacaoVipe';
 
-export default function Migracao({ commitOperacaoNegocio, produtos, setProdutos, clientes, setClientes, fornecedores, setFornecedores, userId, operadorAtivo, patenteUsuario, taxaPYG, t, tx = (pt) => pt }) {
+export default function Migracao({ commitOperacaoNegocio, produtos, setProdutos, clientes, setClientes, fornecedores, setFornecedores, userId, operadorAtivo, patenteUsuario, moeda, converterParaBRL, taxaPYG, t, tx = (pt) => pt }) {
   const [dadosInput, setDadosInput] = useState('');
   const [tipoMigracao, setTipoMigracao] = useState('produtos');
   const [mensagemSucesso, setMensagemSucesso] = useState('');
@@ -24,7 +25,7 @@ export default function Migracao({ commitOperacaoNegocio, produtos, setProdutos,
             const custo = parseFloat(partes[1]?.replace(',', '.')) || 0;
             const preco = parseFloat(partes[2]?.replace(',', '.')) || (custo * 1.5);
             const estoque = parseInt(partes[3]) || 0;
-            novos.unshift(normalizarProduto({ nome, custoBRL: custo, precoBRL: preco, estoque }));
+            novos.unshift(normalizarProduto({ nome, ...registrarValoresProduto({custoBRL:custo,precoBRL:preco,preco2BRL:0,preco3BRL:0},moeda,converterParaBRL), estoque }));
             contador++;
           }
         });

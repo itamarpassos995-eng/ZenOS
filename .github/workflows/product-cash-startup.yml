@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'src/**'
+      - 'api/commerce/**'
+      - 'scripts/native-product-money.test.mjs'
       - 'scripts/product-cash-startup.test.mjs'
       - 'scripts/recovery/product-cash-audit.ui.test.jsx'
       - '.github/workflows/product-cash-startup.yml'
@@ -19,5 +21,5 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - run: node --test scripts/product-cash-startup.test.mjs
+      - run: node --test scripts/product-cash-startup.test.mjs scripts/native-product-money.test.mjs scripts/commerce-private-inbox.test.mjs scripts/commerce-cdn-publicar.test.mjs scripts/commerce-cdn-pedido.test.mjs
       - run: npx vitest run --config vitest.recovery.config.js scripts/recovery/product-cash-audit.ui.test.jsx

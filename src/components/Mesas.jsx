@@ -1,10 +1,11 @@
+import { valorProdutoBRL } from '../core/productMoney.js';
 import React, { useState, useEffect, useMemo } from 'react';
 import { ehEncomendaUsoUnico } from '../core/orderItems';
 import { db } from '../firebase';
 import { assinarMesasV1, atualizarMesaV1, criarMesasPadrao, garantirMesasV1 } from '../core/tablesV1';
 import { zenosStorage } from '../core/storage';
 
-export default function Mesas({ commitOperacaoNegocio, userId, produtos, fmt, tx, historicoVendas, setHistoricoVendas, moeda, idioma, operadorAtivo }) {
+export default function Mesas({ commitOperacaoNegocio, userId, produtos, converterParaBRL, fmt, tx, historicoVendas, setHistoricoVendas, moeda, idioma, operadorAtivo }) {
   // ATT 09: Mesas V1 sincronizadas pela nuvem. O módulo continua EXPERIMENTAL até fechar estoque/financeiro/misto.
   const [mesas, setMesas] = useState(() => criarMesasPadrao());
   const [erroMesas, setErroMesas] = useState('');
@@ -73,7 +74,7 @@ export default function Mesas({ commitOperacaoNegocio, userId, produtos, fmt, tx
         const novosItens = [...(m.itens || [])];
         const jaExiste = novosItens.findIndex(it => String(it.produtoId) === String(produto.id));
         if (jaExiste >= 0) novosItens[jaExiste] = { ...novosItens[jaExiste], qtd: Number(novosItens[jaExiste].qtd || 0) + 1 };
-        else novosItens.push({ produtoId: produto.id, sku: produto.sku || '', nome: produto.nome, preco: produto.precoBRL || 0, custo: produto.custoBRL || 0, qtd: 1 });
+        else novosItens.push({ produtoId: produto.id, sku: produto.sku || '', nome: produto.nome, preco: valorProdutoBRL(produto,'precoBRL',converterParaBRL), custo: valorProdutoBRL(produto,'custoBRL',converterParaBRL), valoresMonetarios:produto.valoresMonetarios||null, qtd: 1 });
         return { ...m, status:'ocupada', itens:novosItens };
       }});
     } catch (error) { setErroMesas(error?.message || tx('Não foi possível atualizar a mesa.','No fue posible actualizar la mesa.','Could not update the table.')); }
@@ -215,7 +216,7 @@ export default function Mesas({ commitOperacaoNegocio, userId, produtos, fmt, tx
                 <div style={{ fontWeight: 800, color: '#f8fafc', fontSize: '13px', lineHeight: 1.3 }}>{p.nome}</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
                   <span style={{ fontSize: '10px', color: '#64748b' }}>{p.grupo || tx('Geral','General','General')}</span>
-                  <span style={{ color: '#34d399', fontWeight: 900, fontSize: '14px' }}>{fmt(p.precoBRL)}</span>
+                  <span style={{ color: '#34d399', fontWeight: 900, fontSize: '14px' }}>{fmt(valorProdutoBRL(p,'precoBRL',converterParaBRL))}</span>
                 </div>
               </div>
             ))}

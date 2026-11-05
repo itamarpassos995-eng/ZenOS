@@ -1,3 +1,4 @@
+import { valorProdutoBRL, atualizarQuantiaProduto } from '../src/core/productMoney.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { runInNewContext } from 'node:vm';
@@ -136,7 +137,7 @@ const app = fs.readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
 
 assert.match(compras, /ratearCustosAquisicao\(itensCompra,\s*acrescBRL,\s*descBRL\)/);
 assert.match(compras, /custoBRL:\s*custoMedioBRL/);
-assert.match(compras, /precoBRL:\s*Number\.isFinite\(itemComprado\.precoVendaBRL\)/);
+assert.match(compras, /precoBRL:\s*itemComprado\.precoVendaAlterado && Number\.isFinite\(itemComprado\.precoVendaBRL\)/);
 assert.match(compras, /quantidadeEntrada,\s*\{\s*vitrine:\s*0,\s*galpao:\s*quantidadeEntrada\s*\}/);
 assert.match(compras, /custoPraticadoBRL/);
 assert.match(compras, /custoFinalAquisicaoBRL:\s*totalFinalBRL/);
@@ -158,7 +159,7 @@ assert.match(app, /<span>CMV<\/span>/);
 console.log('Compra, rateio, custo médio, snapshots, CMV, margem, comissão, devolução, painel e compatibilidade: 15/15 grupos aprovados.');
 
 const adicionarProdutoFonte = compras.match(/const confirmarAdicaoRapida = \(\) => \{([\s\S]*?)\n  \};/);
-const produtoEntradaFonte = compras.match(/return \{\s*\.\.\.entrada\.produto,[\s\S]*?\n          \};/);
+const produtoEntradaFonte = compras.match(/let monetario=atualizarQuantiaProduto[\s\S]*?return \{\s*\.\.\.monetario,[\s\S]*?\n          \};/);
 assert.ok(adicionarProdutoFonte, 'Handler real de adição de produto localizado');
 assert.ok(produtoEntradaFonte, 'Produto real retornado pela entrada localizado');
 
@@ -166,7 +167,7 @@ const adicionarProdutoRecompra = (produto) => {
   let itens;
   runInNewContext(`(() => {${adicionarProdutoFonte[1]}})()`, {
     itemParaAdicionar: produto, qtdDigitadaRapida:'10', itensCompra:[], moeda:'BRL',
-    converterDeBRL: valor => valor,
+    converterDeBRL: valor => valor, converterParaBRL: valor=>valor, valorProdutoBRL,
     setItensCompra: valor => { itens = valor; },
     setItemParaAdicionar: () => {}, setTermoBusca: () => {}, inputBuscaRef:{ current:null },
   });
@@ -181,7 +182,7 @@ const concluirProdutoEntrada = (produto, itemComprado) => {
     quantidadeEntrada,
     custoFinalEntradaUnitarioBRL:itemComprado.custoFinalAquisicaoUnitarioBRL,
   });
-  return runInNewContext(`(() => {${produtoEntradaFonte[0]}})()`, { entrada, custoMedioBRL, itemComprado, p:produto });
+  return runInNewContext(`(() => {${produtoEntradaFonte[0]}})()`, { entrada, custoMedioBRL, itemComprado, p:produto,moeda:'BRL',converterDeBRL:v=>v,converterParaBRL:v=>v,atualizarQuantiaProduto });
 };
 
 const produtoNovoFornecedor = { id:'RECOMPRA', sku:'RECOMPRA', custoBRL:15, precoBRL:50, estoque:0, estoqueVitrine:0, estoqueGalpao:0 };
@@ -205,7 +206,7 @@ const vendaAntesRecompra = {
 const snapshotAntesRecompra = JSON.stringify(vendaAntesRecompra);
 assert.equal(calcularCmvVenda(vendaAntesRecompra), 20);
 assert.equal(calcularMargemPercentual(50, 50 - calcularCmvVenda(vendaAntesRecompra)), 60);
-const segundaEntradaFornecedor = ratearCustosAquisicao([{ ...recompraFornecedor, custoPraticadoBRL:17, precoVendaBRL:55 }], 50)[0];
+const segundaEntradaFornecedor = ratearCustosAquisicao([{ ...recompraFornecedor, custoPraticadoBRL:17, precoVendaBRL:55,precoVendaAlterado:true }], 50)[0];
 const produtoAposRecompra = concluirProdutoEntrada(produtoAposEntrada, segundaEntradaFornecedor);
 assert.equal(produtoAposRecompra.ultimoCustoFornecedorBRL, 17);
 assert.equal(produtoAposRecompra.custoBRL, 21);

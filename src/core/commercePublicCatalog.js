@@ -1,3 +1,4 @@
+import { interpretarValorMonetario } from './cashMoneyInput.js';
 /* ZenOS Commerce CDN: apenas contrato de publicação, sem Firestore ou rede. */
 const texto=(v,n=240)=>String(v??'').trim().slice(0,n);
 const numero=v=>Number.isFinite(Number(v))?Number(v):0;
@@ -23,13 +24,19 @@ export function criarSnapshotCommercePublico({lojaId,config={},produtos=[],publi
     const x=ajustes[id]&&typeof ajustes[id]==='object'?ajustes[id]:{};
     const estoque=Math.max(0,Math.trunc(numero(p.estoque)));
     if(!(x.ativo!==undefined?x.ativo!==false:estoque>0))continue;
-    const preco=Math.max(0,numero(p.precoBRL??p.preco??p.precoVenda??p.precoUnitario));
+    let preco=Math.max(0,numero(p.precoBRL??p.preco??p.precoVenda??p.precoUnitario));
+    if(p.precoOriginal){
+      const original=interpretarValorMonetario(p.precoOriginal.valor,p.precoOriginal.moeda);
+      const taxa=p.precoOriginal.moeda==='BRL'?1:Number(c.taxasCambio?.[p.precoOriginal.moeda]);
+      if(!original.ok||!Number.isFinite(taxa)||taxa<=0)throw Error('preco-original-invalido');
+      preco=original.valor/taxa;
+    }
     const fotos=Array.isArray(x.imagensLoja)&&x.imagensLoja.length
       ?x.imagensLoja.slice(0,5).map(imagem).filter(Boolean)
       :[imagem(x.imagemLoja||p.imagem||p.fotoUrl)].filter(Boolean);
     // Não exportar custo, fornecedor, clientes, vendas, finanças nem metadados internos.
     visiveis.push({id,nome:texto(p.nome,200),grupo:texto(p.grupo||p.categoria||'Geral',80),
-      precoBRL:preco,estoque,descricao:texto(p.descricao||p.detalhes,1200),fotoUrl:fotos[0]||''});
+      precoBRL:preco,...(p.precoOriginal?{precoOriginal:{valor:Number(p.precoOriginal.valor),moeda:p.precoOriginal.moeda}}:{}),estoque,descricao:texto(p.descricao||p.detalhes,1200),fotoUrl:fotos[0]||''});
     personalizacoes[id]={ativo:x.ativo!==false,nomeLoja:texto(x.nomeLoja,200),
       descricaoLoja:texto(x.descricaoLoja,1200),
       precoPromoBRL:numero(x.precoPromoBRL)>0?numero(x.precoPromoBRL):'',
@@ -37,6 +44,8 @@ export function criarSnapshotCommercePublico({lojaId,config={},produtos=[],publi
       imagemLoja:fotos[0]||'',imagensLoja:fotos};
   }
   return {versao:1,lojaId:uid,publicadoEm:texto(publicadoEm,40),config:{
+    moedaPadrao:['BRL','PYG','USD','EUR'].includes(c.moedaPadrao)?c.moedaPadrao:'BRL',
+    taxasCambio:Object.fromEntries(['BRL','PYG','USD','EUR'].map(m=>[m,m==='BRL'?1:numero(c.taxasCambio?.[m])])),
     habilitado:c.habilitado!==false,slug:texto(c.slug,40),nomeLoja:texto(c.nomeLoja,200),
     slogan:texto(c.slogan,300),descricao:texto(c.descricao,1200),
     whatsapp:texto(c.whatsapp,40),mensagemPadrao:texto(c.mensagemPadrao,500),
@@ -65,11 +74,11 @@ export function conferirCarrinhoContraSnapshot(snapshot,itens){
     if(!Number.isInteger(q)||q<1||q>99||q>p.estoque)throw Error('estoque-ou-quantidade-invalida');
     const x=snapshot.config.produtosLoja?.[id]||{};
     if(x.ativo===false)throw Error('produto-inativo');
-    const normal=numero(p.precoBRL),promocional=numero(x.precoPromoBRL);
+    const normal=precoPublicadoNativo(p,snapshot.config),promocional=numero(x.precoPromoBRL)*taxaCommerce(snapshot.config);
     const desconto=numero(snapshot.config.descontoGeralPorcentagem);
     const preco=promocional>0&&promocional<normal?promocional
-      :desconto>0?Math.round(normal*(1-desconto/100)*100)/100:normal;
-    const centavos=Math.round(preco*100);
+      :desconto>0?normal*(1-desconto/100):normal;
+    const centavos=Math.round(preco*escalaCommerce(snapshot.config));
     if(!Number.isSafeInteger(centavos)||centavos<=0)throw Error('preco-invalido');
     totalCentavos+=centavos*q;
     if(!Number.isSafeInteger(totalCentavos))throw Error('total-invalido');
@@ -102,4 +111,18 @@ export function dividirCatalogoPublico(snapshot,publicacaoId,{tamanhoPagina=COMM
       config:{...config,produtosLoja:{}}},
     paginas
   };
+}
+
+export function moedaCommerce(config={}){return ['BRL','PYG','USD','EUR'].includes(config.moedaPadrao)?config.moedaPadrao:'BRL';}
+export function escalaCommerce(config={}){return moedaCommerce(config)==='PYG'?1:100;}
+export function taxaCommerce(config={}){
+ const m=moedaCommerce(config),taxa=m==='BRL'?1:Number(config.taxasCambio?.[m]);
+ if(!Number.isFinite(taxa)||taxa<=0)throw Error('cotacao-publica-invalida');
+ return taxa;
+}
+export function minorCommerceParaBRL(valor,config={}){return valor/escalaCommerce(config)/taxaCommerce(config);}
+export function precoPublicadoNativo(produto,config={}){
+ const m=moedaCommerce(config);
+ if(produto.precoOriginal?.moeda===m)return Number(produto.precoOriginal.valor);
+ return Number(produto.precoBRL||0)*taxaCommerce(config);
 }

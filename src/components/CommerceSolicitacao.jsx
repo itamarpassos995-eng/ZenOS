@@ -1,3 +1,4 @@
+import { projetarProdutoMonetario, quantiaOriginalProduto } from '../core/productMoney.js';
 import React, { useEffect, useRef, useState } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { doc, getDoc, setDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
@@ -39,7 +40,8 @@ const CORES_TEMA = [
   { id: '#0f172a', nome: 'Grafite' }
 ];
 
-export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produtos = [], tx = (pt) => pt }) {
+export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produtos:produtosOriginais = [], converterParaBRL, moedaPadrao = 'BRL', taxasCambio = {}, tx = (pt) => pt }) {
+  const produtos=React.useMemo(()=>produtosOriginais.map(p=>projetarProdutoMonetario(p,converterParaBRL)),[produtosOriginais,converterParaBRL]);
   const [configCommerce, setConfigCommerce] = useState(() => lerCommerceConfigLocal(lojaId, perfilLoja));
   const [salvandoConfig, setSalvandoConfig] = useState(false);
   const [publicandoCdn, setPublicandoCdn] = useState(false);
@@ -469,6 +471,7 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
           // Enviar somente campos públicos, nunca custo, fornecedor, clientes ou histórico.
           produtos: produtos.map((p) => ({
             id: p.id, nome: p.nome, precoBRL: p.precoBRL, preco: p.preco,
+            precoOriginal: quantiaOriginalProduto(p,'precoBRL'),
             precoVenda: p.precoVenda, precoUnitario: p.precoUnitario,
             estoque: p.estoque, grupo: p.grupo, categoria: p.categoria,
             descricao: p.descricao, detalhes: p.detalhes,
@@ -1530,7 +1533,7 @@ export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produto
               <div className="commerce-mockup-screen commerce-premium-scroll">
                 <ZenCommerceStorefront
                   idPublico={lojaId}
-                  configCommerce={configCommerce}
+                  configCommerce={{...configCommerce,moedaPadrao,taxasCambio}}
                   produtos={produtos}
                   isLivePreview={true}
                 />

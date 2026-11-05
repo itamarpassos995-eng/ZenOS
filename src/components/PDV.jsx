@@ -1,3 +1,4 @@
+import { produtoParaFormularioMonetario, registrarValoresProduto, valorProdutoBRL, projetarProdutoMonetario } from '../core/productMoney.js';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { normalizarProduto, normalizarCliente } from '../data';
 import { aplicarVendaAoEstoque, obterEstoqueProduto, preverBaixaEstoqueProduto } from '../core/inventory';
@@ -32,7 +33,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   const [autoriaAtendimento, setAutoriaAtendimento] = useState(() =>
     rascunhoInicial?.autoriaAtendimento || (rascunhoInicial?.itensVenda?.length ? autoriaDoOperador(operadorAtivo) : null));
   const [descontoTexto, setDescontoTexto] = useState(rascunhoInicial?.descontoTexto || '0');
-  
+
   const [nomeClienteVulso, setNomeClienteVulso] = useState(rascunhoInicial?.nomeClienteVulso || '');
   const [clienteSelecionadoPDV, setClienteSelecionadoPDV] = useState(() => {
     const salvo = rascunhoInicial?.clienteSelecionadoPDV;
@@ -57,7 +58,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   const [valorLancamentoInput, setValorLancamentoInput] = useState('');
   const [voucherCodigoInput, setVoucherCodigoInput] = useState('');
   const [moedaTrocoEscolhida, setMoedaTrocoEscolhida] = useState('BRL');
-  
+
   const [vendaSucesso, setVendaSucesso] = useState(false);
   const [vendaConcluidaObj, setVendaConcluidaObj] = useState(null);
   const [processandoTransacao, setProcessandoTransacao] = useState(false);
@@ -198,7 +199,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
             produtoOriginalSku: prodExistente.sku,
             qtd,
             precoPraticadoBRL: preco,
-            precoTexto: converterDeBRL(preco, moeda).toFixed(2)
+            precoTexto: converterDeBRL(preco, moeda).toFixed(moeda==='PYG'?0:2)
           };
         }
 
@@ -210,7 +211,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
           nome: item.nome || 'Item Loja Online',
           qtd,
           precoPraticadoBRL: preco,
-          precoTexto: converterDeBRL(preco, moeda).toFixed(2),
+          precoTexto: converterDeBRL(preco, moeda).toFixed(moeda==='PYG'?0:2),
           custoBRL: 0
         };
       });
@@ -365,8 +366,8 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
 
   const aplicarPrecoPorPerfilCliente = (prod, cliente) => {
     if (!prod) return 0;
-    if (cliente && cliente.perfilPreco === 'preco2' && prod.habilitarPreco2 && prod.preco2BRL > 0) return prod.preco2BRL;
-    return prod.precoBRL || 0;
+    if (cliente && cliente.perfilPreco === 'preco2' && prod.habilitarPreco2 && prod.preco2BRL > 0) return valorProdutoBRL(prod,'preco2BRL',converterParaBRL);
+    return valorProdutoBRL(prod,'precoBRL',converterParaBRL);
   };
 
   const obterProdutoCatalogoSeguro = (item, contexto = 'consulta do PDV') => {
@@ -380,7 +381,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     const porId = (produtos || []).filter(produto => String(produto?.id) === String(produtoId));
     const porSku = porId.filter(produto => String(produto?.sku || '').toUpperCase() === produtoSku);
     const produtoAtual = porId.length === 1 ? porId[0] : porSku.length === 1 ? porSku[0] : null;
-    const custoAtual = Number(produtoAtual?.custoBRL);
+    const custoAtual = valorProdutoBRL(produtoAtual,'custoBRL',converterParaBRL);
     return produtoAtual && Number.isFinite(custoAtual) && custoAtual >= 0 && custoAtual !== Number(item.custoBRL)
       ? { ...item, custoBRL: custoAtual }
       : item;
@@ -391,7 +392,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       const novosItens = itensVenda.map(item => {
         const prodOriginal = obterProdutoCatalogoSeguro(item, 'reprecificação por cliente');
         const novoPrecoBRL = aplicarPrecoPorPerfilCliente(prodOriginal, cli);
-        return { ...item, precoPraticadoBRL: novoPrecoBRL, precoTexto: converterDeBRL(novoPrecoBRL, moeda).toFixed(2) };
+        return { ...item, precoPraticadoBRL: novoPrecoBRL, precoTexto: converterDeBRL(novoPrecoBRL, moeda).toFixed(moeda==='PYG'?0:2) };
       });
       setClienteSelecionadoPDV(cli); setNomeClienteVulso(cli.nome); setFocoInputCliente(false);
       setItensVenda(novosItens);
@@ -402,7 +403,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     try {
       const novosItens = itensVenda.map(item => {
         const prodOriginal = obterProdutoCatalogoSeguro(item, 'retorno ao preço de balcão');
-        return { ...item, precoPraticadoBRL: prodOriginal.precoBRL || 0, precoTexto: converterDeBRL(prodOriginal.precoBRL || 0, moeda).toFixed(2) };
+        return { ...item, precoPraticadoBRL: valorProdutoBRL(prodOriginal,'precoBRL',converterParaBRL), precoTexto: converterDeBRL(valorProdutoBRL(prodOriginal,'precoBRL',converterParaBRL), moeda).toFixed(moeda==='PYG'?0:2) };
       });
       setClienteSelecionadoPDV(null); setNomeClienteVulso('');
       setItensVenda(novosItens);
@@ -430,13 +431,15 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
             return copia;
           }
           return [...prev, {
-            ...prodOriginal,
+            ...projetarProdutoMonetario(prodOriginal,converterParaBRL),
+            snapshotMoedasProduto: prodOriginal.valoresMonetarios || null,
+            taxasCambioItem: {...taxasCambio},
             id: `${prodOriginal.id}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
             produtoOriginalId: prodOriginal.id,
             produtoOriginalSku: prodOriginal.sku,
             qtd: '1',
             precoPraticadoBRL: precoBase,
-            precoTexto: converterDeBRL(precoBase, moeda).toFixed(2)
+            precoTexto: converterDeBRL(precoBase, moeda).toFixed(moeda==='PYG'?0:2)
           }];
         });
       }
@@ -476,16 +479,15 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   };
 
   const abrirCadastroProdutoPDV = () => {
-    setProdutoEmEdicaoPDV(null); 
+    setProdutoEmEdicaoPDV(null);
     setFormProdutoPDV(normalizarProduto({ id: gerarIdSeguro('PROD-BALCAO'), ativo: true, sku: gerarSkuProdutoBalcao('BALCAO'), usoUnicoEncomendado: false, classificacaoUso: 'estoque', estoque: 0, estoqueVitrine: 0, estoqueGalpao: 0 }));
     setModalProdutoPDVAberto(true);
   };
 
   const abrirEdicaoProdutoPDV = (prod) => {
-    setProdutoEmEdicaoPDV(prod); 
+    setProdutoEmEdicaoPDV(prod);
     setFormProdutoPDV({
-      ...normalizarProduto(prod), custoBRL: (prod.custoBRL || 0).toString(), precoBRL: (prod.precoBRL || 0).toString(),
-      preco2BRL: (prod.preco2BRL || 0).toString(), preco3BRL: (prod.preco3BRL || 0).toString(), estoque: (prod.estoque || 0).toString(),
+      ...normalizarProduto(prod), ...produtoParaFormularioMonetario(prod,moeda,converterDeBRL), estoque: (prod.estoque || 0).toString(),
       usoUnicoEncomendado: ehEncomendaUsoUnico(prod)
     });
     setModalProdutoPDVAberto(true);
@@ -497,12 +499,10 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
         tx('Regularize o estoque antes de desativar esta opção.','Regularice el stock antes de desactivar esta opción.','Reconcile stock before disabling this option.'));
     }
     if (!formProdutoPDV.nome.trim()) return mostrarZen('warning', tx("Nome obrigatório","Nombre obligatorio"), tx('Informe o nome do produto.', 'Informe el nombre del producto.', 'Enter product name.'));
-    const custo = parseFloat(String(formProdutoPDV.custoBRL).replace(',', '.')) || 0;
-    const preco = parseFloat(String(formProdutoPDV.precoBRL).replace(',', '.')) || 0;
-    const preco2 = formProdutoPDV.habilitarPreco2 ? (parseFloat(String(formProdutoPDV.preco2BRL).replace(',', '.')) || 0) : 0;
-    const preco3 = formProdutoPDV.habilitarPreco3 ? (parseFloat(String(formProdutoPDV.preco3BRL).replace(',', '.')) || 0) : 0;
-    const estoqueVitrineNovo = Math.max(0, parseInt(String(formProdutoPDV.estoqueVitrine)) || 0);
-    const estoqueGalpaoNovo = Math.max(0, parseInt(String(formProdutoPDV.estoqueGalpao)) || 0);
+    let dinheiroProduto;
+    try { dinheiroProduto=registrarValoresProduto(formProdutoPDV,moeda,converterParaBRL,produtoEmEdicaoPDV,converterDeBRL); }
+    catch(error){return mostrarZen('warning',tx('Valor inválido','Importe inválido','Invalid amount'),error.message);}
+    const {custoBRL:custo,precoBRL:preco,preco2BRL:preco2,preco3BRL:preco3}=dinheiroProduto;
     const estoque = produtoEmEdicaoPDV
       ? Number(normalizarProduto(produtoEmEdicaoPDV).estoque) || 0
       : estoqueVitrineNovo + estoqueGalpaoNovo;
@@ -513,6 +513,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     const dadosFinais = normalizarProduto({
       ...formProdutoPDV,
       sku: skuAjustado,
+      valoresMonetarios: dinheiroProduto.valoresMonetarios,
       custoBRL: custo,
       precoBRL: preco,
       preco2BRL: preco2,
@@ -592,9 +593,9 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
 
   const lidarTecladoBusca = (e) => {
     if (produtosFiltrados.length === 0 || termoBusca.trim() === '') return;
-    if (e.key === 'ArrowDown') { e.preventDefault(); setIndiceFocoBusca((prev) => (prev + 1) % produtosFiltrados.length); } 
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setIndiceFocoBusca((prev) => (prev - 1 + produtosFiltrados.length) % produtosFiltrados.length); } 
-    else if (e.key === 'Enter') { e.preventDefault(); const itemEscolhido = produtosFiltrados[indiceFocoBusca] || produtosFiltrados[0]; if (itemEscolhido) { setItemParaAdicionar(itemEscolhido); setQtdDigitadaRapida('1'); } } 
+    if (e.key === 'ArrowDown') { e.preventDefault(); setIndiceFocoBusca((prev) => (prev + 1) % produtosFiltrados.length); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setIndiceFocoBusca((prev) => (prev - 1 + produtosFiltrados.length) % produtosFiltrados.length); }
+    else if (e.key === 'Enter') { e.preventDefault(); const itemEscolhido = produtosFiltrados[indiceFocoBusca] || produtosFiltrados[0]; if (itemEscolhido) { setItemParaAdicionar(itemEscolhido); setQtdDigitadaRapida('1'); } }
     else if (e.key === 'Escape') { setTermoBusca(''); }
   };
 
@@ -615,23 +616,25 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       novaLista[indiceExistente] = { ...novaLista[indiceExistente], qtd: String(qtdAtual + qtdNum) };
       setItensVenda(novaLista);
     } else {
-      setItensVenda([ ...itensVenda, { 
-        ...itemParaAdicionar, 
+      setItensVenda([ ...itensVenda, {
+        ...projetarProdutoMonetario(itemParaAdicionar,converterParaBRL),
+        snapshotMoedasProduto:itemParaAdicionar.valoresMonetarios||null,
+        taxasCambioItem:{...taxasCambio},
         id: `${itemParaAdicionar.id}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         produtoOriginalId: itemParaAdicionar.id,
         produtoOriginalSku: itemParaAdicionar.sku,
-        qtd: String(qtdNum), 
-        precoPraticadoBRL: precoBase, 
-        precoTexto: converterDeBRL(precoBase, moeda).toFixed(2) 
+        qtd: String(qtdNum),
+        precoPraticadoBRL: precoBase,
+        precoTexto: converterDeBRL(precoBase, moeda).toFixed(moeda==='PYG'?0:2)
       }]);
     }
-    setItemParaAdicionar(null); setTermoBusca(''); 
+    setItemParaAdicionar(null); setTermoBusca('');
     if (inputBuscaRef.current) inputBuscaRef.current.focus();
   };
 
   const removerItem = (id) => { setItensVenda(itensVenda.filter(item => item.id !== id)); };
   const atualizarQtd = (id, valor) => { setItensVenda(itensVenda.map(item => item.id === id ? { ...item, qtd: String(Math.max(1, parseInt(valor) || 1)) } : item)); };
-  const lidarDigitacaoPreco = (id, valorDigitado) => { setItensVenda(itensVenda.map(item => item.id === id ? { ...item, precoTexto: valorDigitado, precoPraticadoBRL: converterParaBRL(parseFloat(valorDigitado.replace(',', '.')) || 0, moeda) } : item)); };
+  const lidarDigitacaoPreco = (id, valorDigitado) => { setItensVenda(itensVenda.map(item => item.id === id ? { ...item, precoTexto: valorDigitado, precoPraticadoBRL: converterParaBRL(interpretarValorMonetario(valorDigitado,moeda).valor||0, moeda), precoEntradaInvalida: !interpretarValorMonetario(valorDigitado,moeda).ok } : item)); };
 
   const [consultandoResgate, setConsultandoResgate] = useState(false);
   const resgateEmAndamentoRef = useRef(false);
@@ -691,7 +694,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   const custoTotalBRL = useMemo(() => itensVendaComCustoAtual(itensVenda).reduce((acc, item) =>
     acc + (Math.max(0, parseInt(item.qtd) || 0) * (item.custoBRL || 0)), 0), [itensVenda, produtos]);
   const descBRL = converterParaBRL(parseFloat(String(descontoTexto).replace(',', '.')) || 0, moeda);
-  
+
   const totalFinalBRL = Math.max(0, subtotalBrutoBRL - descBRL);
   const lucroEstimadoBRL = totalFinalBRL - custoTotalBRL;
   const margemLucroReal = totalFinalBRL > 0 ? (lucroEstimadoBRL / totalFinalBRL) * 100 : 0;
@@ -720,28 +723,28 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   }
 
   const catalogoFormas = [
-    { id: 'dinheiro_brl', rotulo: tx('Dinheiro (R$)', 'Efectivo (R$)', 'Cash (R$)'), moedaOrigem: 'BRL', icone: '💵' }, 
+    { id: 'dinheiro_brl', rotulo: tx('Dinheiro (R$)', 'Efectivo (R$)', 'Cash (R$)'), moedaOrigem: 'BRL', icone: '💵' },
     { id: 'dinheiro_usd', rotulo: tx('Dólar ($)', 'Dólar ($)', 'Dollar ($)'), moedaOrigem: 'USD', icone: '💵' },
-    { id: 'dinheiro_pyg', rotulo: tx('Guarani (₲)', 'Guaraní (₲)', 'Guarani (₲)'), moedaOrigem: 'PYG', icone: '💵' }, 
+    { id: 'dinheiro_pyg', rotulo: tx('Guarani (₲)', 'Guaraní (₲)', 'Guarani (₲)'), moedaOrigem: 'PYG', icone: '💵' },
     { id: 'dinheiro_eur', rotulo: tx('Euro (€)', 'Euro (€)', 'Euro (€)'), moedaOrigem: 'EUR', icone: '💶' },
-    { id: 'pix', rotulo: 'Pix QR Code', moedaOrigem: 'BRL', icone: '⚡' }, 
+    { id: 'pix', rotulo: 'Pix QR Code', moedaOrigem: 'BRL', icone: '⚡' },
     // Os IDs antigos são mantidos para BRL. Cada maquininha usa a moeda cobrada.
     ...([moeda,...['BRL','PYG','USD','EUR'].filter(m=>m!==moeda)].filter(m=>['BRL','PYG','USD','EUR'].includes(m))).flatMap(m => [
       { id: m === 'BRL' ? 'cartaoCredito' : `cartaoCredito_${m.toLowerCase()}`, rotulo: `${tx('Cartão Crédito','Tarjeta Crédito','Credit Card')} (${m})`, moedaOrigem:m, icone:'💳' },
       { id: m === 'BRL' ? 'cartaoDebito' : `cartaoDebito_${m.toLowerCase()}`, rotulo: `${tx('Cartão Débito','Tarjeta Débito','Debit Card')} (${m})`, moedaOrigem:m, icone:'💳' },
     ]),
     { id: 'voucher', rotulo: 'Voucher', moedaOrigem: 'BRL', icone: '🎟️' },
-    { id: 'cheque', rotulo: 'Cheque', moedaOrigem: 'BRL', icone: '📝' }, 
+    { id: 'cheque', rotulo: 'Cheque', moedaOrigem: 'BRL', icone: '📝' },
     { id: 'crediario', rotulo: tx('Crediário / Fiado', 'Fiado / Crédito', 'Store Credit'), moedaOrigem: 'BRL', icone: '📒' }
   ];
 
   const totalPagoConvertidoBRL = pagamentosLancados.reduce((acc, p) => acc + (p.valorConvertidoBRL || 0), 0);
   const saldoRestanteBRL = Math.max(0, totalFinalBRL - totalPagoConvertidoBRL);
-  
+
   const totalDinheiroBRL = pagamentosLancados
     .filter(p => p.formaId && p.formaId.startsWith('dinheiro'))
     .reduce((acc, p) => acc + (p.valorConvertidoBRL || 0), 0);
-    
+
   // Cálculo de troco em centavos inteiros: R$ 0,01 também deve ser devolvido.
   // Pagamentos eletrônicos/fiado/voucher não podem gerar troco fictício.
   const { podeConcluir: podeFinalizarVenda, trocoBRL: trocoCalculadoBRL } = validarComposicaoPagamento({
@@ -752,11 +755,12 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   const trocoTotalBRL = trocoCalculadoBRL || 0;
 
   const abrirCheckoutAposValidacoes = () => {
+    if(itensVenda.some(i=>i.precoEntradaInvalida))return mostrarZen('warning',tx('Valor inválido','Importe inválido','Invalid amount'),tx('Confira os preços digitados e a moeda.','Revise los precios ingresados y la moneda.','Check entered prices and currency.'));
     if (itensVenda.length === 0 || totalFinalBRL <= 0) return mostrarZen('warning', tx("Venda vazia","Venta vacía"), tx('Adicione produtos à venda.', 'Añada productos.', 'Add products.'));
     setPagamentosLancados([]);
     setFormaSelecionada(moeda === 'PYG' ? 'dinheiro_pyg' : moeda === 'USD' ? 'dinheiro_usd' : moeda === 'EUR' ? 'dinheiro_eur' : 'dinheiro_brl');
     setMoedaTrocoEscolhida(moeda);
-    setValorLancamentoInput(moeda === 'PYG' ? String(Math.round(converterDeBRL(totalFinalBRL, moeda))) : converterDeBRL(totalFinalBRL, moeda).toFixed(2));
+    setValorLancamentoInput(moeda === 'PYG' ? String(Math.round(converterDeBRL(totalFinalBRL, moeda))) : converterDeBRL(totalFinalBRL, moeda).toFixed(moeda==='PYG'?0:2));
     setVendaSucesso(false);
     setModalFechamentoAberto(true);
   };
@@ -828,7 +832,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       if (!clienteAtualPDV) return mostrarZen('warning', tx('Cliente obrigatório','Cliente obligatorio','Customer required'), tx('Para vender fiado, vincule um cliente antes de finalizar.','Para vender a crédito, vincule un cliente antes de finalizar.','To sell on credit, link a customer before completing the sale.'));
 
       const limite = parseFloat(clienteAtualPDV.limiteCreditoBRL) || 0;
-      
+
       // TRAVA 1: Se o cliente não tem limite ou o limite é zero
       if (limite <= 0) {
         return mostrarZen('danger', tx('Venda bloqueada','Venta bloqueada','Sale blocked'), tx('Este cliente não possui limite de crédito cadastrado ou o limite é zero.','Este cliente no posee límite de crédito registrado o el límite es cero.','This customer has no registered credit limit or the limit is zero.'));
@@ -841,9 +845,9 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       }
     }
 
-    const novaLista = [...pagamentosLancados, { 
-      id: Date.now(), 
-      formaId: configForma.id, 
+    const novaLista = [...pagamentosLancados, {
+      id: Date.now(),
+      formaId: configForma.id,
       rotulo: configForma.rotulo,
       icone: configForma.icone,
       moedaOrigem: configForma.moedaOrigem,
@@ -918,7 +922,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       const idsParaRemover = itensVenda
         .filter(it => ehEncomendaUsoUnico(it))
         .map(it => ({ id: it.produtoOriginalId || it.id, sku: it.produtoOriginalSku || it.sku }));
-      
+
       let novosProdutos = produtos;
       let novosClientes = null;
       const itensVendaAtualizada = itensVendaComCustoAtual(itensVenda);
@@ -1002,11 +1006,11 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
 
         const valorFiado = pagamentosLancados.filter(p => p.formaId === 'crediario').reduce((acc, p) => acc + (parseFloat(p.valorConvertidoBRL) || 0), 0);
         valorFiadoOperacao = valorFiado;
-        
+
         if (valorFiado > 0 && clienteSelecionadoPDV) {
-          novosClientes = (clientes || []).map(c => 
-            String(c.id) === String(clienteSelecionadoPDV.id) 
-              ? { ...c, saldoDevedorBRL: (parseFloat(c.saldoDevedorBRL) || 0) + valorFiado } 
+          novosClientes = (clientes || []).map(c =>
+            String(c.id) === String(clienteSelecionadoPDV.id)
+              ? { ...c, saldoDevedorBRL: (parseFloat(c.saldoDevedorBRL) || 0) + valorFiado }
               : c
           );
         }
@@ -1022,6 +1026,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       if (tipoFinalizacao === 'venda') {
         itensDocumento = itensDocumento.map(item => ({
           ...item,
+          precoNaVenda:{valor:converterDeBRL(Number(item.precoPraticadoBRL||0),moeda),moeda},
           custoNaVendaBRL: Number.isFinite(Number(item.custoBRL)) && Number(item.custoBRL) >= 0 ? Number(item.custoBRL) : 0,
         }));
       }
@@ -1039,8 +1044,11 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
         // O responsável pelo caixa pode ser diferente de quem lançou a venda.
         ...(tipoFinalizacao === 'venda' ? { finalizadoPorId: idSeguro, finalizadoPorNome: nomeSeguro } : {}),
         sessaoId: tipoFinalizacao === 'venda' ? sessaoAtiva?.id || null : null,
-        itens: itensDocumento, 
-        totalBRL: totalFinalBRL, 
+        itens: itensDocumento,
+        moedaDocumento:moeda,
+        totalOriginal:converterDeBRL(totalFinalBRL,moeda),
+
+        totalBRL: totalFinalBRL,
         lucroBRL: tipoFinalizacao === 'venda' ? totalFinalBRL - cmvVendaBRL : lucroEstimadoBRL,
         ...(tipoFinalizacao === 'venda' ? { cmvBRL: cmvVendaBRL } : {}),
         trocoBRL: tipoFinalizacao === 'venda' ? trocoTotalBRL : 0,
@@ -1337,7 +1345,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     setAutoriaAtendimento(null);
     setClienteSelecionadoPDV(null); setNomeClienteVulso('');
     setClienteQuerFiscal(false);
-    setPrePedidoEmAbertoId(null); 
+    setPrePedidoEmAbertoId(null);
     setModalFechamentoAberto(false); setVendaSucesso(false); setVendaConcluidaObj(null);
   };
 
@@ -1377,7 +1385,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
               </div>
               <button onClick={() => setModalResgateAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #334155', color: '#94a3b8', borderRadius: '10px', width: '36px', height: '36px', cursor: 'pointer', fontWeight: 900 }}>✕</button>
             </div>
-            
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {/* SEÇÃO PEDIDOS DA LOJA ONLINE */}
               {pedidosOnline.length > 0 && (
@@ -1598,7 +1606,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                   <thead><tr><th>{tx('Qtd','Cant.','Qty')}</th><th>{tx('Item','Ítem','Item')}</th><th style={{ textAlign: 'right' }}>{tx('Vl. Un','Val. Un.','Unit Price')}</th><th style={{ textAlign: 'right' }}>{tx('Total','Total','Total')}</th></tr></thead>
                   <tbody>
                     {vendaConcluidaObj.itens.map((it, idx) => (
-                      <tr key={idx}><td>{it.qtd}</td><td>{it.nome.substring(0, 15)}</td><td style={{ textAlign: 'right' }}>{converterDeBRL(it.precoPraticadoBRL, moeda).toFixed(2)}</td><td style={{ textAlign: 'right' }}>{converterDeBRL((it.precoPraticadoBRL * it.qtd), moeda).toFixed(2)}</td></tr>
+                      <tr key={idx}><td>{it.qtd}</td><td>{it.nome.substring(0, 15)}</td><td style={{ textAlign: 'right' }}>{converterDeBRL(it.precoPraticadoBRL, moeda).toFixed(moeda==='PYG'?0:2)}</td><td style={{ textAlign: 'right' }}>{converterDeBRL((it.precoPraticadoBRL * it.qtd), moeda).toFixed(moeda==='PYG'?0:2)}</td></tr>
                     ))}
                   </tbody>
                 </table>
@@ -1612,7 +1620,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                     </div>
                   ))}
                 </div>
-                
+
                 <div style={{ marginTop: '15px', textAlign: 'center', fontSize: '14px', fontWeight: 'bold', border: '1px solid #000', padding: '5px' }}>
                   {vendaConcluidaObj.tipoDocumento === 'pre_pedido' ? tx('DIRIJA-SE AO CAIXA PARA PAGAR','DIRÍJASE A CAJA PARA PAGAR','GO TO CHECKOUT TO PAY') : tx('ORÇAMENTO VÁLIDO POR 7 DIAS','PRESUPUESTO VÁLIDO POR 7 DÍAS','QUOTE VALID FOR 7 DAYS')}
                 </div>
@@ -1631,18 +1639,18 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
 
       {/* COLUNA ESQUERDA: CLIENTE, BUSCA E LISTA DE ITENS */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
-        
+
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ position: 'relative', flex: 1, minWidth: '220px' }}>
             <div style={{ position: 'absolute', top: '14px', left: '16px', fontSize: '18px' }}>👤</div>
-            <input 
-              type="text" 
-              placeholder={tx('Consumidor Final (Digite o nome para avulso ou buscar fiado)...', 'Consumidor Final...', 'Walk-in Customer...')} 
-              value={nomeClienteVulso} 
-              onChange={(e) => { if (clienteSelecionadoPDV) setClienteSelecionadoPDV(null); setNomeClienteVulso(e.target.value); }} 
-              onFocus={() => setFocoInputCliente(true)} 
-              onBlur={() => setTimeout(() => setFocoInputCliente(false), 200)} 
-              style={{ width: '100%', padding: '16px 20px 16px 44px', backgroundColor: clienteSelecionadoPDV ? '#082f49' : '#0b1120', border: `1px solid ${clienteSelecionadoPDV ? '#0284c7' : '#1e293b'}`, borderRadius: '14px', color: clienteSelecionadoPDV ? '#38bdf8' : '#f8fafc', fontSize: '15px', fontWeight: clienteSelecionadoPDV ? 900 : 600, outline: 'none', boxSizing: 'border-box' }} 
+            <input
+              type="text"
+              placeholder={tx('Consumidor Final (Digite o nome para avulso ou buscar fiado)...', 'Consumidor Final...', 'Walk-in Customer...')}
+              value={nomeClienteVulso}
+              onChange={(e) => { if (clienteSelecionadoPDV) setClienteSelecionadoPDV(null); setNomeClienteVulso(e.target.value); }}
+              onFocus={() => setFocoInputCliente(true)}
+              onBlur={() => setTimeout(() => setFocoInputCliente(false), 200)}
+              style={{ width: '100%', padding: '16px 20px 16px 44px', backgroundColor: clienteSelecionadoPDV ? '#082f49' : '#0b1120', border: `1px solid ${clienteSelecionadoPDV ? '#0284c7' : '#1e293b'}`, borderRadius: '14px', color: clienteSelecionadoPDV ? '#38bdf8' : '#f8fafc', fontSize: '15px', fontWeight: clienteSelecionadoPDV ? 900 : 600, outline: 'none', boxSizing: 'border-box' }}
             />
             {clienteSelecionadoPDV && (
               <div style={{ position: 'absolute', top: '16px', right: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1704,7 +1712,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: 'auto' }}>
                   <input type="number" value={item.qtd} onChange={(e) => atualizarQtd(item.id, e.target.value)} onFocus={(e) => e.target.select()} style={{ width: '45px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontWeight: 800, fontSize: '13px', textAlign: 'center', padding: '6px', outline: 'none' }} />
-                  <input type="text" value={item.precoTexto !== undefined ? item.precoTexto : converterDeBRL(item.precoPraticadoBRL, moeda).toFixed(2)} onChange={(e) => lidarDigitacaoPreco(item.id, e.target.value)} onFocus={(e) => e.target.select()} style={{ width: '75px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#34d399', fontWeight: 800, fontSize: '13px', textAlign: 'right', padding: '6px', outline: 'none' }} />
+                  <input type="text" value={item.precoTexto !== undefined ? item.precoTexto : converterDeBRL(item.precoPraticadoBRL, moeda).toFixed(moeda==='PYG'?0:2)} onChange={(e) => lidarDigitacaoPreco(item.id, e.target.value)} onFocus={(e) => e.target.select()} style={{ width: '75px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#34d399', fontWeight: 800, fontSize: '13px', textAlign: 'right', padding: '6px', outline: 'none' }} />
                   <div style={{ width: '85px', textAlign: 'right', fontWeight: 900, color: '#34d399', fontSize: '15px' }}>{fmt(Math.max(0, parseInt(item.qtd) || 0) * (item.precoPraticadoBRL || 0))}</div>
                 </div>
               </div>
@@ -1714,7 +1722,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
-        
+
         <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
           <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', letterSpacing: '1px', textTransform: 'uppercase' }}>{t('resumoVenda')}</span>
           <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#cbd5e1', cursor: 'pointer', minHeight: '44px' }}>
@@ -1789,7 +1797,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
               )}
             </button>
           </div>
-          
+
           <button onClick={abrirFechamento} style={{ background: vendaBloqueadaPorMargem ? '#334155' : 'linear-gradient(135deg, #4f46e5, #4338ca)', border: '1px solid #6366f1', color: '#fff', padding: '18px', borderRadius: '14px', fontSize: '15px', fontWeight: 900, cursor: vendaBloqueadaPorMargem ? 'not-allowed' : 'pointer', textAlign: 'center', boxShadow: '0 4px 15px rgba(79, 70, 229, 0.3)', width: '100%', boxSizing: 'border-box' }}>
             {tx("[F10] Receber no Caixa","[F10] Cobrar en caja")} {vendaBloqueadaPorMargem ? '🔒' : ''}
           </button>
@@ -1875,8 +1883,8 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
             </div>
             <div style={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', padding: '16px 20px', marginBottom: '18px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: '12px', alignItems: 'start', marginBottom: '12px' }}>
-                <div><label style={{ minHeight:28, display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Custo (R$)','Costo (R$)','Cost (R$)')}</label><input type="text" value={formProdutoPDV.custoBRL} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, custoBRL: e.target.value })} style={{ width: '100%', height:40, backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontWeight: 800, fontSize: '14px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
-                <div><label style={{ minHeight:28, display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Preço Venda (R$)','Precio Venta (R$)','Sale Price (R$)')}</label><input type="text" value={formProdutoPDV.precoBRL} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, precoBRL: e.target.value })} style={{ width: '100%', height:40, backgroundColor: '#0b1120', border: '1px solid #34d399', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
+                <div><label style={{ minHeight:28, display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Custo','Costo','Cost')} ({formProdutoPDV.moedaCusto||moeda})</label><input type="text" value={formProdutoPDV.custoBRL} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, custoBRL: e.target.value })} style={{ width: '100%', height:40, backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontWeight: 800, fontSize: '14px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
+                <div><label style={{ minHeight:28, display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Preço Venda','Precio Venta','Sale Price')} ({formProdutoPDV.moedaPreco||moeda})</label><input type="text" value={formProdutoPDV.precoBRL} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, precoBRL: e.target.value })} style={{ width: '100%', height:40, backgroundColor: '#0b1120', border: '1px solid #34d399', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
                 <div><label style={{ minHeight:28, display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#38bdf8', fontWeight: 700 }}>{tx('Vitrine / Loja','Exhibición / Tienda','Display / Store')}</label><input type="number" disabled={Boolean(produtoEmEdicaoPDV)} value={formProdutoPDV.estoqueVitrine ?? 0} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, estoqueVitrine: e.target.value })} style={{ width: '100%', height:40, backgroundColor: '#0b1120', border: '1px solid #0369a1', borderRadius: '8px', color: '#38bdf8', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '10px', outline: 'none', boxSizing: 'border-box', opacity: produtoEmEdicaoPDV ? .65 : 1 }} /></div>
                 <div><label style={{ minHeight:28, display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#a855f7', fontWeight: 700 }}>{tx('Galpão / Depósito','Depósito / Almacén','Warehouse / Storage')}</label><input type="number" disabled={Boolean(produtoEmEdicaoPDV)} value={formProdutoPDV.estoqueGalpao ?? 0} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, estoqueGalpao: e.target.value })} style={{ width: '100%', height:40, backgroundColor: '#0b1120', border: '1px solid #7e22ce', borderRadius: '8px', color: '#a855f7', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '10px', outline: 'none', boxSizing: 'border-box', opacity: produtoEmEdicaoPDV ? .65 : 1 }} /></div>
               </div>
@@ -1916,7 +1924,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                     <thead><tr><th>{tx('Qtd','Cant.','Qty')}</th><th>{tx('Item','Ítem','Item')}</th><th style={{ textAlign: 'right' }}>{tx('Vl. Un','Val. Un.','Unit Price')}</th><th style={{ textAlign: 'right' }}>{tx('Total','Total','Total')}</th></tr></thead>
                     <tbody>
                       {vendaConcluidaObj?.itens.map((it, idx) => (
-                        <tr key={idx}><td>{it.qtd}</td><td>{it.nome.substring(0, 15)}</td><td style={{ textAlign: 'right' }}>{converterDeBRL(it.precoPraticadoBRL, moeda).toFixed(2)}</td><td style={{ textAlign: 'right' }}>{converterDeBRL((it.precoPraticadoBRL * it.qtd), moeda).toFixed(2)}</td></tr>
+                        <tr key={idx}><td>{it.qtd}</td><td>{it.nome.substring(0, 15)}</td><td style={{ textAlign: 'right' }}>{converterDeBRL(it.precoPraticadoBRL, moeda).toFixed(moeda==='PYG'?0:2)}</td><td style={{ textAlign: 'right' }}>{converterDeBRL((it.precoPraticadoBRL * it.qtd), moeda).toFixed(moeda==='PYG'?0:2)}</td></tr>
                       ))}
                     </tbody>
                   </table>
@@ -1930,7 +1938,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                       </div>
                     ))}
                   </div>
-                  
+
                   {vendaConcluidaObj?.tipoDocumento === 'venda' && (
                     <>
                       <div style={{ marginTop: '10px', fontSize: '11px' }}>
@@ -1962,7 +1970,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                   </div>
                   <button onClick={() => setModalFechamentoAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #334155', color: '#94a3b8', borderRadius: '10px', width: '36px', height: '36px', cursor: 'pointer', fontWeight: 900 }}>✕</button>
                 </div>
-                
+
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', padding: '16px', gap: '12px', marginBottom: '20px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800 }}>{tx('Total', 'Total', 'Total')}</span>
@@ -1988,10 +1996,10 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                     )}
                   </div>
                 </div>
-                
+
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '10px', marginBottom: '16px' }}>
-                 <select 
-                    value={formaSelecionada} 
+                 <select
+                    value={formaSelecionada}
                     onChange={e => {
                       const novaForma = e.target.value;
                       setFormaSelecionada(novaForma);
@@ -2002,7 +2010,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                           ? String(Math.ceil(converterDeBRL(pendenteBRL, 'PYG')))
                           : converterDeBRL(pendenteBRL, conf.moedaOrigem).toFixed(2)
                       ) : '');
-                    }} 
+                    }}
                     style={{ padding: '14px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '12px', color: '#f8fafc', fontSize: '14px', fontWeight: 800, outline: 'none', cursor: 'pointer', width: '100%', boxSizing: 'border-box' }}
                   >
                     {catalogoFormas.map(f => (
@@ -2011,27 +2019,27 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                       </option>
                     ))}
                   </select>
-                  
-                  <input 
-                    ref={inputValorLancamentoRef} 
-                    type="text" 
-                    value={valorLancamentoInput} 
-                    onChange={e => setValorLancamentoInput(e.target.value)} 
-                    onKeyDown={e => e.key === 'Enter' && adicionarPagamento()} 
-                    placeholder="0.00" 
+
+                  <input
+                    ref={inputValorLancamentoRef}
+                    type="text"
+                    value={valorLancamentoInput}
+                    onChange={e => setValorLancamentoInput(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && adicionarPagamento()}
+                    placeholder="0.00"
                     onFocus={e => e.target.select()}
-                    style={{ padding: '14px', backgroundColor: '#020617', border: '1px solid #10b981', borderRadius: '12px', color: '#34d399', fontSize: '18px', fontWeight: 900, textAlign: 'right', outline: 'none', boxSizing: 'border-box', width: '100%' }} 
+                    style={{ padding: '14px', backgroundColor: '#020617', border: '1px solid #10b981', borderRadius: '12px', color: '#34d399', fontSize: '18px', fontWeight: 900, textAlign: 'right', outline: 'none', boxSizing: 'border-box', width: '100%' }}
                   />
                 </div>
                 {formaSelecionada === 'voucher' && <div style={{margin:'-6px 0 14px'}}><label style={{fontSize:11,color:'#c084fc',fontWeight:900}}>{tx('CÓDIGO DO VOUCHER','CÓDIGO DEL VOUCHER','VOUCHER CODE')}</label><input value={voucherCodigoInput} onChange={e=>setVoucherCodigoInput(e.target.value.toUpperCase())} placeholder="VALE-000000" style={{width:'100%',boxSizing:'border-box',marginTop:6,padding:12,borderRadius:10,border:'1px solid #8b5cf6',background:'#020617',color:'#e9d5ff',fontWeight:900,letterSpacing:1}}/></div>}
-                
-                <button 
-                  onClick={adicionarPagamento} 
+
+                <button
+                  onClick={adicionarPagamento}
                   style={{ width: '100%', padding: '14px', background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '15px', marginBottom: '20px', boxShadow: '0 4px 15px rgba(16, 185, 129, 0.3)', boxSizing: 'border-box' }}
                 >
                   {tx("+ Lançar Pagamento","+ Registrar pago")}
                 </button>
-                
+
                 <div style={{ maxHeight: '120px', overflowY: 'auto', marginBottom: '20px', background: '#020617', padding: '10px', borderRadius: '12px', border: '1px solid #1e293b' }}>
                   {pagamentosLancados.length === 0 ? (
                     <div style={{ textAlign: 'center', color: '#475569', fontSize: '12px', padding: '15px 0' }}>{tx('Nenhum pagamento lançado.', 'Ningún pago.', 'No payments.')}</div>
@@ -2045,7 +2053,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                     </div>
                   ))}
                 </div>
-                
+
                 <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                   <button onClick={() => setModalFechamentoAberto(false)} style={{ flex: 1, padding: '14px', backgroundColor: '#020617', border: '1px solid #1e293b', color: '#cbd5e1', borderRadius: '12px', cursor: 'pointer', fontWeight: 800, fontSize: '13px' }}>{tx('Cancelar', 'Cancelar', 'Cancel')}</button>
                   <button onClick={() => concluirTransacao('venda')} disabled={!podeFinalizarVenda || processandoTransacao} style={{ flex: 2, padding: '14px', background: (podeFinalizarVenda && !processandoTransacao) ? 'linear-gradient(135deg, #0284c7, #0369a1)' : '#1e293b', border: 'none', color: (podeFinalizarVenda && !processandoTransacao) ? '#fff' : '#64748b', borderRadius: '12px', cursor: (podeFinalizarVenda && !processandoTransacao) ? 'pointer' : 'not-allowed', fontWeight: 900, fontSize: '14px', boxShadow: podeFinalizarVenda ? '0 4px 15px rgba(2, 132, 199, 0.4)' : 'none' }}>{tx('Liquidar no Caixa', 'Finalizar', 'Pay & Close')}</button>

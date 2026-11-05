@@ -1,6 +1,8 @@
+import { projetarProdutoMonetario } from '../core/productMoney.js';
 import React, { useState, useMemo } from 'react';
 
-export default function EstoqueInteligente({ produtos, fmt, tx = (pt) => pt }) {
+export default function EstoqueInteligente({ produtos:produtosOriginais, converterParaBRL, fmt, tx = (pt) => pt }) {
+  const produtos=useMemo(()=>produtosOriginais.map(p=>projetarProdutoMonetario(p,converterParaBRL)),[produtosOriginais,converterParaBRL]);
   const [abaAtiva, setAbaAtiva] = useState('ruptura'); // 'ruptura', 'curvaABC', 'parado'
 
   // --- MOTORES DE CÁLCULO (Blindados e à prova de falhas) ---
