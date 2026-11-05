@@ -1,13 +1,16 @@
 import copy
+import contextlib
+import io
 import json
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 from backup_readonly_v2 import collect, digest
 from test_backup_readonly import FakeAPI, TIME
 from pilot_rules import BASELINE, generate
-from production_recovery import Recovery, save_new
+from production_recovery import Recovery, save_new, main
 
 
 def fixture():
@@ -61,6 +64,28 @@ class ProductionRecoveryTests(unittest.TestCase):
         self.api.source='different';before=copy.deepcopy(self.api.docs)
         with self.assertRaisesRegex(ValueError,'differ'):self.r.fence()
         self.assertEqual(before,self.api.docs)
+    def test_growing_evidence_suite_keeps_minimum_required_checks(self):
+        Recovery(self.b,self.api,self.tmp.name,{**self.e,'passed':27,'uiPassed':10})
+        for key,value in [('passed',24),('uiPassed',8),('passed',None),('uiPassed','9')]:
+            with self.subTest(key=key,value=value):
+                with self.assertRaisesRegex(ValueError,'evidence'):
+                    Recovery(self.b,self.api,self.tmp.name,{**self.e,key:value})
+    def test_migrate_cli_fences_compares_and_activates_preserving_v1(self):
+        folder=Path(self.tmp.name)
+        save_new(folder/'backup.json',self.b)
+        save_new(folder/'evidence.json',self.e)
+        args=['recovery','migrate','--backup',str(folder/'backup.json'),
+              '--evidence',str(folder/'evidence.json'),'--workdir',str(folder/'run'),
+              '--frontend-commit','a'*40]
+        source=copy.deepcopy(self.api.docs[self.r.plan['sourceOperation']])
+        with patch('sys.argv',args), patch('production_recovery.Transport',return_value=self.api), \
+             patch('production_recovery.subprocess.run',return_value=SimpleNamespace(stdout='emulator-only-token')), \
+             patch('production_recovery.collect',return_value=self.b), \
+             patch('production_recovery.time.sleep'), contextlib.redirect_stdout(io.StringIO()):
+            main()
+        self.assertEqual(self.api.docs[self.r.control]['fields']['mode'],{'stringValue':'v2'})
+        self.assertEqual(source,self.api.docs[self.r.plan['sourceOperation']])
+        self.assertTrue((folder/'run'/'final-snapshot.json').exists())
     def test_stage_resumes_without_overwrite_and_reconstructs_native_types(self):
         self.fence();first=self.r.plan['documents'][0]
         self.r.commit([{'update':first,'currentDocument':{'exists':False}}])

@@ -56,7 +56,7 @@ with tempfile.TemporaryDirectory() as folder:
     assert r.inspect()['writes']==0
     with patch('production_recovery.time.sleep'):r.fence()
     first=r.stage(backup);again=r.stage(backup)
-    assert first['created']==1257 and again['created']==0
+    assert first['created']==len(r.plan['documents']) and again['created']==0
     save_new(Path(folder)/'final-snapshot.json',backup)
     assert r.activate('a'*40)['activated']
     assert r.stop()['mode']=='maintenance'
