@@ -1,4 +1,4 @@
-import { valorProdutoBRL, atualizarQuantiaProduto } from '../src/core/productMoney.js';
+import { valorProdutoBRL, atualizarQuantiaProduto, custoFornecedorProdutoBRL } from '../src/core/productMoney.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { runInNewContext } from 'node:vm';
@@ -167,7 +167,7 @@ const adicionarProdutoRecompra = (produto) => {
   let itens;
   runInNewContext(`(() => {${adicionarProdutoFonte[1]}})()`, {
     itemParaAdicionar: produto, qtdDigitadaRapida:'10', itensCompra:[], moeda:'BRL',
-    converterDeBRL: valor => valor, converterParaBRL: valor=>valor, valorProdutoBRL,
+    converterDeBRL: valor => valor, converterParaBRL: valor=>valor, valorProdutoBRL,custoFornecedorProdutoBRL,
     setItensCompra: valor => { itens = valor; },
     setItemParaAdicionar: () => {}, setTermoBusca: () => {}, inputBuscaRef:{ current:null },
   });
@@ -220,9 +220,11 @@ assert.equal(segundaEntradaFornecedor.custoPraticadoBRL, 17);
 assert.equal(JSON.stringify(vendaAntesRecompra), snapshotAntesRecompra);
 assert.equal(calcularCmvVenda(vendaAntesRecompra), 20);
 for (const ultimoCustoFornecedorBRL of [undefined, null, '', NaN, Infinity, -1]) {
-  assert.equal(adicionarProdutoRecompra({ ...produtoAposEntrada, ultimoCustoFornecedorBRL }).custoPraticadoBRL, 20);
+  assert.equal(adicionarProdutoRecompra({ ...produtoAposEntrada, ultimoCustoFornecedorBRL,ultimoCustoFornecedorOriginal:undefined }).custoPraticadoBRL, 20);
 }
-assert.equal(adicionarProdutoRecompra({ ...produtoAposEntrada, ultimoCustoFornecedorBRL:0 }).custoPraticadoBRL, 0);
+assert.equal(adicionarProdutoRecompra({ ...produtoAposEntrada, ultimoCustoFornecedorBRL:0,ultimoCustoFornecedorOriginal:undefined }).custoPraticadoBRL, 0);
 assert.equal(adicionarProdutoRecompra({ id:'LEGADO', precoBRL:50 }).custoPraticadoBRL, 0);
 
 console.log('Último custo fornecedor, recompra, custo efetivo, CMV, snapshot, histórico, preço manual e estoque: caso adicional aprovado.');
+
+assert.equal(adicionarProdutoRecompra({...produtoAposEntrada,ultimoCustoFornecedorBRL:999}).custoPraticadoBRL,15);

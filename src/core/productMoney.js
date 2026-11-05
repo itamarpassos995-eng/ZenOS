@@ -63,3 +63,14 @@ export function atualizarQuantiaProduto(produto,field,valor,moeda,converterParaB
  if(!parsed.ok)throw Error(parsed.erro);
  return {...produto,[field]:converterParaBRL(parsed.valor,moeda),valoresMonetarios:{versao:1,campos:{...produto?.valoresMonetarios?.campos,[field]:{valor:parsed.valor,moeda,equivalenteRegistroBRL:converterParaBRL(parsed.valor,moeda),taxaRegistro:1/converterParaBRL(1,moeda)}}}};
 }
+
+export function custoFornecedorProdutoBRL(produto,converterParaBRL){
+ const original=produto?.ultimoCustoFornecedorOriginal;
+ if(original){
+  const parsed=interpretarValorMonetario(original.valor,original.moeda);
+  if(!parsed.ok)throw Error(parsed.erro);
+  return converterParaBRL(parsed.valor,original.moeda);
+ }
+ return Number.isFinite(produto?.ultimoCustoFornecedorBRL)&&produto.ultimoCustoFornecedorBRL>=0
+  ?produto.ultimoCustoFornecedorBRL:valorProdutoBRL(produto,'custoBRL',converterParaBRL);
+}

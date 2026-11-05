@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {registrarValoresProduto,produtoParaFormularioMonetario,quantiaOriginalProduto,valorProdutoBRL,projetarProdutoMonetario} from '../src/core/productMoney.js';
+import {registrarValoresProduto,produtoParaFormularioMonetario,quantiaOriginalProduto,valorProdutoBRL,projetarProdutoMonetario,custoFornecedorProdutoBRL} from '../src/core/productMoney.js';
 import {mergeArrayThreeWay} from '../src/core/syncMerge.js';
 import {criarSnapshotCommercePublico,conferirCarrinhoContraSnapshot,minorCommerceParaBRL} from '../src/core/commercePublicCatalog.js';
 const rates={BRL:1,PYG:1150,USD:0.2,EUR:0.18};
@@ -73,4 +73,11 @@ test('custo nativo não usa média antiga se outra venda mudou a quantidade em p
  assert.throws(()=>mergeArrayThreeWay({field:'produtos',base:[base],local:[local],remote:[remote]}),e=>e.code==='ZENOS_MONEY_CONFLICT');
  const stockOnly=mergeArrayThreeWay({field:'produtos',base:[base],local:[{...base,estoque:8,estoqueGalpao:8}],remote:[remote]})[0];
  assert.equal(stockOnly.estoque,7);assert.deepEqual(stockOnly.valoresMonetarios,base.valoresMonetarios);
+});
+
+test('último custo do fornecedor mantém moeda original ao reabrir uma compra com novo câmbio',()=>{
+ const p={ultimoCustoFornecedorBRL:50,ultimoCustoFornecedorOriginal:{valor:10,moeda:'USD'}};
+ assert.equal(custoFornecedorProdutoBRL(p,to),50);
+ assert.equal(custoFornecedorProdutoBRL(p,(v,m)=>v/({...rates,USD:0.25}[m])),40);
+ assert.equal(p.ultimoCustoFornecedorOriginal.valor,10);
 });

@@ -1,5 +1,5 @@
 import { interpretarValorMonetario } from '../core/cashMoneyInput.js';
-import { produtoParaFormularioMonetario, registrarValoresProduto, valorProdutoBRL, atualizarQuantiaProduto } from '../core/productMoney.js';
+import { produtoParaFormularioMonetario, registrarValoresProduto, valorProdutoBRL, atualizarQuantiaProduto, custoFornecedorProdutoBRL } from '../core/productMoney.js';
 import React, { useState, useEffect, useRef } from 'react';
 import ZenModal from './ZenModal';
 import { normalizarProduto } from '../data';
@@ -177,9 +177,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
   const confirmarAdicaoRapida = () => {
     if (!itemParaAdicionar) return;
     const qtdNum = Math.max(1, parseInt(qtdDigitadaRapida) || 1);
-    const custoBase = Number.isFinite(itemParaAdicionar.ultimoCustoFornecedorBRL) && itemParaAdicionar.ultimoCustoFornecedorBRL >= 0
-      ? itemParaAdicionar.ultimoCustoFornecedorBRL
-      : valorProdutoBRL(itemParaAdicionar,'custoBRL',converterParaBRL);
+    const custoBase = custoFornecedorProdutoBRL(itemParaAdicionar,converterParaBRL);
 
     const indiceExistente = itensCompra.findIndex(i => String(i.produtoOriginalId || i.id) === String(itemParaAdicionar.id) && String(i.produtoOriginalSku || i.sku || '').toUpperCase() === String(itemParaAdicionar.sku || '').toUpperCase());
 
@@ -382,6 +380,7 @@ export default function PDVCompras({ commitOperacaoNegocio, registrarFinanceiro,
             ...monetario,
             custoBRL: custoMedioBRL,
             ultimoCustoFornecedorBRL: itemComprado.custoPraticadoBRL,
+            ultimoCustoFornecedorOriginal:{valor:Number(converterDeBRL(itemComprado.custoPraticadoBRL,moeda).toFixed(moeda==='PYG'?0:2)),moeda},
             precoBRL: itemComprado.precoVendaAlterado && Number.isFinite(itemComprado.precoVendaBRL) && itemComprado.precoVendaBRL >= 0
               ? itemComprado.precoVendaBRL
               : p.precoBRL,
