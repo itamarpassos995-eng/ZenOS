@@ -137,7 +137,7 @@ def prepare_native(folder, frontend_commit):
     run(['gcloud','functions','deploy','provisionNativeV2Store','--gen2','--runtime','nodejs22',
         '--region','southamerica-east1','--source','operational-functions','--entry-point','provisionNativeV2Store',
         '--trigger-http','--allow-unauthenticated','--service-account',service_account,'--memory','256MiB',
-        '--timeout','30s','--max-instances','5','--concurrency','20',
+        '--timeout','30s','--max-instances','5','--cpu','1','--concurrency','20',
         '--update-labels','firebase-functions-codebase=operational','--project',PROJECT,'--quiet'],timeout=1800)
     info=subprocess.run(['gcloud','functions','describe','provisionNativeV2Store','--gen2',
         '--region','southamerica-east1','--project',PROJECT,'--format=json'],capture_output=True,text=True,check=True)

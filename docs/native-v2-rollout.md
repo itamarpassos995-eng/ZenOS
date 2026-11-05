@@ -64,8 +64,10 @@ ou duplicidade não revisada interrompe a migração. Nenhuma deduplicação ger
 exclusão ou transferência de dívidas é autorizada pelo mapeamento. Os testes
 verificam a reconstrução exata e edições independentes dos registros na V2.
 
-O parâmetro `--prepare-native` publica o backend com uma identidade operacional
-separada, com acesso Firestore `roles/datastore.user`, confirma recusa anônima,
+O parâmetro `--prepare-native` publica o backend com 1 vCPU para permitir concorrência 20, com memória
+256 MiB e máximo de cinco instâncias; CPU fracionada não aceita concorrência
+maior que um no Cloud Run. A declaração da função mantém os mesmos parâmetros.
+Usa uma identidade operacional separada, com acesso Firestore `roles/datastore.user`, confirma recusa anônima,
 publica as regras nativas preservando todos os pilotos e aguarda dez minutos de
 propagação. Habilita o gate do servidor com o SHA V2 publicado fornecido. Ainda
 é preciso publicar o frontend com a flag Vercel ligada para concluir a criação

@@ -4,7 +4,7 @@ import {onCall,HttpsError} from 'firebase-functions/v2/https';
 import {provisionNativeV2} from './nativeV2.js';
 
 initializeApp();
-export const provisionNativeV2Store=onCall({region:'southamerica-east1',timeoutSeconds:30,memory:'256MiB',maxInstances:5},async request=>{
+export const provisionNativeV2Store=onCall({region:'southamerica-east1',timeoutSeconds:30,memory:'256MiB',cpu:1,concurrency:20,maxInstances:5},async request=>{
   try {return await provisionNativeV2(getFirestore(),request);}
   catch(error){
     if(['unauthenticated','invalid-argument','failed-precondition'].includes(error.code)) throw new HttpsError(error.code,error.message);

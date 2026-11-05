@@ -23,6 +23,23 @@ def backup_for(uid):
     return b
 
 class BulkTests(unittest.TestCase):
+    def test_concurrent_native_deploy_explicitly_allocates_at_least_one_cpu(self):
+        class DeploymentCaptured(Exception):pass
+        captured=[]
+        def run(command,**kwargs):
+            if command[:3]==['gcloud','functions','deploy']:
+                captured.append(command)
+                concurrency=int(command[command.index('--concurrency')+1])
+                if concurrency>1:
+                    self.assertIn('--cpu',command)
+                    self.assertGreaterEqual(float(command[command.index('--cpu')+1]),1)
+                raise DeploymentCaptured()
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as tmp,patch.object(bulk,'run',side_effect=run), \
+            patch.object(bulk.subprocess,'run',return_value=SimpleNamespace(returncode=0)):
+            with self.assertRaises(DeploymentCaptured):bulk.prepare_native(Path(tmp),'a'*40)
+        self.assertEqual(len(captured),1)
+
     def test_all_backups_and_certifications_precede_any_migration(self):
         events=[];uids=sorted(bulk.AUTHORIZED)
         before={'stores':[{'store':s,'action':'migration-window-required','mode':'legacy'} for s in uids]+
