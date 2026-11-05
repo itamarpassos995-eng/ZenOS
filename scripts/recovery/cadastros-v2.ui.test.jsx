@@ -1,5 +1,5 @@
 import React,{useState} from 'react';
-import {test,expect,vi,afterAll} from 'vitest';
+import {test,expect,vi,afterEach} from 'vitest';
 import {render,screen,fireEvent,waitFor,cleanup,configure} from '@testing-library/react';
 import {webcrypto} from 'node:crypto';
 import {doc,getDoc} from 'firebase/firestore';
@@ -12,9 +12,9 @@ import Clientes from '../../src/components/Clientes.jsx';
 import Produtos from '../../src/components/Produtos.jsx';
 Object.defineProperty(globalThis,'crypto',{value:webcrypto,configurable:true});
 configure({getElementError:()=>new Error('Elemento de cadastro não encontrado; dados privados omitidos.')});
-afterAll(async()=>{cleanup();await holder.value?.close();});
+afterEach(async()=>{cleanup();await holder.value?.close();});
 
-test('Cadastros reais: novo cliente e novo produto são confirmados em V2 sem regravar V1',async()=>{
+test.each(['cliente','produto'])('Cadastro real: novo %s é confirmado em V2 sem regravar V1',async kind=>{
  const f=await createRealFixture();holder.value=f;
  const before=(await getDoc(doc(f.db,'lojas',f.userId,'dados','operacao'))).data();
  let base=f.operation,confirmed=0;
@@ -25,6 +25,7 @@ test('Cadastros reais: novo cliente e novo produto são confirmados em V2 sem re
   if(result.cloudOk){base={...base,...result.values};confirmed++;}return result;
  };
  const common={moeda:'BRL',fmt:n=>String(Number(n||0)),t:k=>k,tx:pt=>pt,converterDeBRL:n=>n,converterParaBRL:n=>n,commitOperacaoNegocio:commit};
+ if(kind==='cliente'){
  function ClientHarness(){const [clientes,setClientes]=useState(base.clientes);
   return <Clientes {...common} clientes={clientes} setClientes={setClientes}/>;}
  render(<ClientHarness/>);
@@ -34,7 +35,7 @@ test('Cadastros reais: novo cliente e novo produto são confirmados em V2 sem re
  await waitFor(()=>expect(confirmed).toBe(1),{timeout:30000});
  expect(base.clientes.length).toBe(f.operation.clientes.length+1);
  expect(base.clientes.some(c=>c.nome==='EMULATOR-ONLY-NEW-CUSTOMER')).toBe(true);
- cleanup();
+ } else {
  function ProductHarness(){const [produtos,setProdutos]=useState(base.produtos);
   return <Produtos {...common} userId={f.userId} patenteUsuario="gerencia" produtos={produtos} setProdutos={setProdutos} fornecedoresGlobais={[]} historicoVendas={base.historicoVendas} historicoCompras={base.historicoCompras} vendedores={base.vendedores} regrasDesconto={{margemMinima:0}}/>;}
  render(<ProductHarness/>);
@@ -42,10 +43,16 @@ test('Cadastros reais: novo cliente e novo produto são confirmados em V2 sem re
  fireEvent.change(screen.getByText('SKU',{selector:'label',exact:true}).parentElement.querySelector('input'),{target:{value:'EMULATOR-NEW-PRODUCT'}});
  fireEvent.change(screen.getByText('Nome do Item',{exact:true}).parentElement.querySelector('input'),{target:{value:'EMULATOR-ONLY-NEW-PRODUCT'}});
  fireEvent.click(screen.getByText('Salvar Produto no Sistema',{selector:'button',exact:true}));
- await waitFor(()=>expect(confirmed).toBe(2),{timeout:30000});
+ await waitFor(()=>expect(confirmed).toBe(1),{timeout:30000});
+ }
  const actual=(await getOperationalSnapshot(f.db,f.userId)).data();
+ if(kind==='produto'){
  expect(actual.produtos.length).toBe(f.operation.produtos.length+1);
  expect(actual.produtos.some(p=>p.sku==='EMULATOR-NEW-PRODUCT')).toBe(true);
+ } else {
+  expect(actual.clientes.length).toBe(f.operation.clientes.length+1);
+  expect(actual.clientes.some(c=>c.nome==='EMULATOR-ONLY-NEW-CUSTOMER')).toBe(true);
+ }
  expect((await getDoc(doc(f.db,'lojas',f.userId,'dados','operacao'))).data()).toEqual(before);
  cleanup();
 },120000);

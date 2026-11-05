@@ -77,8 +77,11 @@ try{
  // after certifying the exact restored data; the uploaded V1 remains unchanged.
  if(!state(0).produtos.some(p=>Number(p.estoqueVitrine)>3)){
   const b=state(0),candidate=b.produtos.find(p=>Number(p.estoqueGalpao)>3);
-  assert(candidate,'Fixture needs a product with available warehouse stock');
-  tick();ok(await commit(0,{operationKey:'emulator-only-display-transfer',changes:[change(b,'produtos',b.produtos.map(p=>p.id===candidate.id?{...p,estoqueVitrine:4,estoqueGalpao:Number(p.estoqueGalpao)-4}:p))]}));
+  // Empty-stock stores are certified above before this explicit demo-only
+  // replenishment. The original V1 and uploaded backup are never changed.
+  const chosen=candidate||b.produtos.find(p=>p.tipoItem!=='servico');
+  assert(chosen,'Fixture needs one original product');
+  tick();ok(await commit(0,{operationKey:'emulator-only-display-transfer',changes:[change(b,'produtos',b.produtos.map(p=>p.id===chosen.id?{...p,estoqueVitrine:4,estoqueGalpao:candidate?Number(p.estoqueGalpao)-4:Number(p.estoqueGalpao||0),estoque:candidate?Number(p.estoque):Number(p.estoqueGalpao||0)+4}:p))]}));
   await session(1).catchUp();
  }
  const sequenceBeforeSale=session(0).sequence;
@@ -114,6 +117,9 @@ try{
   for(let i=0;i<2;i++)assert(state(0).historicoVendas.some(v=>v.id===`parallel-${i}`));
  });
  await test('Fiado uses original credit guard and preserves other clients',async()=>{
+  if(!state(0).clientes.some(c=>Number(c.limiteCreditoBRL)>Number(c.saldoDevedorBRL||0)+1)){
+   tick();const base=state(0);ok(await commit(0,{operationKey:'emulator-only-credit-fixture',changes:[change(base,'clientes',[...base.clientes,{id:'EMULATOR-ONLY-CREDIT',nome:'Emulator credit test',limiteCreditoBRL:100,saldoDevedorBRL:0}])]}));
+  }
   tick();const b=state(0),client=b.clientes.find(c=>Number(c.limiteCreditoBRL)>Number(c.saldoDevedorBRL||0)+1);assert(client);
   const result=await commit(0,{operationKey:'fiado-test',changes:[change(b,'clientes',b.clientes.map(c=>c.id===client.id?{...c,saldoDevedorBRL:Number(c.saldoDevedorBRL||0)+1}:c))],guards:[{type:'client_credit_capacity',clientId:client.id,amount:1}]});ok(result);
   tick();const rejected=await commit(0,{operationKey:'fiado-over-limit',changes:[change(state(0),'clientes',state(0).clientes)],guards:[{type:'client_credit_capacity',clientId:client.id,amount:Number(client.limiteCreditoBRL)+1}]});assert.equal(rejected.error.code,'ZENOS_CREDIT_LIMIT_CONFLICT');

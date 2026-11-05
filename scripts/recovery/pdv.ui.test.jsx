@@ -15,12 +15,14 @@ let commits=[],chosen;
 beforeAll(async()=>{
  fixture.current=await createRealFixture();const f=fixture.current,b=f.operation;
  chosen=b.produtos.find(p=>p.tipoItem!=='servico'&&Number(p.estoqueVitrine)>20&&Number(p.precoBRL)>Number(p.custoBRL)*1.5)
-  ||b.produtos.find(p=>p.tipoItem!=='servico'&&Number(p.estoqueGalpao)>20&&Number(p.precoBRL)>Number(p.custoBRL)*1.5);expect(chosen).toBeTruthy();
- const transfer=Number(chosen.estoqueVitrine)>20?0:Math.min(30,Number(chosen.estoqueGalpao));
+  ||b.produtos.find(p=>p.tipoItem!=='servico'&&Number(p.estoqueGalpao)>20&&Number(p.precoBRL)>Number(p.custoBRL)*1.5)
+  ||b.produtos.find(p=>p.tipoItem!=='servico'&&Number(p.precoBRL)>Number(p.custoBRL)*1.5);expect(chosen).toBeTruthy();
+ const replenish=Number(chosen.estoqueVitrine)<=20&&Number(chosen.estoqueGalpao)<=20;
+ const transfer=Number(chosen.estoqueVitrine)>20?0:replenish?30:Math.min(30,Number(chosen.estoqueGalpao));
  const seed=await persistV1BusinessOperationSafe({db:f.db,userId:f.userId,operationKey:'ui-only-fixtures',changes:[
   {field:'clientes',baseValue:b.clientes,value:[...b.clientes,{id:'TEST-UI-CLIENT',nome:'Cliente de homologacao',limiteCreditoBRL:100000,saldoDevedorBRL:0}]},
   {field:'vouchers',baseValue:b.vouchers,value:[...b.vouchers,{codigo:'VALE-TEST-UI',saldoBRL:100000,status:'ativo'}]},
-  ...(transfer?[{field:'produtos',baseValue:b.produtos,value:b.produtos.map(p=>p.id===chosen.id?{...p,estoqueVitrine:Number(p.estoqueVitrine||0)+transfer,estoqueGalpao:Number(p.estoqueGalpao)-transfer}:p)}]:[])]});expect(seed.cloudOk,seed.error?.message).toBe(true);
+  ...(transfer?[{field:'produtos',baseValue:b.produtos,value:b.produtos.map(p=>p.id===chosen.id?{...p,estoqueVitrine:Number(p.estoqueVitrine||0)+transfer,estoqueGalpao:replenish?Number(p.estoqueGalpao||0):Number(p.estoqueGalpao)-transfer,estoque:replenish?Number(p.estoque||0)+transfer:p.estoque}:p)}]:[])]});expect(seed.cloudOk,seed.error?.message).toBe(true);
  f.operation=(await getOperationalSnapshot(f.db,f.userId)).data();
  chosen=f.operation.produtos.find(p=>p.id===chosen.id);
 });

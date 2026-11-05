@@ -1,0 +1,25 @@
+{
+  "backupChecksum": "bdab23565f918f61057864cb3b67eedd361fcf223e923954138b40336ed90d95",
+  "passed": 27,
+  "uiPassed": 9,
+  "productionRequests": 0,
+  "pilotRules": true,
+  "originalV1Preserved": true,
+  "productionExecutorCorePassed": true,
+  "documentsComparedV1": 10,
+  "documentsComparedV2": 7,
+  "executorReplayWrites": 0,
+  "frontendCommit": "b466b91fd1cf68373343a66e89d060ff9888964d",
+  "uiTests": [
+    "Cadastro real: novo cliente é confirmado em V2 sem regravar V1",
+    "Cadastro real: novo produto é confirmado em V2 sem regravar V1",
+    "PDV real: pagamento dinheiro_brl confirma venda, estoque e financeiro sem tocar na V1",
+    "PDV real: pagamento pix confirma venda, estoque e financeiro sem tocar na V1",
+    "PDV real: pagamento cartaoCredito confirma venda, estoque e financeiro sem tocar na V1",
+    "PDV real: pagamento cartaoDebito confirma venda, estoque e financeiro sem tocar na V1",
+    "PDV real: pagamento misto confirma venda, estoque e financeiro sem tocar na V1",
+    "PDV real: pagamento voucher confirma venda, estoque e financeiro sem tocar na V1",
+    "PDV real: pagamento crediario confirma venda, estoque e financeiro sem tocar na V1"
+  ],
+  "fixtureNote": "Empty-stock replenishment and credit customer exist only in demo-zenos-local after original-data reconciliation."
+}
