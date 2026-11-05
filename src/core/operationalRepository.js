@@ -2,6 +2,7 @@ import {doc,collection,getDocFromServer,getDocFromCache,getDocsFromServer,getDoc
 import {resolveV2ReadMode} from './v2ReadMode.js';
 import {V2_TAIL_WINDOW_SIZE,shouldRearmV2Tail} from './v2TailWindow.js';
 import {V2_COLLECTIONS,encodeV2Id,entityIdV2,v2ControlPath,v2RootPath,v2Error,stableV2Json,hashV2} from './operationalV2Schema.js';
+import {nativeV2Enabled,provisionNativeV2Store} from './nativeV2Provisioning.js';
 
 const sessions=new WeakMap();
 const sessionMap=db=>{if(!sessions.has(db))sessions.set(db,new Map());return sessions.get(db);};
@@ -217,6 +218,7 @@ export class V2Session {
 export async function getOperationalSnapshot(db,userId){
  const entry=await initializeRoute(db,userId);
  if(entry.session){if(entry.session.failed)throw entry.session.failed;await entry.session.catchUpIfBehind();return asSnapshot(entry.session.materialize());}
+ if(entry.initialLegacySnapshot){const snap=entry.initialLegacySnapshot;entry.initialLegacySnapshot=null;return snap;}
  const snap=await getDocFromServer(doc(db,'lojas',String(userId),'dados','operacao'));
  if(entry.route.shadow)await compareShadow(entry,snap);
  return snap;
@@ -226,6 +228,7 @@ export async function getOperationalSnapshot(db,userId){
 export async function getOperationalWriteSession(db,userId){
  if(!db||!userId)return null;
  const entry=await initializeRoute(db,userId);
+ entry.initialLegacySnapshot=null;
  if(entry.session?.failed)throw entry.session.failed;
  return entry.session;
 }
@@ -233,7 +236,22 @@ async function initializeRoute(db,userId){
  const map=sessionMap(db),key=String(userId);let entry=map.get(key);
  if(!entry){entry={session:null,promise:null};map.set(key,entry);
   entry.promise=(async()=>{
-   const controlSnap=await getDocFromServer(doc(db,...v2ControlPath(userId)));const control=controlSnap.exists()?controlSnap.data():null;
+   let controlSnap=await getDocFromServer(doc(db,...v2ControlPath(userId)));
+   if(!controlSnap.exists()&&nativeV2Enabled()){
+    // Reuse this point read during boot; never scan collections or auto-migrate V1.
+    const legacy=await getDocFromServer(doc(db,'lojas',String(userId),'dados','operacao'));
+    if(legacy.exists())entry.initialLegacySnapshot=legacy;
+    else {
+     await provisionNativeV2Store(db); // Failure blocks boot and writes; no V1 fallback.
+     controlSnap=await getDocFromServer(doc(db,...v2ControlPath(userId)));
+     if(!controlSnap.exists()){
+      const existing=await getDocFromServer(doc(db,'lojas',String(userId),'dados','operacao'));
+      if(!existing.exists())throw v2Error('V2_PROVISIONING_UNCONFIRMED','A nuvem não confirmou o armazenamento da empresa.');
+      entry.initialLegacySnapshot=existing;
+     }
+    }
+   }
+   const control=controlSnap.exists()?controlSnap.data():null;
    const route=resolveV2ReadMode(control);entry.control=control;entry.route=route;
    if(route.shadow)entry.shadowSession=await new V2Session(db,userId,control).load();
    if(route.primary==='v2')entry.session=await new V2Session(db,userId,control).load();
@@ -281,9 +299,20 @@ async function compareShadow(entry,snapshot){
  const normalize=(value,field)=>field==='_syncMeta'?Object.fromEntries(Object.entries(value||{}).filter(([k])=>k!=='v2Sequence')):value;
  const differences=[];const hashes={};
  for(const field of new Set([...Object.keys(legacy),...Object.keys(v2)])){
+  if(!Object.prototype.hasOwnProperty.call(legacy,field)&&entry.shadowSession.manifest?.[field]?.sourceAbsent)continue;
   // Materialization supplies empty optional arrays for the UI. Absent and empty
   // are equivalent only for these known fields, never for unknown legacy maps.
-  const a=normalize(legacy[field]??(V2_COLLECTIONS[field]?[]:undefined),field),b=normalize(v2[field],field);
+  const a=normalize(legacy[field]??(V2_COLLECTIONS[field]?[]:undefined),field);
+  let b=normalize(v2[field],field);
+  const repairs=entry.shadowSession.manifest?.[field]?.identityRepairs||[];
+  if(repairs.length&&Array.isArray(b))b=b.map((entity,index)=>{
+   const repair=repairs.find(r=>r.index===index);
+   if(!repair)return entity;
+   if(entity.id!==repair.newId)throw v2Error('V2_IDENTITY_MAPPING','Identidade V2 difere do mapeamento revisado.');
+   const id=repair.originalId?.stringValue??Number(repair.originalId?.integerValue);
+   if(typeof id!=='string'&&!Number.isSafeInteger(id))throw v2Error('V2_IDENTITY_MAPPING','ID original inválido.');
+   return {...entity,id};
+  });
   const equal=stableV2Json(a)===stableV2Json(b);if(!equal)differences.push(field);
   hashes[field]={legacy:await hashV2(stableV2Json(a)??'undefined'),v2:await hashV2(stableV2Json(b)??'undefined')};
  }

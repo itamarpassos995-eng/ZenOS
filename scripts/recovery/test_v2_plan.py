@@ -7,6 +7,27 @@ from v2_plan import plan_v2, reconstruct_fields, route_id
 
 
 class PlanTests(unittest.TestCase):
+    def test_missing_operator_persists_existing_app_fallback_with_required_pin_change(self):
+        from create_minimal_demo_backup import minimal_backup
+        b=minimal_backup();plan=plan_v2(b)
+        admin=next(d for d in plan['documents'] if d['name'].endswith('/operadores/admin'))
+        self.assertEqual(admin['fields']['data']['mapValue']['fields']['pinTrocaObrigatoria'],{'booleanValue':True})
+        self.assertEqual(plan['fieldManifest']['vendedores']['count'],1)
+        self.assertTrue(plan['fieldManifest']['vendedores']['sourceAbsent'])
+        self.assertEqual(reconstruct_fields(plan),{'produtos':{'arrayValue':{}}})
+
+    def test_missing_modules_are_writable_in_v2_without_changing_reconstructed_v1(self):
+        backup=self.fixture()
+        op=next(d for d in backup['documents'] if d['name'].endswith('/dados/operacao'))
+        op['fields']={'vendedores':{'arrayValue':{}}}
+        backup['checksums'][op['name']]=digest(op)
+        backup['checksum']=digest({k:v for k,v in backup.items() if k!='checksum'})
+        plan=plan_v2(backup)
+        self.assertEqual(len(plan['fieldManifest']),13)
+        self.assertTrue(plan['fieldManifest']['clientes']['sourceAbsent'])
+        self.assertTrue(plan['fieldManifest']['regrasDesconto']['sourceAbsent'])
+        self.assertEqual(reconstruct_fields(plan),op['fields'])
+
     def fixture(self):
         api = FakeAPI()
         api.op['fields']['unknownEmptyArray'] = {'arrayValue': {}}

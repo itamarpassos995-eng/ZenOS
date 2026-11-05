@@ -54,7 +54,7 @@ try{
  await admin([{update:{name:'projects/demo-zenos-local/databases/(default)/documents/'+opRef.path,fields:backup.documents.find(d=>d.name.endsWith('/dados/operacao')).fields}}]);const v1Before=(await getDoc(opRef)).data();
  const documents=plan.documents.map(d=>({update:{name:'projects/demo-zenos-local/databases/(default)/documents/'+root.join('/')+d.name.slice(plan.targetRoot.length),fields:d.fields},currentDocument:{exists:false}}));
  for(let i=0;i<documents.length;i+=100)await admin(documents.slice(i,i+100));
- await adminSet(root.join('/'),{schema:2,state:'ready',sequence:0,sourceChecksum:backup.checksum,fieldManifest:plan.fieldManifest,fieldRevisions:op._syncMeta.fieldRevisions});
+ await adminSet(root.join('/'),{schema:2,state:'ready',sequence:0,sourceChecksum:backup.checksum,fieldManifest:plan.fieldManifest,fieldRevisions:op._syncMeta?.fieldRevisions||{}});
  const control={mode:'v2',generation:plan.generation,sourceChecksum:backup.checksum,certificate:{sourceChecksum:backup.checksum,productionReady:true,v1WritersFenced:true,finalReconciliationPassed:true,pdvIntegrationPassed:true,rollbackPrepared:true}};
  await adminSet(`lojas/${userId}/dados/storage_control`,{...control,mode:'shadow'});
  await test('Shadow read compares all fields and detects divergence without selecting V2',async()=>{
@@ -70,11 +70,57 @@ try{
  const change=(base,field,value)=>({field,baseValue:base[field],value});
  const commit=async(i,args)=>persistV1BusinessOperationSafe({db:dbs[i],userId,...args});
  const ok=result=>assert.equal(result.cloudOk,true,result.error?.stack||'cloud confirmation missing');
- await test('Real backup read through application repository: all entities and IDs preserved',async()=>{
-  for(const snap of snapshots)for(const f of Object.keys(V2_COLLECTIONS))assert.equal(stableV2Json(snap.data()[f]),stableV2Json(op[f]||[]),f);
+ await test('Real backup read: all entities preserved and only reviewed ID mappings applied',async()=>{
+  for(const snap of snapshots)for(const f of Object.keys(V2_COLLECTIONS)){
+   if(plan.fieldManifest[f]?.sourceAbsent&&f==='vendedores'){
+    assert.equal(snap.data().vendedores.length,1);assert.equal(snap.data().vendedores[0].pinTrocaObrigatoria,true);
+   }else {
+    const expected=(op[f]||[]).map((entity,index)=>{
+     const repair=plan.fieldManifest[f]?.identityRepairs?.find(r=>r.index===index);
+     return repair?{...entity,id:repair.newId}:entity;
+    });
+    assert.equal(stableV2Json(snap.data()[f]),stableV2Json(expected),f);
+   }
+  }
  });
+ // Add demo-only fixtures only after comparing the actual restored arrays.
+ if(plan.fieldManifest.clientes?.identityRepairs?.length)await test('Reviewed client mapping keeps debts separate during a real V2 write',async()=>{
+  const b=state(0),repair=plan.fieldManifest.clientes.identityRepairs[0],target=b.clientes.find(c=>c.id===repair.newId);
+  assert(target);const original=target.saldoDevedorBRL;
+  tick();ok(await commit(0,{operationKey:'emulator-reviewed-client-edit',changes:[change(b,'clientes',b.clientes.map(c=>c.id===target.id?{...c,saldoDevedorBRL:original+1}:c))]}));
+  assert.equal(state(0).clientes.find(c=>c.id===target.id).saldoDevedorBRL,original+1);
+  assert.equal(stableV2Json(state(0).clientes.filter(c=>c.id!==target.id)),stableV2Json(b.clientes.filter(c=>c.id!==target.id)));
+  tick();const current=state(0);ok(await commit(0,{operationKey:'emulator-reviewed-client-restore',changes:[change(current,'clientes',current.clientes.map(c=>c.id===target.id?{...c,saldoDevedorBRL:original}:c))]}));
+ });
+ if(plan.fieldManifest.produtos?.identityRepairs?.length)await test('Reviewed product mapping edits only the matching SKU without merging stock',async()=>{
+  const b=state(0),repair=plan.fieldManifest.produtos.identityRepairs[0],target=b.produtos.find(p=>p.id===repair.newId);
+  assert(target);const original=target.precoBRL;
+  tick();ok(await commit(0,{operationKey:'emulator-reviewed-product-edit',changes:[change(b,'produtos',b.produtos.map(p=>p.id===target.id?{...p,precoBRL:original+1}:p))]}));
+  assert.equal(state(0).produtos.find(p=>p.id===target.id).precoBRL,original+1);
+  assert.equal(stableV2Json(state(0).produtos.filter(p=>p.id!==target.id)),stableV2Json(b.produtos.filter(p=>p.id!==target.id)));
+  tick();const current=state(0);ok(await commit(0,{operationKey:'emulator-reviewed-product-restore',changes:[change(current,'produtos',current.produtos.map(p=>p.id===target.id?{...p,precoBRL:original}:p))]}));
+ });
+ if(!state(0).produtos.some(p=>p.tipoItem!=='servico')){
+  tick();const b=state(0);ok(await commit(0,{operationKey:'emulator-only-product-fixture',changes:[change(b,'produtos',[...b.produtos,{id:'EMULATOR-ONLY-PRODUCT',sku:'EMULATOR-ONLY',nome:'Demo product',tipoItem:'mercadoria',precoBRL:30,custoBRL:10,estoque:30,estoqueVitrine:30,estoqueGalpao:0}])]}));
+ }
+ if(!state(0).sessoesCaixa.some(s=>s.status==='aberta')){
+  tick();const b=state(0);ok(await commit(0,{operationKey:'emulator-only-cash-fixture',changes:[change(b,'sessoesCaixa',[...b.sessoesCaixa,{id:'EMULATOR-ONLY-CASH',status:'aberta',operadorId:'admin',dataAbertura:'2026-11-05T12:00:00.000Z'}])]}));
+ }
+ await session(1).catchUp();
+ // Some stores keep every unit in the warehouse. Prepare a test-only transfer
+ // after certifying the exact restored data; the uploaded V1 remains unchanged.
+ if(!state(0).produtos.some(p=>Number(p.estoqueVitrine)>3)){
+  const b=state(0),candidate=b.produtos.find(p=>Number(p.estoqueGalpao)>3);
+  // Empty-stock stores are certified above before this explicit demo-only
+  // replenishment. The original V1 and uploaded backup are never changed.
+  const chosen=candidate||b.produtos.find(p=>p.tipoItem!=='servico');
+  assert(chosen,'Fixture needs one original product');
+  tick();ok(await commit(0,{operationKey:'emulator-only-display-transfer',changes:[change(b,'produtos',b.produtos.map(p=>p.id===chosen.id?{...p,estoqueVitrine:4,estoqueGalpao:candidate?Number(p.estoqueGalpao)-4:Number(p.estoqueGalpao||0),estoque:candidate?Number(p.estoque):Number(p.estoqueGalpao||0)+4}:p))]}));
+  await session(1).catchUp();
+ }
+ const sequenceBeforeSale=session(0).sequence;
  let lastSnapshot;stop=subscribeOperationalSnapshot(dbs[1],userId,s=>{lastSnapshot=s.data();},e=>{throw e;});
- const saleId='EMULATOR-ONLY-SALE',product=op.produtos.find(p=>Number(p.estoqueVitrine)>3),cash=op.sessoesCaixa.find(s=>s.status==='aberta');
+ const saleId='EMULATOR-ONLY-SALE',product=state(0).produtos.find(p=>Number(p.estoqueVitrine)>3),cash=state(0).sessoesCaixa.find(s=>s.status==='aberta');
  assert(product&&cash);const pid=product.id;
  const saleArgs=base=>({operationKey:`pdv:${saleId}`,changes:[
   change(base,'historicoVendas',[{id:saleId,estado:'concluida',totalBRL:10,sessaoId:cash.id,itens:[],observacao:'X'.repeat(2000)},...base.historicoVendas]),
@@ -89,7 +135,7 @@ try{
   assert((await getDoc(doc(db,'lojas',userId,'estoque_auditoria',`${pid}-${product.sku||''}`.replaceAll('/','_'),'movimentos',`stock-${saleId}`))).exists());
  });
  await test('Permanent receipt replay does not double stock or finance',async()=>{
-  tick();const replay=await commit(0,saleRequest);ok(replay);assert(replay.alreadyCommitted);assert.equal(session(0).sequence,1);
+  tick();const replay=await commit(0,saleRequest);ok(replay);assert(replay.alreadyCommitted);assert.equal(session(0).sequence,sequenceBeforeSale+1);
  });
  await test('Reusing operation ID with another payload is rejected',async()=>{
   tick();const r=await commit(0,{...saleRequest,financialEntries:[{...saleRequest.financialEntries[0],valor:11}]});assert.equal(r.error.code,'V2_IDEMPOTENCY_CONFLICT');
@@ -105,6 +151,9 @@ try{
   for(let i=0;i<2;i++)assert(state(0).historicoVendas.some(v=>v.id===`parallel-${i}`));
  });
  await test('Fiado uses original credit guard and preserves other clients',async()=>{
+  if(!state(0).clientes.some(c=>Number(c.limiteCreditoBRL)>Number(c.saldoDevedorBRL||0)+1)){
+   tick();const base=state(0);ok(await commit(0,{operationKey:'emulator-only-credit-fixture',changes:[change(base,'clientes',[...base.clientes,{id:'EMULATOR-ONLY-CREDIT',nome:'Emulator credit test',limiteCreditoBRL:100,saldoDevedorBRL:0}])]}));
+  }
   tick();const b=state(0),client=b.clientes.find(c=>Number(c.limiteCreditoBRL)>Number(c.saldoDevedorBRL||0)+1);assert(client);
   const result=await commit(0,{operationKey:'fiado-test',changes:[change(b,'clientes',b.clientes.map(c=>c.id===client.id?{...c,saldoDevedorBRL:Number(c.saldoDevedorBRL||0)+1}:c))],guards:[{type:'client_credit_capacity',clientId:client.id,amount:1}]});ok(result);
   tick();const rejected=await commit(0,{operationKey:'fiado-over-limit',changes:[change(state(0),'clientes',state(0).clientes)],guards:[{type:'client_credit_capacity',clientId:client.id,amount:Number(client.limiteCreditoBRL)+1}]});assert.equal(rejected.error.code,'ZENOS_CREDIT_LIMIT_CONFLICT');
@@ -126,6 +175,9 @@ try{
   const results=await Promise.all(requests.map((r,i)=>commit(i,r)));assert.equal(results.filter(r=>r.cloudOk).length,1);assert.equal(results.find(r=>!r.cloudOk).error.code,'ZENOS_STOCK_CONFLICT');await session(0).catchUp();assert.equal(state(0).produtos.find(p=>p.id===pid).estoqueVitrine,0);
  });
  await test('Guarded pending-order conversion preserves tombstoned original and all other sales',async()=>{
+  if(!state(0).historicoVendas.some(v=>v.estado==='pendente')){
+   tick();const base=state(0);ok(await commit(0,{operationKey:'emulator-only-preorder-fixture',changes:[change(base,'historicoVendas',[{id:'EMULATOR-ONLY-PENDING',estado:'pendente',totalBRL:1,itens:[]},...base.historicoVendas])]}));
+  }
   tick();const b=state(0),pending=b.historicoVendas.find(v=>v.estado==='pendente');assert(pending);
   const r=await commit(0,{operationKey:'convert-pending',changes:[{...change(b,'historicoVendas',[{...pending,id:'EMULATOR-CONVERTED',estado:'concluida'},...b.historicoVendas.filter(v=>v.id!==pending.id)]),removeEntityIds:[pending.id]}],guards:[{type:'entity_field_equals',field:'historicoVendas',entityId:pending.id,property:'estado',expected:'pendente'}]});ok(r);
   const old=(await getDoc(doc(db,...root,'vendas',encodeV2Id(pending.id)))).data();assert.equal(old.deleted,true);assert.equal(stableV2Json(old.data),stableV2Json(pending));assert(!state(0).historicoVendas.some(v=>v.id===pending.id));
@@ -185,7 +237,7 @@ try{
   tick();const b=state(0),before=session(0).sequence;
   const r=await commit(0,{operationKey:'close-stale',changes:[change(b,'sessoesCaixa',b.sessoesCaixa.map(s=>s.id===cash.id?{...s,status:'fechada'}:s))],guards:[{type:'cash_close_snapshot_matches',sessionId:cash.id,assinatura:'stale'}]});assert.equal(r.error.code,'ZENOS_CASH_CLOSE_STALE');assert.equal(session(0).sequence,before);
  });
- await test('Close actual open Central Motos cash session using existing signature guard',async()=>{
+ await test('Close restored open cash session using existing signature guard',async()=>{
   tick();const b=state(0),c=b.sessoesCaixa.find(s=>s.id===cash.id);
   const r=await commit(0,{operationKey:`fechar-caixa:${c.id}`,changes:[change(b,'sessoesCaixa',b.sessoesCaixa.map(s=>s.id===c.id?{...s,status:'fechada'}:s))],guards:[{type:'cash_session_open',sessionId:c.id},{type:'cash_close_snapshot_matches',sessionId:c.id,assinatura:assinaturaFinanceiraSessao({sessao:c,historicoVendas:b.historicoVendas,caixaMovimentos:b.caixaMovimentos})}]});ok(r);assert.equal(state(0).sessoesCaixa.find(s=>s.id===c.id).status,'fechada');
   tick();const rejected=await commit(0,{operationKey:'sale-after-close',changes:[change(state(0),'historicoVendas',[{id:'CLOSED-NOT-SAVED'},...state(0).historicoVendas])],guards:[{type:'cash_session_open',sessionId:c.id}]});assert.equal(rejected.error.code,'ZENOS_CASH_SESSION_NOT_OPEN');
@@ -243,7 +295,7 @@ try{
   clearOperationalSession(dbs[1],userId);await adminSet(`lojas/${userId}/dados/storage_control`,{...control,generation:'0'.repeat(24)});
   await assert.rejects(getOperationalSnapshot(dbs[1],userId),e=>e.code==='V2_NOT_READY');
  });
- const report={fencedRules:process.env.ZENOS_FENCED_RULES==='1',pilotRules:process.env.ZENOS_PILOT_RULES==='1',suite:'actual-app-v2-central-motos',backupChecksum:backup.checksum,passed:passed.length,tests:passed,productionRequests:0,firstSaleReads:saleResult.reads,firstSaleWrites:saleResult.writes,finalSequence:session(0).sequence,originalV1Preserved:true};
+ const report={fencedRules:process.env.ZENOS_FENCED_RULES==='1',pilotRules:process.env.ZENOS_PILOT_RULES==='1',suite:'actual-app-v2-restored-store',backupChecksum:backup.checksum,passed:passed.length,tests:passed,productionRequests:0,firstSaleReads:saleResult.reads,firstSaleWrites:saleResult.writes,finalSequence:session(0).sequence,originalV1Preserved:true};
  console.log(JSON.stringify(report,null,2));
  if(process.env.ZENOS_REPORT_PATH)fs.writeFileSync(process.env.ZENOS_REPORT_PATH,JSON.stringify(report,null,2)+'\n');
 }finally{Date.now=tickNow;stop?.();await Promise.all(apps.map(deleteApp));}

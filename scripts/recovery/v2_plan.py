@@ -9,6 +9,7 @@ import copy
 import json
 from urllib.parse import quote
 from backup_readonly_v2 import verify, encoded, digest
+from identity_repair import reviewed_repairs, mapped_record, original_record
 
 COLLECTIONS = {"produtos": "produtos", "clientes": "clientes",
     "historicoVendas": "vendas", "historicoCompras": "compras",
@@ -45,6 +46,7 @@ def plan_v2(backup):
     verify(backup)
     root = f"projects/{backup['project']}/databases/(default)/documents/lojas/{backup['store']}"
     op = next(d for d in backup["documents"] if d["name"] == root + "/dados/operacao")
+    identity_repairs = reviewed_repairs(backup, op)
     generation = backup["checksum"][:24]
     target = root + "/v2_generations/" + generation
     docs, manifest, used = [], {}, set()
@@ -68,7 +70,10 @@ def plan_v2(backup):
         values = typed["arrayValue"].get("values", [])
         manifest[field] = {"kind": "array", "collection": collection,
                            "count": len(values), "emptyEncoding": copy.deepcopy(typed) if not values else None}
+        if field in identity_repairs:
+            manifest[field]['identityRepairs']=identity_repairs[field]
         for index, value in enumerate(values):
+            value=mapped_record(field,index,value,identity_repairs)
             fields = value.get("mapValue", {}).get("fields", {})
             legacy_id = fields.get("codigo") if field == "vouchers" else fields.get("id")
             if legacy_id is None:
@@ -82,6 +87,47 @@ def plan_v2(backup):
             append(target + "/" + collection + "/" + identifier,
                    {"data": copy.deepcopy(value), "legacyIndex": integer(index),
                     "legacyField": string(field)})
+    # Some small V1 stores have never saved clients, vouchers or other modules.
+    # Their V2 route must support the first future write to those modules too.
+    # Mark added schema defaults separately so lossless reconstruction still
+    # proves the exact original V1 fields (absent is never treated as present).
+    for field, collection in COLLECTIONS.items():
+        if field not in manifest:
+            manifest[field] = {"kind": "array", "collection": collection,
+                "count": 0, "sourceAbsent": True, "emptyEncoding": {"arrayValue": {}}}
+    defaults = {
+        "regrasDesconto": {"verdeMax":5,"amareloMax":12,"margemIdeal":30,"margemMinima":15,
+            "exigirSenhaVermelho":True,"senhaGerente":""},
+        "regrasComissao": {"baseCalculo":"lucro","pctVerde":5,"pctAmarelo":3,"pctVermelho":1,
+            "bonusFixo":0,"protecaoPrejuizo":True,"bonusRegras":[]},
+        "_syncMeta": {"fieldRevisions":{}},
+    }
+    def default_typed(v):
+        if isinstance(v, bool): return {"booleanValue":v}
+        if isinstance(v, int): return integer(v)
+        if isinstance(v, str): return string(v)
+        if isinstance(v, list): return {"arrayValue":{"values":[default_typed(x) for x in v]}}
+        return {"mapValue":{"fields":{k:default_typed(x) for k,x in v.items()}}}
+    # Canonical empty protobuf containers match the server's round-trip shape.
+    def canonical_empty(v):
+        if isinstance(v,list): return [canonical_empty(x) for x in v]
+        if not isinstance(v,dict): return v
+        if v=={"mapValue":{"fields":{}}}: return {"mapValue":{}}
+        if v=={"arrayValue":{"values":[]}}: return {"arrayValue":{}}
+        return {k:canonical_empty(x) for k,x in v.items()}
+    if manifest['vendedores'].get('sourceAbsent'):
+        # This is the app's existing onboarding fallback, now persisted so PIN
+        # changes have a real server base. No existing operator is overwritten.
+        admin={'id':'admin','nome':'Administrador (Gerência)','patente':'gerencia','senha':'admin',
+            'pinTrocaObrigatoria':True,'percentual':0,'comissaoTipo':'lucro','permissoes':{'admin':True}}
+        append(target+'/operadores/admin',{'data':default_typed(admin),
+            'legacyIndex':integer(0),'legacyField':string('vendedores')})
+        manifest['vendedores']['count']=1
+    for field, value in defaults.items():
+        if field not in manifest:
+            append(target+"/legacy_fields/"+field,
+                {"field":string(field),"value":canonical_empty(default_typed(value))})
+            manifest[field]={"kind":"value","collection":"legacy_fields","count":1,"sourceAbsent":True}
     result = {"format": "ZENOS_V2_COPY_ONLY_PLAN_1", "generation": generation,
         "sourceChecksum": backup["checksum"], "sourceOperationUpdateTime": op["updateTime"],
         "sourceFieldsChecksum": digest(op["fields"]), "sourceOperation": op["name"],
@@ -98,6 +144,8 @@ def plan_v2(backup):
 def reconstruct_fields(plan):
     result = {}
     for field, meta in plan["fieldManifest"].items():
+        if meta.get("sourceAbsent"):
+            continue
         if meta["kind"] == "value":
             doc = next(d for d in plan["documents"] if d["name"] == plan["targetRoot"] + "/legacy_fields/" + quote(field, safe=""))
             result[field] = copy.deepcopy(doc["fields"]["value"])
@@ -106,7 +154,7 @@ def reconstruct_fields(plan):
             docs.sort(key=lambda d: int(d["fields"]["legacyIndex"]["integerValue"]))
             if len(docs) != meta["count"] or [int(d["fields"]["legacyIndex"]["integerValue"]) for d in docs] != list(range(meta["count"])):
                 raise ValueError("Missing or duplicated array positions")
-            result[field] = ({"arrayValue": {"values": [copy.deepcopy(d["fields"]["data"]) for d in docs]}}
+            result[field] = ({"arrayValue": {"values": [original_record(i,d["fields"]["data"],meta.get('identityRepairs',[])) for i,d in enumerate(docs)]}}
                              if docs else copy.deepcopy(meta["emptyEncoding"]))
     return result
 

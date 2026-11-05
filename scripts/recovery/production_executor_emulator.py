@@ -46,7 +46,7 @@ for start in range(0,len(backup['documents']),100):
 input_checksum=backup['checksum']
 for index,original in enumerate(backup['documents']):
     actual=remap(call('GET',remap(original['name'])),True)
-    assert actual['fields']==original.get('fields',{})
+    assert actual.get('fields',{})==original.get('fields',{})
     backup['documents'][index]=actual
 backup['checksums']={d['name']:digest(d) for d in backup['documents']}
 backup['checksum']=digest({k:v for k,v in backup.items() if k!='checksum'})
@@ -56,13 +56,13 @@ with tempfile.TemporaryDirectory() as folder:
     assert r.inspect()['writes']==0
     with patch('production_recovery.time.sleep'):r.fence()
     first=r.stage(backup);again=r.stage(backup)
-    assert first['created']==1257 and again['created']==0
+    assert first['created']==len(r.plan['documents']) and again['created']==0
     save_new(Path(folder)/'final-snapshot.json',backup)
     assert r.activate('a'*40)['activated']
     assert r.stop()['mode']=='maintenance'
     assert r.stop(abort=True)['mode']=='legacy'
     for doc in backup['documents']:
-        got=r.get(doc['name']);assert got['fields']==doc.get('fields',{})
+        got=r.get(doc['name']);assert got.get('fields',{})==doc.get('fields',{})
     report={'productionExecutorCorePassed':True,'comparedV1':len(backup['documents']),
         'comparedV2':first['compared'],'replayWrites':again['created'],'productionRequests':0,
         'inputBackupChecksum':input_checksum}

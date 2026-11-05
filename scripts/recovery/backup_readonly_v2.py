@@ -29,10 +29,11 @@ def digest(value):
 
 
 class ReadOnlyAPI:
-    def __init__(self, token, max_requests=20000, progress=None):
+    def __init__(self, token, max_requests=20000, progress=None, token_provider=None):
         self.token, self.max_requests, self.requests = token, max_requests, 0
         self.progress = progress or (lambda message: None)
         self.started = time.monotonic()
+        self.token_provider = token_provider
 
     def __call__(self, method, resource, params=None, body=None):
         # Reject all writes, untrusted hosts and traversal before sending credentials.
@@ -46,6 +47,7 @@ class ReadOnlyAPI:
         request = urllib.request.Request(url, method=method,
             data=encoded(body) if body is not None else None,
             headers={"Authorization": "Bearer " + self.token, "Content-Type": "application/json"})
+        auth_refreshed = False
         for attempt in range(3):
             self.requests += 1
             if self.requests > self.max_requests or time.monotonic() - self.started > 2700:
@@ -59,6 +61,14 @@ class ReadOnlyAPI:
                     return json.loads(raw)
             except urllib.error.HTTPError as error:
                 # Never print response payloads or credential headers.
+                if error.code == 401 and self.token_provider and not auth_refreshed and attempt < 2:
+                    self.token = self.token_provider()
+                    request.add_header('Authorization', 'Bearer ' + self.token)
+                    auth_refreshed = True
+                    self.progress('Renovando autenticação; repetindo somente esta leitura.')
+                    continue
+                if error.code == 401:
+                    raise RuntimeError('Autenticação Google recusada (401). Renove o login no Cloud Shell e retome a mesma pasta; backup não certificado.') from None
                 if error.code == 404 and method == "GET":
                     return None
                 if error.code not in (429, 500, 502, 503, 504):

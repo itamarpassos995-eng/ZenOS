@@ -1,0 +1,28 @@
+{
+  "reviews": [
+    {
+      "store": "XuMFgiVtcTfpIt07DVsYjSwf09v2",
+      "sourceFieldsChecksum": "928807e3587b850d91cb9f41e643b00235ab71c2ba103ac4866fcd0571dc0d23",
+      "repairs": [
+        {
+          "field": "clientes",
+          "index": 1,
+          "originalId": {
+            "integerValue": "1790457441107"
+          },
+          "newId": "CLIENTE-V2-1790457441107-ee1226b441b0",
+          "sourceRecordChecksum": "ee1226b441b04ae8346e430ad09c0054348d91c4c9363174ee57ccd0eb314d20"
+        },
+        {
+          "field": "produtos",
+          "index": 1,
+          "originalId": {
+            "integerValue": "1790457441107"
+          },
+          "newId": "PRODUTO-V2-1790457441107-2a5603b19883",
+          "sourceRecordChecksum": "2a5603b19883bbd0acc9e93d1cb6076bfc1a0a4f1298e68e62b4b0a5d15e66f9"
+        }
+      ]
+    }
+  ]
+}
