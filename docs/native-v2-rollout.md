@@ -19,6 +19,13 @@ os arquivos de retomada; nunca força um sucesso nem apaga o documento V1.
 Reexecução na mesma pasta aproveita os backups/evidências do mesmo commit e
 pula as contas já confirmadas na V2. Não trocar o checkout durante o lote.
 
+Em caso de HTTP 401, renovar o login Google no Cloud Shell e retomar na mesma
+pasta. O leitor renova a credencial uma vez e repete somente a mesma leitura,
+incluindo paginação e instante da cópia. Mutações nunca são repetidas
+automaticamente. Se uma correção do executor exigir atualizar o checkout,
+as evidências anteriores ficam em `certification-history` e o mesmo backup
+é testado novamente; os backups e checkpoints de migração não são apagados.
+
 O parâmetro `--prepare-native` publica o backend com uma identidade operacional
 separada, com acesso Firestore `roles/datastore.user`, confirma recusa anônima,
 publica as regras nativas preservando todos os pilotos e aguarda dez minutos de

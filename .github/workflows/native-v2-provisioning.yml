@@ -28,6 +28,7 @@ jobs:
       - run: python3 -m unittest discover -s scripts/recovery -p 'test_production_recovery.py'
       - run: python3 -m unittest discover -s scripts/recovery -p 'test_v2_plan.py'
       - run: python3 -m unittest discover -s scripts/recovery -p 'test_bulk_v2_rollout.py'
+      - run: python3 -m unittest discover -s scripts/recovery -p 'test_auth_refresh.py'
       - run: npx vitest run --config vitest.recovery.config.js scripts/recovery/native-v2-bootstrap.ui.test.jsx
       - run: npm run build
       - name: Local emulator only — no production credentials

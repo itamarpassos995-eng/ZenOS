@@ -31,7 +31,9 @@ ROOT=Path(__file__).resolve().parents[2]
 def token():
     return subprocess.run(['gcloud','auth','print-access-token'],text=True,capture_output=True,timeout=30,check=True).stdout.strip()
 
-def read_api():return ReadOnlyAPI(token(),max_requests=20000)
+def read_api():return ReadOnlyAPI(token(),max_requests=20000,token_provider=token)
+
+def write_api():return Transport(token(),token_provider=token)
 
 def snapshot_time():
     return (dt.datetime.now(dt.timezone.utc)-dt.timedelta(seconds=10)).isoformat().replace('+00:00','Z')
@@ -50,9 +52,16 @@ def certify(backup_path,folder,code_commit):
     evidence_path=folder/'evidence.json'
     if evidence_path.exists():
         saved=json.loads(evidence_path.read_bytes())
-        if saved.get('testedCodeCommit')!=code_commit:raise RuntimeError('Código mudou; usar outra pasta de validação')
-        Recovery(b,lambda *args:None,folder/'migration',saved)
-        return saved
+        if saved.get('testedCodeCommit')==code_commit:
+            Recovery(b,lambda *args:None,folder/'migration',saved)
+            return saved
+        # Keep the original backup and migration checkpoints intact. Re-certify
+        # the same backup after a tool fix, retaining the previous proof/logs.
+        history=folder/'certification-history'/dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%S%f')
+        history.mkdir(mode=0o700,parents=True,exist_ok=False)
+        for name in ['evidence.json','integration.json','ui.json','validation.log']:
+            old=folder/name
+            if old.exists():old.rename(history/name)
     env={**os.environ,'ZENOS_FENCED_RULES':'1','ZENOS_PILOT_RULES':'1',
         'ZENOS_BACKUP_PATH':str(backup_path),'ZENOS_REPORT_PATH':str(folder/'integration.json'),
         'npm_config_ignore_scripts':'true'}
@@ -91,7 +100,7 @@ def certify(backup_path,folder,code_commit):
 
 def migrate(backup, evidence, folder, frontend_commit):
     folder.mkdir(mode=0o700,exist_ok=True)
-    r=Recovery(backup,Transport(token()),folder,evidence)
+    r=Recovery(backup,write_api(),folder,evidence)
     control=r.get(r.control)
     if control:
         mode=fields(control).get('mode')
@@ -147,7 +156,7 @@ def prepare_native(folder, frontend_commit):
     except urllib.error.HTTPError as error:
         body=json.loads(error.read(32768))
         if error.code!=401 or body.get('error',{}).get('status')!='UNAUTHENTICATED':raise RuntimeError('Callable auth smoke check failed') from None
-    api=Transport(token())
+    api=write_api()
     if not (folder/'manifest.json').exists():prepare(api,folder)
     result=publish_rules(api,folder)
     print('Backend publicado. Aguardando propagação das regras antes da ativação de contas novas.',flush=True)
@@ -157,7 +166,7 @@ def prepare_native(folder, frontend_commit):
     # The supplied commit is the confirmed published V2-compatible frontend.
     # Existing builds without the native feature flag continue unchanged until
     # the subsequent Vercel release; no new-account V2 claim is made yet.
-    activation=enable(Transport(token()),folder,frontend_commit)
+    activation=enable(write_api(),folder,frontend_commit)
     return {**result,'backendActive':True,'serverGateEnabled':True,
         'frontendActivationPending':True,'serverActivation':activation}
 

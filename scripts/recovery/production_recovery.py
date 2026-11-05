@@ -56,10 +56,14 @@ def canonical_empty_containers(value):
 
 
 class Transport:
-    def __init__(self, token):
+    def __init__(self, token, token_provider=None):
         self.token, self.count = token, 0
+        self.token_provider, self.token_at = token_provider, time.monotonic()
 
     def __call__(self, service, method, resource, body=None):
+        if self.token_provider and time.monotonic() - self.token_at >= 60:
+            self.token = self.token_provider()
+            self.token_at = time.monotonic()
         self.count += 1
         if self.count > 15000:
             raise RuntimeError('Request budget exceeded')
@@ -71,15 +75,25 @@ class Transport:
         req = urllib.request.Request(url, method=method,
             data=encoded(body) if body is not None else None,
             headers={'Authorization': 'Bearer ' + self.token, 'Content-Type': 'application/json'})
-        try:
-            with urllib.request.urlopen(req, timeout=90) as response:
-                return json.load(response)
-        except urllib.error.HTTPError as error:
-            if method == 'GET' and error.code == 404:
-                return None
-            # Ambiguous mutations are never retried blindly. Rerun the explicit
-            # command: create-only documents are compared and safely resumed.
-            raise RuntimeError(f'{service} {method}: HTTP {error.code}; stopped, data preserved') from None
+        for auth_attempt in range(2):
+            try:
+                with urllib.request.urlopen(req, timeout=90) as response:
+                    return json.load(response)
+            except urllib.error.HTTPError as error:
+                if method == 'GET' and error.code == 404:
+                    return None
+                if method == 'GET' and error.code == 401 and self.token_provider and auth_attempt == 0:
+                    self.token = self.token_provider()
+                    self.token_at = time.monotonic()
+                    req.add_header('Authorization', 'Bearer ' + self.token)
+                    self.count += 1
+                    if self.count > 15000:
+                        raise RuntimeError('Request budget exceeded')
+                    continue
+                # Never replay mutations automatically, even after auth errors.
+                # Explicit reruns compare create-only copies and preconditions.
+                raise RuntimeError(f'{service} {method}: HTTP {error.code}; stopped, data preserved') from None
+
 
 
 class Recovery:
