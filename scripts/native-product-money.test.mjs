@@ -65,3 +65,12 @@ test('pedido privado PYG congela moeda, valor e equivalentes e é idempotente',a
  const duplicate=await submitOrder(body,{catalog:async()=>shop,read:async()=>recorded,write:async()=>assert.fail('duplicate')});
  assert.equal(duplicate.duplicado,true);assert.equal(duplicate.moedaDocumento,'PYG');assert.equal(JSON.stringify(recorded),before);
 });
+
+test('custo nativo não usa média antiga se outra venda mudou a quantidade em paralelo',()=>{
+ const base={id:'p',estoque:10,estoqueGalpao:10,...registrarValoresProduto({...form('USD',10),custoBRL:4},'USD',to)};
+ const local={...base,estoque:20,estoqueGalpao:20,...registrarValoresProduto({...produtoParaFormularioMonetario(base,'USD',from),custoBRL:4.4},'USD',to,base,from)};
+ const remote={...base,estoque:9,estoqueGalpao:9};
+ assert.throws(()=>mergeArrayThreeWay({field:'produtos',base:[base],local:[local],remote:[remote]}),e=>e.code==='ZENOS_MONEY_CONFLICT');
+ const stockOnly=mergeArrayThreeWay({field:'produtos',base:[base],local:[{...base,estoque:8,estoqueGalpao:8}],remote:[remote]})[0];
+ assert.equal(stockOnly.estoque,7);assert.deepEqual(stockOnly.valoresMonetarios,base.valoresMonetarios);
+});

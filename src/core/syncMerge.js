@@ -168,6 +168,9 @@ const mergeProdutoEntity = ({ base = {}, local = {}, remote = {} }) => {
       const l={quantia:local.valoresMonetarios?.campos?.[field],equivalente:local[field]};
       const r={quantia:remote.valoresMonetarios?.campos?.[field],equivalente:remote[field]};
       const changed=!syncValuesEqual(l,b),remoteChanged=!syncValuesEqual(r,b);
+      const estoqueLocalMudou=quantidadeProduto(local)!==quantidadeProduto(base);
+      const estoqueRemotoMudou=quantidadeProduto(remote)!==quantidadeProduto(base);
+      if(field==='custoBRL'&&((changed&&estoqueRemotoMudou)||(remoteChanged&&estoqueLocalMudou)))throw Object.assign(new Error('Estoque e custo mudaram em outro terminal. Recarregue para recalcular o custo médio.'),{code:'ZENOS_MONEY_CONFLICT'});
       if(changed&&remoteChanged&&!syncValuesEqual(l,r))throw Object.assign(new Error('Preço ou custo mudou em outro terminal. Recarregue antes de confirmar.'),{code:'ZENOS_MONEY_CONFLICT'});
       if(changed){merged[field]=local[field];if(l.quantia)campos[field]=cloneSyncValue(l.quantia);else delete campos[field];}
     }
