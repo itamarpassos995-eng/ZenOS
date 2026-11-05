@@ -1,0 +1,34 @@
+name: Native V2 provisioning
+on:
+  pull_request:
+    paths: ['operational-functions/**','src/core/operationalRepository.js','src/core/nativeV2Provisioning.js','scripts/recovery/**','firebase.operational.json','.github/workflows/native-v2-provisioning.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-v2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - run: npm ci --prefix operational-functions
+      - run: npm test --prefix operational-functions
+      - run: python3 -m unittest discover -s scripts/recovery -p 'test_pilot_rules_rollout.py'
+      - run: python3 -m unittest discover -s scripts/recovery -p 'test_audit_store_routes.py'
+      - run: python3 -m unittest discover -s scripts/recovery -p 'test_native_v2_release.py'
+      - run: python3 -m unittest discover -s scripts/recovery -p 'test_production_recovery.py'
+      - run: npx vitest run --config vitest.recovery.config.js scripts/recovery/native-v2-bootstrap.ui.test.jsx
+      - run: npm run build
+      - name: Local emulator only — no production credentials
+        env:
+          npm_config_ignore_scripts: 'true'
+        run: npx --yes firebase-tools@14.12.0 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.recovery-fenced.json 'node scripts/recovery/native-v2.emulator.mjs && node scripts/recovery/v2-rollout-rules.emulator.mjs'

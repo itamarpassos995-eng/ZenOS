@@ -73,8 +73,17 @@ try{
  await test('Real backup read through application repository: all entities and IDs preserved',async()=>{
   for(const snap of snapshots)for(const f of Object.keys(V2_COLLECTIONS))assert.equal(stableV2Json(snap.data()[f]),stableV2Json(op[f]||[]),f);
  });
+ // Some stores keep every unit in the warehouse. Prepare a test-only transfer
+ // after certifying the exact restored data; the uploaded V1 remains unchanged.
+ if(!state(0).produtos.some(p=>Number(p.estoqueVitrine)>3)){
+  const b=state(0),candidate=b.produtos.find(p=>Number(p.estoqueGalpao)>3);
+  assert(candidate,'Fixture needs a product with available warehouse stock');
+  tick();ok(await commit(0,{operationKey:'emulator-only-display-transfer',changes:[change(b,'produtos',b.produtos.map(p=>p.id===candidate.id?{...p,estoqueVitrine:4,estoqueGalpao:Number(p.estoqueGalpao)-4}:p))]}));
+  await session(1).catchUp();
+ }
+ const sequenceBeforeSale=session(0).sequence;
  let lastSnapshot;stop=subscribeOperationalSnapshot(dbs[1],userId,s=>{lastSnapshot=s.data();},e=>{throw e;});
- const saleId='EMULATOR-ONLY-SALE',product=op.produtos.find(p=>Number(p.estoqueVitrine)>3),cash=op.sessoesCaixa.find(s=>s.status==='aberta');
+ const saleId='EMULATOR-ONLY-SALE',product=state(0).produtos.find(p=>Number(p.estoqueVitrine)>3),cash=op.sessoesCaixa.find(s=>s.status==='aberta');
  assert(product&&cash);const pid=product.id;
  const saleArgs=base=>({operationKey:`pdv:${saleId}`,changes:[
   change(base,'historicoVendas',[{id:saleId,estado:'concluida',totalBRL:10,sessaoId:cash.id,itens:[],observacao:'X'.repeat(2000)},...base.historicoVendas]),
@@ -89,7 +98,7 @@ try{
   assert((await getDoc(doc(db,'lojas',userId,'estoque_auditoria',`${pid}-${product.sku||''}`.replaceAll('/','_'),'movimentos',`stock-${saleId}`))).exists());
  });
  await test('Permanent receipt replay does not double stock or finance',async()=>{
-  tick();const replay=await commit(0,saleRequest);ok(replay);assert(replay.alreadyCommitted);assert.equal(session(0).sequence,1);
+  tick();const replay=await commit(0,saleRequest);ok(replay);assert(replay.alreadyCommitted);assert.equal(session(0).sequence,sequenceBeforeSale+1);
  });
  await test('Reusing operation ID with another payload is rejected',async()=>{
   tick();const r=await commit(0,{...saleRequest,financialEntries:[{...saleRequest.financialEntries[0],valor:11}]});assert.equal(r.error.code,'V2_IDEMPOTENCY_CONFLICT');
@@ -126,6 +135,9 @@ try{
   const results=await Promise.all(requests.map((r,i)=>commit(i,r)));assert.equal(results.filter(r=>r.cloudOk).length,1);assert.equal(results.find(r=>!r.cloudOk).error.code,'ZENOS_STOCK_CONFLICT');await session(0).catchUp();assert.equal(state(0).produtos.find(p=>p.id===pid).estoqueVitrine,0);
  });
  await test('Guarded pending-order conversion preserves tombstoned original and all other sales',async()=>{
+  if(!state(0).historicoVendas.some(v=>v.estado==='pendente')){
+   tick();const base=state(0);ok(await commit(0,{operationKey:'emulator-only-preorder-fixture',changes:[change(base,'historicoVendas',[{id:'EMULATOR-ONLY-PENDING',estado:'pendente',totalBRL:1,itens:[]},...base.historicoVendas])]}));
+  }
   tick();const b=state(0),pending=b.historicoVendas.find(v=>v.estado==='pendente');assert(pending);
   const r=await commit(0,{operationKey:'convert-pending',changes:[{...change(b,'historicoVendas',[{...pending,id:'EMULATOR-CONVERTED',estado:'concluida'},...b.historicoVendas.filter(v=>v.id!==pending.id)]),removeEntityIds:[pending.id]}],guards:[{type:'entity_field_equals',field:'historicoVendas',entityId:pending.id,property:'estado',expected:'pendente'}]});ok(r);
   const old=(await getDoc(doc(db,...root,'vendas',encodeV2Id(pending.id)))).data();assert.equal(old.deleted,true);assert.equal(stableV2Json(old.data),stableV2Json(pending));assert(!state(0).historicoVendas.some(v=>v.id===pending.id));
@@ -185,7 +197,7 @@ try{
   tick();const b=state(0),before=session(0).sequence;
   const r=await commit(0,{operationKey:'close-stale',changes:[change(b,'sessoesCaixa',b.sessoesCaixa.map(s=>s.id===cash.id?{...s,status:'fechada'}:s))],guards:[{type:'cash_close_snapshot_matches',sessionId:cash.id,assinatura:'stale'}]});assert.equal(r.error.code,'ZENOS_CASH_CLOSE_STALE');assert.equal(session(0).sequence,before);
  });
- await test('Close actual open Central Motos cash session using existing signature guard',async()=>{
+ await test('Close restored open cash session using existing signature guard',async()=>{
   tick();const b=state(0),c=b.sessoesCaixa.find(s=>s.id===cash.id);
   const r=await commit(0,{operationKey:`fechar-caixa:${c.id}`,changes:[change(b,'sessoesCaixa',b.sessoesCaixa.map(s=>s.id===c.id?{...s,status:'fechada'}:s))],guards:[{type:'cash_session_open',sessionId:c.id},{type:'cash_close_snapshot_matches',sessionId:c.id,assinatura:assinaturaFinanceiraSessao({sessao:c,historicoVendas:b.historicoVendas,caixaMovimentos:b.caixaMovimentos})}]});ok(r);assert.equal(state(0).sessoesCaixa.find(s=>s.id===c.id).status,'fechada');
   tick();const rejected=await commit(0,{operationKey:'sale-after-close',changes:[change(state(0),'historicoVendas',[{id:'CLOSED-NOT-SAVED'},...state(0).historicoVendas])],guards:[{type:'cash_session_open',sessionId:c.id}]});assert.equal(rejected.error.code,'ZENOS_CASH_SESSION_NOT_OPEN');
@@ -243,7 +255,7 @@ try{
   clearOperationalSession(dbs[1],userId);await adminSet(`lojas/${userId}/dados/storage_control`,{...control,generation:'0'.repeat(24)});
   await assert.rejects(getOperationalSnapshot(dbs[1],userId),e=>e.code==='V2_NOT_READY');
  });
- const report={fencedRules:process.env.ZENOS_FENCED_RULES==='1',pilotRules:process.env.ZENOS_PILOT_RULES==='1',suite:'actual-app-v2-central-motos',backupChecksum:backup.checksum,passed:passed.length,tests:passed,productionRequests:0,firstSaleReads:saleResult.reads,firstSaleWrites:saleResult.writes,finalSequence:session(0).sequence,originalV1Preserved:true};
+ const report={fencedRules:process.env.ZENOS_FENCED_RULES==='1',pilotRules:process.env.ZENOS_PILOT_RULES==='1',suite:'actual-app-v2-restored-store',backupChecksum:backup.checksum,passed:passed.length,tests:passed,productionRequests:0,firstSaleReads:saleResult.reads,firstSaleWrites:saleResult.writes,finalSequence:session(0).sequence,originalV1Preserved:true};
  console.log(JSON.stringify(report,null,2));
  if(process.env.ZENOS_REPORT_PATH)fs.writeFileSync(process.env.ZENOS_REPORT_PATH,JSON.stringify(report,null,2)+'\n');
 }finally{Date.now=tickNow;stop?.();await Promise.all(apps.map(deleteApp));}

@@ -14,11 +14,15 @@ Object.defineProperty(globalThis,'crypto',{value:webcrypto,configurable:true});
 let commits=[],chosen;
 beforeAll(async()=>{
  fixture.current=await createRealFixture();const f=fixture.current,b=f.operation;
- chosen=b.produtos.find(p=>p.tipoItem!=='servico'&&Number(p.estoqueVitrine)>20&&Number(p.precoBRL)>Number(p.custoBRL)*1.5);expect(chosen).toBeTruthy();
+ chosen=b.produtos.find(p=>p.tipoItem!=='servico'&&Number(p.estoqueVitrine)>20&&Number(p.precoBRL)>Number(p.custoBRL)*1.5)
+  ||b.produtos.find(p=>p.tipoItem!=='servico'&&Number(p.estoqueGalpao)>20&&Number(p.precoBRL)>Number(p.custoBRL)*1.5);expect(chosen).toBeTruthy();
+ const transfer=Number(chosen.estoqueVitrine)>20?0:Math.min(30,Number(chosen.estoqueGalpao));
  const seed=await persistV1BusinessOperationSafe({db:f.db,userId:f.userId,operationKey:'ui-only-fixtures',changes:[
   {field:'clientes',baseValue:b.clientes,value:[...b.clientes,{id:'TEST-UI-CLIENT',nome:'Cliente de homologacao',limiteCreditoBRL:100000,saldoDevedorBRL:0}]},
-  {field:'vouchers',baseValue:b.vouchers,value:[...b.vouchers,{codigo:'VALE-TEST-UI',saldoBRL:100000,status:'ativo'}]}]});expect(seed.cloudOk,seed.error?.message).toBe(true);
+  {field:'vouchers',baseValue:b.vouchers,value:[...b.vouchers,{codigo:'VALE-TEST-UI',saldoBRL:100000,status:'ativo'}]},
+  ...(transfer?[{field:'produtos',baseValue:b.produtos,value:b.produtos.map(p=>p.id===chosen.id?{...p,estoqueVitrine:Number(p.estoqueVitrine||0)+transfer,estoqueGalpao:Number(p.estoqueGalpao)-transfer}:p)}]:[])]});expect(seed.cloudOk,seed.error?.message).toBe(true);
  f.operation=(await getOperationalSnapshot(f.db,f.userId)).data();
+ chosen=f.operation.produtos.find(p=>p.id===chosen.id);
 });
 beforeEach(async()=>{commits=[];fixture.current.operation=(await getOperationalSnapshot(fixture.current.db,fixture.current.userId)).data();});
 afterEach(cleanup);afterAll(async()=>fixture.current?.close());
@@ -72,5 +76,5 @@ test.each(['dinheiro_brl','pix','cartaoCredito','cartaoDebito','misto','voucher'
  expect(state.produtos.find(p=>p.id===chosen.id).estoque).toBe(Number(oldProduct.estoque)-1);
  expect((await getDoc(doc(f.db,'lojas',f.userId,'dados','operacao'))).data()).toEqual(before);
  for(const entry of commits[0].result.financialEntries)expect((await getDoc(doc(f.db,'lojas',f.userId,'financeiro_livro',entry.id))).exists()).toBe(true);
- if(method==='crediario')expect(state.clientes.find(c=>c.id==='TEST-UI-CLIENT').saldoDevedorBRL).toBe(Number(chosen.precoBRL));
+ if(method==='crediario')expect(state.clientes.find(c=>c.id==='TEST-UI-CLIENT').saldoDevedorBRL).toBe(Math.round(Number(sale.totalBRL)*100)/100);
 });
