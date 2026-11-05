@@ -1,5 +1,5 @@
 import {createHash} from 'node:crypto';
-import {criarSnapshotCommercePublico,conferirCarrinhoContraSnapshot} from '../../src/core/commercePublicCatalog.js';
+import {criarSnapshotCommercePublico,conferirCarrinhoContraSnapshot,minorCommerceParaBRL,moedaCommerce,escalaCommerce} from '../../src/core/commercePublicCatalog.js';
 import {normalizarApelidoPublico} from '../../src/core/commerceCdnClient.js';
 import {googleServiceToken, getOfficialDocument, documentUrl, decodeDocument} from './_lib/commerceGoogle.js';
 
@@ -60,17 +60,18 @@ export function montarDocumentoPedido({pedido,uid,shop,config,at=()=>new Date()}
     clienteTelefone:pedido.cliente.telefone,observacao:pedido.cliente.observacao,
     tipoEntrega:pedido.entrega.tipo,endereco:pedido.entrega.endereco,
     formaPagamento:pedido.pagamento.forma,trocoPara:pedido.pagamento.trocoPara,
-    statusAtendimento:'pendente',totalBRL:calculo.totalCentavos/100,
-    totalCentavos:calculo.totalCentavos,dataHora:createdAt.toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}),
+    statusAtendimento:'pendente',totalBRL:minorCommerceParaBRL(calculo.totalCentavos,snapshot.config),
+    totalCentavos:calculo.totalCentavos,moedaDocumento:moedaCommerce(snapshot.config),taxasCambio:{...snapshot.config.taxasCambio},totalOriginal:calculo.totalCentavos/escalaCommerce(snapshot.config),dataHora:createdAt.toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}),
     criadoEm:createdAt.toISOString(),estado:'pendente',tipoDocumento:'pre_pedido',
     commerceIdempotencyHash:pedido.hash,
     itens:calculo.itens.map((item,i)=>{
       const p=mapa.get(item.id);
-      const preco=item.precoUnitarioCentavos/100;
+      const preco=minorCommerceParaBRL(item.precoUnitarioCentavos,snapshot.config);
       return {id:id+'-'+i,produtoId:item.id,sku:item.id,nome:snapshot.config.produtosLoja[item.id]?.nomeLoja||p.nome,
         quantidade:item.quantidade,qtd:String(item.quantidade),
+        precoOriginal:{valor:item.precoUnitarioCentavos/escalaCommerce(snapshot.config),moeda:moedaCommerce(snapshot.config)},
         precoUnitarioBRL:preco,precoPraticadoBRL:preco,precoTexto:preco.toFixed(2),
-        subtotalBRL:item.subtotalCentavos/100};
+        subtotalBRL:minorCommerceParaBRL(item.subtotalCentavos,snapshot.config)};
     })};
 }
 async function requestFirestore(path,{method='GET',body,transaction,token,fetchImpl=fetch}={}){
@@ -99,7 +100,7 @@ export async function registrarPedidoTransacional(pedido,{
   if(existing){
     const old=decodeDocument(existing);
     if(old?.commerceIdempotencyHash!==pedido.hash)fail('pedido-conflitante');
-    return {id,duplicado:true,totalCentavos:old.totalCentavos};
+    return {id,duplicado:true,totalCentavos:old.totalCentavos,moedaDocumento:old.moedaDocumento||'BRL'};
   }
   const [shopDoc,settingsDoc]=await Promise.all([
     requestFirestore(documentUrl('lojas',uid),{fetchImpl,token,transaction}),
@@ -108,11 +109,11 @@ export async function registrarPedidoTransacional(pedido,{
   const shop=decodeDocument(shopDoc),settings=decodeDocument(settingsDoc);
   if(!shop||!Array.isArray(shop.produtos)||!settings?.commerceConfig)fail('loja-indisponivel');
   if(normalizarApelidoPublico(settings.commerceConfig.slug)!==pedido.slug)fail('apelido-nao-confere');
-  const pedidoDoc=montarDocumentoPedido({pedido,uid,shop,config:settings.commerceConfig,at});
+  const pedidoDoc=montarDocumentoPedido({pedido,uid,shop,config:{...settings.commerceConfig,moedaPadrao:settings.moedaPadrao,taxasCambio:settings.taxasCambio},at});
   await requestFirestore(DOC_BASE+':commit',{method:'POST',fetchImpl,token,
     body:{transaction,writes:[{update:encodeOrderDoc(pedidoDoc,orderPath.replace('https://firestore.googleapis.com/v1/','')),
       currentDocument:{exists:false}}]}});
-  return {id,duplicado:false,totalCentavos:pedidoDoc.totalCentavos};
+  return {id,duplicado:false,totalCentavos:pedidoDoc.totalCentavos,moedaDocumento:pedidoDoc.moedaDocumento||'BRL'};
 }
 export async function verificarTurnstile(token,{fetchImpl=fetch,ip}={}){
   if(!process.env.ZENOS_COMMERCE_TURNSTILE_SECRET||!process.env.ZENOS_COMMERCE_ALLOWED_HOSTS)

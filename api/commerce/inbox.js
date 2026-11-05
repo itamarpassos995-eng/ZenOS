@@ -2,7 +2,7 @@ import {createHash} from 'node:crypto';
 import {putPrivate,readPrivate,listPrivate,deletePrivate,privateStoreReady} from './_lib/privateBlobStore.js';
 import {verifyOwnerFirebaseIdToken} from './_lib/commerceGoogle.js';
 import {normalizarApelidoPublico,validarSnapshotPublico} from '../../src/core/commerceCdnClient.js';
-import {conferirCarrinhoContraSnapshot} from '../../src/core/commercePublicCatalog.js';
+import {conferirCarrinhoContraSnapshot,minorCommerceParaBRL,moedaCommerce,escalaCommerce} from '../../src/core/commercePublicCatalog.js';
 
 // Separação rigorosa: este módulo nunca importa firebase/db e não consulta Firestore.
 // Pedidos (PII) jamais entram no Blob público usado para o catálogo.
@@ -90,14 +90,15 @@ export async function submitOrder(body,{catalog=publicCatalog,write=putPrivate,
     clienteNome:p.cliente.nome,clienteTelefone:p.cliente.telefone,observacao:p.cliente.observacao,
     tipoEntrega:p.entrega.tipo,endereco:p.entrega.endereco,
     formaPagamento:p.pagamento.forma,trocoPara:p.pagamento.trocoPara,
-    totalBRL:calc.totalCentavos/100,totalCentavos:calc.totalCentavos,
+    totalBRL:minorCommerceParaBRL(calc.totalCentavos,shop.config),totalCentavos:calc.totalCentavos,moedaDocumento:moedaCommerce(shop.config),taxasCambio:{...shop.config.taxasCambio},totalOriginal:calc.totalCentavos/escalaCommerce(shop.config),
     itens:calc.itens.map((item,i)=>({id:id+'-'+i,produtoId:item.id,sku:item.id,
       nome:shop.config.produtosLoja?.[item.id]?.nomeLoja||names.get(item.id),
       quantidade:item.quantidade,qtd:String(item.quantidade),
-      precoUnitarioBRL:item.precoUnitarioCentavos/100,
-      precoPraticadoBRL:item.precoUnitarioCentavos/100,
-      precoTexto:(item.precoUnitarioCentavos/100).toFixed(2),
-      subtotalBRL:item.subtotalCentavos/100}))};
+      precoOriginal:{valor:item.precoUnitarioCentavos/escalaCommerce(shop.config),moeda:moedaCommerce(shop.config)},
+      precoUnitarioBRL:minorCommerceParaBRL(item.precoUnitarioCentavos,shop.config),
+      precoPraticadoBRL:minorCommerceParaBRL(item.precoUnitarioCentavos,shop.config),
+      precoTexto:(minorCommerceParaBRL(item.precoUnitarioCentavos,shop.config)).toFixed(2),
+      subtotalBRL:minorCommerceParaBRL(item.subtotalCentavos,shop.config)}))};
   const path='commerce/pedidos/'+shop.lojaId+'/pendentes/'+id+'.json';
   // Arquivamento não libera a mesma chave idempotente para nova venda.
   const archivedPath='commerce/pedidos/'+shop.lojaId+'/arquivados/'+id+'.json';
@@ -105,7 +106,7 @@ export async function submitOrder(body,{catalog=publicCatalog,write=putPrivate,
   if(archived){
     if(archived.id!==id||archived.idempotencyHash!==payloadHash)
       throw Error('chave-pedido-reutilizada');
-    return {id,totalCentavos:archived.totalCentavos,duplicado:true};
+    return {id,totalCentavos:archived.totalCentavos,moedaDocumento:archived.moedaDocumento||'BRL',duplicado:true};
   }
   try {
     await write(path,pedido);
@@ -116,9 +117,9 @@ export async function submitOrder(body,{catalog=publicCatalog,write=putPrivate,
     const existing=await read(path);
     if(existing?.id!==id||existing.idempotencyHash!==payloadHash)
       throw Error('chave-pedido-reutilizada');
-    return {id,totalCentavos:existing.totalCentavos,duplicado:true};
+    return {id,totalCentavos:existing.totalCentavos,moedaDocumento:existing.moedaDocumento||'BRL',duplicado:true};
   }
-  return {id,totalCentavos:calc.totalCentavos,duplicado:false};
+  return {id,totalCentavos:calc.totalCentavos,moedaDocumento:moedaCommerce(shop.config),totalOriginal:calc.totalCentavos/escalaCommerce(shop.config),duplicado:false};
 }
 const respond=(res,status,data)=>{res.setHeader('Cache-Control','no-store');return res.status(status).json(data);};
 const forbidden=(body)=>JSON.stringify(body||{}).length>12_000;

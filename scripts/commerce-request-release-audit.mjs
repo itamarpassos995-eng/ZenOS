@@ -36,9 +36,21 @@ const allowed=new Set([
   'scripts/commerce-topbar-pdv.test.mjs',
   'api/commerce/_lib/privateBlobStore.js','scripts/commerce-private-blob-driver.test.mjs',
   'package.json','package-lock.json',
+  // Integração monetária autorizada: cálculos nativos e snapshots sem novas consultas.
+  '.github/workflows/product-cash-startup.yml','docs/native-product-money.md',
+  'scripts/native-product-money.test.mjs','scripts/purchase-costs-check.mjs',
+  'scripts/recovery/product-cash-audit.ui.test.jsx','scripts/release-check.mjs',
+  'src/components/EstoqueInteligente.jsx','src/components/ImportacaoVipe.jsx',
+  'src/components/Mesas.jsx','src/components/Migracao.jsx',
+  'src/components/PDVCompras.jsx','src/components/Produtos.jsx','src/components/Vendas.jsx',
+  'src/core/productMoney.js','src/core/syncMerge.js',
 ]);
 assert.ok(changed.every(p=>allowed.has(p)),'GATE_FAIL: alteração fora do pacote de solicitação: '+changed.filter(x=>!allowed.has(x)).join(', '));
 const read=path=>fs.readFileSync(path,'utf8');
+if(changed.some(p=>p==='src/core/productMoney.js'||p==='src/core/syncMerge.js')){
+ assert.ok(changed.includes('scripts/native-product-money.test.mjs'),'GATE_FAIL: quantias nativas exigem testes de moedas e concorrência');
+ for(const path of ['src/core/productMoney.js','src/core/syncMerge.js'])assert.doesNotMatch(read(path),/firebase\/firestore|\bonSnapshot\s*\(|\brunTransaction\s*\(/,'GATE_FAIL: cálculo monetário não pode adicionar rede');
+}
 const mainIdx=run(['show','origin/main:functions/src/index.js']).trim();
 const current=read('functions/src/index.js').trim();
 const commerceExport="export { commerceSolicitacaoCliente } from './commerceSolicitacaoCliente.js';";

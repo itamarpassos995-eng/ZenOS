@@ -161,6 +161,23 @@ const quantidadeProduto = (produto) => {
 
 const mergeProdutoEntity = ({ base = {}, local = {}, remote = {} }) => {
   const merged = mergeObjectThreeWay({ field:'produtos', base, local, remote });
+  if(base.valoresMonetarios||local.valoresMonetarios||remote.valoresMonetarios){
+    const campos={...remote.valoresMonetarios?.campos};
+    for(const field of ['custoBRL','precoBRL','preco2BRL','preco3BRL']){
+      const b={quantia:base.valoresMonetarios?.campos?.[field],equivalente:base[field]};
+      const l={quantia:local.valoresMonetarios?.campos?.[field],equivalente:local[field]};
+      const r={quantia:remote.valoresMonetarios?.campos?.[field],equivalente:remote[field]};
+      const changed=!syncValuesEqual(l,b),remoteChanged=!syncValuesEqual(r,b);
+      const estoqueLocalMudou=quantidadeProduto(local)!==quantidadeProduto(base);
+      const estoqueRemotoMudou=quantidadeProduto(remote)!==quantidadeProduto(base);
+      if(field==='custoBRL'&&((changed&&estoqueRemotoMudou)||(remoteChanged&&estoqueLocalMudou)))throw Object.assign(new Error('Estoque e custo mudaram em outro terminal. Recarregue para recalcular o custo médio.'),{code:'ZENOS_MONEY_CONFLICT'});
+      if(changed&&remoteChanged&&!syncValuesEqual(l,r))throw Object.assign(new Error('Preço ou custo mudou em outro terminal. Recarregue antes de confirmar.'),{code:'ZENOS_MONEY_CONFLICT'});
+      if(changed){merged[field]=local[field];if(l.quantia)campos[field]=cloneSyncValue(l.quantia);else delete campos[field];}
+    }
+    merged.valoresMonetarios={versao:1,campos};
+    return merged; // Quantia nativa e equivalente são uma unidade indivisível.
+  }
+
   const custoBase = numericFinite(base?.custoBRL);
   const custoLocal = numericFinite(local?.custoBRL);
   const custoRemote = numericFinite(remote?.custoBRL);

@@ -36,3 +36,17 @@ test('produto em PYG salvo pela interface envia preço convertido uma vez e reab
  const saved=commit.mock.calls[0][0].changes.find(c=>c.field==='produtos').value[0];
  expect(saved.precoBRL).toBe(39990/1150);expect(saved.custoBRL).toBe(20000/1150);
 });
+test('preço nativo permanece PYG após mudar a preferência para USD e atualizar câmbio',async()=>{
+ const product={id:'P-NATIVE',nome:'Massa',sku:'MN',custoBRL:20000/1150,precoBRL:39990/1150,estoque:0,estoqueVitrine:0,estoqueGalpao:0,
+  valoresMonetarios:{versao:1,campos:{custoBRL:{valor:20000,moeda:'PYG'},precoBRL:{valor:39990,moeda:'PYG'}}}};
+ const rates={BRL:1,PYG:2000,USD:0.25,EUR:0.2};
+ const commit=vi.fn(async p=>({cloudOk:true,values:{produtos:p.changes.find(c=>c.field==='produtos').value}}));
+ render(<Produtos userId="test" produtos={[product]} setProdutos={vi.fn()} moeda="USD" converterDeBRL={(v,m)=>v*rates[m]} converterParaBRL={(v,m)=>v/rates[m]} fmt={String} t={s=>s} tx={s=>s} patenteUsuario="gerencia" operadorAtivo={{id:'admin'}} commitOperacaoNegocio={commit}/>);
+ fireEvent(window,new CustomEvent('zenos:abrir-produto',{detail:product}));
+ expect(screen.getByDisplayValue('39990')).toBeTruthy();
+ expect(screen.getByRole('combobox',{name:'Moeda do preço'}).value).toBe('PYG');
+ fireEvent.click(screen.getByRole('button',{name:'Salvar Produto no Sistema'}));
+ await waitFor(()=>expect(commit).toHaveBeenCalledOnce());
+ const saved=commit.mock.calls[0][0].changes.find(c=>c.field==='produtos').value[0];
+ expect(saved.valoresMonetarios).toEqual(product.valoresMonetarios);expect(saved.precoBRL).toBe(product.precoBRL);
+});

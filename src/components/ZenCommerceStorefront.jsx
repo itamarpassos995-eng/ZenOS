@@ -1,8 +1,8 @@
+import { moedaCommerce, escalaCommerce, taxaCommerce, precoPublicadoNativo } from '../core/commercePublicCatalog.js';
 import React, { useEffect, useMemo, useState } from 'react';
 import CommerceDialog from './CommerceDialog';
 import '../commerce.css';
 
-const moeda = n => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((n || 0) / 100);
 
 const paths = {
   bag: 'M6 7h12l2 14H4L6 7Zm3 0V5a3 3 0 0 1 6 0v2',
@@ -89,16 +89,16 @@ export function montarLojaAPartirDeConfig(configCommerce = {}, produtos = [], lo
       })
       .map((p, idx) => {
         const cfgP = mapaProdutosLoja[p.id] || {};
-        const precoNormal = Number(p.precoBRL ?? p.preco ?? p.precoVenda ?? p.precoUnitario ?? 0);
+        const precoNormal = precoPublicadoNativo({...p,precoBRL:p.precoBRL??p.preco??p.precoVenda??p.precoUnitario??0},configCommerce);
 
-        let precoPromo = cfgP.precoPromoBRL ? Number(cfgP.precoPromoBRL) : null;
+        let precoPromo = cfgP.precoPromoBRL ? Number(cfgP.precoPromoBRL)*taxaCommerce(configCommerce) : null;
         if (!precoPromo && descontoGeral > 0 && precoNormal > 0) {
-          precoPromo = Math.round((precoNormal * (1 - descontoGeral / 100)) * 100) / 100;
+          precoPromo = precoNormal * (1 - descontoGeral / 100);
         }
 
         const temPromocao = precoPromo && precoPromo > 0 && precoPromo < precoNormal;
-        const precoFinalCentavos = Math.round((temPromocao ? precoPromo : precoNormal) * 100);
-        const precoDeCentavos = temPromocao ? Math.round(precoNormal * 100) : null;
+        const precoFinalCentavos = Math.round((temPromocao ? precoPromo : precoNormal) * escalaCommerce(configCommerce));
+        const precoDeCentavos = temPromocao ? Math.round(precoNormal * escalaCommerce(configCommerce)) : null;
 
         const fotosConfig = Array.isArray(cfgP.imagensLoja) && cfgP.imagensLoja.length > 0
           ? cfgP.imagensLoja.filter(Boolean)
@@ -159,6 +159,10 @@ export default function ZenCommerceStorefront({
   checkoutViaWhatsApp = false,
   checkoutPrivado = false
 }) {
+  const moeda = (n,config=configCommerce||{}) => new Intl.NumberFormat('pt-BR',{
+    style:'currency',currency:moedaCommerce(config),maximumFractionDigits:moedaCommerce(config)==='PYG'?0:2,
+  }).format(Number(n||0)/escalaCommerce(config));
+
   // Prévia privada: nunca recuperar carrinho anterior nem dados de cliente.
   const [sessaoInicial] = useState(() => isLivePreview ? { carrinho: {}, chave: 'preview' } : recuperarSessao(idPublico));
   const lojaDerivada = useMemo(() => {
@@ -315,7 +319,7 @@ export default function ZenCommerceStorefront({
             return;
           }
           setRecibo({
-            id:result.id,totalCentavos:result.totalCentavos,
+            id:result.id,totalCentavos:result.totalCentavos,moedaDocumento:result.moedaDocumento||moedaCommerce(configCommerce),
             whatsappUrl:whatsUrl,registradoNoSistema:true,
             tipoEntrega:entrega.tipo,formaPagamento:pagamento.forma
           });
@@ -857,7 +861,7 @@ export default function ZenCommerceStorefront({
               <h3>{recibo.aguardaEnvioManual ? 'Seu pedido está pronto para enviar' :
                 recibo.registradoNoSistema ? 'Pedido enviado à loja!' : 'Seu pedido foi recebido'}</h3>
               <p>
-                Pedido <strong>{recibo.id}</strong> · Subtotal: {moeda(recibo.totalCentavos)}
+                Pedido <strong>{recibo.id}</strong> · Subtotal: {moeda(recibo.totalCentavos,{moedaPadrao:recibo.moedaDocumento||'BRL'})}
               </p>
               <p>
                 {recibo.aguardaEnvioManual

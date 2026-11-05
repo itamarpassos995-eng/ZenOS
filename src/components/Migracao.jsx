@@ -1,9 +1,11 @@
+import { interpretarValorMonetario } from '../core/cashMoneyInput.js';
+import { registrarValoresProduto } from '../core/productMoney.js';
 import React, { useState } from 'react';
 import { normalizarProduto, normalizarCliente } from '../data';
 import ZenModal from './ZenModal';
 import ImportacaoVipe from './ImportacaoVipe';
 
-export default function Migracao({ commitOperacaoNegocio, produtos, setProdutos, clientes, setClientes, fornecedores, setFornecedores, userId, operadorAtivo, patenteUsuario, taxaPYG, t, tx = (pt) => pt }) {
+export default function Migracao({ commitOperacaoNegocio, produtos, setProdutos, clientes, setClientes, fornecedores, setFornecedores, userId, operadorAtivo, patenteUsuario, moeda, converterParaBRL, taxaPYG, t, tx = (pt) => pt }) {
   const [dadosInput, setDadosInput] = useState('');
   const [tipoMigracao, setTipoMigracao] = useState('produtos');
   const [mensagemSucesso, setMensagemSucesso] = useState('');
@@ -18,13 +20,15 @@ export default function Migracao({ commitOperacaoNegocio, produtos, setProdutos,
       if (tipoMigracao === 'produtos') {
         const novos = [...produtos];
         linhas.forEach(linha => {
-          const partes = linha.split(/[\t,|]/);
+          const partes = linha.split(/[\t|]/.test(linha)?/[\t|]/:/,/);
           if (partes.length >= 2 && partes[0].trim() !== '') {
             const nome = partes[0].trim();
-            const custo = parseFloat(partes[1]?.replace(',', '.')) || 0;
-            const preco = parseFloat(partes[2]?.replace(',', '.')) || (custo * 1.5);
+            const custo = partes[1]?.trim()||'0';
+            const parsed=interpretarValorMonetario(custo,moeda);
+            if(!parsed.ok)throw Error(parsed.erro);
+            const preco = partes[2]?.trim()||(moeda==='PYG'?Math.round(parsed.valor*1.5):parsed.valor*1.5);
             const estoque = parseInt(partes[3]) || 0;
-            novos.unshift(normalizarProduto({ nome, custoBRL: custo, precoBRL: preco, estoque }));
+            novos.unshift(normalizarProduto({ nome, ...registrarValoresProduto({custoBRL:custo,precoBRL:preco,preco2BRL:0,preco3BRL:0},moeda,converterParaBRL), estoque }));
             contador++;
           }
         });
@@ -36,7 +40,7 @@ export default function Migracao({ commitOperacaoNegocio, produtos, setProdutos,
       } else {
         const novosCli = [...clientes];
         linhas.forEach(linha => {
-          const partes = linha.split(/[\t,|]/);
+          const partes = linha.split(/[\t|]/.test(linha)?/[\t|]/:/,/);
           if (partes.length >= 1 && partes[0].trim() !== '') {
             const nome = partes[0].trim();
             const documento = partes[1]?.trim() || '';

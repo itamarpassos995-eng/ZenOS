@@ -1,3 +1,4 @@
+import { quantiaOriginalProduto, valorProdutoBRL, atualizarQuantiaProduto } from '../core/productMoney.js';
 import React, { useState, useRef, useMemo } from 'react';
 import { calcularAlocacaoReposicaoDevolucao, obterEstoqueProduto, reporEstoqueProduto } from '../core/inventory';
 import { calcularCustoDevolucaoAtual, calcularValorDevolucaoAtual, obterCustoSnapshotItem, obterFinanceiroVenda, precoLiquidoUnitarioItem } from '../core/salesFinancials';
@@ -233,11 +234,14 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
         const reposicao = reporEstoqueProduto(produtoAntes, itemDev.qtdSendoDevolvidaAgora, alocacao);
         const custoMedioBRL = calcularCustoMedioMovel({
           estoqueAnterior: obterEstoqueProduto(produtoAntes).estoque,
-          custoAnteriorBRL: produtoAntes.custoBRL,
+          custoAnteriorBRL: valorProdutoBRL(produtoAntes,'custoBRL',(v,m)=>v/converterDeBRL(1,m)),
           quantidadeEntrada: itemDev.qtdSendoDevolvidaAgora,
           custoFinalEntradaUnitarioBRL: itemDev.custoBRL,
         });
-        novosProdutos[prodIndex] = { ...reposicao.produto, custoBRL: custoMedioBRL };
+        const moedaCusto=quantiaOriginalProduto(produtoAntes,'custoBRL')?.moeda;
+        novosProdutos[prodIndex] = moedaCusto
+          ? atualizarQuantiaProduto(reposicao.produto,'custoBRL',Number(converterDeBRL(custoMedioBRL,moedaCusto).toFixed(moedaCusto==='PYG'?0:2)),moedaCusto,(v,m)=>v/converterDeBRL(1,m))
+          : { ...reposicao.produto, custoBRL: custoMedioBRL };
         const destino = reposicao.movimento.vitrine > 0 && reposicao.movimento.galpao > 0 ? 'vitrine+deposito' : reposicao.movimento.vitrine > 0 ? 'vitrine' : 'deposito';
         eventosEstoque.push(criarEventoEstoque({
           id: `${devolucaoId}-${produtoId}-${index}`,

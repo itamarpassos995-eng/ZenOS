@@ -17,7 +17,7 @@ export async function publicarCatalogoCore(uid,{authToken,produtosPublicos,load=
   if(slug==='previa')throw Error('apelido-reservado');
   const owner=await load(['lojas_slugs',slug],{token:authToken});
   if(owner?.lojaId!==uid)throw Error('apelido-nao-confirmado');
-  const snapshot=criarSnapshotCommercePublico({lojaId:uid,config:settings.commerceConfig,
+  const snapshot=criarSnapshotCommercePublico({lojaId:uid,config:{...settings.commerceConfig,moedaPadrao:settings.moedaPadrao,taxasCambio:settings.taxasCambio},
     produtos:produtosPublicos,publicadoEm:at()});
   if(snapshot.config.habilitado!==false&&snapshot.produtos.length===0)
     throw Error('catalogo-sem-produtos');
