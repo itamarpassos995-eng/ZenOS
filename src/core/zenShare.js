@@ -1,3 +1,4 @@
+import { formatMoney as formatNativeMoney } from './money.js';
 // ZenOS Share V2 — PDF local. Não publica arquivos nem utiliza API paga.
 const LABELS={venda:'Comprovante de venda',orcamento:'Orçamento',pre_pedido:'Pré-pedido',recibo:'Comprovante',cobranca:'Cobrança',pedido_fornecedor:'Pedido de fornecedor'};
 export function identificarTipoDocumento(d={}){
@@ -17,7 +18,8 @@ export function prepararCompartilhamento({documento,perfilLoja={},tipo,telefone=
  if(!d.id)return {ok:false,erro:'Salve o documento antes de compartilhar.'};
  const linhas=[clean(perfilLoja.nomeFantasia||'Minha Loja'),LABELS[t]+' nº '+clean(d.id)];
  const total=Number(d.totalBRL??d.valorBRL);
- if((d.totalBRL!=null||d.valorBRL!=null)&&Number.isFinite(total)&&total>=0)
+ if(d.moneySnapshot?.total) linhas.push('Valor: '+formatNativeMoney(d.moneySnapshot.total));
+ else if((d.totalBRL!=null||d.valorBRL!=null)&&Number.isFinite(total)&&total>=0)
   linhas.push('Valor: '+new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(total));
  if(d.dataHora)linhas.push('Data: '+clean(d.dataHora));
  // Nunca incluir automaticamente CPF, fiado, endereço ou dados particulares na mensagem.

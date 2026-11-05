@@ -2,6 +2,10 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { createHash, pbkdf2Sync } from 'node:crypto'
 import { resolve } from 'node:path'
+import { assertMoneyDeploymentIsolation } from './scripts/money-deployment-fence.mjs'
+
+// Branch-only fence. Do not merge or remove without isolated-backend review.
+assertMoneyDeploymentIsolation()
 
 const PIN_ITERATIONS = 120000
 

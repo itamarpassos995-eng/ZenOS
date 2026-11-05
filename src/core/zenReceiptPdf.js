@@ -1,5 +1,6 @@
 /* ZenOS Share V2: PDF não fiscal, 100% local, sem pagamentos, Firestore ou bibliotecas externas.
    Valores originam-se exclusivamente do snapshot salvo. */
+import { formatMoney as formatNativeMoney } from './money.js';
 const W=595.28,H=841.89,M=42;
 const money=(n,moeda='BRL')=>Number.isFinite(Number(n))?new Intl.NumberFormat('pt-BR',{minimumFractionDigits:moeda==='PYG'?0:2,maximumFractionDigits:moeda==='PYG'?0:2}).format(Number(n))+' '+moeda:'—';
 const clean=(v,n=160)=>String(v??'').replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,n);
@@ -73,18 +74,19 @@ export async function gerarPdfComprovante(doc,loja={},ambiente={}){
  y-=7;line();y-=21;add('ITENS',11,true,21);
  put('Qtd',M,y,9,true);put('Descrição',M+52,y,9,true);right('Unitário',W-M-95,y,9,true);right('Total',W-M,y,9,true);y-=12;line();y-=16;
  for(const item of Array.isArray(doc.itens)?doc.itens:[]){
+  const native=doc.moneySnapshot?.schemaVersion===2?doc.moneySnapshot.items.find(line=>line.id===String(item.id)):null;
   const desc=wrap(item.nome||'Item',38),qtd=Number(item.qtd),unit=Number(item.precoPraticadoBRL??item.precoBRL);
   const persisted=item.totalBRL??item.totalItemBRL;
   const total=persisted==null?(Number.isFinite(qtd)&&Number.isFinite(unit)?qtd*unit:NaN):Number(persisted);
   reserve(Math.max(28,desc.length*14+8));
   put(Number.isFinite(qtd)?String(qtd):'—',M,y,9);
   desc.forEach((text,i)=>put(text,M+52,y-14*i,9));
-  right(money(unit),W-M-95,y,8);right(money(total),W-M,y,8);
+  right(native?formatNativeMoney(native.unitPrice):money(unit),W-M-95,y,8);right(native?formatNativeMoney(native.total):money(total),W-M,y,8);
   y-=Math.max(28,desc.length*14+8);
  }
  reserve(80);line();y-=22;
- if(doc.descontoGlobalBRL!=null||doc.descontoBRL!=null){put('Desconto registrado',M,y,9);right(money(doc.descontoGlobalBRL??doc.descontoBRL),W-M,y,9);y-=19;}
- put('TOTAL OFICIAL',M,y,12,true);right(doc.totalBRL!=null?money(doc.totalBRL):'—',W-M,y,12,true);y-=30;
+ if(doc.moneySnapshot?.discount||doc.descontoGlobalBRL!=null||doc.descontoBRL!=null){put('Desconto registrado',M,y,9);right(doc.moneySnapshot?.discount?formatNativeMoney(doc.moneySnapshot.discount):money(doc.descontoGlobalBRL??doc.descontoBRL),W-M,y,9);y-=19;}
+ put('TOTAL OFICIAL',M,y,12,true);right(doc.moneySnapshot?.total?formatNativeMoney(doc.moneySnapshot.total):doc.totalBRL!=null?money(doc.totalBRL):'—',W-M,y,12,true);y-=30;
  if(Array.isArray(doc.pagamentos)&&doc.pagamentos.length){
   add('PAGAMENTOS REGISTRADOS',10,true,20);
   for(const p of doc.pagamentos){reserve(19);const coin=['BRL','USD','EUR','PYG'].includes(p.moedaOrigem)?p.moedaOrigem:null;

@@ -1,0 +1,27 @@
+name: Multimoeda V2 — contratos isolados
+on:
+  push:
+    branches: [feat/multimoeda-integral-homologacao]
+  pull_request:
+    paths:
+      - 'src/core/money*.js'
+      - 'scripts/money*.mjs'
+      - '.github/workflows/money-v2-homologacao.yml'
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test scripts/money-v2.test.mjs scripts/money-operations.test.mjs scripts/money-product-integration.test.mjs scripts/money-deployment-fence.test.mjs scripts/exchange-operator-config.test.mjs
+      - run: npx vitest run --config vitest.money-test.config.js
+      - run: node --test scripts/currency-default-bulk-negative-stock.test.mjs scripts/card-multicurrency.test.mjs scripts/cash-native-history-v2.test.mjs scripts/cash-closing-display-currency.test.mjs scripts/purchase-costs-check.mjs
+      - run: npm run build
+      - run: npm run build:money-test
