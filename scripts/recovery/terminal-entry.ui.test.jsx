@@ -1,0 +1,31 @@
+import React from 'react';
+import {test,expect,vi,afterEach} from 'vitest';
+import {render,screen,fireEvent,cleanup,waitFor,act} from '@testing-library/react';
+import TerminalLogin from '../../src/components/TerminalLogin.jsx';
+afterEach(()=>{cleanup();vi.restoreAllMocks();});
+const operators=[{id:'admin',nome:'Gerente',senha:'7953'}];
+test('PIN form is usable while base prepares; submission awaits complete confirmation and prevents duplicates',async()=>{
+ let finish;
+ const onLoginSuccess=vi.fn(()=>new Promise(resolve=>{finish=resolve;}));
+ render(<TerminalLogin preparandoBase vendedores={operators} onLoginSuccess={onLoginSuccess}/>);
+ expect(screen.getByRole('combobox').value).toBe('admin');
+ expect(screen.getByRole('status').textContent).toContain('em paralelo');
+ const input=screen.getByPlaceholderText('••••');fireEvent.change(input,{target:{value:'7953'}});
+ const form=input.closest('form');fireEvent.submit(form);fireEvent.submit(form);
+ await waitFor(()=>expect(onLoginSuccess).toHaveBeenCalledOnce());
+ expect(onLoginSuccess).toHaveBeenCalledWith(operators[0],'7953');
+ expect(screen.getByRole('button',{name:'Conferindo acesso…'}).disabled).toBe(true);
+ await act(async()=>finish());
+ expect(screen.getByRole('button',{name:'Desbloquear Terminal ➔'}).disabled).toBe(false);
+});
+test('failed full confirmation keeps terminal locked and PIN failure never calls login',async()=>{
+ vi.spyOn(console,'error').mockImplementation(()=>{});
+ const onLoginSuccess=vi.fn(async()=>{throw Error('Base não confirmada');});
+ render(<TerminalLogin vendedores={operators} onLoginSuccess={onLoginSuccess}/>);
+ const input=screen.getByPlaceholderText('••••');
+ fireEvent.change(input,{target:{value:'wrong'}});fireEvent.submit(input.closest('form'));
+ await screen.findByText('PIN / Senha incorreta! Tente novamente.');expect(onLoginSuccess).not.toHaveBeenCalled();
+ fireEvent.change(input,{target:{value:'7953'}});fireEvent.submit(input.closest('form'));
+ await screen.findByText('Base não confirmada');expect(onLoginSuccess).toHaveBeenCalledOnce();
+ expect(screen.getByRole('button',{name:'Desbloquear Terminal ➔'}).disabled).toBe(false);
+});

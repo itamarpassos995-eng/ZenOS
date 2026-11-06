@@ -1,7 +1,8 @@
+import {operadorConfirmadoTerminal} from './core/terminalAccess.js';
 import {financialPeriod,withinFinancialPeriod} from './core/financialPeriod.js';
 import { projetarProdutoMonetario } from './core/productMoney.js';
 import { useUiLanguage } from './core/useUiLanguage.js';
-import {getOperationalSnapshot,subscribeOperationalSnapshot,clearOperationalSession} from './core/operationalRepository.js';
+import {getOperationalSnapshot,getOperationalAccessSnapshot,subscribeOperationalSnapshot,clearOperationalSession} from './core/operationalRepository.js';
 import {verificarMovimentoCaixaNoServidor} from './core/cashMovementReadOnly.js';
 import TerminalLogin from './components/TerminalLogin';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
@@ -19,27 +20,27 @@ import { registroEhDoDiaLocal } from './core/dates';
 import { filtrarVendasHojeVisiveis } from './core/salesTodayScope';
 import LandingPage from './components/LandingPage';
 
-import Produtos from './components/Produtos';
-import Fornecedores from './components/Fornecedores';
-import Clientes from './components/Clientes';
-import PDV from './components/PDV';
-import PDVCompras from './components/PDVCompras';
-import Vendas from './components/Vendas';
-import Migracao from './components/Migracao';
-import Despesas from './components/Despesas';
-import EstoqueInteligente from './components/EstoqueInteligente';
-import Comissoes from './components/Comissoes';
-import Mesas from './components/Mesas';
-import DashboardMobile from './components/DashboardMobile';
-import Configuracoes from './components/Configuracoes';
-import GestaoCaixas from './components/GestaoCaixas';
-import Fiscal from './components/Fiscal';
+const Produtos = React.lazy(() => import('./components/Produtos'));
+const Fornecedores = React.lazy(() => import('./components/Fornecedores'));
+const Clientes = React.lazy(() => import('./components/Clientes'));
+const PDV = React.lazy(() => import('./components/PDV'));
+const PDVCompras = React.lazy(() => import('./components/PDVCompras'));
+const Vendas = React.lazy(() => import('./components/Vendas'));
+const Migracao = React.lazy(() => import('./components/Migracao'));
+const Despesas = React.lazy(() => import('./components/Despesas'));
+const EstoqueInteligente = React.lazy(() => import('./components/EstoqueInteligente'));
+const Comissoes = React.lazy(() => import('./components/Comissoes'));
+const Mesas = React.lazy(() => import('./components/Mesas'));
+const DashboardMobile = React.lazy(() => import('./components/DashboardMobile'));
+const Configuracoes = React.lazy(() => import('./components/Configuracoes'));
+const GestaoCaixas = React.lazy(() => import('./components/GestaoCaixas'));
+const Fiscal = React.lazy(() => import('./components/Fiscal'));
 import FiscalErrorBoundary from './components/FiscalErrorBoundary';
 // Lazy para não carregar a interface opcional durante vendas e fechamento de caixa.
 const CommerceSolicitacao = React.lazy(() => import('./components/CommerceSolicitacao'));
 import ZenModal from './components/ZenModal';
-import ZenAssistenteIA from './components/ZenAssistenteIA';
-import CommerceOrderInbox from './components/CommerceOrderInbox';
+const ZenAssistenteIA = React.lazy(() => import('./components/ZenAssistenteIA'));
+const CommerceOrderInbox = React.lazy(() => import('./components/CommerceOrderInbox'));
 import { normalizarPerfilLoja, lerPerfilLojaLocal, salvarPerfilLojaLocal, limparPerfilLojaLocal } from './core/storeProfile';
 import { assinarLivroFinanceiro, registrarLancamentoFinanceiro, consultarLivroFinanceiroSessaoServidor } from './core/financialLedger';
 import { planejarReconciliacoesFiado } from './core/creditReconciliation.js';
@@ -52,7 +53,7 @@ import { normalizarRegrasComissao, REGRAS_COMISSAO_PADRAO } from './core/commiss
 import { normalizarRegrasMargem } from './core/profitability';
 import { patenteEfetivaOperador } from './core/accessControl';
 import { derivarFilaFiscalSegura } from './core/fiscalUi';
-import { criarCredencialPin, operadorRequerTrocaPin, pinEhFraco } from './core/operatorPin';
+import { criarCredencialPin, verificarPinOperador, operadorRequerTrocaPin, pinEhFraco } from './core/operatorPin';
 import { ZenNavigationLayout, ZenHero, ZenKpiCard, ZenQuickCard } from './components/ZenVisualLayout';
 import './zenos-dashboard.css';
 
@@ -126,6 +127,7 @@ export default function App() {
   
   // 🔒 MOTOR DE SINCRONIZAÇÃO (TRANCA DE DADOS)
   const [nuvemSincronizada, setNuvemSincronizada] = useState(false);
+  const [operadoresConfirmados,setOperadoresConfirmados]=useState(false);
   const [falhaBootstrapNuvem, setFalhaBootstrapNuvem] = useState(null);
   const [statusSincronizacao, setStatusSincronizacao] = useState('PENDENTE');
   const [erroSincronizacao, setErroSincronizacao] = useState('');
@@ -475,6 +477,7 @@ export default function App() {
       const isCurrent = () => mounted && sequence === authSequence;
       if (authRouteUidRef.current) clearOperationalSession(db, authRouteUidRef.current);
       authRouteUidRef.current = user?.uid || null;
+      setOperadoresConfirmados(false);setOperadorAtivo(null);setCarregandoAuth(true);
       syncCamposRef.current.clear();
       syncBaseRef.current.clear();
       syncRevisionRef.current.clear();
@@ -516,6 +519,12 @@ export default function App() {
             setPlanoLoja('basico');
           }
 
+          // Operators are read first from the same V2 bootstrap; no duplicate collection download.
+          // Showing PIN entry does not grant access to an incomplete operational base.
+          void getOperationalAccessSnapshot(db,user.uid).then(access=>{
+            if(!isCurrent()||!access?.vendedores?.length)return;
+            setVendedores(access.vendedores);setOperadoresConfirmados(true);setCarregandoAuth(false);
+          }).catch(()=>{}); // The full bootstrap below owns the visible failure state.
           const dadosLojaSnap = await getOperationalSnapshot(db, user.uid);
           if (!isCurrent()) return;
           const adminPadrao = [{ id: 'admin', nome: 'Administrador (Gerência)', patente: 'gerencia', senha: 'admin', pinTrocaObrigatoria: true, percentual: 0, comissaoTipo: 'lucro', permissoes: { admin: true } }];
@@ -911,8 +920,17 @@ export default function App() {
     setMostrarPainelExecutivo(false);
   };
 
-  const processarLoginOperador = (operador) => {
-    setOperadorAtivo(operador);
+  const processarLoginOperador = async (operador,pin) => {
+    const uid=userId;
+    const snapshot=await getOperationalSnapshot(db,uid);
+    if(authRouteUidRef.current!==uid)throw new Error(tx('A sessão mudou. Entre novamente.','La sesión cambió. Ingrese nuevamente.','Session changed. Sign in again.'));
+    // Resolve roles and verify PIN again against the complete confirmed snapshot:
+    // a changed PIN, deleted operator or changed permissions during bootstrap cannot reuse the preview.
+    const atuais=snapshot.exists()?snapshot.data().vendedores:null;
+    const atualizado=operadorConfirmadoTerminal({vendedores:atuais,operadorId:operador.id,adminInicial:nuvemSincronizada&&!operadoresConfirmados?syncBaseRef.current.get('vendedores')?.find(v=>v.id==='admin'):null});
+    if(!atualizado||!(await verificarPinOperador(atualizado,pin)))throw new Error(tx('O acesso do operador mudou. Confira o PIN e tente novamente.','El acceso del operador cambió. Verifique el PIN e intente nuevamente.','Operator access changed. Check the PIN and try again.'));
+    if(authRouteUidRef.current!==uid)throw new Error(tx('A sessão mudou. Entre novamente.','La sesión cambió. Ingrese nuevamente.','Session changed. Sign in again.'));
+    setOperadorAtivo(atualizado);
     setEcraAtual('hub');
     setMostrarPainelExecutivo(false);
   };
@@ -1702,8 +1720,8 @@ export default function App() {
   }
 
   if (statusLoja === 'ativo' && !operadorAtivo) {
-    if (!nuvemSincronizada || !vendedores.length) return <div role="status" style={{padding:40,color:'#cbd5e1'}}>{tx('Carregando operadores e conferindo os dados da loja…','Cargando operadores y verificando los datos de la tienda…','Loading operators and verifying store data…')}</div>;
-    return <TerminalLogin vendedores={vendedores} onLoginSuccess={processarLoginOperador} onSairLoja={fazerLogout} tx={tx} />;
+    if ((!nuvemSincronizada && !operadoresConfirmados) || !vendedores.length) return <div role="status" style={{padding:40,color:'#cbd5e1'}}>{tx('Carregando operadores e conferindo os dados da loja…','Cargando operadores y verificando los datos de la tienda…','Loading operators and verifying store data…')}</div>;
+    return <TerminalLogin key={userId} preparandoBase={!nuvemSincronizada} vendedores={vendedores} onLoginSuccess={processarLoginOperador} onSairLoja={fazerLogout} tx={tx} />;
   }
 
   if (statusLoja === 'ativo' && operadorAtivo && operadorRequerTrocaPin(operadorAtivo)) {

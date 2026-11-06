@@ -43,3 +43,27 @@ recibos ao vivo, abas atrasadas, isolamento de projeto/loja/geração, lacunas,
 contagens incompletas, checksum divergente e preservação de timestamps.
 Testes de período cobrem virada de ano, limites inclusivos/exclusivos,
 pagamento fora do período e datas inválidas, sem mutação dos históricos.
+
+
+## Entrada antes da base completa
+
+O formulário do terminal não deve aguardar produtos, clientes ou históricos.
+O mesmo bootstrap V2 publica primeiro os operadores: no caminho sem cache, a
+coleção operadores é priorizada e suas páginas são reutilizadas na base completa.
+No cache persistente, a prévia exige contagem e revisão de operadores iguais ao
+cabeçalho remoto. Nenhuma consulta ou assinatura nova é criada para a prévia.
+Uma prévia não libera nenhuma gravação.
+
+Após informar o PIN, o acesso aguarda a base completa, resolve o operador de
+novo nesse snapshot e valida novamente o PIN. Remoção de operador, alteração de
+credencial ou de permissões durante a carga não permite usar o acesso antigo.
+A troca de usuário cancela o efeito visual da tentativa anterior. O administrador
+temporário só mantém o fluxo existente de primeiro acesso, sem reaproveitar uma
+prévia removida. O botão aguarda a confirmação e impede envios duplicados.
+
+As telas operacionais são importadas sob demanda após o acesso. O pacote
+principal de produção caiu de aproximadamente 934 KB para 257 KB antes de gzip;
+essa redução não representa uma medição de tempo na conexão real do cliente.
+O teste do App autentica a loja, disponibiliza operadores e mantém o snapshot
+completo pendente: o PIN aparece enquanto o catálogo ainda carrega. Depois muda
+o PIN no snapshot final e verifica que o acesso antigo é recusado.
