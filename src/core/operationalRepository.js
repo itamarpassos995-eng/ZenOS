@@ -1,3 +1,4 @@
+import {cacheScope,readOperationalCache,writeOperationalCache,appendOperationalReceipt} from './operationalCache.js';
 import { executarLotes } from './boundedTasks.js';
 import {doc,collection,getDocFromServer,getDocFromCache,getDocsFromServer,getDocsFromCache,onSnapshot,query,orderBy,documentId,limit,startAfter,where} from 'firebase/firestore';
 import {resolveV2ReadMode} from './v2ReadMode.js';
@@ -23,6 +24,7 @@ const writeCacheCheckpoint=(db,userId,generation,data)=>{
 
 export class V2Session {
  constructor(db,userId,control){this.db=db;this.userId=String(userId);this.control=control;this.generation=control.generation;
+  this.cacheScope=cacheScope(db?.app?.options?.projectId,userId,control.generation);this.cacheEnabled=false;
   this.root=v2RootPath(userId,control.generation);this.records=new Map();this.values={};this.sequence=0;this.revisions={};this.listeners=new Set();this.tailStop=null;this.tailEpoch=0;this.failed=null;}
  async paged(path,consume,{cacheOnly=false}={}){let cursor=null;
   do{const q=query(collection(this.db,...path),orderBy(documentId()),...(cursor?[startAfter(cursor)]:[]),limit(PAGE));
@@ -49,6 +51,7 @@ export class V2Session {
    }else this.values[p.field]=p.value;
   }
   this.sequence=receipt.sequence;this.revisions={...receipt.revisions};
+  if(this.cacheEnabled)appendOperationalReceipt(this.cacheScope,receipt).catch(()=>{/* Optional local cache; server confirmation is unchanged. */});
   if(emit)for(const l of this.listeners)l.data(asSnapshot(this.materialize()));
  }
  async catchUp(){let pages=0;
@@ -123,6 +126,33 @@ export class V2Session {
   const authoritative=head.data(),manifest=authoritative.fieldManifest;
   if(!manifest||!Object.keys(manifest).length)throw v2Error('V2_MANIFEST','Manifesto V2 ausente.');
   this.manifest=manifest;this.reads=0;
+  // Durable snapshot + receipts are isolated from SDK cache page mutations.
+  try{
+   const saved=await readOperationalCache(this.cacheScope);
+   if(saved&&saved.sourceChecksum===this.control.sourceChecksum&&saved.manifest===stableV2Json(manifest)
+     &&Number.isSafeInteger(saved.sequence)&&saved.sequence>=0&&saved.sequence<=Number(authoritative.sequence)){
+    this.sequence=saved.sequence;this.revisions=saved.revisions;
+    this.records=new Map(saved.records.map(([field,entries])=>[field,new Map(entries)]));this.values=saved.values;
+    for(const [field,records] of this.records){
+     if(!V2_COLLECTIONS[field])throw v2Error('V2_CACHE_FIELD','Unknown cached collection.');
+     for(const [id,value] of records){
+      if(value.routeId!==id||value.field&&value.field!==field||encodeV2Id(entityIdV2(field,value.data))!==id
+       ||Number(value.version||0)>saved.sequence)throw v2Error('V2_CACHE_ENTITY','Invalid cached entity.');
+     }
+    }
+    this.assertComplete(manifest,saved.fieldCounts,{requireValues:true});
+    for(const receipt of saved.receipts)this.apply(receipt,{emit:false});
+    if(this.sequence<Number(authoritative.sequence))await this.catchUp();
+    const end=await getDocFromServer(headRef),info=end.data();
+    if(!end.exists()||info.schema!==2||info.state!=='ready'||info.sourceChecksum!==this.control.sourceChecksum
+      ||stableV2Json(info.fieldManifest)!==stableV2Json(manifest)||this.sequence!==Number(info.sequence)
+      ||stableV2Json(this.revisions)!==stableV2Json(info.fieldRevisions||{}))throw v2Error('V2_CACHE_HEAD','Cache requires server reconstruction.');
+    this.assertComplete(manifest,info.fieldCounts,{requireValues:true});
+    if(saved.sequence===this.sequence&&!saved.receipts.length)this.cacheEnabled=true;
+    else await this.persistCache(info);
+    return this;
+   }
+  }catch{/* Incomplete, unavailable or obsolete cache: certified server path below. */}
   // O head do IndexedDB pode ter uma sequência MAIS NOVA que os documentos
   // das coleções (porque catchUp aplica recibos apenas na memória). Nunca
   // inferir a versão das páginas cacheadas a partir do head atualizado.
@@ -156,6 +186,7 @@ export class V2Session {
     this.assertComplete(manifest,end.data().fieldCounts);
     if(stableV2Json(this.revisions)!==stableV2Json(end.data().fieldRevisions||{}))
      throw v2Error('V2_REVISION_MISMATCH','Revisões da cópia divergentes.');
+    await this.persistCache(end.data());
     return this;
    }catch(error){
     // Cache parcial ou fora de sincronia: nunca liberar o PDV com dados incompletos.
@@ -184,7 +215,14 @@ export class V2Session {
       revisions:{...(authoritative.fieldRevisions||{})},
     });
   }
+  if(Number(end.data()?.sequence)===this.sequence&&stableV2Json(this.revisions)===stableV2Json(end.data()?.fieldRevisions||{}))await this.persistCache(end.data());
   return this;
+ }
+ async persistCache(info){
+  if(info?.schema!==2||info.state!=='ready'||info.sourceChecksum!==this.control.sourceChecksum
+    ||stableV2Json(info.fieldManifest)!==stableV2Json(this.manifest))return;
+  const snapshot={sequence:this.sequence,revisions:{...this.revisions},sourceChecksum:this.control.sourceChecksum,manifest:stableV2Json(this.manifest),fieldCounts:{...info.fieldCounts},records:[...this.records].map(([field,records])=>[field,[...records]]),values:{...this.values}};
+  try{await writeOperationalCache(this.cacheScope,snapshot);this.cacheEnabled=true;}catch{/* Cache is optional. */}
  }
  // Invalida também callbacks/microtasks de uma assinatura já cancelada.
  stopTail(){this.tailEpoch++;const stop=this.tailStop;this.tailStop=null;stop?.();}

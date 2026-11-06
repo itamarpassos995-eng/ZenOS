@@ -114,3 +114,10 @@
 
 .zen-currency-selectors label { display: grid; gap: 8px; flex: 1 1 180px; min-width: 0; font-size: 12px; font-weight: 650; }
 .zen-currency-selectors select { width: 100%; }
+
+.zen-financial-period { margin: 0 0 20px; display: grid; gap: 12px; }
+.zen-financial-period .zen-segments { display:flex; flex-wrap:wrap; gap:6px; padding:6px; border:1px solid var(--zen-control-border,#334155); border-radius:14px; width:fit-content; max-width:100%; }
+.zen-financial-period .zen-segments button { min-height:42px; padding:10px 20px; border-radius:9px; }
+.zen-financial-dates { display:flex; flex-wrap:wrap; gap:12px; }
+.zen-financial-dates label { display:grid; gap:6px; font-size:12px; font-weight:600; }
+@media(max-width:600px){.zen-financial-period .zen-segments {width:100%;}.zen-financial-period .zen-segments button { flex:1 1 40%;padding:10px 12px;}}
