@@ -1,7 +1,8 @@
+import {buildTrips} from './trips.js';
 import {buildSettlement} from './settlement.js';
 import {distributionPeriod} from '../../../src/core/distribution/period.js';
 import {criarEventoEstoque} from '../../../src/core/stockAuditCore.js';
-import {error,hash,id,requireEmulators,credentialFingerprint,verifyPin,canOperate,token} from './security.js';
+import {error,hash,id,requireEmulators,credentialFingerprint,verifyPin,canOperate,token,distributionPermission} from './security.js';
 import {createLoad,replaceLoadLines,transitionLoad,issueManifest,historicalManifest,PRECISION} from '../../../src/core/distribution/domain.js';
 
 const canonical = v => Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;
@@ -34,11 +35,11 @@ export function distributionService(db,{now=()=>Date.now()}={}) {
   if(!s||s.expiresAt<=now()||s.uid!==uid||s.generation!==c.generation)error('SESSION_EXPIRED');
   const operator=await tx.get(db.doc(`${c.base}/operadores/${id(s.operatorId)}`));
   const op=operator.data()?.data;
-  if(operator.data()?.deleted||!(scope==='pdv'?(op?.id==='admin'||op?.permissoes?.admin||op?.permissoes?.pdv):canOperate(op))||credentialFingerprint(op)!==s.credential)error('FORBIDDEN');
-  return {operatorId:s.operatorId,name:op.nome};
+  if(operator.data()?.deleted||!distributionPermission(op,scope)||credentialFingerprint(op)!==s.credential)error('FORBIDDEN');
+  return {operatorId:s.operatorId,name:op.nome,permissions:op.permissoes||{}};
  };
  async function login(uid,{operatorId,pin,scope='stock'}) {
-  id(uid);id(operatorId);
+  id(uid);id(operatorId);if(!['stock','pdv','driver','trip'].includes(scope))error('FORBIDDEN');
   const secret=token();
   const result=await db.runTransaction(async tx=>{
    const c=await ctx(tx,uid),ref=db.doc(`${c.base}/operadores/${id(operatorId)}`);
@@ -46,7 +47,7 @@ export function distributionService(db,{now=()=>Date.now()}={}) {
    const attempts=attempt.data()||{};
    if(attempts.blockedUntil>now())error('RATE_LIMITED');
    const op=operator.data()?.data;
-   if(operator.data()?.deleted||!verifyPin(op,pin)||!(scope==='pdv'?(op?.id==='admin'||op?.permissoes?.admin||op?.permissoes?.pdv):canOperate(op))) {
+   if(operator.data()?.deleted||!verifyPin(op,pin)||!distributionPermission(op,scope)) {
     const failures=attempts.windowAt>now()-300000?(attempts.failures||0)+1:1;
     tx.set(attempt.ref,{failures,windowAt:attempts.windowAt>now()-300000?attempts.windowAt:now(),blockedUntil:failures>=5?now()+300000:0});
     return {failed:true};
@@ -54,7 +55,7 @@ export function distributionService(db,{now=()=>Date.now()}={}) {
    const expiresAt=now()+1800000;
    tx.set(attempt.ref,{failures:0,windowAt:now(),blockedUntil:0});
    tx.create(db.doc(`${c.root}/distribution_sessions/${hash(secret)}`),{uid,operatorId,generation:c.generation,scope,credential:credentialFingerprint(op),expiresAt});
-   return {sessionToken:secret,operatorId,operatorName:op.nome,timeZone:c.config.timezone||'America/Asuncion',expiresAt};
+   return {sessionToken:secret,operatorId,operatorName:op.nome,scope,capabilities:['admin','stock','driver','manage','returns','finance'].filter(p=>distributionPermission(op,p)),timeZone:c.config.timezone||'America/Asuncion',expiresAt};
   });
   if(result.failed)error('INVALID_CREDENTIAL');return result;
  }
@@ -263,11 +264,12 @@ export function distributionService(db,{now=()=>Date.now()}={}) {
     else {id(cursor.id);integer(cursor.createdAt);q=q.startAfter(cursor.createdAt,db.doc(`${c.root}/distribution_loads/${id(cursor.id)}`));}
    }
    const page=await tx.get(q.limit(pageSize+1)),docs=page.docs.slice(0,pageSize);
-   const items=input.type==='orders'?docs.filter(d=>!d.data().deleted&&['pre_pedido','venda'].includes(d.data().data?.tipoDocumento)).map(d=>{const o=d.data().data;return {id:o.id,tipoDocumento:o.tipoDocumento,estado:o.estado,clienteId:o.clienteId,clienteNome:o.clienteNome,vendedorId:o.vendedorId,moedaDocumento:o.moedaDocumento,itens:(o.itens||[]).map(i=>({nome:i.nome,qtd:i.qtd})),_distribution:{allocated:o._distribution?.allocated||{}}};}):docs.map(d=>{const l=d.data();return {id:l.id,revision:l.revision,state:l.state,createdAt:l.createdAt,linesCount:l.lines.length,pickingState:l.pickingState,manifestCount:l.manifestVersions.length};});
+   const items=input.type==='orders'?docs.filter(d=>!d.data().deleted&&['pre_pedido','venda'].includes(d.data().data?.tipoDocumento)).map(d=>{const o=d.data().data;return {id:o.id,tipoDocumento:o.tipoDocumento,estado:o.estado,clienteId:o.clienteId,clienteNome:o.clienteNome,vendedorId:o.vendedorId,moedaDocumento:o.moedaDocumento,itens:(o.itens||[]).map(i=>({nome:i.nome,qtd:i.qtd})),_distribution:{allocated:o._distribution?.allocated||{}}};}):docs.map(d=>{const l=d.data();return {id:l.id,revision:l.revision,state:l.state,createdAt:l.createdAt,linesCount:l.lines.length,pickingState:l.pickingState,manifestCount:l.manifestVersions.length,tripId:l.tripId||null};});
    const last=docs.at(-1);return {items,next:page.size>pageSize&&last?{id:input.type==='orders'?String(last.data().data.id):String(last.data().id),createdAt:input.type==='loads'?last.data().createdAt:last.data().data.createdAt}:null};
   });
  }
- async function logout(uid,sessionToken){return db.runTransaction(async tx=>{const c=await ctx(tx,uid);await authorize(tx,uid,sessionToken,c);tx.delete(db.doc(`${c.root}/distribution_sessions/${hash(sessionToken)}`));return {ok:true};});}
+ async function logout(uid,sessionToken){return db.runTransaction(async tx=>{const c=await ctx(tx,uid);await authorize(tx,uid,sessionToken,c,'any');tx.delete(db.doc(`${c.root}/distribution_sessions/${hash(sessionToken)}`));return {ok:true};});}
  const finalize=buildSettlement({db,ctx,authorize,login,now});
- return {login,command,query,logout,finalize};
+ const trips=buildTrips({db,ctx,authorize,finalize,now});
+ return {login,command,query,logout,finalize,...trips};
 }

@@ -1,0 +1,38 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> zenos-zenite-os@1.0.0 distribution:test
+> node --test scripts/distribution/*.test.mjs
+
+✔ money preserves PYG and independent BRL cost; exact integers above Number range (1.770853ms)
+✔ consolidates orders from multiple sellers without changing source objects (0.553006ms)
+✔ rejects cross-tenant, duplicate and fractional lines (0.314524ms)
+✔ load transitions require lines, approval and current manifest; dispatch locks edits (1.483679ms)
+✔ T06/T34 domain: historical manifests preserve snapshots and version independently (0.558554ms)
+✔ reconciles partial deliveries without stock or payment effects (0.191693ms)
+✔ independent state machines reject accounting shortcuts (0.153887ms)
+✔ duplicate concurrent command produces one revision and one outbox event; lost response can retry (1.304525ms)
+✔ different commands racing on same revision conflict (1.346748ms)
+✔ idempotency key cannot be reused for a changed request (0.693203ms)
+✔ authorization is rechecked even on replay, with zero transaction when revoked (0.640185ms)
+✔ server command cannot dispatch without certified stock integration (0.272372ms)
+✔ manifest command increments revision and returns same document on retry (0.499768ms)
+✔ persistent offline commands survive reopening and never become confirmed without ack (9.303097ms)
+✔ lost ack replays same key; duplicate synchronization shares one flight (3.061257ms)
+✔ conflict blocks remaining queue; explicit reason required to discard, no silent revision rebase (3.256205ms)
+✔ cache is operator scoped and carries server time, not a fabricated confirmation (1.128775ms)
+✔ cache is scoped to client/session, invalidated on commands and bounded to 30 seconds (1.951489ms)
+✔ lost response preserves identical command key and never presents a false confirmation (0.575389ms)
+✔ a new account/client does not reuse cached enterprise data or session headers (0.312832ms)
+✔ PDV guard rejects finalization of a logistics-owned pre-order even with stale cart (1.17919ms)
+✔ product invariants reject any sale or transfer that consumes a reserved warehouse balance (0.498055ms)
+✔ Connect contract requires explicit separate organizations and correlation; has no transport (0.741554ms)
+✔ every UI translation path selects Portuguese and Spanish explicitly (0.238732ms)
+✔ company timezone governs day and month even when device is on a different date (13.877658ms)
+ℹ tests 25
+ℹ suites 0
+ℹ pass 25
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 223.324536

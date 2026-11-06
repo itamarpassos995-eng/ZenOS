@@ -1,0 +1,51 @@
+{
+  "passed": true,
+  "tripId": "TRIP-450b0e54-3720-4af3-b3ab-da0624de474e",
+  "state": "CLOSED",
+  "initialStock": 100,
+  "dispatched": 15,
+  "reintegrated": 7,
+  "quarantined": 1,
+  "availableStock": 92,
+  "reserved": 0,
+  "customerDebtBRL": 0,
+  "ledgerEntries": 7,
+  "netResultBRL": 210,
+  "nativeCustody": {
+    "PYG": 119970,
+    "USD": 3000
+  },
+  "nativeDivergence": {
+    "BRL": 0,
+    "PYG": 0,
+    "USD": 0,
+    "EUR": 0
+  },
+  "sales": [
+    {
+      "id": "O001",
+      "state": "parcial",
+      "originalCurrency": "PYG",
+      "originalTotal": 199950,
+      "refundBRL": 60,
+      "sellerId": "sales"
+    },
+    {
+      "id": "O002",
+      "state": "parcial",
+      "originalCurrency": "PYG",
+      "originalTotal": 199950,
+      "refundBRL": 30,
+      "sellerId": "admin"
+    },
+    {
+      "id": "O003",
+      "state": "cancelada",
+      "originalCurrency": "PYG",
+      "originalTotal": 199950,
+      "refundBRL": 150,
+      "sellerId": "sales"
+    }
+  ],
+  "outboxLocalOnly": true
+}

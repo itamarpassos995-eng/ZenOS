@@ -1,0 +1,117 @@
+i  emulators: Starting emulators: auth, firestore
+i  emulators: Detected demo project ID "demo-zenos-local", emulated services will use a demo configuration and attempts to access non-emulated services for this project will fail.
+i  firestore: Firestore Emulator logging to firestore-debug.log
+✔  firestore: Firestore Emulator was started in standard edition.
+✔  firestore: Firestore Emulator UI websocket is running on 9150.
+i  Running script: node scripts/distribution/phase3-homologate.mjs --browser-only && node scripts/distribution/phase3-races.mjs && node --test operational-functions/test/distribution/trips.test.mjs && node scripts/distribution/homologate.mjs && node scripts/distribution/concurrency-runner.mjs
+Distribution homologation API http://127.0.0.1:8787 (demo only)
+(node:8623) MetadataLookupWarning: received unexpected error = All promises were rejected code = ETIMEDOUT, ENOTFOUND
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+  VITE v5.4.21  ready in 212 ms
+
+  ➜  Local:   http://127.0.0.1:5173/
+(node:8630) MetadataLookupWarning: received unexpected error = All promises were rejected code = ETIMEDOUT, ENOTFOUND
+(Use `node --trace-warnings ...` to show where the warning was created)
+PHASE 3 BROWSER PASSED: full synthetic three-stop trip, offline/reconnect, returns, native money, settlement and closure.
+(node:8783) MetadataLookupWarning: received unexpected error = All promises were rejected code = ETIMEDOUT, ENOTFOUND
+(Use `node --trace-warnings ...` to show where the warning was created)
+[2026-11-06T20:36:52.192Z]  @firebase/firestore: Firestore (12.19.0): GrpcConnection RPC 'Write' stream 0x45e39cd2 error. Code: 7 Message: 7 PERMISSION_DENIED: No matching allow statements
+[2026-11-06T20:36:52.205Z]  @firebase/firestore: Firestore (12.19.0): GrpcConnection RPC 'Write' stream 0x45e39cd3 error. Code: 7 Message: 7 PERMISSION_DENIED: No matching allow statements
+[2026-11-06T20:36:52.215Z]  @firebase/firestore: Firestore (12.19.0): GrpcConnection RPC 'Write' stream 0x45e39cd4 error. Code: 7 Message: 7 PERMISSION_DENIED: No matching allow statements
+[2026-11-06T20:36:52.231Z]  @firebase/firestore: Firestore (12.19.0): GrpcConnection RPC 'Write' stream 0x45e39cd5 error. Code: 7 Message: 7 PERMISSION_DENIED: No matching allow statements
+[2026-11-06T20:36:52.244Z]  @firebase/firestore: Firestore (12.19.0): GrpcConnection RPC 'Write' stream 0x45e39cd6 error. Code: 7 Message: 7 PERMISSION_DENIED: No matching allow statements
+{"passed":11,"realPdvWriter":true,"realWarehouseWriter":true,"initialStock":5,"dispatched":5,"reintegrated":5,"soldAfterReturn":5,"finalStock":0,"ledgerEntries":1,"forgeryCollectionsBlocked":5}
+(node:8802) MetadataLookupWarning: received unexpected error = All promises were rejected code = ETIMEDOUT, ENOTFOUND
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ multiple loads, manual route order, actual assigned driver access and immutable proof (4883.643588ms)
+✔ repeated and concurrent delivery commits exactly one immutable server proof (4415.302925ms)
+✔ partial delivery stays in transit, depot arrival does not increase stock; authorized check reintegrates once (896.355452ms)
+✔ damaged/refused freight is quarantined, not sellable stock; signature and photos policy are server validated (879.74703ms)
+✔ native PYG and USD custody, atomic existing sale/ledger posting, repeat/reconnect and full trip closure (1874.092851ms)
+✔ partial collection books residual credit, return compensates existing sale/debt and never reintegrates twice (1277.233505ms)
+✔ concurrent receipts cannot exceed frozen due; void is audited and retry cannot collect twice (3836.23875ms)
+✔ isolation, live permission revoke, stock-only operator cannot manage drivers or settle (1108.072527ms)
+✔ already finalized credit sale is received in existing customer ledger and native cash movement, once (999.352588ms)
+✔ paid sale customer return uses explicit transfer refund and protects frozen native currency, financial and stock (1145.242581ms)
+✔ existing operator granular grants are server-only and management cannot grant itself financial access (446.289038ms)
+✔ bounded catalog pagination, today filtering and driver trip pagination retain tenant scope (459.696781ms)
+✔ vehicle exclusivity at trip start, duplicate plate rejection and authorized photo proof (3731.892131ms)
+✔ mixed good and damaged returns can be checked separately without making damaged goods sellable (793.433782ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 14
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 27368.345723
+Distribution homologation API http://127.0.0.1:8787 (demo only)
+(node:8845) MetadataLookupWarning: received unexpected error = All promises were rejected code = ETIMEDOUT, ENOTFOUND
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ PIN server verification rejects incorrect/legacy credentials and seller without inventory access (3628.984598ms)
+✔ PIN attempts are persisted and throttled after five failures (610.978517ms)
+✔ live revocation, credential change, session expiry and module suspension block even replays (442.918011ms)
+✔ real Firestore transactions: two loads compete for the last available units (3849.34554ms)
+✔ real concurrent duplicate command commits one stock reservation, operation and outbox (3830.616931ms)
+✔ duplicate order allocations and concurrent expected revisions are rejected (10463.586623ms)
+✔ partial allocations reconcile frozen total without rounding loss or current currency conversion (339.531924ms)
+✔ cancel releases reservations and order allocation atomically; retry is stable (399.422361ms)
+✔ end to end: picking mismatch blocks dispatch; confirmed document is mandatory (415.931633ms)
+✔ concurrent dispatch posts physical stock once and never writes financial ledger (2981.355019ms)
+✔ fulfilled PDV sale does not reserve or deduct stock again (565.394971ms)
+✔ historical manifests remain unchanged after catalog/customer/currency changes and header revision (440.121079ms)
+✔ V2 operation stream has contiguous sequence, envelopes, revisions and no V1 writes (408.408633ms)
+✔ cursor pagination has no gaps and history is not loaded into list projection (364.337992ms)
+✔ tenant isolation rejects a session from another enterprise (354.170314ms)
+✔ PDV availability and internal movements cannot consume reserved warehouse units (1.14051ms)
+(node:8828) MetadataLookupWarning: received unexpected error = All promises were rejected code = ETIMEDOUT, ENOTFOUND
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ HTTP authenticates company UID, ignores forged tenant and denies direct SDK/REST writes (3642.043472ms)
+✔ partial cancellation and reallocation preserve exact discounted money (386.315342ms)
+✔ daily summary and period filter exclude old orders and reject unbounded requests (251.819387ms)
+✔ server logout revokes token immediately (191.266514ms)
+✔ commercial credit settlement is atomic, retains seller/cost snapshot and posts debt once (696.66126ms)
+✔ commercial mixed-currency cash change preserves native drawer amounts (509.77531ms)
+✔ commercial settlement rejects forged FX, wrong cash session and changed source cart without posting (679.800959ms)
+ℹ tests 23
+ℹ suites 0
+ℹ pass 23
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 36005.468005
+(node:8870) MetadataLookupWarning: received unexpected error = All promises were rejected code = ETIMEDOUT, ENOTFOUND
+(Use `node --trace-warnings ...` to show where the warning was created)
+{"url":"http://127.0.0.1:5173/distribution-homologacao.html","email":"distribution-demo@example.test","password":"SyntheticOnly!482759","operatorId":"admin","pin":"482759"}
+
+ RUN  v2.1.9 /vercel/ZenOS
+
+stderr | scripts/distribution/central.ui.test.jsx > Central with real HTTP API, Auth token and Firestore Emulator > does not issue logistics queries before verified operator login and shows rejected PIN without success
+API rejected {"error":"INVALID_CREDENTIAL"}
+
+ ✓ scripts/distribution/central.ui.test.jsx (2 tests) 3478ms
+   ✓ Central with real HTTP API, Auth token and Firestore Emulator > completes load, reservation, manual checking, historic manifests and dispatch; changes language and logs out 3302ms
+ ✓ scripts/distribution/print.ui.test.jsx (1 test) 24ms
+
+ Test Files  2 passed (2)
+      Tests  3 passed (3)
+   Start at  20:38:01
+   Duration  9.12s (transform 523ms, setup 0ms, collect 1.85s, tests 3.50s, environment 2.96s, prepare 457ms)
+
+Distribution homologation API http://127.0.0.1:8787 (demo only)
+(node:8970) MetadataLookupWarning: received unexpected error = All promises were rejected code = ETIMEDOUT, ENOTFOUND
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:8959) MetadataLookupWarning: received unexpected error = All promises were rejected code = ETIMEDOUT, ENOTFOUND
+(Use `node --trace-warnings ...` to show where the warning was created)
+[2026-11-06T20:38:24.497Z]  @firebase/firestore: Firestore (12.19.0): GrpcConnection RPC 'Write' stream 0x7ee4b4e3 error. Code: 7 Message: 7 PERMISSION_DENIED:
+false for 'create' @ L71, false for 'update' @ L71
+[2026-11-06T20:38:24.505Z]  @firebase/firestore: Firestore (12.19.0): GrpcConnection RPC 'Write' stream 0x7ee4b4e4 error. Code: 7 Message: 7 PERMISSION_DENIED: No matching allow statements
+{"passed":19,"realPdvWriter":true,"realDistributionWriter":true,"rules":"fenced-v2-with-reservation-invariants","stock":{"initial":10,"firstShipment":2,"secondShipment":3,"remaining":5},"financialEntries":1,"productionRequests":0}
+✔  Script exited successfully (code 0)
+i  emulators: Shutting down emulators.
+i  firestore: Stopping Firestore Emulator
+i  auth: Stopping Authentication Emulator
+i  hub: Stopping emulator hub
+i  logging: Stopping Logging Emulator

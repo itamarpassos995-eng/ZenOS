@@ -1,0 +1,68 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> zenos-zenite-os@1.0.0 build
+> vite build
+
+vite v5.4.21 building for production...
+transforming...
+✓ 197 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/commerce-homologacao.html                     0.79 kB │ gzip:   0.41 kB
+dist/index.html                                    1.11 kB │ gzip:   0.52 kB
+dist/assets/DistributionTrips-DNCZCNiw.css         4.55 kB │ gzip:   1.45 kB
+dist/assets/CommerceVitrinePreview-C7KQ-23c.css    4.59 kB │ gzip:   1.44 kB
+dist/assets/DistributionCentral-BsV4gd7k.css       9.99 kB │ gzip:   3.07 kB
+dist/assets/ZenAssistenteIA-B2D_WW7H.css          10.15 kB │ gzip:   2.52 kB
+dist/assets/GestaoCaixas-CCKbH6UP.css             10.23 kB │ gzip:   2.42 kB
+dist/assets/index-DcOtbaqi.css                    14.54 kB │ gzip:   3.67 kB
+dist/assets/Fiscal-C0ZNz6eq.css                   18.47 kB │ gzip:   3.91 kB
+dist/assets/main-By9LLWk_.css                     20.65 kB │ gzip:   5.14 kB
+dist/assets/ZenCommerceStorefront-3gJAMGPq.css    22.67 kB │ gzip:   5.18 kB
+dist/assets/CommerceSolicitacao-C7Na3yj6.css      30.14 kB │ gzip:   5.51 kB
+dist/assets/orderItems-DdbsC1IR.js                 0.41 kB │ gzip:   0.29 kB
+dist/assets/storage-LsjmZ9-C.js                    0.55 kB │ gzip:   0.27 kB
+dist/assets/receiptCurrency-DOXlXLg6.js            0.73 kB │ gzip:   0.44 kB
+dist/assets/print-D9_dCxRc.js                      0.94 kB │ gzip:   0.58 kB
+dist/assets/pdvGateway-B9bFFJu_.js                 0.99 kB │ gzip:   0.64 kB
+dist/assets/purchaseCosts-CBG1IN5P.js              1.90 kB │ gzip:   0.91 kB
+dist/assets/commerceConfig-CG7jL3He.js             2.07 kB │ gzip:   1.09 kB
+dist/assets/productAckOutcome-rBt_mlac.js          2.88 kB │ gzip:   1.40 kB
+dist/assets/stockAudit-Bvs_zVrp.js                 3.56 kB │ gzip:   1.69 kB
+dist/assets/ZenShareButton-B7G6gbIv.js             5.49 kB │ gzip:   2.64 kB
+dist/assets/commerceHomologacao-BdEyFhnY.js        6.34 kB │ gzip:   2.50 kB
+dist/assets/CommerceVitrinePreview-CaDl_ZqC.js     6.99 kB │ gzip:   2.44 kB
+dist/assets/zenReceiptPdf-C0NbQrC0.js              7.08 kB │ gzip:   3.52 kB
+dist/assets/DashboardMobile-mduYwusJ.js            8.22 kB │ gzip:   2.99 kB
+dist/assets/CommerceOrderInbox-CQhprCDc.js         8.43 kB │ gzip:   3.01 kB
+dist/assets/EstoqueInteligente-Dlj9bM97.js         9.78 kB │ gzip:   2.71 kB
+dist/assets/operationalV2-BdBFEC7z.js             10.62 kB │ gzip:   4.69 kB
+dist/assets/Fornecedores-DThN0MYp.js              11.17 kB │ gzip:   3.32 kB
+dist/assets/Migracao-DHYkmH30.js                  12.81 kB │ gzip:   5.08 kB
+dist/assets/Mesas-B8nRJj8F.js                     17.01 kB │ gzip:   5.76 kB
+dist/assets/Comissoes-DOIE8AXa.js                 19.37 kB │ gzip:   6.00 kB
+dist/assets/GestaoCaixas-BLq6VGnO.js              21.63 kB │ gzip:   7.17 kB
+dist/assets/ZenCommerceStorefront-BJWNcVNx.js     29.48 kB │ gzip:   9.60 kB
+dist/assets/Despesas-B1Qj0WKa.js                  31.01 kB │ gzip:   9.73 kB
+dist/assets/DistributionCentral-vEHR6A9W.js       39.66 kB │ gzip:  13.32 kB
+dist/assets/Clientes-D_M-P8Qf.js                  40.93 kB │ gzip:  11.37 kB
+dist/assets/CommerceSolicitacao-De6Uwyrj.js       48.85 kB │ gzip:  14.66 kB
+dist/assets/DistributionTrips-DurhOnpc.js         50.02 kB │ gzip:  15.86 kB
+dist/assets/PDVCompras-nX-tFOlt.js                51.55 kB │ gzip:  13.10 kB
+dist/assets/Vendas-DRZ7uP6R.js                    51.56 kB │ gzip:  14.73 kB
+dist/assets/ZenAssistenteIA-BV-i_A6D.js           55.31 kB │ gzip:  16.18 kB
+dist/assets/Fiscal-CvQK0hDv.js                    55.45 kB │ gzip:  16.76 kB
+dist/assets/Configuracoes-DSeWKl1X.js             64.56 kB │ gzip:  16.73 kB
+dist/assets/Produtos-Cr2OaV_h.js                  99.23 kB │ gzip:  26.63 kB
+dist/assets/PDV-DLnSrI8u.js                      110.46 kB │ gzip:  31.55 kB
+dist/assets/pdf-D4msnXKm.js                      115.53 kB │ gzip:  64.39 kB
+dist/assets/index-DniEprjW.js                    143.56 kB │ gzip:  46.19 kB
+dist/assets/firebase-Cmhn_IR9.js                 177.07 kB │ gzip:  35.66 kB
+dist/assets/main-YQPCTmjw.js                     264.62 kB │ gzip:  83.80 kB
+dist/assets/index.esm-kndyRrw9.js                706.77 kB │ gzip: 181.19 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 4.83s

@@ -64,3 +64,7 @@ npm run distribution:browser
 A Fase 2.1 está validada no escopo sintético descrito. A entrada em produção continua bloqueada: requer revisão da política efetivamente instalada, transporte confiável da habilitação pelo Control Center, revisão de segurança do endpoint fora do emulador e autorização expressa. O servidor desta entrega permanece restrito à homologação local. Não há integração ativa entre empresas.
 
 A Fase 3 pode iniciar na branch isolada com critérios explícitos para entregas/retornos, prova de entrega e operação offline do motorista, cancelamentos e compensações após liquidação, além da futura integração Connect. Cobrança parcial por entrega e impressoras físicas exigem homologação específica. Nenhum desses itens foi declarado concluído nesta entrega.
+
+## Continuidade — Fase 3
+
+A evolução de viagens, operação do motorista, comprovantes, retornos e acerto está descrita na [Fase 3](distribution-phase3.md), com evidências e limites de homologação separados dos bloqueios de implantação.

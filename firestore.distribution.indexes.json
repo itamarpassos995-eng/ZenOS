@@ -1,0 +1,1 @@
+{"indexes":[{"collectionGroup":"distribution_trips","queryScope":"COLLECTION","fields":[{"fieldPath":"driverId","order":"ASCENDING"},{"fieldPath":"createdAt","order":"ASCENDING"}]},{"collectionGroup":"distribution_trip_events","queryScope":"COLLECTION","fields":[{"fieldPath":"tripId","order":"ASCENDING"},{"fieldPath":"serverAt","order":"ASCENDING"}]}],"fieldOverrides":[]}

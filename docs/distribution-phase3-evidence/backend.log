@@ -1,0 +1,32 @@
+i  emulators: Starting emulators: auth, firestore
+i  emulators: Detected demo project ID "demo-zenos-local", emulated services will use a demo configuration and attempts to access non-emulated services for this project will fail.
+i  firestore: Firestore Emulator logging to firestore-debug.log
+✔  firestore: Firestore Emulator was started in standard edition.
+✔  firestore: Firestore Emulator UI websocket is running on 9150.
+i  Running script: node scripts/distribution/phase3-homologate.mjs --browser && node scripts/distribution/homologate.mjs --browser-only
+Distribution homologation API http://127.0.0.1:8787 (demo only)
+(node:9107) MetadataLookupWarning: received unexpected error = All promises were rejected code = ETIMEDOUT, ENOTFOUND
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ multiple loads, manual route order, actual assigned driver access and immutable proof (7353.073905ms)
+✔ repeated and concurrent delivery commits exactly one immutable server proof (4154.510699ms)
+✔ partial delivery stays in transit, depot arrival does not increase stock; authorized check reintegrates once (1226.580118ms)
+✔ damaged/refused freight is quarantined, not sellable stock; signature and photos policy are server validated (1148.638976ms)
+✔ native PYG and USD custody, atomic existing sale/ledger posting, repeat/reconnect and full trip closure (2816.669119ms)
+✔ partial collection books residual credit, return compensates existing sale/debt and never reintegrates twice (1658.391243ms)
+✔ concurrent receipts cannot exceed frozen due; void is audited and retry cannot collect twice (3733.032938ms)
+✔ isolation, live permission revoke, stock-only operator cannot manage drivers or settle (1248.122073ms)
+✔ already finalized credit sale is received in existing customer ledger and native cash movement, once (1203.968367ms)
+✔ paid sale customer return uses explicit transfer refund and protects frozen native currency, financial and stock (1288.105531ms)
+✔ existing operator granular grants are server-only and management cannot grant itself financial access (451.204729ms)
+✔ bounded catalog pagination, today filtering and driver trip pagination retain tenant scope (453.276551ms)
+✔ vehicle exclusivity at trip start, duplicate plate rejection and authorized photo proof (3982.494584ms)
+✔ mixed good and damaged returns can be checked separately without making damaged goods sellable (940.828741ms)
+✔ all four currencies and configured electronic forms retain original units without implicit conversion (998.395048ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 15
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 33239.680967

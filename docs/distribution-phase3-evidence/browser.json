@@ -1,0 +1,28 @@
+{
+  "passed": true,
+  "scenarios": [
+    "existing-tenant-and-operator-auth",
+    "manager-trip-creation",
+    "three-delivery-route",
+    "driver-only-assignment",
+    "signed-partial-delivery",
+    "offline-four-persistent-commands",
+    "no-false-server-confirmation",
+    "automatic-reconnect",
+    "native-PYG-USD-custody",
+    "failed-delivery",
+    "damaged-customer-return",
+    "incident",
+    "immutable-proof-print-A4",
+    "authorized-return-check",
+    "reintegrate-versus-quarantine",
+    "existing-PDV-commercial-posting",
+    "existing-credit-compensation",
+    "explicit-native-transfer-refund",
+    "trip-close",
+    "PT-ES",
+    "desktop-1440",
+    "mobile-390"
+  ],
+  "pageErrors": []
+}

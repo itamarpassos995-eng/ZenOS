@@ -1,0 +1,163 @@
+i18n coverage: APROVADO — 22 arquivos operacionais verificados; PT/ES/EN com chaves compatíveis.
+[OK] Cenário real: depósito 50 - venda 30 = depósito/total 20
+[OK] Cenário real: devolução 10 repõe depósito e total para 30
+[OK] Venda consome vitrine primeiro e depois galpão
+[OK] Devoluções parciais cumulativas repõem a mesma origem da venda
+[OK] Compatibilidade corrige divergência antiga sem aumentar o total canônico
+[OK] Venda acima do estoque é bloqueada em vez de esconder saldo negativo
+[OK] Devolução sem desconto usa valor pago do item
+[OK] Devolução respeita desconto global e não devolve mais do que foi pago
+[OK] Venda parcial antiga ganha leitura financeira líquida sem reescrever total original
+[OK] PDV e devolução usam os novos motores sem persistência genérica concorrente
+
+ATT 02: 10 grupos de verificações aprovados.
+[OK] Lê data histórica pt-BR DD/MM/YYYY
+[OK] Lê data histórica es-ES sem zero à esquerda
+[OK] Lê data histórica en-US com AM/PM
+[OK] Lê createdAt ISO novo
+[OK] Lê Firestore Timestamp compatível
+[OK] createdAt tem prioridade sobre dataHora
+[OK] Venda histórica entra no mês correto
+[OK] Venda histórica não entra em outro mês
+[OK] Venda do dia é reconhecida pelo calendário local
+[OK] Venda de outro dia não entra em Vendido Hoje
+[OK] Data impossível não é normalizada silenciosamente
+[OK] Venda concluída histórica é elegível à comissão do mês
+[OK] Venda parcial válida continua elegível à comissão
+[OK] Venda cancelada não gera comissão
+[OK] Pré-pedido/pendente não gera comissão
+[OK] Comissão usa faturamento e lucro líquidos após devolução
+[OK] Card Vendido Hoje usa faturamentoHojeBRL
+[OK] App preserva faturamento total separado do Vendido Hoje
+[OK] PDV grava createdAt novo sem remover dataHora legado
+[OK] Mesas grava createdAt novo sem remover dataHora legado
+[OK] Comissões não filtram mais mês com startsWith em dataHora
+
+ATT 03: 21 verificações aprovadas.
+[OK] Produto rápido novo classificado como estoque não vira encomenda pelo SKU
+[OK] Encomenda nova explícita é reconhecida
+[OK] Encomenda legada por SKU continua reconhecida para permitir estorno sem catálogo
+[OK] SKU automático muda de encomenda para balcão quando desmarcado
+[OK] Entrada de compra aumenta galpão e mantém total coerente
+[OK] Semáforo verde usa margem ideal configurada
+[OK] Semáforo amarelo usa intervalo de margem
+[OK] Semáforo vermelho usa margem mínima
+[OK] Regras invertidas são normalizadas com segurança
+[OK] Filtro de comissão aceita período personalizado
+[OK] Período personalizado tolera datas inicial/final invertidas
+[OK] Produto Balcão abre desmarcado como uso único
+[OK] Produto Balcão usa SKU BALCAO por padrão
+[OK] Venda remove do catálogo apenas item classificado como encomenda
+[OK] Estorno usa compatibilidade de encomenda legada
+[OK] Compra de estoque é marcada como ativo e não afeta resultado
+[OK] Compra imediata aparece como conta paga
+[OK] Compra em dinheiro gera saída de gaveta quando há turno aberto
+[OK] Lucro líquido exclui mercadoria para revenda das despesas operacionais
+[OK] Saldo físico do caixa desconta compra em dinheiro
+[OK] Comissões possuem período personalizado
+[OK] Comissões possuem navegação mês anterior e seguinte
+[OK] Comissões mostram margem média real
+[OK] PDV e comissões compartilham classificador de margem
+
+ATT 04: 24 verificações aprovadas.
+Compra, rateio, custo médio, snapshots, CMV, margem, comissão, devolução, painel e compatibilidade: 15/15 grupos aprovados.
+Último custo fornecedor, recompra, custo efetivo, CMV, snapshot, histórico, preço manual e estoque: caso adicional aprovado.
+ZenOS caixa: testes de regressão P0 aprovados.
+✔ Gs 39.990 salvo/reaberto mantém valor e preços alternativos sem multiplicação (1.942957ms)
+✔ histórico não apresenta null nem totais contraditórios como diferença zero (0.314835ms)
+✔ filtros usam intervalo semiaberto e virada de mês/ano (0.916852ms)
+✔ hidratação limita a três coleções, aguarda falhas e não executa próximo lote (7.006914ms)
+✔ histórico inclui abertura antiga em DD/MM/YYYY e timestamp de ID sem alterar registros (0.474661ms)
+✔ painel inicia no dia local; meses e personalizado respeitam limites sem alterar histórico (0.389505ms)
+✔ entrada usa permissões atuais e recusa operador removido, inclusive último admin (0.226454ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 15.65165
+✔ BRL mantém preço original após preferência BRL (2.686484ms)
+✔ BRL mantém preço original após preferência PYG (0.25733ms)
+✔ BRL mantém preço original após preferência USD (0.171483ms)
+✔ BRL mantém preço original após preferência EUR (0.131724ms)
+✔ PYG mantém preço original após preferência BRL (0.184552ms)
+✔ PYG mantém preço original após preferência PYG (0.14931ms)
+✔ PYG mantém preço original após preferência USD (0.123392ms)
+✔ PYG mantém preço original após preferência EUR (0.200766ms)
+✔ USD mantém preço original após preferência BRL (0.157001ms)
+✔ USD mantém preço original após preferência PYG (0.28473ms)
+✔ USD mantém preço original após preferência USD (0.214446ms)
+✔ USD mantém preço original após preferência EUR (0.18262ms)
+✔ EUR mantém preço original após preferência BRL (0.141569ms)
+✔ EUR mantém preço original após preferência PYG (0.119506ms)
+✔ EUR mantém preço original após preferência USD (0.251371ms)
+✔ EUR mantém preço original após preferência EUR (0.158354ms)
+✔ custo e preço independentes; nova cotação altera somente equivalente e não o documento antigo (0.479026ms)
+✔ legado não é reclassificado pela moeda atual e versões inválidas são bloqueadas (0.254205ms)
+✔ quantia e equivalente não podem ser mesclados entre dois preços concorrentes (1.377192ms)
+✔ vitrine PYG cobra exatamente 39.990, sem perda por centavos intermediários de BRL (0.84691ms)
+✔ pedido privado PYG congela moeda, valor e equivalentes e é idempotente (5.932544ms)
+✔ custo nativo não usa média antiga se outra venda mudou a quantidade em paralelo (0.603911ms)
+✔ último custo do fornecedor mantém moeda original ao reabrir uma compra com novo câmbio (0.197531ms)
+ℹ tests 23
+ℹ suites 0
+ℹ pass 23
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 25.161977
+PASS: evidence-only credit reconciliation planner (15 cases, no database writes)
+PASS P0: original registration metadata not required; mismatched ID, name, balance, duplicate protected
+PASS P0: audit and ID-only receipt safety reading mismatched sale names, IDs and ledger, without modifying any data
+[OK] Nome digitado livremente é persistido no pré-pedido/venda
+[OK] Nome salvo é reaplicado ao recuperar o pré-pedido
+[OK] Fila exibe o nome persistido do pré-pedido
+[OK] Fila lista todos os pendentes sem corte por quantidade
+[OK] Fila suporta rolagem para listas longas
+[OK] 30 pré-pedidos permanecem 30 no filtro pendente
+ATT 10.2.1 pré-pedido: 6/6 aprovados.
+PDV: rascunho por operador/loja, dados mínimos, retry idempotente e tombstone preservado — OK
+Tombstones V2: stale unchanged filtered; explicit edits/recreations rejected; history, stock and vouchers preserved — OK
+V2 tail: assinatura estável até 100 operações; rearm seguro aprovado.
+P0: KPI por vendedor e caixa cego sem saldo visivel validados.
+V2 PDV: só nova venda, histórico antigo preservado, tombstones respeitados, sem mutar devolução — OK
+
+ RUN  v2.1.9 /workspace/scratch/b31a75c164c4/zenos
+
+ ✓ scripts/recovery/i18n-spanish.ui.test.jsx (6 tests) 374ms
+stderr | scripts/recovery/pdv-draft.ui.test.jsx > PDV restaura 30 itens e conserva edicoes apos remontar o componente
+[PDV] Não foi possível inicializar pedidos_online: [FirebaseError: Expected first argument to collection() to be a CollectionReference, a DocumentReference or FirebaseFirestore] {
+  code: 'invalid-argument',
+  customData: undefined,
+  toString: [Function (anonymous)]
+}
+[PDV] Não foi possível inicializar pedidos_online: [FirebaseError: Expected first argument to collection() to be a CollectionReference, a DocumentReference or FirebaseFirestore] {
+  code: 'invalid-argument',
+  customData: undefined,
+  toString: [Function (anonymous)]
+}
+
+stderr | scripts/recovery/pdv-draft.ui.test.jsx > Conflito V2 mantém 30 itens, não duplica venda e reusa ID/data ao tentar de novo
+[PDV] Não foi possível inicializar pedidos_online: [FirebaseError: Expected first argument to collection() to be a CollectionReference, a DocumentReference or FirebaseFirestore] {
+  code: 'invalid-argument',
+  customData: undefined,
+  toString: [Function (anonymous)]
+}
+
+ ✓ scripts/recovery/pdv-draft.ui.test.jsx (2 tests) 476ms
+ ✓ scripts/recovery/clientes-receipt.ui.test.jsx (2 tests) 126ms
+stdout | scripts/recovery/clientes-quitado-status.ui.test.jsx
+Status visual de fiado validado sem escrita de dados
+
+ ✓ scripts/recovery/clientes-quitado-status.ui.test.jsx (4 tests) 29ms
+ ✓ scripts/recovery/exchange-rate.ui.test.jsx (1 test) 1ms
+
+ Test Files  5 passed (5)
+      Tests  15 passed (15)
+   Start at  20:42:18
+   Duration  2.43s (transform 552ms, setup 8ms, collect 876ms, tests 1.01s, environment 287ms, prepare 103ms)
+
+Release business/UI checks passed.

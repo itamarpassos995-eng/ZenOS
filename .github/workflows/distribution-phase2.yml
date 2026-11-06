@@ -5,6 +5,8 @@ on:
     paths:
       - 'src/**/distribution/**'
       - 'src/components/DistributionCentral*'
+      - 'src/components/DistributionTrips*'
+      - 'firestore.distribution.indexes.json'
       - 'src/App.jsx'
       - 'src/distribution-homologacao-main.jsx'
       - 'distribution-homologacao.html'
@@ -47,3 +49,6 @@ jobs:
       - run: npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.distribution-v2.json 'node scripts/distribution/homologate.mjs'
 
       - run: npm run distribution:concurrency
+
+      - run: npm run distribution:phase3
+      - run: npm run distribution:phase3:concurrency

@@ -5,3 +5,7 @@ export function validateConnectEnvelope(event) {
  if(!event.payload||typeof event.payload!=='object'||Array.isArray(event.payload)||JSON.stringify(event.payload).length>32000)throw new Error('INVALID_CONNECT_PAYLOAD');
  return structuredClone(event);
 }
+
+// Versioned logistics integration contracts remain local-only in Phase 3.
+export const DISTRIBUTION_LOCAL_EVENT_VERSION=1;
+export const DISTRIBUTION_TRIP_EVENTS=Object.freeze(['distribution.trip.deliver.v1','distribution.trip.arrive.v1','distribution.trip.check_return.v1','distribution.trip.close.v1']);
