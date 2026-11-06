@@ -56,3 +56,5 @@ T02, T06, T08, T19/T21/T22, T29/T30, T31/T34/T35 e T40 possuem cobertura PARCIAL
 Nenhuma migração foi executada ou é necessária para esta biblioteca inativa. Rollback: descartar a branch; não existem dados externos criados para compensar. Migrações futuras exigem versão, reversão e homologação próprias. Sem dependências novas ou infraestrutura paga.
 
 Verificações adicionais executadas: 9 testes existentes de cartões multimoeda e moeda de exibição no fechamento aprovados; `npm run build` aprovado (181 módulos; aviso de chunk Firebase acima de 500 kB). `git diff --check` aprovado. Dependências instaladas com scripts de instalação desativados. Nenhum comando Firebase, migração, acesso a dados de clientes ou deploy executado. Workflow novo apenas valida domínio em pull requests ou disparo manual; não contém publicação.
+
+Continuidade: a implementação da Fase 2 e seus limites de homologação estão em `docs/distribution-phase2.md`; este relatório permanece como registro da primeira entrega.

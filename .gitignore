@@ -1,3 +1,6 @@
 node_modules
 dist
 .DS_Store
+# Local synthetic distribution homologation
+/tmp/
+*-debug.log

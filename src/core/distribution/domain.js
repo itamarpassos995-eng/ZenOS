@@ -59,12 +59,12 @@ export function transitionLoad(load,next) {
  if (next === 'DISPATCHED') requireValue(load.manifestVersions.some(m=>m.loadRevision === load.revision), 'CURRENT_MANIFEST_REQUIRED');
  return freeze({...clone(load),state:next,revision:load.revision+1});
 }
-export function issueManifest(load,{documentId,number,issuedAt,issuer,vehicle,driver,route,verificationCode}) {
+export function issueManifest(load,{documentId,number,issuedAt,issuer,vehicle,driver,route,verificationCode,timeZone='UTC'}) {
  requireValue(load.state === 'APPROVED', 'LOAD_NOT_APPROVED');
  requireValue([documentId,number,issuedAt,vehicle,driver,route,verificationCode].every(text) && Number.isFinite(Date.parse(issuedAt)), 'MANIFEST_HEADER_REQUIRED');
  requireValue(issuer && ['name','taxId'].every(k=>text(issuer[k])), 'ISSUER_REQUIRED');
  requireValue(!load.manifestVersions.some(m=>m.documentId === documentId), 'DUPLICATE_DOCUMENT');
- const document = freeze({schemaVersion:1,documentId,number,version:load.manifestVersions.length+1,tenantId:load.tenantId,loadId:load.id,loadRevision:load.revision+1,issuedAt,issuer:clone(issuer),warehouseId:load.warehouseId,vehicle,driver,route,verificationCode,lines:clone(load.lines),totalsByCurrency:totalsByCurrency(load.lines.map(l=>l.amount))});
+ const document = freeze({schemaVersion:1,documentId,number,version:load.manifestVersions.length+1,tenantId:load.tenantId,loadId:load.id,loadRevision:load.revision+1,issuedAt,timeZone,issuer:clone(issuer),warehouseId:load.warehouseId,vehicle,driver,route,verificationCode,lines:clone(load.lines),totalsByCurrency:totalsByCurrency(load.lines.map(l=>l.amount))});
  return freeze({...clone(load),revision:load.revision+1,manifestVersions:[...clone(load.manifestVersions),document]});
 }
 export function historicalManifest(load,version) {

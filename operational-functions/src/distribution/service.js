@@ -1,0 +1,269 @@
+import {distributionPeriod} from '../../../src/core/distribution/period.js';
+import {criarEventoEstoque} from '../../../src/core/stockAuditCore.js';
+import {error,hash,id,requireEmulators,credentialFingerprint,verifyPin,canOperate,token} from './security.js';
+import {createLoad,replaceLoadLines,transitionLoad,issueManifest,historicalManifest,PRECISION} from '../../../src/core/distribution/domain.js';
+
+const canonical = v => Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;
+const integer=(v,min=0)=>{if(!Number.isSafeInteger(v)||v<min)error('INVALID_QUANTITY');return v;};
+// Converts persisted decimal to minor units without binary arithmetic. No current/default FX.
+function minor(value,precision) {
+ const m=String(value).match(/^(\d+)(?:\.(\d+))?$/);if(!m)error('MONEY_SOURCE_REQUIRED');
+ const fraction=(m[2]||'').padEnd(precision+1,'0');
+ return BigInt(m[1])*10n**BigInt(precision)+BigInt(fraction.slice(0,precision)||0)+(Number(fraction[precision]||0)>=5?1n:0n);
+}
+const actions = new Set(['CREATE','RESERVE','START_PICK','CHECK','APPROVE','MANIFEST','DISPATCH','CANCEL']);
+export function distributionService(db,{now=()=>Date.now()}={}) {
+ requireEmulators();
+ const day=(at,timezone)=>new Intl.DateTimeFormat('sv-SE',{timeZone:timezone||'America/Asuncion',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(at));
+ const store = uid=>`lojas/${id(uid)}`;
+ const ctx = async(tx,uid) => {
+  const root=store(uid),control=await tx.get(db.doc(`${root}/dados/storage_control`));
+  if(control.data()?.mode!=='v2'||!control.data()?.generation)error('V2_NOT_READY');
+  const base=`${root}/v2_generations/${id(control.data().generation)}`;
+  const [head,config]=await Promise.all([tx.get(db.doc(base)),tx.get(db.doc(`${root}/distribution_config/module`))]);
+  if(head.data()?.schema!==2||head.data()?.state!=='ready'||head.data()?.sourceChecksum!==control.data()?.sourceChecksum)error('V2_NOT_READY');
+  if(config.data()?.enabled!==true)error('MODULE_DISABLED');
+  return {root,base,head:head.data(),config:config.data(),generation:control.data().generation};
+ };
+ const authorize = async(tx,uid,sessionToken,c) => {
+  if(!/^[a-f0-9]{64}$/.test(sessionToken||''))error('UNAUTHENTICATED');
+  const session=await tx.get(db.doc(`${c.root}/distribution_sessions/${hash(sessionToken)}`));
+  const s=session.data();
+  if(!s||s.expiresAt<=now()||s.uid!==uid||s.generation!==c.generation)error('SESSION_EXPIRED');
+  const operator=await tx.get(db.doc(`${c.base}/operadores/${id(s.operatorId)}`));
+  const op=operator.data()?.data;
+  if(operator.data()?.deleted||!canOperate(op)||credentialFingerprint(op)!==s.credential)error('FORBIDDEN');
+  return {operatorId:s.operatorId,name:op.nome};
+ };
+ async function login(uid,{operatorId,pin}) {
+  id(uid);id(operatorId);
+  const secret=token();
+  const result=await db.runTransaction(async tx=>{
+   const c=await ctx(tx,uid),ref=db.doc(`${c.base}/operadores/${id(operatorId)}`);
+   const [operator,attempt]=await Promise.all([tx.get(ref),tx.get(db.doc(`${c.root}/distribution_login_attempts/${hash(operatorId)}`))]);
+   const attempts=attempt.data()||{};
+   if(attempts.blockedUntil>now())error('RATE_LIMITED');
+   const op=operator.data()?.data;
+   if(operator.data()?.deleted||!verifyPin(op,pin)||!canOperate(op)) {
+    const failures=attempts.windowAt>now()-300000?(attempts.failures||0)+1:1;
+    tx.set(attempt.ref,{failures,windowAt:attempts.windowAt>now()-300000?attempts.windowAt:now(),blockedUntil:failures>=5?now()+300000:0});
+    return {failed:true};
+   }
+   const expiresAt=now()+1800000;
+   tx.set(attempt.ref,{failures:0,windowAt:now(),blockedUntil:0});
+   tx.create(db.doc(`${c.root}/distribution_sessions/${hash(secret)}`),{uid,operatorId,generation:c.generation,credential:credentialFingerprint(op),expiresAt});
+   return {sessionToken:secret,operatorId,operatorName:op.nome,timeZone:c.config.timezone||'America/Asuncion',expiresAt};
+  });
+  if(result.failed)error('INVALID_CREDENTIAL');return result;
+ }
+ async function command(uid,sessionToken,input) {
+  if(!actions.has(input?.type)||typeof input.key!=='string'||!/^[a-zA-Z0-9_-]{1,100}$/.test(input.key))error('INVALID_COMMAND');
+  id(input.loadId);integer(input.expectedRevision);
+  if(Buffer.byteLength(JSON.stringify(input))>32000)error('REQUEST_TOO_LARGE');
+  const fingerprint=hash(canonical(input));
+  return db.runTransaction(async tx=>{
+   const c=await ctx(tx,uid),actor=await authorize(tx,uid,sessionToken,c);
+   const loadRef=db.doc(`${c.root}/distribution_loads/${id(input.loadId)}`),receiptRef=db.doc(`${c.root}/distribution_receipts/${hash(input.key)}`);
+   const [loadSnap,prior]=await Promise.all([tx.get(loadRef),tx.get(receiptRef)]);
+   if(prior.exists){if(prior.data().generation!==c.generation)error('V2_ROUTE_CHANGED');if(prior.data().fingerprint!==fingerprint||prior.data().operatorId!==actor.operatorId)error('IDEMPOTENCY_CONFLICT');return {...prior.data().result,replayed:true};}
+   const headRef=db.doc(c.base),sequence=integer(c.head.sequence)+1,operationId=hash(`distribution:${input.key}`);
+   const writes=[],patches=[],orderWrites=new Map(),productWrites=new Map(),audit=[];
+   const orderCache=new Map(),productCache=new Map();
+   const readOrder=async orderId=>{
+    if(!orderCache.has(orderId)){
+     const ref=db.doc(`${c.base}/vendas/${id(orderId)}`),snap=await tx.get(ref),envelope=snap.data();
+     if(!envelope||envelope.deleted)error('ORDER_NOT_FOUND');
+     if(!['pre_pedido','venda'].includes(envelope.data.tipoDocumento))error('ORDER_NOT_ELIGIBLE');
+     orderCache.set(orderId,{ref,envelope,data:structuredClone(envelope.data)});
+    }return orderCache.get(orderId);
+   };
+   const readProduct=async productId=>{
+    if(!productCache.has(productId)){
+     const ref=db.doc(`${c.base}/produtos/${id(productId)}`),snap=await tx.get(ref),envelope=snap.data();
+     if(!envelope||envelope.deleted)error('PRODUCT_NOT_FOUND');
+     productCache.set(productId,{ref,envelope,data:structuredClone(envelope.data)});
+    }return productCache.get(productId);
+   };
+   let load=loadSnap.data();const p=input.payload||{};
+   if(input.type==='CREATE') {
+    if(load||input.expectedRevision!==0)error('REVISION_CONFLICT');
+    if(!Array.isArray(p.selections)||!p.selections.length||p.selections.length>40)error('INVALID_SELECTION');
+    load=createLoad({id:input.loadId,tenantId:uid,warehouseId:'deposito',policyVersion:'distribution-v1'});
+    const lines=[];const selectionIds=new Set();
+    for(const selection of p.selections) {
+     const orderId=selection.orderId;id(orderId);integer(selection.lineIndex);integer(selection.quantity,1);
+     const selectionId=`${orderId}:${selection.lineIndex}`;if(selectionIds.has(selectionId))error('DUPLICATE_LINE');selectionIds.add(selectionId);
+     const order=await readOrder(orderId),sale=order.data;
+     if(!['pendente','concluida'].includes(sale.estado))error('ORDER_NOT_ELIGIBLE');
+     const item=sale.itens?.[selection.lineIndex];if(!item||item.tipoItem==='servico'||item.usoUnicoEncomendado)error('ORDER_NOT_ELIGIBLE');
+     const ordered=integer(Number(item.qtd),1),allocated=integer(sale._distribution?.allocated?.[selection.lineIndex]||0);
+     if(allocated+selection.quantity>ordered)error('ORDER_OVERALLOCATED');
+     const product=await readProduct(String(item.produtoOriginalId??item.id));
+     if(String(product.data.sku)!==String(item.produtoOriginalSku??item.sku))error('PRODUCT_IDENTITY_MISMATCH');
+     if(!sale.clienteId)error('CUSTOMER_REQUIRED');
+     const client=await tx.get(db.doc(`${c.base}/clientes/${id(String(sale.clienteId))}`));
+     if(!client.exists||client.data()?.deleted)error('CUSTOMER_REQUIRED');
+     if(!sale.vendedorId)error('SELLER_REQUIRED');
+     const seller=await tx.get(db.doc(`${c.base}/operadores/${id(String(sale.vendedorId))}`));
+     if(!seller.exists||seller.data()?.deleted)error('SELLER_REQUIRED');
+     const currency=sale.moedaDocumento,precision=PRECISION[currency];if(precision===undefined)error('MONEY_SOURCE_REQUIRED');
+     // Allocate the frozen document total proportionally by recorded BRL weights.
+     // This preserves document discounts and uses no live exchange rate.
+     const weights=sale.itens.map(i=>i.totalBRL!=null?minor(i.totalBRL,2):minor(i.precoPraticadoBRL,2)*BigInt(integer(Number(i.qtd),1)));
+     const totalWeight=weights.reduce((a,b)=>a+b,0n);if(totalWeight<=0n)error('MONEY_SOURCE_REQUIRED');
+     const total=minor(sale.totalOriginal,precision),before=weights.slice(0,selection.lineIndex).reduce((a,b)=>a+b,0n);
+     const lineTotal=(total*(before+weights[selection.lineIndex])/totalWeight)-(total*before/totalWeight);
+     const allocatedMinor=BigInt(sale._distribution?.allocatedMinor?.[selection.lineIndex]||'0');
+     const allocation=allocated+selection.quantity===ordered?lineTotal-allocatedMinor:lineTotal*BigInt(selection.quantity)/BigInt(ordered);
+     if(allocation<0n||allocatedMinor+allocation>lineTotal)error('MONEY_ALLOCATION_CONFLICT');
+     const physical=sale.tipoDocumento==='venda';
+     if(physical&&(!item.movimentoEstoqueVenda||Number(item.movimentoEstoqueVenda.total)!==ordered))error('STOCK_PROOF_REQUIRED');
+     const customer=client.data().data;
+     lines.push({id:hash(selectionId).slice(0,20),tenantId:uid,orderId,orderLineId:String(selection.lineIndex),productId:String(product.data.id),sku:String(product.data.sku),description:product.data.nome,unit:product.data.unidadeMedida||'UN',customerId:String(sale.clienteId),customerName:customer.nome,destination:customer.endereco||sale.enderecoEntrega||'',sellerId:String(sale.vendedorId),quantity:selection.quantity,amount:{minor:String(allocation),currency,precision,kind:'sale-allocation',source:orderId}});
+     sale._distribution={...(sale._distribution||{}),allocated:{...(sale._distribution?.allocated||{}),[selection.lineIndex]:allocated+selection.quantity},stockManaged:true,allocatedMinor:{...(sale._distribution?.allocatedMinor||{}),[selection.lineIndex]:String(allocatedMinor+allocation)}};
+     orderWrites.set(orderId,order);
+    }
+    load={...replaceLoadLines(load,lines),createdAt:now(),updatedAt:now(),reservationState:'NONE',pickingState:'PENDING',createdBy:actor.operatorId,generation:c.generation};
+   } else {
+    if(load&&load.generation!==c.generation)error('V2_ROUTE_CHANGED');
+    if(!load||load.tenantId!==uid||load.revision!==input.expectedRevision)error('REVISION_CONFLICT');
+    // Pre-read all source records so no write occurs before all validation reads.
+    for(const line of load.lines){await readOrder(line.orderId);await readProduct(line.productId);}
+    if(input.type==='RESERVE') {
+     if(load.state!=='DRAFT'||load.reservationState!=='NONE')error('INVALID_TRANSITION');
+     for(const line of load.lines) {
+      if(orderCache.get(line.orderId).data.tipoDocumento==='venda')continue;
+      const product=productCache.get(line.productId),v=product.data;
+      if(!Number.isFinite(v.estoqueGalpao)||!Number.isFinite(v.estoque))error('STOCK_RECONCILIATION_REQUIRED');
+      const reserved=integer(v.estoqueReservadoDistribuicao||0);
+      if(v.estoqueGalpao-reserved<line.quantity)error('INSUFFICIENT_STOCK');
+      v.estoqueReservadoDistribuicao=reserved+line.quantity;productWrites.set(line.productId,product);
+     }
+     load={...transitionLoad(load,'PLANNED'),reservationState:'RESERVED'};
+    }
+    if(input.type==='START_PICK')load={...transitionLoad(load,'LOADING'),pickingState:'IN_PROGRESS'};
+    if(input.type==='CHECK') {
+     if(load.state!=='LOADING'||!Array.isArray(p.quantities)||p.quantities.length!==load.lines.length||p.quantities.some((n,i)=>n!==load.lines[i].quantity))error('CHECK_MISMATCH');
+     load={...transitionLoad(load,'LOADED'),pickingState:'COMPLETED',checkedBy:actor.operatorId,checkedAt:now()};
+    }
+    if(input.type==='APPROVE') {
+     if(load.pickingState!=='COMPLETED')error('CHECK_REQUIRED');
+     load=transitionLoad(load,'APPROVED');
+    }
+    if(input.type==='MANIFEST') {
+     const issuer=c.config.issuer;
+     const documentId=hash(`${uid}:${input.key}`).slice(0,24);
+     for(const k of ['vehicle','driver','route'])if(typeof p[k]!=='string'||!p[k].trim()||p[k].length>100)error('MANIFEST_HEADER_REQUIRED');
+     load=issueManifest(load,{documentId,number:`ROM-${load.id}`,issuedAt:new Date(now()).toISOString(),issuer,vehicle:p.vehicle,driver:p.driver,route:p.route,timeZone:c.config.timezone||'America/Asuncion',verificationCode:hash(documentId).slice(0,20)});
+     const document=load.manifestVersions.at(-1);
+     writes.push([db.doc(`${c.root}/distribution_manifests/${documentId}`),document]);
+    }
+    if(input.type==='DISPATCH') {
+     if(load.state!=='APPROVED'||load.reservationState!=='RESERVED')error('INVALID_TRANSITION');
+     load=transitionLoad(load,'DISPATCHED');
+     for(const line of load.lines) {
+      const order=orderCache.get(line.orderId);
+      if(order.data.tipoDocumento==='venda')continue; // PDV already posted stock: no second movement.
+      const product=productCache.get(line.productId),v=product.data;
+      if(integer(v.estoqueReservadoDistribuicao||0)<line.quantity||v.estoqueGalpao<line.quantity||v.estoque<line.quantity)error('STOCK_RECONCILIATION_REQUIRED');
+      const saldoAntes={...v};
+      v.estoqueReservadoDistribuicao-=line.quantity;v.estoqueGalpao-=line.quantity;v.estoque-=line.quantity;
+      productWrites.set(line.productId,product);
+      audit.push(criarEventoEstoque({id:`DIST-${operationId}-${line.id}`,produto:v,tipo:'distribuicao_expedicao',origem:'deposito',destino:'entrega',quantidade:line.quantity,saldoAntes,saldoDepois:v,operador:{id:actor.operatorId,nome:actor.name},referenciaId:load.id,createdAt:new Date(now()).toISOString(),detalhes:{pedidoId:line.orderId,linhaId:line.orderLineId}}));
+      order.data._distribution={...order.data._distribution,dispatched:{...(order.data._distribution?.dispatched||{}),[line.orderLineId]:(order.data._distribution?.dispatched?.[line.orderLineId]||0)+line.quantity}};
+      orderWrites.set(line.orderId,order);
+     }
+     load={...load,reservationState:'CONSUMED',dispatchedAt:now()};
+    }
+    if(input.type==='CANCEL') {
+     if(!['DRAFT','PLANNED','LOADING'].includes(load.state))error('LOAD_LOCKED');
+     for(const line of load.lines) {
+      const order=orderCache.get(line.orderId),product=productCache.get(line.productId);
+      if(load.reservationState==='RESERVED'&&order.data.tipoDocumento!=='venda') {
+       product.data.estoqueReservadoDistribuicao=integer(product.data.estoqueReservadoDistribuicao)-line.quantity;
+       if(product.data.estoqueReservadoDistribuicao<0)error('STOCK_RECONCILIATION_REQUIRED');productWrites.set(line.productId,product);
+      }
+      const allocated=order.data._distribution.allocated;
+      allocated[line.orderLineId]-=line.quantity;
+      const allocatedMinor=order.data._distribution.allocatedMinor;
+      allocatedMinor[line.orderLineId]=String(BigInt(allocatedMinor[line.orderLineId])-BigInt(line.amount.minor));
+      if(allocated[line.orderLineId]<0)error('ORDER_OVERALLOCATED');
+      order.data._distribution.stockManaged=Object.values(allocated).some(n=>n>0);orderWrites.set(line.orderId,order);
+     }
+     load={...load,state:'CANCELLED',revision:load.revision+1,reservationState:'RELEASED'};
+    }
+    load={...load,updatedAt:now()};
+   }
+   if(load.manifestVersions.length>10)error('MANIFEST_VERSION_LIMIT');
+   const revisions={...(c.head.fieldRevisions||{})};
+   for(const [field,records] of [['produtos',productWrites],['historicoVendas',orderWrites]]) {
+    if(records.size)revisions[field]=(revisions[field]||0)+1;
+    for(const record of records.values()) {
+     const envelope={...record.envelope,data:record.data,version:sequence,commandId:operationId};
+     patches.push({field,routeId:record.ref.id,...envelope});writes.push([record.ref,envelope]);
+    }
+   }
+   const summaryRef=db.doc(`${c.root}/distribution_daily/${day(load.createdAt,c.config.timezone)}`);
+   const summary=await tx.get(summaryRef);
+   const counts={...(summary.data()?.counts||{})};
+   if(loadSnap.exists)counts[loadSnap.data().state]=Math.max(0,(counts[loadSnap.data().state]||0)-1);
+   counts[load.state]=(counts[load.state]||0)+1;
+   const result={loadId:load.id,revision:load.revision,state:load.state};
+   const receipt={schema:2,key:`distribution:${input.key}`,fingerprint,sequence,revisions,patches,financialEntries:[],createdAtClient:new Date(now()).toISOString()};
+   if(Buffer.byteLength(JSON.stringify(load))>700000||Buffer.byteLength(JSON.stringify(receipt))>700000)error('REQUEST_TOO_LARGE');
+   for(const event of audit)tx.create(db.doc(`${c.root}/estoque_auditoria/${String(event.produtoAuditKey).replaceAll('/','_')}/movimentos/${event.id}`),{...event,_v2:{generation:c.generation,commandId:operationId,sequence}});
+   for(const [ref,value] of writes)tx.set(ref,value);
+   tx.set(loadRef,load);
+   tx.set(summaryRef,{counts,updatedAt:now()});
+   tx.create(receiptRef,{fingerprint,generation:c.generation,operatorId:actor.operatorId,result});
+   tx.create(db.doc(`${c.base}/operations/${operationId}`),receipt);
+   tx.update(headRef,{sequence,fieldRevisions:revisions,lastReceipt:operationId});
+   tx.create(db.doc(`${c.root}/distribution_outbox/${operationId}`),{id:operationId,type:input.type==='DISPATCH'?'distribution.shipment.dispatched.v1':'distribution.load.changed.v1',version:1,tenantId:uid,entityId:load.id,revision:load.revision,correlationId:input.key,occurredAt:new Date(now()).toISOString(),state:'LOCAL_ONLY',payload:{loadId:load.id,state:load.state}});
+   tx.create(db.doc(`${c.root}/distribution_audit/${operationId}`),{operatorId:actor.operatorId,type:input.type,loadId:load.id,sequence,at:now(),stockMovements:audit});
+   return result;
+  },{maxAttempts:15});
+ }
+ async function query(uid,sessionToken,input) {
+  return db.runTransaction(async tx=>{
+   const c=await ctx(tx,uid);await authorize(tx,uid,sessionToken,c);
+   if(input.type==='detail') {
+    const snap=await tx.get(db.doc(`${c.root}/distribution_loads/${id(input.loadId)}`));
+    if(!snap.exists)error('LOAD_NOT_FOUND');return {load:snap.data()};
+   }
+   if(input.type==='manifest') {
+    const snap=await tx.get(db.doc(`${c.root}/distribution_loads/${id(input.loadId)}`));
+    if(!snap.exists)error('LOAD_NOT_FOUND');return {document:historicalManifest(snap.data(),integer(input.version,1))};
+   }
+   if(input.type==='summary') {
+    // Explicit periods read bounded daily projections, never historical load collections.
+    const from=Number(input.from),to=Number(input.to);
+    if(!Number.isSafeInteger(from)||!Number.isSafeInteger(to)||to<=from||to-from>370*86400000)error('INVALID_PERIOD');
+    const first=day(from,c.config.timezone),last=day(to-1,c.config.timezone);
+    const docs=await tx.get(db.collection(`${c.root}/distribution_daily`).where('__name__','>=',first).where('__name__','<=',last).limit(371));
+    const counts={};docs.forEach(d=>Object.entries(d.data().counts||{}).forEach(([k,v])=>{counts[k]=(counts[k]||0)+v;}));return {counts};
+   }
+   const pageSize=Number(input.limit??12);if(!Number.isSafeInteger(pageSize)||pageSize<1||pageSize>30)error('INVALID_PAGE');
+   let q;
+   if(input.type==='orders'){
+    const fallback=distributionPeriod('hoje',now(),c.config.timezone);
+    const from=input.from??Date.parse(fallback.inicio),to=input.to??Date.parse(fallback.fim);
+    if(!Number.isSafeInteger(from)||!Number.isSafeInteger(to)||to<=from||to-from>370*86400000)error('INVALID_PERIOD');
+    q=db.collection(`${c.base}/vendas`).where('data.createdAt','>=',new Date(from).toISOString()).where('data.createdAt','<',new Date(to).toISOString()).orderBy('data.createdAt').orderBy('__name__');
+   }
+   else if(input.type==='loads') {
+    if(!Number.isSafeInteger(input.from)||!Number.isSafeInteger(input.to)||input.to<=input.from||input.to-input.from>370*86400000)error('INVALID_PERIOD');
+    q=db.collection(`${c.root}/distribution_loads`).where('createdAt','>=',input.from).where('createdAt','<',input.to).orderBy('createdAt').orderBy('__name__');
+   }else error('INVALID_QUERY');
+   if(input.cursor) {
+    const cursor=input.cursor;
+    if(input.type==='orders'){id(cursor.id);if(!Number.isFinite(Date.parse(cursor.createdAt)))error('INVALID_CURSOR');q=q.startAfter(cursor.createdAt,db.doc(`${c.base}/vendas/${id(cursor.id)}`));}
+    else {id(cursor.id);integer(cursor.createdAt);q=q.startAfter(cursor.createdAt,db.doc(`${c.root}/distribution_loads/${id(cursor.id)}`));}
+   }
+   const page=await tx.get(q.limit(pageSize+1)),docs=page.docs.slice(0,pageSize);
+   const items=input.type==='orders'?docs.filter(d=>!d.data().deleted&&['pre_pedido','venda'].includes(d.data().data?.tipoDocumento)).map(d=>{const o=d.data().data;return {id:o.id,tipoDocumento:o.tipoDocumento,estado:o.estado,clienteId:o.clienteId,clienteNome:o.clienteNome,vendedorId:o.vendedorId,moedaDocumento:o.moedaDocumento,itens:(o.itens||[]).map(i=>({nome:i.nome,qtd:i.qtd})),_distribution:{allocated:o._distribution?.allocated||{}}};}):docs.map(d=>{const l=d.data();return {id:l.id,revision:l.revision,state:l.state,createdAt:l.createdAt,linesCount:l.lines.length,pickingState:l.pickingState,manifestCount:l.manifestVersions.length};});
+   const last=docs.at(-1);return {items,next:page.size>pageSize&&last?{id:input.type==='orders'?String(last.data().data.id):String(last.data().id),createdAt:input.type==='loads'?last.data().createdAt:last.data().data.createdAt}:null};
+  });
+ }
+ async function logout(uid,sessionToken){return db.runTransaction(async tx=>{const c=await ctx(tx,uid);await authorize(tx,uid,sessionToken,c);tx.delete(db.doc(`${c.root}/distribution_sessions/${hash(sessionToken)}`));return {ok:true};});}
+ return {login,command,query,logout};
+}

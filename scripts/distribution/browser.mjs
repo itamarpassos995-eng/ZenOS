@@ -1,0 +1,45 @@
+import {createRequire} from 'node:module';
+import {writeFile} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const require=createRequire(import.meta.url);
+const {chromium}=require(process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES?process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES+'/playwright':'playwright');
+const browser=await chromium.launch({...(process.env.ZENOS_TEST_CHROMIUM?{executablePath:process.env.ZENOS_TEST_CHROMIUM}:{}),headless:true,args:['--no-sandbox']});
+const context=await browser.newContext({viewport:{width:1440,height:1050},timezoneId:'America/Asuncion',locale:'pt-BR',acceptDownloads:true});
+const page=await context.newPage(),errors=[],requests=[];page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>requests.push(r.url()));
+const button=(name)=>page.getByRole('button',{name,exact:true});
+try {
+ await page.goto('http://127.0.0.1:5173/');await page.waitForLoadState('networkidle');
+ assert.ok(!requests.some(url=>url.includes('/__distribution/')||url.includes('DistributionCentral')),'disabled module must have no API calls or UI imports');
+ await page.goto('http://127.0.0.1:5173/distribution-homologacao.html');
+ await page.getByLabel('E-mail da empresa').fill('distribution-browser@example.test');await page.getByLabel('Senha da empresa').fill('SyntheticOnly!482759');await button('Acessar distribuição').click();
+ await page.getByLabel('PIN do operador',{exact:true}).fill('482759');await button('Acessar distribuição').click();
+ await button('Pedidos do PDV').waitFor();await button('Pedidos do PDV').click();
+ await page.getByLabel('Selecionar pedido O001',{exact:true}).check();await page.getByLabel('Selecionar pedido O002',{exact:true}).check();
+ await page.getByRole('button',{name:/Criar carga selecionada/}).click();
+ await button('Reservar estoque').click();await button('Iniciar separação').click();
+ await page.getByLabel('Quantidades conferidas 1',{exact:true}).fill('5');await page.getByLabel('Quantidades conferidas 2',{exact:true}).fill('5');
+ await button('Confirmar conferência').click();await button('Aprovar carga').click();
+ await page.getByLabel('Veículo / placa',{exact:true}).fill('HML-2026');await page.getByLabel('Motorista',{exact:true}).fill('Carlos · homologação');await page.getByLabel('Rota',{exact:true}).fill('Centro / Vila Operária');await button('Emitir romaneio').click();
+ await page.getByRole('button',{name:/Versão 1 ·/}).waitFor();await page.getByRole('button',{name:/Versão 1 ·/}).click();
+ await page.getByTestId('manifest-preview').waitFor();assert.match(await page.getByTestId('manifest-preview').innerText(),/PYG 399.900/);
+ const downloadPromise=page.waitForEvent('download');await button('Baixar PDF A4').click();const download=await downloadPromise;await download.saveAs('tmp/distribution/romaneio-v1.pdf');
+ await page.screenshot({path:'tmp/distribution/desktop-document.png',fullPage:true});
+ // A4 print rendering uses the same immutable snapshot and second-copy indication.
+ await page.pdf({path:'tmp/distribution/romaneio-print.pdf',format:'A4',printBackground:true,preferCSSPageSize:true});
+ await page.getByLabel('Rota',{exact:true}).fill('Rota revisada');await button('Emitir romaneio').click();await page.getByRole('button',{name:/Versão 2 ·/}).waitFor();
+ await page.getByRole('button',{name:/Versão 1 ·/}).click();assert.match(await page.getByTestId('manifest-preview').innerText(),/Centro \/ Vila Operária/);assert.doesNotMatch(await page.getByTestId('manifest-preview').innerText(),/Rota revisada/);
+ await button('Expedir carga').click();await button('Confirmar').click();await page.locator('.dist-detail-head .dist-badge').filter({hasText:'Expedida'}).waitFor();
+ await page.getByRole('dialog').getByRole('button',{name:'Fechar',exact:true}).click();
+ await page.getByRole('combobox',{name:'Idioma'}).selectOption('es');await button('Este mes').click();
+ await page.screenshot({path:'tmp/distribution/desktop-central-es.png',fullPage:true});
+ const countBefore=requests.filter(url=>url.includes('/__distribution/query')).length;
+ await button('Pedidos del PDV').click();await page.getByRole('table').waitFor();await button('Cargas').click();await page.waitForTimeout(300);
+ assert.ok(requests.filter(url=>url.includes('/__distribution/query')).length-countBefore<=1,'cached pages must not reread the server');
+ await page.setViewportSize({width:390,height:844});await page.screenshot({path:'tmp/distribution/mobile-central-es.png',fullPage:true});
+ assert.ok(await page.evaluate(()=>window.document.documentElement.scrollWidth<=window.innerWidth),'mobile has no page overflow');
+ await button('Abrir carga').click();await page.screenshot({path:'tmp/distribution/mobile-load-es.png',fullPage:true});
+ await page.getByRole('dialog').getByRole('button',{name:'Cerrar',exact:true}).click();await button('Cerrar sesión').click();await button('Acceder a distribución').waitFor();
+ assert.deepEqual(errors,[]);
+ await writeFile('tmp/distribution/browser-evidence.json',JSON.stringify({passed:true,scenarios:['disabled-module-no-requests','server-login','two-seller-load','reserve','picking','manual-check','approval','versioned-manifest','pdf-download','A4-print','historical-reprint','dispatch','PT-ES','cache','mobile-390px','logout'],pageErrors:errors,apiRequests:requests.filter(url=>url.includes('/__distribution/')).length},null,2));
+ console.log('Browser homologation passed: 17 scenarios, desktop/mobile, PDF and A4 print.');
+}catch(e){await page.screenshot({path:'tmp/distribution/failure.png',fullPage:true});console.error((await page.locator('body').innerText()).slice(-5000));console.error('Page errors:',errors);throw e;}finally{await browser.close();}

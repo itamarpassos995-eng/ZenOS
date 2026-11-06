@@ -57,6 +57,7 @@ function zenosHomologacaoPinBridge() {
 }
 
 export default defineConfig(({ mode }) => ({
+  server: { proxy: mode === 'homologacao' ? { '/__distribution': { target: 'http://127.0.0.1:8787', rewrite: path => path.replace(/^\/__distribution/, '') } } : {} },
   build: {
     rollupOptions: {
       input: {

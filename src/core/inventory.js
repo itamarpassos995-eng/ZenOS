@@ -1,5 +1,11 @@
 import { correspondeIdentidadeProduto, localizarIndiceProdutoUnico } from './productIdentity.js';
 const EPSILON = 1e-9;
+// Reservations keep physical balances intact and remove only depot availability.
+export const quantidadeReservadaDistribuicao = produto => {
+ const n = Number(produto?.estoqueReservadoDistribuicao || 0);
+ if (!Number.isSafeInteger(n) || n < 0) throw Object.assign(new Error('Reserva de estoque inválida.'), {code:'ZENOS_RESERVATION_INVALID'});
+ return n;
+};
 
 const numberOrZero = (value) => {
   const parsed = Number(String(value ?? '').replace(',', '.'));
@@ -80,12 +86,13 @@ export const preverBaixaEstoqueProduto = (produto, quantidade) => {
   if (qtd <= 0) return { saldo, movimento: { vitrine: 0, galpao: 0, total: 0 }, suficiente: true };
   const baixaVitrine = Math.min(saldo.estoqueVitrine, qtd);
   const restante = Math.max(0, qtd - baixaVitrine);
-  const baixaGalpao = produto?.permitirEstoqueNegativo === true
-    ? restante : Math.min(Math.max(0, saldo.estoqueGalpao), restante);
+  const reservado = quantidadeReservadaDistribuicao(produto);
+  const baixaGalpao = produto?.permitirEstoqueNegativo === true && !reservado
+    ? restante : Math.min(Math.max(0, saldo.estoqueGalpao-reservado), restante);
   return {
     saldo,
     movimento: { vitrine: baixaVitrine, galpao: baixaGalpao, total: baixaVitrine + baixaGalpao },
-    suficiente: produto?.permitirEstoqueNegativo === true || qtd <= saldo.estoque + EPSILON,
+    suficiente: (produto?.permitirEstoqueNegativo === true && !reservado) || qtd <= saldo.estoque-reservado + EPSILON,
     solicitado: qtd,
   };
 };
@@ -101,7 +108,8 @@ export const baixarEstoqueProduto = (produto, quantidade) => {
     };
   }
 
-  if (produto?.permitirEstoqueNegativo !== true && qtd - saldo.estoque > EPSILON) {
+  const reservado = quantidadeReservadaDistribuicao(produto);
+  if ((produto?.permitirEstoqueNegativo !== true || reservado > 0) && qtd - (saldo.estoque-reservado) > EPSILON) {
     const erro = new Error(`Estoque insuficiente para ${produto?.nome || produto?.sku || 'produto'}. Disponível: ${saldo.estoque}; solicitado: ${qtd}.`);
     erro.code = 'ZENOS_ESTOQUE_INSUFICIENTE';
     erro.produtoId = produto?.id;
@@ -291,7 +299,7 @@ export const transferirEstoqueEntreLocais = (produto, origem, destino, quantidad
     throw erro;
   }
 
-  const disponivel = origemNormalizada === 'vitrine' ? saldo.estoqueVitrine : saldo.estoqueGalpao;
+  const disponivel = origemNormalizada === 'vitrine' ? saldo.estoqueVitrine : saldo.estoqueGalpao-quantidadeReservadaDistribuicao(produto);
   if (qtd - disponivel > EPSILON) {
     const rotulo = origemNormalizada === 'vitrine' ? 'vitrine' : 'depósito';
     const erro = new Error(`Quantidade insuficiente no ${rotulo}. Disponível: ${disponivel}; solicitado: ${qtd}.`);

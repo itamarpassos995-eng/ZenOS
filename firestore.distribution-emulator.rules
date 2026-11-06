@@ -1,0 +1,9 @@
+rules_version = '2';
+// Local distribution homologation only. All business data, V2 envelopes,
+// operator credentials, sessions and documents are accessed through the API.
+// No client writes are granted: Admin SDK transactions enforce domain validation.
+service cloud.firestore {
+ match /databases/{database}/documents {
+  match /{document=**} { allow read, write: if false; }
+ }
+}

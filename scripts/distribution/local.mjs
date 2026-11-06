@@ -1,0 +1,11 @@
+import {spawn} from 'node:child_process';
+import {seed} from '../../operational-functions/test/distribution/fixture.mjs';
+import {requireEmulators} from '../../operational-functions/src/distribution/security.js';
+requireEmulators();
+await seed();
+const children=[];
+for(const args of [['operational-functions/src/distribution/server.js'],['node_modules/vite/bin/vite.js','--mode','homologacao','--host','127.0.0.1','--strictPort']])children.push(spawn(process.execPath,args,{stdio:'inherit',env:{...process.env,VITE_ZENOS_DISTRIBUTION:'1'}}));
+console.log('\nZenOS Distribuição: http://127.0.0.1:5173/distribution-homologacao.html\nConta sintética: distribution-demo@example.test\nSenha sintética: SyntheticOnly!482759\nOperador: admin | PIN sintético: 482759\nNenhum dado de produção é utilizado.');
+const stop=()=>{children.forEach(c=>c.kill('SIGTERM'));process.exit(0);};
+process.on('SIGINT',stop);process.on('SIGTERM',stop);
+children.forEach(child=>child.on('exit',code=>{if(code!==null){children.forEach(c=>c!==child&&c.kill());process.exit(code||0);}}));

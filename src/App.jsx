@@ -7,7 +7,7 @@ import {verificarMovimentoCaixaNoServidor} from './core/cashMovementReadOnly.js'
 import TerminalLogin from './components/TerminalLogin';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { traducoes, moedasConfig, normalizarProduto, normalizarCliente, produtosIniciais, clientesIniciais } from './data';
-import { auth, db } from './firebase';
+import { auth, db, ZENOS_RUNTIME } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, collection, query, where, getDocsFromServer, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { inspectLocalSchemaVersion, PERSISTENCE_STATUS_EVENT, notifyPersistenceStatus } from './core/persistenceSafety';
@@ -20,6 +20,7 @@ import { registroEhDoDiaLocal } from './core/dates';
 import { filtrarVendasHojeVisiveis } from './core/salesTodayScope';
 import LandingPage from './components/LandingPage';
 
+const DistributionCentral = React.lazy(() => import('./components/DistributionCentral.jsx'));
 const Produtos = React.lazy(() => import('./components/Produtos'));
 const Fornecedores = React.lazy(() => import('./components/Fornecedores'));
 const Clientes = React.lazy(() => import('./components/Clientes'));
@@ -2038,6 +2039,7 @@ export default function App() {
             <section className="zen-quick-section">
               <div className="zen-quick-title"><span>⚡</span><strong>{tx('Acessos Rápidos','Accesos Rápidos','Quick Access')}</strong><small>{tx('Principais operações do dia a dia — todos os demais módulos permanecem nas gavetas laterais.','Principales operaciones del día a día — los demás módulos permanecen en el menú lateral.','Main daily operations — all other modules remain in the side menu.')}</small></div>
               <div className="zen-quick-grid">
+                {ZENOS_RUNTIME.isHomologacao && import.meta.env.VITE_ZENOS_DISTRIBUTION === '1' && temPermissao('produtos') && <ZenQuickCard icon="🚚" titulo={tx('Distribuição','Distribución')} detalhe={tx('Cargas e romaneios · homologação','Cargas y hojas de carga · homologación')} tone="teal" onClick={()=>navegarPara('distribuicao')} />}
                 {temPermissao('pdv') && <ZenQuickCard icon="🛒" titulo={tx('PDV Balcão','TPV Mostrador','POS Counter')} detalhe={tx('Vendas e Pré-Pedidos','Ventas y Pre-Pedidos','Sales & Pre-Orders')} tone="teal" onClick={()=>navegarPara('pdv')} />}
                 {temPermissao('produtos') && <ZenQuickCard icon="📥" titulo={tx('PDV Compras','TPV Compras','Purchase Entry')} detalhe={tx('Entrada rápida de estoque','Entrada rápida de stock','Quick stock entry')} tone="orange" onClick={()=>navegarPara('compras')} />}
                 {temPermissao('produtos') && <ZenQuickCard icon="📦" titulo={tx('Produtos & Estoque','Productos y Stock','Products & Stock')} detalhe={tx('Cadastrar e gerenciar','Registrar y gestionar','Register and manage')} tone="purple" onClick={()=>navegarPara('produtos')} />}
@@ -2059,6 +2061,7 @@ export default function App() {
             atual?.token===token ? null : atual)}
           onPedidosOnlineAtualizados={total => setPedidosOnlineConhecidos(anterior => anterior === total ? anterior : total)}
           perfilLoja={perfilLoja} taxasCambio={taxasCambio} registrarFinanceiro={registrarFinanceiro} commitOperacaoCritica={commitOperacaoCritica} commitVendaCritica={commitVendaCritica} recarregarDadosPDV={recarregarDadosPDV} vouchers={vouchers} setVouchers={setVouchers} userId={userId} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} patenteUsuario={patenteUsuario} idioma={idioma} regrasDesconto={regrasDesconto} vendedores={vendedores} operadorAtivo={operadorAtivo} sessaoAtiva={sessaoAtiva} />}
+        {ecraAtual === 'distribuicao' && ZENOS_RUNTIME.isHomologacao && import.meta.env.VITE_ZENOS_DISTRIBUTION === '1' && temPermissao('produtos') && <DistributionCentral key={String(userId)+':'+String(operadorAtivo?.id)} operatorId={String(operadorAtivo?.id || '')} idioma={idioma} />}
         {ecraAtual === 'compras' && <PDVCompras commitOperacaoNegocio={commitVendaCritica} registrarFinanceiro={registrarFinanceiro} saldoSessaoFisicoBRL={saldoSessaoFisicoBRL} userId={userId} produtos={produtos} setProdutos={setProdutos} fornecedores={fornecedores} setFornecedores={setFornecedores} despesas={despesas} setDespesas={setDespesas} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoCompras={historicoCompras} setHistoricoCompras={setHistoricoCompras} operadorAtivo={operadorAtivo} />}
         {ecraAtual === 'fornecedores' && <Fornecedores commitOperacaoNegocio={commitVendaCritica} fornecedores={fornecedores} setFornecedores={setFornecedores} moeda={moeda} tx={tx} />}
         {ecraAtual === 'mesas' && <Mesas converterParaBRL={converterParaBRL} commitOperacaoNegocio={commitVendaCritica} userId={userId} produtos={produtos} fmt={fmt} tx={tx} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} moeda={moeda} idioma={idioma} operadorAtivo={operadorAtivo} />}

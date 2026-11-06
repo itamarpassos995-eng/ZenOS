@@ -1,3 +1,4 @@
+import {quantidadeReservadaDistribuicao} from './inventory.js';
 import {exchangeRateSnapshotsEqual} from './exchangeRateGuard.js';
 import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { getOperationalWriteSession } from './operationalRepository.js';
@@ -133,6 +134,12 @@ const applyGuardedEntityRemovals = ({ field, mergedValue, removeEntityIds, guard
 };
 
 const assertBusinessGuards = (data, guards = []) => {
+  for (const guard of guards) {
+    if (guard.field === 'historicoVendas' && guard.entityId != null) {
+      const order = findEntity(data?.historicoVendas, guard.entityId, 'id');
+      if (order?._distribution?.stockManaged) failGuard('Documento vinculado à distribuição. Conclua o fluxo logístico antes de liquidar no PDV.', 'ZENOS_DISTRIBUTION_ORDER_LOCKED');
+    }
+  }
   for (const guard of guards || []) {
     if (!guard?.type) continue;
     if (guard.type === 'entity_field_equals') {
@@ -260,7 +267,7 @@ const assertStockEventsAgainstRemote = (data, stockEvents = []) => {
     const needShowcase = Math.max(0, Number(event?.detalhes?.vitrine || 0));
     const needWarehouse = Math.max(0, Number(event?.detalhes?.deposito || event?.detalhes?.galpao || 0));
     const show = Number(product?.estoqueVitrine ?? 0);
-    const warehouse = Number(product?.estoqueGalpao ?? product?.estoque ?? 0);
+    const warehouse = Number(product?.estoqueGalpao ?? product?.estoque ?? 0)-quantidadeReservadaDistribuicao(product);
     if (show + 0.000001 < needShowcase || warehouse + 0.000001 < needWarehouse) {
       failGuard(`Estoque de "${product?.nome || event?.produtoNome || event?.produtoId}" mudou em outro terminal. Venda não finalizada.`, 'ZENOS_STOCK_CONFLICT');
     }
@@ -291,6 +298,8 @@ const assertMergedFieldInvariants = ({ field, mergedValue, baseValue, localValue
     for (const product of mergedValue) {
       const id = String(product?.id ?? product?.sku ?? '');
       if (!locallyChanged.has(id)) continue;
+      const reserved = quantidadeReservadaDistribuicao(product);
+      if (reserved > 0 && Number(product.estoqueGalpao) < reserved) failGuard('Estoque reservado para distribuição.', 'ZENOS_RESERVED_STOCK');
       for (const prop of ['estoque', 'estoqueVitrine', 'estoqueGalpao']) {
         if (product?.[prop] !== undefined && Number(product[prop]) < -0.000001) {
           failGuard(`Estoque negativo bloqueado em "${product?.nome || id}" (${prop}).`, 'ZENOS_NEGATIVE_STOCK_BLOCKED');

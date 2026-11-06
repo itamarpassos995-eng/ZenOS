@@ -7,10 +7,17 @@ const cp1252=new Map([[8364,128],[8216,145],[8217,146],[8220,147],[8221,148],[82
 function encoded(s){const a=[];for(const c of String(s)){const n=c.codePointAt(0);a.push(n<=255?n:(cp1252.get(n)??63));}return Uint8Array.from(a);}
 function join(a){const n=a.reduce((s,b)=>s+b.length,0),u=new Uint8Array(n);let p=0;for(const b of a){u.set(b,p);p+=b.length;}return u;}
 function esc(s){return clean(s,999).replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)');}
-function pdf(pages,logo){
+function pdf(pages,logo,embeddedFonts=null){
  const objects=[null],reserve=(x)=>{objects.push(x);return objects.length-1;};
- const catalog=reserve(null),root=reserve(null),font=reserve(encoded('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>'));
- const bold=reserve(encoded('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>'));
+ const catalog=reserve(null),root=reserve(null);
+ const embedFont = info => {
+  const data=Uint8Array.from(atob(info.base64),c=>c.charCodeAt(0));
+  const file=reserve(join([encoded('<< /Length '+data.length+' /Length1 '+data.length+' >>\nstream\n'),data,encoded('\nendstream')]));
+  const descriptor=reserve(encoded('<< /Type /FontDescriptor /FontName /'+info.name+' /Flags 32 /FontBBox ['+info.bbox.join(' ')+'] /ItalicAngle 0 /Ascent '+info.ascent+' /Descent '+info.descent+' /CapHeight 730 /StemV 80 /FontFile2 '+file+' 0 R >>'));
+  return reserve(encoded('<< /Type /Font /Subtype /TrueType /BaseFont /'+info.name+' /Encoding /WinAnsiEncoding /FirstChar 32 /LastChar 255 /Widths ['+info.widths.join(' ')+'] /FontDescriptor '+descriptor+' 0 R >>'));
+ };
+ const font=embeddedFonts?embedFont(embeddedFonts.regular):reserve(encoded('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>'));
+ const bold=embeddedFonts?embedFont(embeddedFonts.bold):reserve(encoded('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>'));
  let img=0;
  if(logo)img=reserve(join([encoded('<< /Type /XObject /Subtype /Image /Width '+logo.w+' /Height '+logo.h+' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length '+logo.data.length+' >>\nstream\n'),logo.data,encoded('\nendstream')]));
  const ids=[];
@@ -103,3 +110,5 @@ export async function gerarPdfComprovante(doc,loja={},ambiente={}){
  const bytes=pdf(pages,logo);
  return {nome:'ZenOS-'+nome+'.pdf',bytes,blob:new Blob([bytes],{type:'application/pdf'}),paginas:pages.length,logoIncluida:!!logo};
 }
+
+export {pdf as buildLocalPdf, imageForPdf as localPdfImage};
