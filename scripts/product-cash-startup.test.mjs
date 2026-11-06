@@ -60,3 +60,14 @@ test('painel inicia no dia local; meses e personalizado respeitam limites sem al
  assert.equal(new Date(financialPeriod('anterior',now).inicio).getFullYear(),2025);
  assert.equal(JSON.stringify(records),original);
 });
+
+import {operadorConfirmadoTerminal} from '../src/core/terminalAccess.js';
+test('entrada usa permissões atuais e recusa operador removido, inclusive último admin',()=>{
+ const current={id:'staff',patente:'vendedor',permissoes:{admin:false}};
+ assert.equal(operadorConfirmadoTerminal({vendedores:[current],operadorId:'staff'}),current);
+ assert.equal(operadorConfirmadoTerminal({vendedores:[],operadorId:'admin'}),null);
+ assert.equal(operadorConfirmadoTerminal({vendedores:[current],operadorId:'admin'}),null);
+ const initial={id:'admin',senha:'admin',pinTrocaObrigatoria:true};
+ assert.equal(operadorConfirmadoTerminal({vendedores:[],operadorId:'admin',adminInicial:initial}),initial);
+ assert.equal(operadorConfirmadoTerminal({vendedores:[],operadorId:'staff',adminInicial:initial}),null);
+});

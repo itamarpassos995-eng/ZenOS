@@ -6,7 +6,7 @@ vi.mock('firebase/firestore',async importOriginal=>({...await importOriginal(),
 }));
 import {getDocFromServer,getDocsFromServer,getDocsFromCache} from 'firebase/firestore';
 import {cacheScope,readOperationalCache,writeOperationalCache,appendOperationalReceipt} from '../../src/core/operationalCache.js';
-import {V2Session} from '../../src/core/operationalRepository.js';
+import {V2Session,getOperationalAccessSnapshot,getOperationalSnapshot,getOperationalWriteSession} from '../../src/core/operationalRepository.js';
 import {stableV2Json} from '../../src/core/operationalV2Schema.js';
 let counter=0;
 const fixture=()=>{
@@ -87,4 +87,29 @@ test('Firestore timestamps survive persistent cache without changing canonical t
  const cached=await readOperationalCache(f.scope);
  expect(cached.values.time).toBeInstanceOf(Timestamp);
  expect(stableV2Json(cached.values)).toBe(stableV2Json(value));
+});
+
+test('PIN operators arrive before a slow catalog; complete writes still wait and operator pages are reused',async()=>{
+ const f=fixture(),generation='a'.repeat(24);
+ const control={...f.control,generation,mode:'v2',certificate:{sourceChecksum:'certified',productionReady:true,v1WritersFenced:true,finalReconciliationPassed:true,pdvIntegrationPassed:true,rollbackPrepared:true}};
+ const head={...f.head,fieldManifest:{...JSON.parse(f.saved.manifest),vendedores:{kind:'array',collection:'operadores',count:1}},fieldCounts:{produtos:1,vendedores:1},fieldRevisions:{produtos:0,vendedores:0}};
+ getDocFromServer.mockImplementation(async path=>snap(path.at(-1)==='storage_control'?control:head));
+ let releaseProducts;
+ const slowProducts=new Promise(resolve=>{releaseProducts=resolve;});
+ const calls=[];
+ getDocsFromServer.mockImplementation(async q=>{
+  const name=q[0].at(-1);calls.push(name);
+  if(name==='operadores')return {size:1,docs:[{id:'admin',data:()=>({legacyField:'vendedores',version:0,data:{id:'admin',senha:'7953',patente:'gerencia'}})}]};
+  if(name==='produtos')return slowProducts;
+  return {size:0,docs:[]};
+ });
+ let completed=false,writeReady=false;
+ const full=getOperationalSnapshot(f.db,f.user).then(x=>{completed=true;return x;});
+ const access=await getOperationalAccessSnapshot(f.db,f.user);
+ const write=getOperationalWriteSession(f.db,f.user).then(x=>{writeReady=true;return x;});
+ expect(access.vendedores[0].id).toBe('admin');expect(completed).toBe(false);expect(writeReady).toBe(false);
+ expect(calls[0]).toBe('operadores');
+ releaseProducts({size:1,docs:[{id:'p1',data:()=>({legacyField:'produtos',version:0,data:{id:'p1',precoBRL:10}})}]});
+ expect((await full).data().produtos[0].id).toBe('p1');await write;
+ expect(calls.filter(x=>x==='operadores')).toHaveLength(1);
 });

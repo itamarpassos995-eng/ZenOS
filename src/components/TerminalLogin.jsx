@@ -1,5 +1,5 @@
 // src/components/TerminalLogin.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { verificarPinOperador } from '../core/operatorPin';
 
 function LogoSubLogin() {
@@ -14,10 +14,12 @@ function LogoSubLogin() {
   );
 }
 
-export default function TerminalLogin({ vendedores, onLoginSuccess, onSairLoja, tx = (pt) => pt }) {
+export default function TerminalLogin({ preparandoBase=false, vendedores, onLoginSuccess, onSairLoja, tx = (pt) => pt }) {
   const [idSelecionado, setIdSelecionado] = useState('');
   const [senhaDigitada, setSenhaDigitada] = useState('');
   const [erro, setErro] = useState('');
+  const [entrando,setEntrando]=useState(false);
+  const entradaRef=useRef(false);
 
   useEffect(() => {
     if (vendedores && vendedores.length > 0 && !idSelecionado) {
@@ -27,22 +29,24 @@ export default function TerminalLogin({ vendedores, onLoginSuccess, onSairLoja, 
 
   const tentarAcesso = async (e) => {
     e.preventDefault();
+    if(entradaRef.current)return;
     setErro('');
 
     const operador = vendedores.find(v => String(v.id) === String(idSelecionado));
     if (!operador) return setErro(tx('Selecione um operador.','Seleccione un operador.','Select an operator.'));
 
+    entradaRef.current=true;setEntrando(true);
     try {
       if (!(await verificarPinOperador(operador, senhaDigitada))) {
         setSenhaDigitada('');
         return setErro(tx('PIN / Senha incorreta! Tente novamente.','PIN / Contraseña incorrecta. Intente nuevamente.','Incorrect PIN / Password. Try again.'));
       }
 
-      onLoginSuccess(operador);
+      await onLoginSuccess(operador,senhaDigitada);
     } catch (error) {
       console.error('[ZenOS][TERMINAL] Falha ao validar PIN do operador.', error);
       setErro(error?.message || tx('Não foi possível validar o PIN neste dispositivo.','No fue posible validar el PIN en este dispositivo.','Could not validate the PIN on this device.'));
-    }
+    } finally {entradaRef.current=false;setEntrando(false);}
   };
 
   return (
@@ -62,7 +66,7 @@ export default function TerminalLogin({ vendedores, onLoginSuccess, onSairLoja, 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ color: '#cbd5e1', fontSize: '11px', fontWeight: 800 }}>{tx('Quem está a operar?','¿Quién está operando?','Who is operating?')}</label>
               <select value={idSelecionado} onChange={(e) => { setIdSelecionado(e.target.value); setErro(''); setSenhaDigitada(''); }} style={{ width: '100%', padding: '14px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '12px', color: '#fff', fontSize: '14px', fontWeight: 800, outline: 'none', cursor: 'pointer' }}>
-                {vendedores?.map(v => <option key={v.id} value={v.id}>{v.nome} ({v.cargo})</option>)}
+                {vendedores?.map(v => <option key={v.id} value={v.id}>{v.nome}{v.cargo?` (${v.cargo})`:''}</option>)}
               </select>
             </div>
 
@@ -72,7 +76,8 @@ export default function TerminalLogin({ vendedores, onLoginSuccess, onSairLoja, 
               {erro ? <span style={{ fontSize: '12px', color: '#f43f5e', textAlign: 'center', marginTop: '4px', fontWeight: 800 }}>{erro}</span> : <span style={{ fontSize: '10px', color: '#64748b', textAlign: 'center', marginTop: '4px' }}>{tx('Use o PIN do operador selecionado. O administrador principal deve trocar o PIN temporário no primeiro acesso.','Use el PIN del operador seleccionado. El administrador principal debe cambiar el PIN temporal en el primer acceso.','Use the selected operator PIN. The main administrator must change the temporary PIN on first access.')}</span>}
             </div>
 
-            <button type="submit" style={{ width: '100%', padding: '14px', background: 'linear-gradient(135deg, #0d9488, #14b8a6)', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '15px', marginTop: '8px', boxShadow: '0 4px 15px rgba(20, 184, 166, 0.3)' }}>{tx('Desbloquear Terminal ➔','Desbloquear Terminal ➔','Unlock Terminal ➔')}</button>
+            {preparandoBase&&<span role="status" style={{fontSize:11,color:'#94a3b8',textAlign:'center'}}>{tx('Preparando os dados da loja em paralelo. Você já pode informar o PIN.','Preparando los datos de la tienda en paralelo. Ya puede ingresar el PIN.','Preparing store data in parallel. You can enter your PIN now.')}</span>}
+            <button type="submit" disabled={entrando} aria-busy={entrando} style={{ width: '100%', padding: '14px', background: 'linear-gradient(135deg, #0d9488, #14b8a6)', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: 'pointer', fontSize: '15px', marginTop: '8px', boxShadow: '0 4px 15px rgba(20, 184, 166, 0.3)' }}>{entrando?tx('Conferindo acesso…','Verificando acceso…','Verifying access…'):tx('Desbloquear Terminal ➔','Desbloquear Terminal ➔','Unlock Terminal ➔')}</button>
             {onSairLoja && <button type="button" onClick={onSairLoja} style={{ background: 'transparent', border: 'none', color: '#fb7185', fontSize: '12px', fontWeight: 800, cursor: 'pointer', marginTop: '8px', textDecoration: 'underline' }}>{tx('Encerrar sessão principal da loja','Cerrar sesión principal de la tienda','End main store session')}</button>}
           </form>
         </div>

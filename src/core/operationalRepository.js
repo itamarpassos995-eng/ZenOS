@@ -23,8 +23,8 @@ const writeCacheCheckpoint=(db,userId,generation,data)=>{
 };
 
 export class V2Session {
- constructor(db,userId,control){this.db=db;this.userId=String(userId);this.control=control;this.generation=control.generation;
-  this.cacheScope=cacheScope(db?.app?.options?.projectId,userId,control.generation);this.cacheEnabled=false;
+ constructor(db,userId,control,onAccessReady=null){this.db=db;this.userId=String(userId);this.control=control;this.generation=control.generation;
+  this.cacheScope=cacheScope(db?.app?.options?.projectId,userId,control.generation);this.cacheEnabled=false;this.onAccessReady=onAccessReady;
   this.root=v2RootPath(userId,control.generation);this.records=new Map();this.values={};this.sequence=0;this.revisions={};this.listeners=new Set();this.tailStop=null;this.tailEpoch=0;this.failed=null;}
  async paged(path,consume,{cacheOnly=false}={}){let cursor=null;
   do{const q=query(collection(this.db,...path),orderBy(documentId()),...(cursor?[startAfter(cursor)]:[]),limit(PAGE));
@@ -85,9 +85,20 @@ export class V2Session {
  // A carga inicial usa primeiro a cópia persistida, mas somente quando a
  // geração, o manifesto e as contagens conferem. Dados incompletos nunca
  // são usados como base para operações financeiras.
+ publishAccess(head){
+  if(!this.onAccessReady||!head||head.sourceChecksum!==this.control.sourceChecksum)return;
+  const records=this.records.get('vendedores');
+  if(!records||this.revisions.vendedores!==(head.fieldRevisions||{}).vendedores)return;
+  const expected=Number(head.fieldCounts?.vendedores??head.fieldManifest?.vendedores?.count);
+  const active=[...records.values()].filter(r=>!r.deleted);
+  if(!Number.isSafeInteger(expected)||active.length!==expected
+    ||[...records.values()].some(r=>Number(r.version||0)>Number(head.sequence)))return;
+  const ready=this.onAccessReady;this.onAccessReady=null;
+  ready({vendedores:active.sort((a,b)=>Number(a.legacyIndex||0)-Number(b.legacyIndex||0)).map(r=>r.data)});
+ }
  async hydrateCollections(manifest,{cacheOnly=false}={}){
   this.records=new Map();this.values={};this.legacyFieldVersions=new Map();
-  await executarLotes(Object.entries(manifest).filter(([,meta])=>meta.kind==='array'),async ([field,meta])=>{
+  const hydrateField=async ([field,meta])=>{
    if(!V2_COLLECTIONS[field]||meta.collection!==V2_COLLECTIONS[field])throw v2Error('V2_UNKNOWN_FIELD',`Campo V2 não integrado: ${field}.`);
    const records=new Map();this.records.set(field,records);
    await this.paged([...this.root,meta.collection],snap=>{
@@ -95,7 +106,12 @@ export class V2Session {
     if(encodeV2Id(entityIdV2(field,value.data))!==snap.id)throw v2Error('V2_ENTITY_ID','ID V2 difere do legado.');
     records.set(snap.id,{...value,routeId:snap.id});
    },{cacheOnly});
-  });
+   if(field==='vendedores'&&!cacheOnly)this.publishAccess(this.initialHead);
+  };
+  const fields=Object.entries(manifest).filter(([,meta])=>meta.kind==='array');
+  const accessField=!cacheOnly&&this.onAccessReady?fields.find(([field])=>field==='vendedores'):null;
+  if(accessField)await hydrateField(accessField);
+  await executarLotes(fields.filter(([field])=>!accessField||field!=='vendedores'),hydrateField);
   await this.paged([...this.root,'legacy_fields'],snap=>{
    const value=snap.data();if(typeof value.field!=='string'||value.value===undefined)throw v2Error('V2_VALUE_SCHEMA','Campo legado inválido.');
    this.values[value.field]=value.value;
@@ -125,7 +141,7 @@ export class V2Session {
   if(head.data().sourceChecksum!==this.control.sourceChecksum)throw v2Error('V2_SOURCE_MISMATCH','Origem da cópia não corresponde à ativação.');
   const authoritative=head.data(),manifest=authoritative.fieldManifest;
   if(!manifest||!Object.keys(manifest).length)throw v2Error('V2_MANIFEST','Manifesto V2 ausente.');
-  this.manifest=manifest;this.reads=0;
+  this.manifest=manifest;this.initialHead=authoritative;this.reads=0;
   // Durable snapshot + receipts are isolated from SDK cache page mutations.
   try{
    const saved=await readOperationalCache(this.cacheScope);
@@ -141,6 +157,7 @@ export class V2Session {
      }
     }
     this.assertComplete(manifest,saved.fieldCounts,{requireValues:true});
+    this.publishAccess(authoritative);
     for(const receipt of saved.receipts)this.apply(receipt,{emit:false});
     if(this.sequence<Number(authoritative.sequence))await this.catchUp();
     const end=await getDocFromServer(headRef),info=end.data();
@@ -219,6 +236,7 @@ export class V2Session {
   return this;
  }
  async persistCache(info){
+  this.publishAccess(info);
   if(info?.schema!==2||info.state!=='ready'||info.sourceChecksum!==this.control.sourceChecksum
     ||stableV2Json(info.fieldManifest)!==stableV2Json(this.manifest))return;
   const snapshot={sequence:this.sequence,revisions:{...this.revisions},sourceChecksum:this.control.sourceChecksum,manifest:stableV2Json(this.manifest),fieldCounts:{...info.fieldCounts},records:[...this.records].map(([field,records])=>[field,[...records]]),values:{...this.values}};
@@ -270,9 +288,15 @@ export async function getOperationalWriteSession(db,userId){
  if(entry.session?.failed)throw entry.session.failed;
  return entry.session;
 }
-async function initializeRoute(db,userId){
+async function initializeRoute(db,userId){return ensureRoute(db,userId).promise;}
+export async function getOperationalAccessSnapshot(db,userId){const entry=ensureRoute(db,userId);entry.promise.catch(()=>{});return entry.accessPromise;}
+function ensureRoute(db,userId){
  const map=sessionMap(db),key=String(userId);let entry=map.get(key);
- if(!entry){entry={session:null,promise:null};map.set(key,entry);
+ if(!entry){
+  let accessResolve,accessReject;
+  const accessPromise=new Promise((resolve,reject)=>{accessResolve=resolve;accessReject=reject;});
+  accessPromise.catch(()=>{}); // Access is optional; callers still receive rejection.
+  entry={session:null,promise:null,accessPromise};map.set(key,entry);
   entry.promise=(async()=>{
    let controlSnap=await getDocFromServer(doc(db,...v2ControlPath(userId)));
    if(!controlSnap.exists()&&nativeV2Enabled()){
@@ -292,10 +316,11 @@ async function initializeRoute(db,userId){
    const control=controlSnap.exists()?controlSnap.data():null;
    const route=resolveV2ReadMode(control);entry.control=control;entry.route=route;
    if(route.shadow)entry.shadowSession=await new V2Session(db,userId,control).load();
-   if(route.primary==='v2')entry.session=await new V2Session(db,userId,control).load();
+   if(route.primary==='v2')entry.session=await new V2Session(db,userId,control,accessResolve).load();
+   accessResolve(entry.session?{vendedores:entry.session.materialize().vendedores}:null);
    return entry;
-  })().catch(error=>{map.delete(key);throw error;});
- }return entry.promise;
+  })().catch(error=>{accessReject(error);if(map.get(key)===entry)map.delete(key);throw error;});
+ }return entry;
 }
 export function subscribeOperationalSnapshot(db,userId,onData,onError){
  let disposed=false,stopData=null,stopControl=null;

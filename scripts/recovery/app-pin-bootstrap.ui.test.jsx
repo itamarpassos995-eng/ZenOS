@@ -1,0 +1,28 @@
+import React from 'react';
+import {test,expect,vi,afterEach} from 'vitest';
+import {render,screen,cleanup,act,fireEvent,waitFor} from '@testing-library/react';
+const bootstrap=vi.hoisted(()=>({full:null,access:null}));
+vi.mock('../../src/firebase',()=>({auth:{},db:{}}));
+vi.mock('firebase/auth',async original=>({...await original(),onAuthStateChanged:(_auth,callback)=>{let active=true;queueMicrotask(()=>{if(active)void callback({uid:'pin-store',email:'fixture@example.test'});});return()=>{active=false;};}}));
+vi.mock('firebase/firestore',async original=>({...await original(),doc:(_db,...path)=>path,getDoc:vi.fn(async path=>({exists:()=>path.length===2,data:()=>({status:'ativo',plano:'premium',dataCriacao:'2026-11-01'}),metadata:{fromCache:false}}))}));
+vi.mock('../../src/core/operationalRepository.js',()=>({getOperationalSnapshot:vi.fn(()=>bootstrap.full),getOperationalAccessSnapshot:vi.fn(()=>bootstrap.access),getOperationalWriteSession:vi.fn(),clearOperationalSession:vi.fn(),subscribeOperationalSnapshot:vi.fn(()=>()=>{})}));
+import App from '../../src/App.jsx';
+import {getOperationalSnapshot} from '../../src/core/operationalRepository.js';
+afterEach(()=>{cleanup();localStorage.clear();vi.clearAllMocks();});
+test('real App displays PIN before its complete snapshot resolves; revoked PIN cannot enter afterward',async()=>{
+ localStorage.setItem('zenos_idioma','pt');
+ let finish;
+ bootstrap.full=new Promise(resolve=>{finish=resolve;});
+ bootstrap.access=Promise.resolve({vendedores:[{id:'staff',nome:'Operador confirmado',senha:'7953',patente:'vendedor'}]});
+ render(<App/>);
+ expect(await screen.findByText(/Acesso ao Terminal|Acceso al Terminal/)).toBeTruthy();
+ expect(screen.getByRole('combobox').textContent).toContain('Operador confirmado');
+ expect(getOperationalSnapshot).toHaveBeenCalled();
+ const input=screen.getByPlaceholderText('••••');fireEvent.change(input,{target:{value:'7953'}});fireEvent.submit(input.closest('form'));
+ await waitFor(()=>expect(screen.getByRole('button',{name:/Conferindo acesso|Verificando acceso/}).disabled).toBe(true));
+ const error=vi.spyOn(console,'error').mockImplementation(()=>{});
+ await act(async()=>finish({exists:()=>true,data:()=>({vendedores:[{id:'staff',nome:'Operador confirmado',senha:'9637',patente:'vendedor'}],_syncMeta:{fieldRevisions:{}}}),metadata:{fromCache:false}}));
+ expect(await screen.findByText(/O acesso do operador mudou|El acceso del operador cambió/)).toBeTruthy();
+ expect(screen.getByPlaceholderText('••••')).toBeTruthy();
+ error.mockRestore();
+});

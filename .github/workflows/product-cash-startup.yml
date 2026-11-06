@@ -24,4 +24,4 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: node --test scripts/product-cash-startup.test.mjs scripts/native-product-money.test.mjs scripts/commerce-private-inbox.test.mjs scripts/commerce-cdn-publicar.test.mjs scripts/commerce-cdn-pedido.test.mjs
-      - run: npx vitest run --config vitest.recovery.config.js scripts/recovery/product-cash-audit.ui.test.jsx scripts/recovery/operational-cache.ui.test.jsx
+      - run: npx vitest run --config vitest.recovery.config.js scripts/recovery/product-cash-audit.ui.test.jsx scripts/recovery/operational-cache.ui.test.jsx scripts/recovery/terminal-entry.ui.test.jsx scripts/recovery/app-pin-bootstrap.ui.test.jsx

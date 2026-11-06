@@ -2,7 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import EnvironmentBanner from './components/EnvironmentBanner.jsx'
-import CommerceVitrinePreview from './components/CommerceVitrinePreview.jsx'
+const CommerceVitrinePreview = React.lazy(() => import('./components/CommerceVitrinePreview.jsx'))
 import './index.css'
 
 // Rota independente e somente leitura. Não inicializa o fluxo de vendas do App.
@@ -19,6 +19,8 @@ if (previewMatch) {
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <EnvironmentBanner />
+    <React.Suspense fallback={<div role="status" style={{minHeight:"100vh",background:"#020617",color:"#cbd5e1",display:"grid",placeItems:"center"}}>ZenOS…</div>}>
     {previewMatch ? <CommerceVitrinePreview lojaIdRota={previewLojaId} /> : <App />}
+    </React.Suspense>
   </React.StrictMode>,
 )

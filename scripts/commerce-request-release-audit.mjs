@@ -45,7 +45,7 @@ const allowed=new Set([
   'src/components/PDVCompras.jsx','src/components/Produtos.jsx','src/components/Vendas.jsx',
   'src/core/productMoney.js','src/core/syncMerge.js',
   // Acabamento dos controles e consulta/impressão de caixas históricos, sem mutações.
-  'src/components/GestaoCaixas.jsx','src/components/GestaoCaixas.css',
+  'src/components/GestaoCaixas.jsx','src/components/GestaoCaixas.css','src/components/TerminalLogin.jsx','src/core/terminalAccess.js','scripts/recovery/terminal-entry.ui.test.jsx','scripts/recovery/app-pin-bootstrap.ui.test.jsx',
   'docs/daily-finance-fast-start.md','src/core/operationalRepository.js','src/core/operationalCache.js','src/core/financialPeriod.js','scripts/recovery/operational-cache.ui.test.jsx','src/core/cashAuditHistory.js','src/form-controls.css','scripts/product-cash-startup.test.mjs','scripts/form-controls-contrast.test.mjs',
 ]);
 assert.ok(changed.every(p=>allowed.has(p)),'GATE_FAIL: alteração fora do pacote de solicitação: '+changed.filter(x=>!allowed.has(x)).join(', '));
