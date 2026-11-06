@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {valoresProdutoParaBRL,produtoParaFormularioMonetario} from '../src/core/productMoney.js';
-import {intervaloCaixa,filtrarTurnosCaixa,diferencaHistoricaCaixa} from '../src/core/cashAuditHistory.js';
+import {intervaloCaixa,filtrarTurnosCaixa,diferencaHistoricaCaixa,dataTurnoCaixa,turnoCaixaFechado} from '../src/core/cashAuditHistory.js';
 import {executarLotes} from '../src/core/boundedTasks.js';
 const rate=1150,toBRL=(v,m)=>m==='PYG'?v/rate:v,fromBRL=(v,m)=>m==='PYG'?v*rate:v;
 test('Gs 39.990 salvo/reaberto mantém valor e preços alternativos sem multiplicação',()=>{
@@ -36,4 +36,14 @@ test('hidratação limita a três coleções, aguarda falhas e não executa pró
  let completed=false,started=0;
  await assert.rejects(executarLotes([1,2,3,4],async i=>{started++;if(i===1)throw Error('fail');await new Promise(r=>setTimeout(r,2));completed=true;}));
  assert.equal(completed,true);assert.equal(started,3);
+});
+
+test('histórico inclui abertura antiga em DD/MM/YYYY e timestamp de ID sem alterar registros',()=>{
+ const origem=[{id:'antigo',abertura:'31/10/2026, 11:59:26',status:'fechada'},{id:'SESSAO-'+new Date(2026,9,30,10).getTime(),status:'closed'}];
+ const before=JSON.stringify(origem),range=intervaloCaixa('personalizado',new Date(),'2026-10-01','2026-10-31');
+ assert.equal(filtrarTurnosCaixa(origem,range).length,2);
+ assert.equal(new Date(dataTurnoCaixa(origem[0])).getDate(),31);
+ assert.equal(turnoCaixaFechado(origem[1]),true);
+ assert.equal(dataTurnoCaixa({id:'sem-data'}),null);
+ assert.equal(JSON.stringify(origem),before);
 });

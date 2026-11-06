@@ -11,15 +11,15 @@ import Produtos from '../../src/components/Produtos.jsx';
 afterEach(()=>{cleanup();vi.clearAllMocks();});
 test('histórico abre e reimprime sem consulta, livro somente por período e em páginas',async()=>{
  getDocsFromServer.mockResolvedValue({docs:[],size:0});
- const popup={document:{title:'',createElement:()=>({style:{}}),body:{appendChild:vi.fn()},close:vi.fn()},focus:vi.fn(),print:vi.fn()};
- vi.spyOn(window,'open').mockReturnValue(popup);
+ vi.spyOn(window,'print').mockImplementation(()=>{});
  const date=new Date().toISOString();
  render(<GestaoCaixas userId="test" tx={s=>s} fmt={n=>String(n)} sessoesCaixa={[{id:'old',createdAt:date,abertura:date,status:'fechada',saldoInformado:1445,saldoSistema:1941.74,diferenca:null,situacaoConciliacao:'PENDENTE_AUDITORIA'}]}/>);
  expect(getDocsFromServer).not.toHaveBeenCalled();
- expect(screen.getByText('Auditoria pendente')).toBeTruthy();
- fireEvent.click(screen.getByRole('button',{name:'Conferir / Reimprimir'}));
- fireEvent.click(screen.getByRole('button',{name:'Reimprimir',exact:true}));
- expect(popup.print).toHaveBeenCalledOnce();expect(getDocsFromServer).not.toHaveBeenCalled();
+ expect(screen.getByText('Auditoria pendente',{selector:'span'})).toBeTruthy();
+ fireEvent.click(screen.getByRole('button',{name:'Consultar caixa'}));
+ fireEvent.click(screen.getByRole('dialog').querySelector('.zen-action--primary'));
+ expect(window.print).toHaveBeenCalledOnce();expect(getDocsFromServer).not.toHaveBeenCalled();
+ fireEvent.click(screen.getByRole('button',{name:'Fechar',exact:true}));
  fireEvent.click(screen.getByRole('button',{name:'Consultar lançamentos do período'}));
  await waitFor(()=>expect(getDocsFromServer).toHaveBeenCalledOnce());
  expect(where).toHaveBeenCalledWith('createdAt','>=',expect.any(String));
@@ -49,4 +49,30 @@ test('preço nativo permanece PYG após mudar a preferência para USD e atualiza
  await waitFor(()=>expect(commit).toHaveBeenCalledOnce());
  const saved=commit.mock.calls[0][0].changes.find(c=>c.field==='produtos').value[0];
  expect(saved.valoresMonetarios).toEqual(product.valoresMonetarios);expect(saved.precoBRL).toBe(product.precoBRL);
+});
+
+test('todos os caixas encontra registro antigo, consulta e reimprime sem popup ou leitura da nuvem',()=>{
+ vi.spyOn(window,'print').mockImplementation(()=>{});
+ const popup=vi.spyOn(window,'open').mockImplementation(()=>{throw Error('Popup proibido neste teste');});
+ const records=[{id:'LEGADO-31-OUT',operadorNome:'Operador histórico',abertura:'31/10/2025, 11:59:26',fechamento:'2025-10-31T14:00:00Z',status:'fechada',saldoInicial:100,saldoSistema:100,saldoInformado:100,diferenca:0,
+  detalheAbertura:{PYG:'120.000'},detalheFechamento:{PYG:'120.000'}}];
+ const before=JSON.stringify(records);
+ render(<GestaoCaixas userId="test" tx={s=>s} fmt={n=>String(n)} sessoesCaixa={records}/>);
+ expect(screen.queryByText('Operador histórico')).toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'Todos os caixas'}));
+ expect(screen.getByText('Operador histórico')).toBeTruthy();
+ expect(screen.getByRole('button',{name:'Consultar lançamentos do período'}).disabled).toBe(true);
+ fireEvent.change(screen.getByRole('searchbox'),{target:{value:'LEGADO-31'}});
+ fireEvent.click(screen.getByRole('button',{name:'Reimprimir',exact:true}));
+ const report=screen.getByRole('dialog');expect(report.textContent).toContain('LEGADO-31-OUT');expect(report.textContent).toContain('120.000');
+ expect(window.print).toHaveBeenCalledOnce();expect(popup).not.toHaveBeenCalled();expect(getDocsFromServer).not.toHaveBeenCalled();
+ expect(report.textContent).not.toContain('pixEntradas');expect(JSON.stringify(records)).toBe(before);
+ fireEvent.keyDown(report,{key:'Escape'});expect(screen.queryByRole('dialog')).toBeNull();
+});
+test('registro fechado sem data permanece consultável em Todos, sem fabricar data ou diferença',()=>{
+ render(<GestaoCaixas userId="test" tx={s=>s} fmt={n=>String(n)} sessoesCaixa={[{id:'SEM-DATA',operadorNome:'Sem data',status:'fechada',diferenca:null}]}/>);
+ fireEvent.click(screen.getByRole('button',{name:'Todos os caixas'}));
+ fireEvent.click(screen.getByRole('button',{name:'Consultar caixa'}));
+ const report=screen.getByRole('dialog');expect(report.textContent).toContain('SEM-DATA');expect(report.textContent).toContain('diferença indeterminada');
+ expect(report.textContent).not.toContain('Invalid Date');expect(getDocsFromServer).not.toHaveBeenCalled();
 });

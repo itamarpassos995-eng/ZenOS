@@ -943,7 +943,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
             </div>
 
             <div style={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', padding: '16px 20px', marginBottom: '18px' }}>
-              <div style={{display:'flex',gap:16,marginBottom:12}}>
+              <div className="zen-currency-selectors" style={{display:'flex',flexWrap:'wrap',gap:16,marginBottom:12}}>
                 {['moedaCusto','moedaPreco'].map(campo=><label key={campo}>{campo==='moedaCusto'?tx('Moeda do custo','Moneda del costo','Cost currency'):tx('Moeda do preço','Moneda del precio','Price currency')} <select value={formProduto[campo]||moeda} onChange={e=>{
                   const destino=e.target.value,origem=formProduto[campo]||moeda;
                   const alterados={...formProduto,[campo]:destino};
@@ -952,7 +952,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
                     if(parsed.ok)alterados[field]=Number(converterDeBRL(converterParaBRL(parsed.valor,origem),destino)).toFixed(destino==='PYG'?0:2);
                   }
                   setFormProduto(alterados);
-                }}>{['BRL','PYG','USD','EUR'].map(m=><option key={m}>{m}</option>)}</select></label>)}
+                }}>{['BRL','PYG','USD','EUR'].map(m=><option key={m} value={m}>{m} · {({BRL:tx('Real','Real','Brazilian real'),PYG:tx('Guarani','Guaraní','Guarani'),USD:tx('Dólar','Dólar','US dollar'),EUR:tx('Euro','Euro','Euro')})[m]}</option>)}</select></label>)}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: '12px', alignItems: 'start', marginBottom: '8px' }}>
                 <div style={{minWidth:0}}><label style={{ minHeight: '30px', display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Custo','Costo','Cost')} ({formProduto.moedaCusto||moeda})</label><input type="text" value={formProduto.custoBRL} onChange={(e) => setFormProduto({ ...formProduto, custoBRL: e.target.value, precoBRL: atualizarPrecoPorCustoEMargem(e.target.value, formProduto.margemDesejada) })} onFocus={(e) => e.target.select()} style={{ width: '100%', height:'38px', boxSizing:'border-box', backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontWeight: 800, fontSize: '14px', textAlign: 'right', padding: '6px 10px', outline: 'none' }} /></div>
