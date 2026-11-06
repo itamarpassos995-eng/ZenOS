@@ -13,7 +13,7 @@ const moedas=['BRL','PYG','USD','EUR'];
 const originalDigitado=(valor,moeda)=>{if(valor==null||valor==='')return null;const parsed=interpretarValorMonetario(valor,moeda);return parsed.ok?parsed.valor:null;};
 const registrado=v=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v));
 export default function GestaoCaixas({userId,sessoesCaixa=[],historicoVendas=[],caixaMovimentos=[],operadores=[],perfilLoja={},tema='dark',idioma='pt',fmt,tx=pt=>pt}){
- const [periodo,setPeriodo]=useState('mes'),[inicio,setInicio]=useState(''),[fim,setFim]=useState('');
+ const [periodo,setPeriodo]=useState('hoje'),[inicio,setInicio]=useState(''),[fim,setFim]=useState('');
  const [busca,setBusca]=useState(''),[estado,setEstado]=useState('todos'),[limiteHistorico,setLimiteHistorico]=useState(25);
  const [detalhe,setDetalhe]=useState(null),[erro,setErro]=useState(''),[carregando,setCarregando]=useState(false);
  const [consultado,setConsultado]=useState(false),[paginaLivro,setPaginaLivro]=useState([]),[cursor,setCursor]=useState(null),[mais,setMais]=useState(false);

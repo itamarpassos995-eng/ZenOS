@@ -46,7 +46,7 @@ const allowed=new Set([
   'src/core/productMoney.js','src/core/syncMerge.js',
   // Acabamento dos controles e consulta/impressão de caixas históricos, sem mutações.
   'src/components/GestaoCaixas.jsx','src/components/GestaoCaixas.css',
-  'src/core/cashAuditHistory.js','src/form-controls.css','scripts/product-cash-startup.test.mjs','scripts/form-controls-contrast.test.mjs',
+  'docs/daily-finance-fast-start.md','src/core/operationalRepository.js','src/core/operationalCache.js','src/core/financialPeriod.js','scripts/recovery/operational-cache.ui.test.jsx','src/core/cashAuditHistory.js','src/form-controls.css','scripts/product-cash-startup.test.mjs','scripts/form-controls-contrast.test.mjs',
 ]);
 assert.ok(changed.every(p=>allowed.has(p)),'GATE_FAIL: alteração fora do pacote de solicitação: '+changed.filter(x=>!allowed.has(x)).join(', '));
 const read=path=>fs.readFileSync(path,'utf8');
@@ -68,7 +68,12 @@ for(const marker of [
 ]){
  assert.ok(appBefore.includes(marker)&&appAfter.includes(marker),'GATE_FAIL: operação protegida ausente: '+marker);
 }
-const forbiddenFiles=['src/firebase.js','src/core/productionSync.js','src/core/operationalRepository.js',
+if(changed.includes('src/core/operationalRepository.js')){
+ assert.ok(changed.includes('scripts/recovery/operational-cache.ui.test.jsx'));
+ assert.match(read('src/core/operationalRepository.js'),/V2_SOURCE_MISMATCH/);
+ assert.match(read('src/core/operationalRepository.js'),/this\.assertComplete/);
+}
+const forbiddenFiles=['src/firebase.js','src/core/productionSync.js',
  'src/components/Clientes.jsx','src/components/Fiscal.jsx',
  'functions/src/fiscalSolicitacaoCliente.js','functions/src/fiscalAdministracao.js','functions/src/firebaseAdmin.js',
  'firestore.emulator.rules','firebase.json'];

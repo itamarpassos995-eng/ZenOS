@@ -47,3 +47,16 @@ test('histórico inclui abertura antiga em DD/MM/YYYY e timestamp de ID sem alte
  assert.equal(dataTurnoCaixa({id:'sem-data'}),null);
  assert.equal(JSON.stringify(origem),before);
 });
+
+import {financialPeriod,withinFinancialPeriod} from '../src/core/financialPeriod.js';
+test('painel inicia no dia local; meses e personalizado respeitam limites sem alterar histórico',()=>{
+ const now=new Date(2026,0,15,12),range=financialPeriod(undefined,now);
+ assert.equal(new Date(range.inicio).getDate(),15);
+ const records=[{createdAt:range.inicio},{createdAt:range.fim},{createdAt:'invalid'}];
+ const original=JSON.stringify(records);
+ assert.deepEqual(records.filter(r=>withinFinancialPeriod(r,range)),[records[0]]);
+ assert.equal(withinFinancialPeriod({createdAt:range.inicio,dataPagamento:range.fim},range,{payment:true}),false);
+ assert.equal(financialPeriod('personalizado',now,'2026-02-30','2026-03-02'),null);
+ assert.equal(new Date(financialPeriod('anterior',now).inicio).getFullYear(),2025);
+ assert.equal(JSON.stringify(records),original);
+});

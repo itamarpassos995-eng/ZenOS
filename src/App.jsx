@@ -1,3 +1,4 @@
+import {financialPeriod,withinFinancialPeriod} from './core/financialPeriod.js';
 import { projetarProdutoMonetario } from './core/productMoney.js';
 import { useUiLanguage } from './core/useUiLanguage.js';
 import {getOperationalSnapshot,subscribeOperationalSnapshot,clearOperationalSession} from './core/operationalRepository.js';
@@ -1012,8 +1013,14 @@ export default function App() {
     }
   };
 
+  const [periodoFinanceiro,setPeriodoFinanceiro]=useState('hoje');
+  const [inicioFinanceiro,setInicioFinanceiro]=useState('');
+  const [fimFinanceiro,setFimFinanceiro]=useState('');
+  useEffect(()=>{setPeriodoFinanceiro('hoje');setInicioFinanceiro('');setFimFinanceiro('');},[userId]);
+  const diaFinanceiro=new Date().toDateString();
+  const intervaloFinanceiro=useMemo(()=>financialPeriod(periodoFinanceiro,new Date(),inicioFinanceiro,fimFinanceiro),[periodoFinanceiro,inicioFinanceiro,fimFinanceiro,diaFinanceiro]);
   const vendasValidas = useMemo(() => historicoVendas.filter(v =>
-    v.estado === 'concluida' || v.estado === 'parcial'), [historicoVendas]);
+    (v.estado === 'concluida' || v.estado === 'parcial') && withinFinancialPeriod(v,intervaloFinanceiro)), [historicoVendas,intervaloFinanceiro]);
   
   // Resumo individual para vendedores; gerência mantém a visão global.
   const diaLocalAtual = new Date().toDateString();
@@ -1041,7 +1048,7 @@ export default function App() {
   const faturamentoTotalBRL = financeiroHistorico.total;
   const cmvTotalBRL = financeiroHistorico.cmv;
   const lucroBrutoBRL = financeiroHistorico.lucro;
-  const despesasPagasBRL = useMemo(() => despesas.filter(d => (d.status === 'paga' || (d.status === 'excluida' && d.financeiroMantido === true)) && d.afetaResultado !== false && d.naturezaContabil !== 'estoque_ativo' && d.categoria !== 'Mercadoria para Revenda').reduce((acc,d)=>acc+(Number(d.valorBRL)||0),0), [despesas]);
+  const despesasPagasBRL = useMemo(() => despesas.filter(d => withinFinancialPeriod(d,intervaloFinanceiro,{payment:true}) && (d.status === 'paga' || (d.status === 'excluida' && d.financeiroMantido === true)) && d.afetaResultado !== false && d.naturezaContabil !== 'estoque_ativo' && d.categoria !== 'Mercadoria para Revenda').reduce((acc,d)=>acc+(Number(d.valorBRL)||0),0), [despesas,intervaloFinanceiro]);
   const lucroLiquidoRealBRL = lucroBrutoBRL - despesasPagasBRL;
   const totalFiadoAbertoBRL = useMemo(() => clientes.reduce((acc, c) => acc + (parseFloat(c.saldoDevedorBRL) || 0), 0), [clientes]);
 
@@ -1980,6 +1987,14 @@ export default function App() {
               {temPermissao('inteligencia') ? <section className="zen-dashboard-card">
                 <button className="zen-exec-toggle" onClick={() => setMostrarPainelExecutivo(!mostrarPainelExecutivo)}><span>👁️ {tx('Painel Executivo e Financeiro','Panel Ejecutivo y Financiero','Executive & Financial Dashboard')}</span><span>{mostrarPainelExecutivo ? '⌃' : '›'}</span></button>
                 {mostrarPainelExecutivo && <div className="zen-exec-body">
+                  <div className="zen-financial-period">
+                    <div className="zen-segments" role="group" aria-label={tx('Período financeiro','Período financiero','Financial period')}>
+                      {[['hoje',tx('Hoje','Hoy','Today')],['mes',tx('Este mês','Este mes','This month')],['anterior',tx('Mês anterior','Mes anterior','Previous month')],['personalizado',tx('Personalizado','Personalizado','Custom')]].map(([id,label])=><button type="button" key={id} aria-pressed={periodoFinanceiro===id} onClick={()=>setPeriodoFinanceiro(id)}>{label}</button>)}
+                    </div>
+                    {periodoFinanceiro==='personalizado'&&<div className="zen-financial-dates"><label>{tx('De','Desde','From')}<input type="date" value={inicioFinanceiro} onChange={e=>setInicioFinanceiro(e.target.value)}/></label><label>{tx('Até','Hasta','To')}<input type="date" min={inicioFinanceiro} value={fimFinanceiro} onChange={e=>setFimFinanceiro(e.target.value)}/></label></div>}
+                    {!intervaloFinanceiro&&<p role="status">{tx('Selecione um período válido.','Seleccione un período válido.','Select a valid date range.')}</p>}
+                  </div>
+
                   <div role="status" aria-live="polite" style={{ marginBottom:12,padding:'12px 14px',borderRadius:10,border:'1px solid #334155',background:'#0f172a',color:'#e2e8f0',fontSize:12 }}>
                     <strong>{auditoriaPainelFinanceiro.confiavel ? tx('Conferência automática sem divergências detectadas','Verificación automática sin divergencias detectadas','Automated check: no discrepancies detected') : tx('Indicadores de vendas em auditoria','Indicadores de ventas en auditoría','Sales indicators under audit')}</strong>
                     <div style={{marginTop:5}}>
@@ -1995,7 +2010,7 @@ export default function App() {
                     <div className="zen-exec-stat"><span>{tx('Lucro Bruto','Ganancia Bruta','Gross Profit')}</span><strong style={{color:'#38bdf8'}}>{auditoriaPainelFinanceiro.confiavel ? fmt(lucroBrutoBRL) : tx('Em auditoria','En auditoría','Under audit')}</strong></div>
                     <div className="zen-exec-stat"><span>{tx('Despesas Pagas','Gastos Pagados','Paid Expenses')}</span><strong style={{color:'#fbbf24'}}>{fmt(despesasPagasBRL)}</strong></div>
                     <div className="zen-exec-stat"><span>{tx('Lucro Líquido','Ganancia Neta','Net Profit')}</span><strong style={{color:'#34d399'}}>{auditoriaPainelFinanceiro.confiavel ? fmt(lucroLiquidoRealBRL) : tx('Em auditoria','En auditoría','Under audit')}</strong></div>
-                    <div className="zen-exec-stat"><span>{tx('Fiado na Praça','Crédito Pendiente','Outstanding Credit')}</span><strong style={{color:'#fb7185'}}>{fmt(totalFiadoAbertoBRL)}</strong></div>
+                    <div className="zen-exec-stat"><span>{tx('Fiado em aberto · saldo total','Crédito pendiente · saldo total','Outstanding credit · total balance')}</span><strong style={{color:'#fb7185'}}>{fmt(totalFiadoAbertoBRL)}</strong></div>
                   </div>
                   <div className="zen-abc-list">{curvaABC.slice(0,5).map((item,index)=><div className="zen-abc-row" key={`${item.sku}-${index}`}><b>{index+1}</b><span>{item.nome}</span><strong>{fmt(item.faturamentoBRL,'BRL')}</strong></div>)}</div>
                 </div>}
