@@ -1,0 +1,15 @@
+{
+  "passed": true,
+  "existingPdv": true,
+  "orderId": "O001",
+  "sellerId": "sales",
+  "customerId": "C1",
+  "currency": "PYG",
+  "originalAmount": 199950,
+  "initialStock": 100,
+  "dispatched": 10,
+  "stockAfterPayment": 90,
+  "reserved": 0,
+  "ledgerEntries": 1,
+  "postedBRL": 150
+}

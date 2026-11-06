@@ -39,8 +39,10 @@
     "emulators:fiscal": "npx --yes firebase-tools@15.30.2 emulators:start --only auth,firestore,functions --project demo-zenos-local",
     "test:recovery:ui": "vitest run --config vitest.recovery.config.js",
     "distribution:test": "node --test scripts/distribution/*.test.mjs",
-    "distribution:homologate": "npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.distribution.json \"node scripts/distribution/homologate.mjs\"",
-    "distribution:dev": "npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.distribution.json \"node scripts/distribution/local.mjs\""
+    "distribution:homologate": "npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.distribution-v2.json \"node scripts/distribution/homologate.mjs\"",
+    "distribution:dev": "npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.distribution-v2.json \"node scripts/distribution/local.mjs\"",
+    "distribution:concurrency": "npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.distribution-v2.json \"node scripts/distribution/concurrency-runner.mjs\"",
+    "distribution:browser": "npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.distribution-v2.json \"node scripts/distribution/homologate.mjs --browser\""
   },
   "dependencies": {
     "@vercel/blob": "^2.3.0",

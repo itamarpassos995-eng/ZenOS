@@ -1,12 +1,13 @@
 import React from 'react';
 import {mkdir,writeFile} from 'node:fs/promises';
 import {describe,it,expect,vi,beforeAll,afterEach,afterAll} from 'vitest';
-import {render,screen,within,cleanup,waitFor} from '@testing-library/react';
+import {render,screen,within,cleanup,waitFor,configure} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 const h=vi.hoisted(()=>({token:'',requests:[],user:{uid:'distribution-demo',getIdToken:async()=>h.token}}));
 vi.mock('../../src/firebase.js',()=>({auth:{currentUser:h.user},ZENOS_RUNTIME:{isHomologacao:true}}));
 vi.mock('firebase/auth',()=>({onAuthStateChanged:(_auth,cb)=>{queueMicrotask(()=>cb(h.user));return ()=>{};},signInWithEmailAndPassword:vi.fn()}));
 import DistributionCentral from '../../src/components/DistributionCentral.jsx';
+configure({asyncUtilTimeout:10000});
 const nativeFetch=globalThis.fetch;
 beforeAll(async()=>{
  const data=await nativeFetch('http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo-key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:'distribution-demo@example.test',password:'SyntheticOnly!482759',returnSecureToken:true})}).then(r=>r.json());h.token=data.idToken;

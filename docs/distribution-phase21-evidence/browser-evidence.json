@@ -1,0 +1,24 @@
+{
+  "passed": true,
+  "scenarios": [
+    "disabled-module-no-requests",
+    "server-login",
+    "two-seller-load",
+    "reserve",
+    "picking",
+    "manual-check",
+    "approval",
+    "versioned-manifest",
+    "pdf-download",
+    "A4-print",
+    "historical-reprint",
+    "dispatch",
+    "PT-ES",
+    "cache",
+    "mobile-390px",
+    "logout",
+    "existing-pdv-commercial-settlement"
+  ],
+  "pageErrors": [],
+  "apiRequests": 47
+}

@@ -24,8 +24,14 @@ import { autoriaDoDocumento, autoriaDoOperador, resolverAutoriaVenda } from '../
 import { indexarProdutosPDV, indexarClientesPDV, buscarProdutosPDV, buscarClientesPDV } from '../core/pdvSearch';
 
 export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizados,
-  pedidoPrivadoSolicitado, onPedidoPrivadoRecebido, perfilLoja, taxasCambio = {}, registrarFinanceiro, commitOperacaoCritica, commitVendaCritica, recarregarDadosPDV, vouchers = [], setVouchers, userId, produtos, setProdutos, clientes, setClientes, moeda, fmt, t, tx, converterDeBRL, converterParaBRL, historicoVendas, setHistoricoVendas, patenteUsuario, idioma, regrasDesconto, vendedores = [], operadorAtivo, sessaoAtiva }) {
+  pedidoPrivadoSolicitado, onPedidoPrivadoRecebido, perfilLoja, taxasCambio = {}, registrarFinanceiro, commitOperacaoCritica, commitVendaCritica, recarregarDadosPDV, vouchers = [], setVouchers, userId, produtos, setProdutos, clientes, setClientes, moeda:moedaAtual, fmt:fmtAtual, t, tx, converterDeBRL:converterDeBRLAtual, converterParaBRL:converterParaBRLAtual, historicoVendas, setHistoricoVendas, patenteUsuario, idioma, regrasDesconto, vendedores = [], operadorAtivo, sessaoAtiva }) {
   const [rascunhoInicial] = useState(() => lerRascunhoPDV(userId, operadorAtivo?.id));
+  const [logisticsSource,setLogisticsSource]=useState(rascunhoInicial?.logisticsSource||null);
+  const [logisticsPin,setLogisticsPin]=useState('');
+  const moeda=logisticsSource?.moedaDocumento||moedaAtual;
+  const fmt=v=>logisticsSource?new Intl.NumberFormat(idioma==='es'?'es-PY':'pt-BR',{style:'currency',currency:moeda,currencyDisplay:'code',maximumFractionDigits:moeda==='PYG'?0:2}).format(Number(v)===Number(logisticsSource.totalBRL)?Number(logisticsSource.totalOriginal):Number(v)*Number(logisticsSource.taxasCambio?.[moeda]||1)):fmtAtual(v);
+  const converterDeBRL=(v,m)=>logisticsSource?Number(v)*Number(logisticsSource.taxasCambio?.[m]??(m==='BRL'?1:NaN)):converterDeBRLAtual(v,m);
+  const converterParaBRL=(v,m)=>logisticsSource?Number(v)/Number(logisticsSource.taxasCambio?.[m]??(m==='BRL'?1:NaN)):converterParaBRLAtual(v,m);
   const [avisoRascunhoRecuperado, setAvisoRascunhoRecuperado] = useState(Boolean(rascunhoInicial?.itensVenda?.length));
   const [termoBusca, setTermoBusca] = useState('');
   const [indiceFocoBusca, setIndiceFocoBusca] = useState(0);
@@ -226,7 +232,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       // Pedido online é solicitação comercial, não pré-pedido operacional.
       // Vincular seu ID ao guard de liquidação bloqueia o caixa porque esse ID
       // ainda não existe como documento pendente em historicoVendas.
-      setPrePedidoEmAbertoId(null);
+      setPrePedidoEmAbertoId(null);setLogisticsSource(null);setLogisticsPin('');
       operacaoDocumentoRef.current = { assinatura: null, id: null, instante: null };
       setModalResgateAberto(false);
       mostrarZen('info', tx('Pedido Online Carregado!','¡Pedido Online Cargado!','Online Order Loaded!'), tx(`Pedido de ${pedido.clienteNome || 'Cliente'} carregado no caixa. Confira e finalize a venda.`,'Pedido cargado en caja. Verifique y finalice.','Order loaded into register. Verify and complete sale.'));
@@ -327,7 +333,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       clienteSelecionadoPDV: clienteSelecionadoPDV ? {
         id: clienteSelecionadoPDV.id, nome: clienteSelecionadoPDV.nome,
       } : null,
-      clienteQuerFiscal, pagamentosLancados, prePedidoEmAbertoId,
+      clienteQuerFiscal, pagamentosLancados, prePedidoEmAbertoId, logisticsSource,
       modalFechamentoAberto, operacaoDocumento: operacaoDocumentoRef.current,
     });
   }, [userId, operadorAtivo?.id, itensVenda, autoriaAtendimento, descontoTexto, nomeClienteVulso,
@@ -376,6 +382,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   };
 
   const itensVendaComCustoAtual = (itens = []) => (itens || []).map(item => {
+    if(logisticsSource)return item;
     const produtoId = item.produtoOriginalId ?? item.id;
     const produtoSku = String(item.produtoOriginalSku ?? item.sku ?? '').toUpperCase();
     const porId = (produtos || []).filter(produto => String(produto?.id) === String(produtoId));
@@ -388,6 +395,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   });
 
   const selecionarClienteNoPDV = (cli) => {
+    if(logisticsSource)return;
     try {
       const novosItens = itensVenda.map(item => {
         const prodOriginal = obterProdutoCatalogoSeguro(item, 'reprecificação por cliente');
@@ -400,6 +408,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   };
 
   const removerClienteDoPDV = () => {
+    if(logisticsSource)return;
     try {
       const novosItens = itensVenda.map(item => {
         const prodOriginal = obterProdutoCatalogoSeguro(item, 'retorno ao preço de balcão');
@@ -600,6 +609,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   };
 
   const confirmarAdicaoRapida = () => {
+    if(logisticsSource)return;
     if (!itemParaAdicionar) return;
     const qtdNum = Math.max(1, parseInt(qtdDigitadaRapida) || 1);
     if (itemParaAdicionar.tipoItem !== 'servico' && !ehEncomendaUsoUnico(itemParaAdicionar)) {
@@ -632,9 +642,9 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     if (inputBuscaRef.current) inputBuscaRef.current.focus();
   };
 
-  const removerItem = (id) => { setItensVenda(itensVenda.filter(item => item.id !== id)); };
-  const atualizarQtd = (id, valor) => { setItensVenda(itensVenda.map(item => item.id === id ? { ...item, qtd: String(Math.max(1, parseInt(valor) || 1)) } : item)); };
-  const lidarDigitacaoPreco = (id, valorDigitado) => { setItensVenda(itensVenda.map(item => item.id === id ? { ...item, precoTexto: valorDigitado, precoPraticadoBRL: converterParaBRL(interpretarValorMonetario(valorDigitado,moeda).valor||0, moeda), precoEntradaInvalida: !interpretarValorMonetario(valorDigitado,moeda).ok } : item)); };
+  const removerItem = (id) => { if(logisticsSource)return;setItensVenda(itensVenda.filter(item => item.id !== id)); };
+  const atualizarQtd = (id, valor) => { if(logisticsSource)return;setItensVenda(itensVenda.map(item => item.id === id ? { ...item, qtd: String(Math.max(1, parseInt(valor) || 1)) } : item)); };
+  const lidarDigitacaoPreco = (id, valorDigitado) => { if(logisticsSource)return;setItensVenda(itensVenda.map(item => item.id === id ? { ...item, precoTexto: valorDigitado, precoPraticadoBRL: converterParaBRL(interpretarValorMonetario(valorDigitado,moeda).valor||0, moeda), precoEntradaInvalida: !interpretarValorMonetario(valorDigitado,moeda).ok } : item)); };
 
   const [consultandoResgate, setConsultandoResgate] = useState(false);
   const resgateEmAndamentoRef = useRef(false);
@@ -659,7 +669,8 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       setAutoriaAtendimento(autoriaDoDocumento(documento) || autoriaDoOperador(operadorAtivo));
       // Recuperar orçamento não é liquidar pré-pedido: nunca vincular o ID
       // de um orçamento ao guard de "pendente" do pagamento.
-      const itensRecuperados=itensVendaComCustoAtual(documento.itens||[]);
+      setLogisticsSource(documento._distribution?.stockManaged?documento:null);
+      const itensRecuperados=documento._distribution?.stockManaged?(documento.itens||[]):itensVendaComCustoAtual(documento.itens||[]);
       if(!itensRecuperados.length)
         return mostrarZen('warning',tx("Documento sem itens","Documento sin artículos"),tx("O servidor não devolveu itens para este documento. Nada foi alterado no carrinho.","El servidor no devolvió los artículos de este documento. No se modificó el carrito."));
       setItensVenda(itensRecuperados);
@@ -695,7 +706,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     acc + (Math.max(0, parseInt(item.qtd) || 0) * (item.custoBRL || 0)), 0), [itensVenda, produtos]);
   const descBRL = converterParaBRL(parseFloat(String(descontoTexto).replace(',', '.')) || 0, moeda);
 
-  const totalFinalBRL = Math.max(0, subtotalBrutoBRL - descBRL);
+  const totalFinalBRL = logisticsSource?Number(logisticsSource.totalBRL):Math.max(0, subtotalBrutoBRL - descBRL);
   const lucroEstimadoBRL = totalFinalBRL - custoTotalBRL;
   const margemLucroReal = totalFinalBRL > 0 ? (lucroEstimadoBRL / totalFinalBRL) * 100 : 0;
 
@@ -883,7 +894,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
             throw new Error('Fila não confirmada no servidor.');
           const originais=remoto.historicoVendas.filter(v=>String(v?.id)===String(prePedidoEmAbertoId));
           setHistoricoVendas(remoto.historicoVendas);
-          if(originais.length!==1 || originais[0].estado!=='pendente'){
+          if(originais.length!==1 || (originais[0].estado!=='pendente'&&!originais[0]._distribution?.commercialFinalized)){
             mostrarZen('warning',tx("Pré-pedido não disponível para liquidar","Prepedido no disponible para liquidar"),
               tx("O servidor não confirmou que este pré-pedido continua pendente. O carrinho foi preservado e nenhum pagamento foi enviado. Confira o histórico ou resgate novamente.","El servidor no confirmó que este prepedido siga pendiente. Se conservó el carrito y no se envió ningún pago. Revise el historial o recupérelo nuevamente."));
             return;
@@ -895,6 +906,15 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
             [error?.message||tx("Consulta indisponível","Consulta no disponible")]);
           return;
         }
+      }
+      if(tipoFinalizacao==='venda' && documentoOrigemConfirmado?._distribution?.stockManaged){
+        if(!logisticsPin)return mostrarZen('warning',tx('Confirme o PIN do operador','Confirme el PIN del operador'),tx('A liquidação logística exige confirmação no servidor.','La liquidación logística requiere confirmación en el servidor.'));
+        const result=await commitVendaCritica({changes:[],guards:[{type:'distribution_finalize',payload:{orderId:String(documentoOrigemConfirmado.id),operatorId:String(operadorAtivo.id),pin:logisticsPin,sessionId:String(sessaoAtiva.id),customerId:clienteSelecionadoPDV?.id,cart:itensVenda.map(i=>({id:String(i.produtoOriginalId??i.id),sku:String(i.produtoOriginalSku??i.sku),qtd:Number(i.qtd),precoPraticadoBRL:Number(i.precoPraticadoBRL)})),payments:pagamentosLancados,changeCurrency:moedaTrocoEscolhida}}]});
+        if(!result?.cloudOk)return mostrarZen('danger',tx('Liquidação não confirmada','Liquidación no confirmada'),tx('Confira o PIN, o caixa e os pagamentos. Preserve o carrinho para repetir com segurança.','Revise el PIN, la caja y los pagos. Conserve el carrito para reintentar de forma segura.'),[result?.error?.message||'']);
+        if(result.values?.historicoVendas)setHistoricoVendas(result.values.historicoVendas);
+        if(result.values?.clientes)setClientes(result.values.clientes);
+        if(result.values?.vouchers&&setVouchers)setVouchers(result.values.vouchers);
+        apagarRascunhoPDV(userId,operadorAtivo?.id);setLogisticsPin('');setVendaConcluidaObj(result.sale);setVendaSucesso(true);setModalFechamentoAberto(true);return;
       }
       // P0: fiado só pode gravar para exatamente um cadastro com ID e nome coerentes.
       // Bloquear ANTES de qualquer lançamento de estoque, venda ou financeiro.
@@ -943,7 +963,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
         clienteSelecionadoPDV: clienteSelecionadoPDV ? {
           id: clienteSelecionadoPDV.id, nome: clienteSelecionadoPDV.nome,
         } : null,
-        clienteQuerFiscal, pagamentosLancados, prePedidoEmAbertoId,
+        clienteQuerFiscal, pagamentosLancados, prePedidoEmAbertoId, logisticsSource,
         modalFechamentoAberto: true, operacaoDocumento: operacaoDocumentoRef.current,
       });
       if (!rascunhoSeguro) {
@@ -1345,7 +1365,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     setAutoriaAtendimento(null);
     setClienteSelecionadoPDV(null); setNomeClienteVulso('');
     setClienteQuerFiscal(false);
-    setPrePedidoEmAbertoId(null);
+    setPrePedidoEmAbertoId(null);setLogisticsSource(null);setLogisticsPin('');
     setModalFechamentoAberto(false); setVendaSucesso(false); setVendaConcluidaObj(null);
   };
 
@@ -1564,7 +1584,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
               ) : (
                 <>
                 {historicoVendas.filter(v => v.estado === 'pendente').map(v => (
-                  <div key={v.id} onClick={() => {if(!consultandoResgate)carregarPrePedido(v);}} role="button" tabIndex={0} onKeyDown={e=>{if((e.key==='Enter'||e.key===' ')&&!consultandoResgate){e.preventDefault();carregarPrePedido(v);}}} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', backgroundColor: '#1e1b4b', border: '1px solid #4c1d95', borderRadius: '12px', cursor: 'pointer', transition: 'transform 0.2s', boxShadow: '0 4px 10px rgba(76,29,149,0.2)' }}>
+                  <div key={v.id} aria-label={tx('Resgatar pedido','Recuperar pedido')+' '+v.id} onClick={() => {if(!consultandoResgate)carregarPrePedido(v);}} role="button" tabIndex={0} onKeyDown={e=>{if((e.key==='Enter'||e.key===' ')&&!consultandoResgate){e.preventDefault();carregarPrePedido(v);}}} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', backgroundColor: '#1e1b4b', border: '1px solid #4c1d95', borderRadius: '12px', cursor: 'pointer', transition: 'transform 0.2s', boxShadow: '0 4px 10px rgba(76,29,149,0.2)' }}>
                     <div>
                       <strong style={{ display: 'block', color: '#e2e8f0', fontSize: '15px' }}>{v.clienteNome} {v.estado==='orcamento'?tx("· ORÇAMENTO","· PRESUPUESTO"):tx("· PRÉ-PEDIDO","· PEDIDO ANTICIPADO")}</strong>
                       <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', display: 'block' }}>{tx('Vendedor:','Vendedor:','Seller:')} <span style={{color: '#a78bfa', fontWeight: 800}}>{v.vendedorNome}</span> • {v.dataHora}</span>
@@ -1573,7 +1593,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                   </div>
                 ))}
                 {historicoVendas.filter(v => v.estado === 'orcamento').map(v => (
-                  <div key={v.id} onClick={() => {if(!consultandoResgate)carregarPrePedido(v);}} role="button" tabIndex={0} onKeyDown={e=>{if((e.key==='Enter'||e.key===' ')&&!consultandoResgate){e.preventDefault();carregarPrePedido(v);}}} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:16,backgroundColor:'#1e293b',border:'1px solid #60a5fa',borderRadius:12,cursor:'pointer'}}>
+                  <div key={v.id} aria-label={tx('Resgatar pedido','Recuperar pedido')+' '+v.id} onClick={() => {if(!consultandoResgate)carregarPrePedido(v);}} role="button" tabIndex={0} onKeyDown={e=>{if((e.key==='Enter'||e.key===' ')&&!consultandoResgate){e.preventDefault();carregarPrePedido(v);}}} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:16,backgroundColor:'#1e293b',border:'1px solid #60a5fa',borderRadius:12,cursor:'pointer'}}>
                     <div>
                       <strong style={{display:'block',color:'#e2e8f0',fontSize:15}}>{v.clienteNome} {tx("· ORÇAMENTO","· PRESUPUESTO")}</strong>
                       <span style={{fontSize:11,color:'#94a3b8'}}>{tx('Vendedor:','Vendedor:','Seller:')} {v.vendedorNome} • {v.dataHora}</span>
@@ -1646,7 +1666,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
             <input
               type="text"
               placeholder={tx('Consumidor Final (Digite o nome para avulso ou buscar fiado)...', 'Consumidor Final...', 'Walk-in Customer...')}
-              value={nomeClienteVulso}
+              readOnly={Boolean(logisticsSource)} value={nomeClienteVulso}
               onChange={(e) => { if (clienteSelecionadoPDV) setClienteSelecionadoPDV(null); setNomeClienteVulso(e.target.value); }}
               onFocus={() => setFocoInputCliente(true)}
               onBlur={() => setTimeout(() => setFocoInputCliente(false), 200)}
@@ -1655,7 +1675,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
             {clienteSelecionadoPDV && (
               <div style={{ position: 'absolute', top: '16px', right: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ fontSize: '11px', color: '#cbd5e1' }} className="hide-mobile">{tx('Fiado:', 'Deuda:', 'Debt:')} <strong style={{ color: clienteSelecionadoPDV.saldoDevedorBRL > 0 ? '#fb7185' : '#34d399' }}>{fmt(clienteSelecionadoPDV.saldoDevedorBRL, 'BRL')}</strong></span>
-                <button onClick={removerClienteDoPDV} style={{ backgroundColor: '#020617', border: 'none', color: '#f43f5e', fontSize: '14px', cursor: 'pointer', fontWeight: 900 }}>✕</button>
+                <button disabled={Boolean(logisticsSource)} onClick={removerClienteDoPDV} style={{ backgroundColor: '#020617', border: 'none', color: '#f43f5e', fontSize: '14px', cursor: 'pointer', fontWeight: 900 }}>✕</button>
               </div>
             )}
             {focoInputCliente && clientesSugeridos.length > 0 && (
@@ -1706,13 +1726,13 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                   <div style={{ fontWeight: 700, color: '#f8fafc', fontSize: '14px' }}>{item.nome} {ehEncomendaUsoUnico(item) && <span style={{ color: '#fbbf24', fontSize: '10px' }}>(⭐ {tx('Encomenda', 'Especial', 'Order')})</span>}</div>
                   <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '4px' }}>
                     <span style={{ fontSize: '10px', color: '#64748b', fontFamily: 'monospace' }}>SKU: {item.sku}</span>
-                    <span onClick={() => abrirEdicaoProdutoPDV(item)} style={{ fontSize: '11px', color: '#38bdf8', cursor: 'pointer', fontWeight: 600 }}>{tx('Editar', 'Editar', 'Edit')}</span>
-                    <span onClick={() => removerItem(item.id)} style={{ fontSize: '11px', color: '#f43f5e', cursor: 'pointer', fontWeight: 600 }}>{tx('Remover', 'Eliminar', 'Remove')}</span>
+                    <span hidden={Boolean(logisticsSource)} onClick={() => abrirEdicaoProdutoPDV(item)} style={{ fontSize: '11px', color: '#38bdf8', cursor: 'pointer', fontWeight: 600 }}>{tx('Editar', 'Editar', 'Edit')}</span>
+                    <span hidden={Boolean(logisticsSource)} onClick={() => removerItem(item.id)} style={{ fontSize: '11px', color: '#f43f5e', cursor: 'pointer', fontWeight: 600 }}>{tx('Remover', 'Eliminar', 'Remove')}</span>
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: 'auto' }}>
-                  <input type="number" value={item.qtd} onChange={(e) => atualizarQtd(item.id, e.target.value)} onFocus={(e) => e.target.select()} style={{ width: '45px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontWeight: 800, fontSize: '13px', textAlign: 'center', padding: '6px', outline: 'none' }} />
-                  <input type="text" value={item.precoTexto !== undefined ? item.precoTexto : converterDeBRL(item.precoPraticadoBRL, moeda).toFixed(moeda==='PYG'?0:2)} onChange={(e) => lidarDigitacaoPreco(item.id, e.target.value)} onFocus={(e) => e.target.select()} style={{ width: '75px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#34d399', fontWeight: 800, fontSize: '13px', textAlign: 'right', padding: '6px', outline: 'none' }} />
+                  <input type="number" readOnly={Boolean(logisticsSource)} value={item.qtd} onChange={(e) => atualizarQtd(item.id, e.target.value)} onFocus={(e) => e.target.select()} style={{ width: '45px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontWeight: 800, fontSize: '13px', textAlign: 'center', padding: '6px', outline: 'none' }} />
+                  <input type="text" readOnly={Boolean(logisticsSource)} value={item.precoTexto !== undefined ? item.precoTexto : converterDeBRL(item.precoPraticadoBRL, moeda).toFixed(moeda==='PYG'?0:2)} onChange={(e) => lidarDigitacaoPreco(item.id, e.target.value)} onFocus={(e) => e.target.select()} style={{ width: '75px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#34d399', fontWeight: 800, fontSize: '13px', textAlign: 'right', padding: '6px', outline: 'none' }} />
                   <div style={{ width: '85px', textAlign: 'right', fontWeight: 900, color: '#34d399', fontSize: '15px' }}>{fmt(Math.max(0, parseInt(item.qtd) || 0) * (item.precoPraticadoBRL || 0))}</div>
                 </div>
               </div>
@@ -1732,7 +1752,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#cbd5e1' }}><span>{t('subtotal')}</span><span style={{ fontWeight: 700, color: '#fff' }}>{fmt(subtotalBrutoBRL)}</span></div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px', color: '#cbd5e1' }}>
             <span>{t('descontoGlobal')}</span>
-            <input type="text" value={descontoTexto} onChange={(e) => setDescontoTexto(e.target.value)} onFocus={(e) => e.target.select()} style={{ width: '75px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', padding: '6px 8px', color: '#fbbf24', fontWeight: 800, fontSize: '14px', textAlign: 'right', outline: 'none' }} />
+            <input type="text" readOnly={Boolean(logisticsSource)} value={descontoTexto} onChange={(e) => setDescontoTexto(e.target.value)} onFocus={(e) => e.target.select()} style={{ width: '75px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', padding: '6px 8px', color: '#fbbf24', fontWeight: 800, fontSize: '14px', textAlign: 'right', outline: 'none' }} />
           </div>
           <div style={{ height: '1px', backgroundColor: '#1e293b', margin: '4px 0' }}></div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap' }}>
@@ -1943,7 +1963,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                     <>
                       <div style={{ marginTop: '10px', fontSize: '11px' }}>
                         <strong>{tx('Pagamentos (Liquidados):','Pagos (Liquidados):','Payments (Settled):')}</strong><br/>
-                        {vendaConcluidaObj?.pagamentos.map((p, idx) => <div key={idx} style={{ display: 'flex', justifyContent: 'space-between' }}><span>{p.rotulo}</span><span>{p.valorOriginal.toFixed(2)}</span></div>)}
+                        {vendaConcluidaObj?.pagamentos.map((p, idx) => <div key={idx} style={{ display: 'flex', justifyContent: 'space-between' }}><span>{p.rotulo}</span><span>{Number(p.valorOriginal).toLocaleString(idioma==='es'?'es-PY':'pt-BR',{minimumFractionDigits:p.moedaOrigem==='PYG'?0:2,maximumFractionDigits:p.moedaOrigem==='PYG'?0:2})} {p.moedaOrigem}</span></div>)}
                       </div>
                       {vendaConcluidaObj?.trocoBRL > 0.01 && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginTop: '4px', backgroundColor: '#e2e8f0', padding: '2px' }}><span>{tx("TROCO (","VUELTO (")}{vendaConcluidaObj.moedaTrocoInfo})</span><span>{formatarEquivalenciaBRL(vendaConcluidaObj.trocoBRL, vendaConcluidaObj.moedaTrocoInfo || 'BRL', cotacoesRecibo)}</span></div>}
                     </>
@@ -1999,6 +2019,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '10px', marginBottom: '16px' }}>
                  <select
+                    aria-label={tx('Forma de pagamento','Forma de pago')}
                     value={formaSelecionada}
                     onChange={e => {
                       const novaForma = e.target.value;
@@ -2023,6 +2044,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                   <input
                     ref={inputValorLancamentoRef}
                     type="text"
+                    aria-label={tx('Valor do pagamento','Importe del pago')}
                     value={valorLancamentoInput}
                     onChange={e => setValorLancamentoInput(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && adicionarPagamento()}
@@ -2054,6 +2076,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                   ))}
                 </div>
 
+                {logisticsSource&&<label style={{display:'grid',gap:8,marginBottom:16,color:'#99f6e4'}}>{tx('PIN do operador · liquidação logística','PIN del operador · liquidación logística')}<input type="password" autoComplete="off" value={logisticsPin} onChange={e=>setLogisticsPin(e.target.value)} style={{padding:12,borderRadius:10,background:'#020617',border:'1px solid #34716b',color:'#fff'}}/><small>{tx('Preços e moeda originais preservados. O estoque permanece sob controle da expedição.','Precios y moneda originales preservados. El stock permanece bajo control del despacho.')}</small></label>}
                 <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                   <button onClick={() => setModalFechamentoAberto(false)} style={{ flex: 1, padding: '14px', backgroundColor: '#020617', border: '1px solid #1e293b', color: '#cbd5e1', borderRadius: '12px', cursor: 'pointer', fontWeight: 800, fontSize: '13px' }}>{tx('Cancelar', 'Cancelar', 'Cancel')}</button>
                   <button onClick={() => concluirTransacao('venda')} disabled={!podeFinalizarVenda || processandoTransacao} style={{ flex: 2, padding: '14px', background: (podeFinalizarVenda && !processandoTransacao) ? 'linear-gradient(135deg, #0284c7, #0369a1)' : '#1e293b', border: 'none', color: (podeFinalizarVenda && !processandoTransacao) ? '#fff' : '#64748b', borderRadius: '12px', cursor: (podeFinalizarVenda && !processandoTransacao) ? 'pointer' : 'not-allowed', fontWeight: 900, fontSize: '14px', boxShadow: podeFinalizarVenda ? '0 4px 15px rgba(2, 132, 199, 0.4)' : 'none' }}>{tx('Liquidar no Caixa', 'Finalizar', 'Pay & Close')}</button>

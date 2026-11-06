@@ -25,21 +25,46 @@ try {
  const downloadPromise=page.waitForEvent('download');await button('Baixar PDF A4').click();const download=await downloadPromise;await download.saveAs('tmp/distribution/romaneio-v1.pdf');
  await page.screenshot({path:'tmp/distribution/desktop-document.png',fullPage:true});
  // A4 print rendering uses the same immutable snapshot and second-copy indication.
- await page.pdf({path:'tmp/distribution/romaneio-print.pdf',format:'A4',printBackground:true,preferCSSPageSize:true});
+ await page.evaluate(()=>{
+  const descriptor=Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype,'contentWindow');window.__distPrintDescriptor=descriptor;
+  Object.defineProperty(HTMLIFrameElement.prototype,'contentWindow',{configurable:true,get(){const win=descriptor.get.call(this);if(win&&this.title==='ZenOS A4')win.print=()=>{window.__distPrintHtml=win.document.documentElement.outerHTML;};return win;}});
+ });
+ await button('Imprimir A4').click();await page.waitForFunction(()=>Boolean(window.__distPrintHtml));
+ const printHtml=await page.evaluate(()=>window.__distPrintHtml);const printPage=await context.newPage();await printPage.setContent(printHtml);await printPage.pdf({path:'tmp/distribution/romaneio-print.pdf',format:'A4',printBackground:true,preferCSSPageSize:true});await printPage.close();
+ await page.evaluate(()=>{Object.defineProperty(HTMLIFrameElement.prototype,'contentWindow',window.__distPrintDescriptor);document.querySelector('iframe[title="ZenOS A4"]')?.remove();});
+
  await page.getByLabel('Rota',{exact:true}).fill('Rota revisada');await button('Emitir romaneio').click();await page.getByRole('button',{name:/Versão 2 ·/}).waitFor();
  await page.getByRole('button',{name:/Versão 1 ·/}).click();assert.match(await page.getByTestId('manifest-preview').innerText(),/Centro \/ Vila Operária/);assert.doesNotMatch(await page.getByTestId('manifest-preview').innerText(),/Rota revisada/);
  await button('Expedir carga').click();await button('Confirmar').click();await page.locator('.dist-detail-head .dist-badge').filter({hasText:'Expedida'}).waitFor();
  await page.getByRole('dialog').getByRole('button',{name:'Fechar',exact:true}).click();
- await page.getByRole('combobox',{name:'Idioma'}).selectOption('es');await button('Este mes').click();
+ await page.getByRole('combobox',{name:'Idioma'}).selectOption('es');await button('Este mes').click();await button('Abrir carga').waitFor();
+ assert.doesNotMatch(await page.locator('.dist-success').first().innerText(),/Operação/);
  await page.screenshot({path:'tmp/distribution/desktop-central-es.png',fullPage:true});
  const countBefore=requests.filter(url=>url.includes('/__distribution/query')).length;
  await button('Pedidos del PDV').click();await page.getByRole('table').waitFor();await button('Cargas').click();await page.waitForTimeout(300);
  assert.ok(requests.filter(url=>url.includes('/__distribution/query')).length-countBefore<=1,'cached pages must not reread the server');
  await page.setViewportSize({width:390,height:844});await page.screenshot({path:'tmp/distribution/mobile-central-es.png',fullPage:true});
  assert.ok(await page.evaluate(()=>window.document.documentElement.scrollWidth<=window.innerWidth),'mobile has no page overflow');
- await button('Abrir carga').click();await page.screenshot({path:'tmp/distribution/mobile-load-es.png',fullPage:true});
- await page.getByRole('dialog').getByRole('button',{name:'Cerrar',exact:true}).click();await button('Cerrar sesión').click();await button('Acceder a distribución').waitFor();
+ await button('Abrir carga').click();await page.getByRole('dialog').waitFor();await page.screenshot({path:'tmp/distribution/mobile-load-es.png',fullPage:false});
+ await page.getByRole('dialog').getByRole('button',{name:'Cerrar',exact:true}).click();
+ // Demonstrate the existing PDV against the same shipped orders and real backend.
+ await page.setViewportSize({width:1440,height:1050});
+ await page.goto('http://127.0.0.1:5173/pdv-distribution-homologacao.html');
+ await page.getByRole('button',{name:'📥 Resgatar',exact:true}).click();
+ await page.getByRole('button',{name:'Resgatar pedido O001',exact:true}).click();
+ await page.getByRole('button',{name:/Receber no Caixa/}).last().click();
+ await page.getByLabel('Forma de pagamento',{exact:true}).selectOption('dinheiro_pyg');
+ await page.getByLabel('Valor do pagamento',{exact:true}).fill('199950');
+ await page.getByRole('button',{name:/Lançar|Adicionar Pagamento|Adicionar pagamento/}).click();
+ await page.getByLabel('PIN do operador · liquidação logística',{exact:false}).fill('482759');
+ await page.screenshot({path:'tmp/distribution/pdv-before-settlement.png',fullPage:true});
+ await page.getByRole('button',{name:'Liquidar no Caixa',exact:true}).click();
+ await page.getByRole('button',{name:'Novo Atendimento',exact:true}).waitFor();
+ await page.screenshot({path:'tmp/distribution/pdv-settled.png',fullPage:true});
+ await page.goto('http://127.0.0.1:5173/distribution-homologacao.html');
+ await page.getByRole('combobox',{name:'Idioma'}).selectOption('es');await page.getByLabel('PIN del operador',{exact:true}).fill('482759');await button('Acceder a distribución').click();
+ await button('Cerrar sesión').click();await button('Acceder a distribución').waitFor();
  assert.deepEqual(errors,[]);
- await writeFile('tmp/distribution/browser-evidence.json',JSON.stringify({passed:true,scenarios:['disabled-module-no-requests','server-login','two-seller-load','reserve','picking','manual-check','approval','versioned-manifest','pdf-download','A4-print','historical-reprint','dispatch','PT-ES','cache','mobile-390px','logout'],pageErrors:errors,apiRequests:requests.filter(url=>url.includes('/__distribution/')).length},null,2));
- console.log('Browser homologation passed: 17 scenarios, desktop/mobile, PDF and A4 print.');
+ await writeFile('tmp/distribution/browser-evidence.json',JSON.stringify({passed:true,scenarios:['disabled-module-no-requests','server-login','two-seller-load','reserve','picking','manual-check','approval','versioned-manifest','pdf-download','A4-print','historical-reprint','dispatch','PT-ES','cache','mobile-390px','logout','existing-pdv-commercial-settlement'],pageErrors:errors,apiRequests:requests.filter(url=>url.includes('/__distribution/')).length},null,2));
+ console.log('Browser homologation passed: desktop/mobile, PDF, A4 print and existing PDV settlement.');
 }catch(e){await page.screenshot({path:'tmp/distribution/failure.png',fullPage:true});console.error((await page.locator('body').innerText()).slice(-5000));console.error('Page errors:',errors);throw e;}finally{await browser.close();}

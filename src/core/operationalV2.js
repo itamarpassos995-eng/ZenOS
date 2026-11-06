@@ -24,6 +24,8 @@ export async function persistV2BusinessOperationSafe({db,userId,changes=[],finan
  try{
   if(!session||session.failed)throw session?.failed||v2Error('V2_SESSION','Recarregue os dados da loja.');
   if(session.control.mode!=='v2')throw v2Error('V2_READ_ONLY','Loja em manutenção; gravações bloqueadas.');
+  const logistics=guards.find(g=>g?.type==='distribution_finalize');
+  if(logistics)return await (await import('./distribution/pdvGateway.js')).finalizeDistributionPdv({db,userId,session,payload:logistics.payload});
   // PDV normal gera somente um documento comercial. A lista histórica da tela
   // não pode voltar como intenção de escrita (risco de tombstone stale).
   const valid=changes.filter(c=>c?.field).map(c=>({

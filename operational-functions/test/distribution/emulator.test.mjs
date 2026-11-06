@@ -146,3 +146,27 @@ test('server logout revokes token immediately',async()=>{
  const f=await setup();await service.logout(f.uid,f.s.sessionToken);
  await assert.rejects(service.query(f.uid,f.s.sessionToken,{type:'orders'}),{code:'SESSION_EXPIRED'});
 });
+
+test('commercial credit settlement is atomic, retains seller/cost snapshot and posts debt once',async()=>{
+ const f=await setup();await db.doc(`${f.base}/clientes/C1`).update({'data.saldoDevedorBRL':0,'data.limiteCreditoBRL':500});await ready(f,'L1');await cmd(f,'DISPATCH','L1',6);
+ const order=(await db.doc(`${f.base}/vendas/O001`).get()).data().data;
+ const input={orderId:'O001',operatorId:'admin',pin:PIN,sessionId:'CASH1',customerId:'C1',cart:order.itens.map(i=>({id:String(i.id),sku:i.sku,qtd:Number(i.qtd),precoPraticadoBRL:Number(i.precoPraticadoBRL)})),payments:[{formaId:'crediario',moedaOrigem:'BRL',valorOriginal:150,valorConvertidoBRL:150}]};
+ const a=await service.finalize(f.uid,input),b=await service.finalize(f.uid,input);
+ assert.equal(b.alreadyCommitted,true);assert.equal(a.sale.id,'O001');assert.equal(a.sale.vendedorId,'sales');
+ assert.equal((await db.doc(`${f.base}/clientes/C1`).get()).data().data.saldoDevedorBRL,150);
+ assert.equal((await db.collection(`${f.root}/financeiro_livro`).get()).size,1);
+ assert.equal((await db.doc(`${f.base}/produtos/P1`).get()).data().data.estoque,95);
+});
+test('commercial mixed-currency cash change preserves native drawer amounts',async()=>{
+ const f=await setup();await ready(f,'L1');await cmd(f,'DISPATCH','L1',6);const order=(await db.doc(`${f.base}/vendas/O001`).get()).data().data;
+ const input={orderId:'O001',operatorId:'admin',pin:PIN,sessionId:'CASH1',customerId:'C1',changeCurrency:'PYG',cart:order.itens.map(i=>({id:String(i.id),sku:i.sku,qtd:Number(i.qtd),precoPraticadoBRL:Number(i.precoPraticadoBRL)})),payments:[{formaId:'dinheiro_brl',moedaOrigem:'BRL',valorOriginal:200,valorConvertidoBRL:200}]};
+ const result=await service.finalize(f.uid,input);assert.equal(result.sale.trocoBRL,50);assert.equal(result.sale.trocoOriginal,66650);assert.equal(result.sale.moedaTrocoInfo,'PYG');assert.equal(result.receipt.financialEntries[0].valor,150);
+});
+test('commercial settlement rejects forged FX, wrong cash session and changed source cart without posting',async()=>{
+ const f=await setup();await ready(f,'L1');await cmd(f,'DISPATCH','L1',6);const order=(await db.doc(`${f.base}/vendas/O001`).get()).data().data;
+ const input={orderId:'O001',operatorId:'admin',pin:PIN,sessionId:'CASH1',customerId:'C1',cart:order.itens.map(i=>({id:String(i.id),sku:i.sku,qtd:Number(i.qtd),precoPraticadoBRL:Number(i.precoPraticadoBRL)})),payments:[{formaId:'cartao_credito_usd',moedaOrigem:'USD',valorOriginal:30,valorConvertidoBRL:150}]};
+ await assert.rejects(service.finalize(f.uid,{...input,cart:[{...input.cart[0],qtd:1}]}),{code:'ORDER_SNAPSHOT_CHANGED'});
+ await assert.rejects(service.finalize(f.uid,{...input,payments:[{...input.payments[0],valorConvertidoBRL:100}]}),{code:'PAYMENT_RATE_CHANGED'});
+ await db.doc(`${f.base}/sessoesCaixa/CASH1`).update({'data.status':'fechada'});await assert.rejects(service.finalize(f.uid,input),{code:'CASH_SESSION_CLOSED'});
+ assert.equal((await db.collection(`${f.root}/financeiro_livro`).get()).size,0);
+});

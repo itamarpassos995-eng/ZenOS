@@ -19,6 +19,10 @@ on:
       - 'scripts/distribution/**'
       - 'firebase.distribution.json'
       - 'firestore.distribution-emulator.rules'
+      - 'firestore.distribution-v2-emulator.rules'
+      - 'firebase.distribution-v2.json'
+      - 'src/components/PDV.jsx'
+      - 'src/core/operationalV2.js'
       - '.github/workflows/distribution-phase2.yml'
 permissions:
   contents: read
@@ -40,4 +44,6 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund --prefix operational-functions
       - run: node --test scripts/distribution/*.test.mjs scripts/inventory-negative-stock.test.mjs scripts/card-multicurrency.test.mjs
       - run: npm run build
-      - run: npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.distribution.json 'node scripts/distribution/homologate.mjs'
+      - run: npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.distribution-v2.json 'node scripts/distribution/homologate.mjs'
+
+      - run: npm run distribution:concurrency

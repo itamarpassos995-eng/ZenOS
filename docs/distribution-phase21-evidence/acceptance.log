@@ -1,0 +1,73 @@
+i  emulators: Starting emulators: auth, firestore
+i  emulators: Detected demo project ID "demo-zenos-local", emulated services will use a demo configuration and attempts to access non-emulated services for this project will fail.
+i  firestore: Firestore Emulator logging to firestore-debug.log
+✔  firestore: Firestore Emulator was started in standard edition.
+✔  firestore: Firestore Emulator UI websocket is running on 9150.
+i  Running script: node scripts/distribution/homologate.mjs --browser
+Distribution homologation API http://127.0.0.1:8787 (demo only)
+(node:8126) MetadataLookupWarning: received unexpected error = All promises were rejected code = ETIMEDOUT, ENOTFOUND
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ PIN server verification rejects incorrect/legacy credentials and seller without inventory access (5665.308522ms)
+✔ PIN attempts are persisted and throttled after five failures (742.905803ms)
+✔ live revocation, credential change, session expiry and module suspension block even replays (623.864351ms)
+✔ real Firestore transactions: two loads compete for the last available units (3651.584062ms)
+✔ real concurrent duplicate command commits one stock reservation, operation and outbox (3938.642313ms)
+✔ duplicate order allocations and concurrent expected revisions are rejected (2975.230115ms)
+✔ partial allocations reconcile frozen total without rounding loss or current currency conversion (370.103756ms)
+✔ cancel releases reservations and order allocation atomically; retry is stable (480.381242ms)
+✔ end to end: picking mismatch blocks dispatch; confirmed document is mandatory (466.873452ms)
+✔ concurrent dispatch posts physical stock once and never writes financial ledger (3898.765123ms)
+✔ fulfilled PDV sale does not reserve or deduct stock again (545.642411ms)
+✔ historical manifests remain unchanged after catalog/customer/currency changes and header revision (592.741534ms)
+✔ V2 operation stream has contiguous sequence, envelopes, revisions and no V1 writes (484.444118ms)
+✔ cursor pagination has no gaps and history is not loaded into list projection (379.624097ms)
+✔ tenant isolation rejects a session from another enterprise (387.076239ms)
+✔ PDV availability and internal movements cannot consume reserved warehouse units (1.267639ms)
+(node:8109) MetadataLookupWarning: received unexpected error = All promises were rejected code = ETIMEDOUT, ENOTFOUND
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ HTTP authenticates company UID, ignores forged tenant and denies direct SDK/REST writes (3877.520469ms)
+✔ partial cancellation and reallocation preserve exact discounted money (417.64959ms)
+✔ daily summary and period filter exclude old orders and reject unbounded requests (285.335703ms)
+✔ server logout revokes token immediately (195.329251ms)
+✔ commercial credit settlement is atomic, retains seller/cost snapshot and posts debt once (758.422417ms)
+✔ commercial mixed-currency cash change preserves native drawer amounts (547.802937ms)
+✔ commercial settlement rejects forged FX, wrong cash session and changed source cart without posting (817.586381ms)
+ℹ tests 23
+ℹ suites 0
+ℹ pass 23
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 32714.903308
+(node:8154) MetadataLookupWarning: received unexpected error = All promises were rejected code = ETIMEDOUT, ENOTFOUND
+(Use `node --trace-warnings ...` to show where the warning was created)
+{"url":"http://127.0.0.1:5173/distribution-homologacao.html","email":"distribution-demo@example.test","password":"SyntheticOnly!482759","operatorId":"admin","pin":"482759"}
+
+ RUN  v2.1.9 /vercel/ZenOS
+
+stderr | scripts/distribution/central.ui.test.jsx > Central with real HTTP API, Auth token and Firestore Emulator > does not issue logistics queries before verified operator login and shows rejected PIN without success
+API rejected {"error":"INVALID_CREDENTIAL"}
+
+ ✓ scripts/distribution/central.ui.test.jsx (2 tests) 3284ms
+   ✓ Central with real HTTP API, Auth token and Firestore Emulator > completes load, reservation, manual checking, historic manifests and dispatch; changes language and logs out 3117ms
+ ✓ scripts/distribution/print.ui.test.jsx (1 test) 25ms
+
+ Test Files  2 passed (2)
+      Tests  3 passed (3)
+   Start at  18:31:06
+   Duration  4.71s (transform 371ms, setup 0ms, collect 607ms, tests 3.31s, environment 364ms, prepare 159ms)
+
+(node:8102) MetadataLookupWarning: received unexpected error = All promises were rejected code = ETIMEDOUT, ENOTFOUND
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+  VITE v5.4.21  ready in 220 ms
+
+  ➜  Local:   http://127.0.0.1:5173/
+Browser homologation passed: desktop/mobile, PDF, A4 print and existing PDV settlement.
+✔  Script exited successfully (code 0)
+i  emulators: Shutting down emulators.
+i  firestore: Stopping Firestore Emulator
+i  auth: Stopping Authentication Emulator
+i  hub: Stopping emulator hub
+i  logging: Stopping Logging Emulator

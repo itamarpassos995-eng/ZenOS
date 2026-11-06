@@ -88,3 +88,7 @@ Código existente ajustado: `src/App.jsx` (entrada lazy apenas em homologação 
 7. Orçamento real de leituras, p95 de latência e carga sustentada com volume/dispositivos definidos. Não se afirma custo remoto zero ou performance de produção.
 
 Rollback desta entrega: remover/desabilitar a entrada local ou descartar a branch; nenhum dado real foi alterado. Não reverter dados de clientes. Ativação futura dependerá de homologação dos itens acima e autorização expressa para publicação.
+
+## Continuidade — Fase 2.1
+
+As pendências de liquidação comercial, concorrência com o escritor real do PDV e renderização em navegador foram tratadas na [Fase 2.1](distribution-phase21.md), com evidências sintéticas e limites de implantação explicitados. Este documento permanece como registro histórico da Fase 2.

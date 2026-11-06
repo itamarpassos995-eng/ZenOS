@@ -1,0 +1,14 @@
+{
+  "passed": 19,
+  "realPdvWriter": true,
+  "realDistributionWriter": true,
+  "rules": "fenced-v2-with-reservation-invariants",
+  "stock": {
+    "initial": 10,
+    "firstShipment": 2,
+    "secondShipment": 3,
+    "remaining": 5
+  },
+  "financialEntries": 1,
+  "productionRequests": 0
+}

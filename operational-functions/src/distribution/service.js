@@ -1,3 +1,4 @@
+import {buildSettlement} from './settlement.js';
 import {distributionPeriod} from '../../../src/core/distribution/period.js';
 import {criarEventoEstoque} from '../../../src/core/stockAuditCore.js';
 import {error,hash,id,requireEmulators,credentialFingerprint,verifyPin,canOperate,token} from './security.js';
@@ -22,20 +23,21 @@ export function distributionService(db,{now=()=>Date.now()}={}) {
   const base=`${root}/v2_generations/${id(control.data().generation)}`;
   const [head,config]=await Promise.all([tx.get(db.doc(base)),tx.get(db.doc(`${root}/distribution_config/module`))]);
   if(head.data()?.schema!==2||head.data()?.state!=='ready'||head.data()?.sourceChecksum!==control.data()?.sourceChecksum)error('V2_NOT_READY');
-  if(config.data()?.enabled!==true)error('MODULE_DISABLED');
+  const entitlement=control.data().entitlements?.distribution;
+  if(config.data()?.enabled!==true||entitlement?.enabled!==true||(entitlement.expiresAt!=null&&entitlement.expiresAt<=now()))error('MODULE_DISABLED');
   return {root,base,head:head.data(),config:config.data(),generation:control.data().generation};
  };
- const authorize = async(tx,uid,sessionToken,c) => {
+ const authorize = async(tx,uid,sessionToken,c,scope='stock') => {
   if(!/^[a-f0-9]{64}$/.test(sessionToken||''))error('UNAUTHENTICATED');
   const session=await tx.get(db.doc(`${c.root}/distribution_sessions/${hash(sessionToken)}`));
   const s=session.data();
   if(!s||s.expiresAt<=now()||s.uid!==uid||s.generation!==c.generation)error('SESSION_EXPIRED');
   const operator=await tx.get(db.doc(`${c.base}/operadores/${id(s.operatorId)}`));
   const op=operator.data()?.data;
-  if(operator.data()?.deleted||!canOperate(op)||credentialFingerprint(op)!==s.credential)error('FORBIDDEN');
+  if(operator.data()?.deleted||!(scope==='pdv'?(op?.id==='admin'||op?.permissoes?.admin||op?.permissoes?.pdv):canOperate(op))||credentialFingerprint(op)!==s.credential)error('FORBIDDEN');
   return {operatorId:s.operatorId,name:op.nome};
  };
- async function login(uid,{operatorId,pin}) {
+ async function login(uid,{operatorId,pin,scope='stock'}) {
   id(uid);id(operatorId);
   const secret=token();
   const result=await db.runTransaction(async tx=>{
@@ -44,14 +46,14 @@ export function distributionService(db,{now=()=>Date.now()}={}) {
    const attempts=attempt.data()||{};
    if(attempts.blockedUntil>now())error('RATE_LIMITED');
    const op=operator.data()?.data;
-   if(operator.data()?.deleted||!verifyPin(op,pin)||!canOperate(op)) {
+   if(operator.data()?.deleted||!verifyPin(op,pin)||!(scope==='pdv'?(op?.id==='admin'||op?.permissoes?.admin||op?.permissoes?.pdv):canOperate(op))) {
     const failures=attempts.windowAt>now()-300000?(attempts.failures||0)+1:1;
     tx.set(attempt.ref,{failures,windowAt:attempts.windowAt>now()-300000?attempts.windowAt:now(),blockedUntil:failures>=5?now()+300000:0});
     return {failed:true};
    }
    const expiresAt=now()+1800000;
    tx.set(attempt.ref,{failures:0,windowAt:now(),blockedUntil:0});
-   tx.create(db.doc(`${c.root}/distribution_sessions/${hash(secret)}`),{uid,operatorId,generation:c.generation,credential:credentialFingerprint(op),expiresAt});
+   tx.create(db.doc(`${c.root}/distribution_sessions/${hash(secret)}`),{uid,operatorId,generation:c.generation,scope,credential:credentialFingerprint(op),expiresAt});
    return {sessionToken:secret,operatorId,operatorName:op.nome,timeZone:c.config.timezone||'America/Asuncion',expiresAt};
   });
   if(result.failed)error('INVALID_CREDENTIAL');return result;
@@ -116,7 +118,7 @@ export function distributionService(db,{now=()=>Date.now()}={}) {
      const allocatedMinor=BigInt(sale._distribution?.allocatedMinor?.[selection.lineIndex]||'0');
      const allocation=allocated+selection.quantity===ordered?lineTotal-allocatedMinor:lineTotal*BigInt(selection.quantity)/BigInt(ordered);
      if(allocation<0n||allocatedMinor+allocation>lineTotal)error('MONEY_ALLOCATION_CONFLICT');
-     const physical=sale.tipoDocumento==='venda';
+     const physical=sale.tipoDocumento==='venda'&&!sale._distribution?.commercialFinalized;
      if(physical&&(!item.movimentoEstoqueVenda||Number(item.movimentoEstoqueVenda.total)!==ordered))error('STOCK_PROOF_REQUIRED');
      const customer=client.data().data;
      lines.push({id:hash(selectionId).slice(0,20),tenantId:uid,orderId,orderLineId:String(selection.lineIndex),productId:String(product.data.id),sku:String(product.data.sku),description:product.data.nome,unit:product.data.unidadeMedida||'UN',customerId:String(sale.clienteId),customerName:customer.nome,destination:customer.endereco||sale.enderecoEntrega||'',sellerId:String(sale.vendedorId),quantity:selection.quantity,amount:{minor:String(allocation),currency,precision,kind:'sale-allocation',source:orderId}});
@@ -132,7 +134,7 @@ export function distributionService(db,{now=()=>Date.now()}={}) {
     if(input.type==='RESERVE') {
      if(load.state!=='DRAFT'||load.reservationState!=='NONE')error('INVALID_TRANSITION');
      for(const line of load.lines) {
-      if(orderCache.get(line.orderId).data.tipoDocumento==='venda')continue;
+      if(orderCache.get(line.orderId).data.tipoDocumento==='venda'&&!orderCache.get(line.orderId).data._distribution?.commercialFinalized)continue;
       const product=productCache.get(line.productId),v=product.data;
       if(!Number.isFinite(v.estoqueGalpao)||!Number.isFinite(v.estoque))error('STOCK_RECONCILIATION_REQUIRED');
       const reserved=integer(v.estoqueReservadoDistribuicao||0);
@@ -163,7 +165,7 @@ export function distributionService(db,{now=()=>Date.now()}={}) {
      load=transitionLoad(load,'DISPATCHED');
      for(const line of load.lines) {
       const order=orderCache.get(line.orderId);
-      if(order.data.tipoDocumento==='venda')continue; // PDV already posted stock: no second movement.
+      if(order.data.tipoDocumento==='venda'&&!orderCache.get(line.orderId).data._distribution?.commercialFinalized)continue; // PDV already posted stock: no second movement.
       const product=productCache.get(line.productId),v=product.data;
       if(integer(v.estoqueReservadoDistribuicao||0)<line.quantity||v.estoqueGalpao<line.quantity||v.estoque<line.quantity)error('STOCK_RECONCILIATION_REQUIRED');
       const saldoAntes={...v};
@@ -171,6 +173,7 @@ export function distributionService(db,{now=()=>Date.now()}={}) {
       productWrites.set(line.productId,product);
       audit.push(criarEventoEstoque({id:`DIST-${operationId}-${line.id}`,produto:v,tipo:'distribuicao_expedicao',origem:'deposito',destino:'entrega',quantidade:line.quantity,saldoAntes,saldoDepois:v,operador:{id:actor.operatorId,nome:actor.name},referenciaId:load.id,createdAt:new Date(now()).toISOString(),detalhes:{pedidoId:line.orderId,linhaId:line.orderLineId}}));
       order.data._distribution={...order.data._distribution,dispatched:{...(order.data._distribution?.dispatched||{}),[line.orderLineId]:(order.data._distribution?.dispatched?.[line.orderLineId]||0)+line.quantity}};
+      if(order.data._distribution.commercialFinalized){const index=Number(line.orderLineId),shipped=order.data._distribution.dispatched[line.orderLineId];order.data.itens=order.data.itens.map((item,i)=>i===index?{...item,movimentoEstoqueVenda:{vitrine:0,galpao:shipped,total:shipped}}:item);}
       orderWrites.set(line.orderId,order);
      }
      load={...load,reservationState:'CONSUMED',dispatchedAt:now()};
@@ -179,7 +182,7 @@ export function distributionService(db,{now=()=>Date.now()}={}) {
      if(!['DRAFT','PLANNED','LOADING'].includes(load.state))error('LOAD_LOCKED');
      for(const line of load.lines) {
       const order=orderCache.get(line.orderId),product=productCache.get(line.productId);
-      if(load.reservationState==='RESERVED'&&order.data.tipoDocumento!=='venda') {
+      if(load.reservationState==='RESERVED'&&(order.data.tipoDocumento!=='venda'||order.data._distribution?.commercialFinalized)) {
        product.data.estoqueReservadoDistribuicao=integer(product.data.estoqueReservadoDistribuicao)-line.quantity;
        if(product.data.estoqueReservadoDistribuicao<0)error('STOCK_RECONCILIATION_REQUIRED');productWrites.set(line.productId,product);
       }
@@ -265,5 +268,6 @@ export function distributionService(db,{now=()=>Date.now()}={}) {
   });
  }
  async function logout(uid,sessionToken){return db.runTransaction(async tx=>{const c=await ctx(tx,uid);await authorize(tx,uid,sessionToken,c);tx.delete(db.doc(`${c.root}/distribution_sessions/${hash(sessionToken)}`));return {ok:true};});}
- return {login,command,query,logout};
+ const finalize=buildSettlement({db,ctx,authorize,login,now});
+ return {login,command,query,logout,finalize};
 }
