@@ -1,0 +1,24 @@
+name: Contraste dos campos
+on:
+  pull_request:
+    paths:
+      - 'src/form-controls.css'
+      - 'src/index.css'
+      - 'src/zenos-dashboard.css'
+      - 'scripts/form-controls-contrast.test.mjs'
+      - '.github/workflows/form-controls-contrast.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contrast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test scripts/form-controls-contrast.test.mjs
+      - run: npm run build
