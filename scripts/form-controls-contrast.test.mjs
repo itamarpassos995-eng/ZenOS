@@ -35,3 +35,10 @@ test('padronização é global e os estilos antigos do tema claro não sobrescre
  assert.doesNotMatch(readFileSync('src/zenos-dashboard.css','utf8'),/color:#8196ad!important/);
  assert.ok(css.includes('[type=checkbox]')&&css.includes('[type=color]'),'Controles especiais devem preservar aparência própria');
 });
+
+test('seta do seletor não repete nem perde a posição quando o componente define background inline',()=>{
+ const select=ast.nodes.find(n=>n.type==='rule'&&n.selector===':where(select:not([multiple]):not([size]))');
+ assert.ok(select);
+ for(const prop of ['background-image','background-position','background-size','background-repeat'])assert.ok(select.nodes.some(n=>n.type==='decl'&&n.prop===prop&&n.important),prop);
+ assert.equal(vars(select)['background-repeat'],'no-repeat');
+});

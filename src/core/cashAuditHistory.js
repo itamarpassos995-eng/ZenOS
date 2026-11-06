@@ -1,3 +1,4 @@
+import { parseZenOSDate } from './dates.js';
 export function intervaloCaixa(periodo, agora=new Date(), inicio='',fim='') {
  const start=new Date(agora.getFullYear(),agora.getMonth(),agora.getDate());
  let end=new Date(start);end.setDate(end.getDate()+1);
@@ -11,11 +12,18 @@ export function intervaloCaixa(periodo, agora=new Date(), inicio='',fim='') {
  }
  return {inicio:start.toISOString(),fim:end.toISOString()};
 }
+export function dataTurnoCaixa(s){
+ const parsed=parseZenOSDate(s.createdAt)||parseZenOSDate(s.abertura);
+ if(parsed)return parsed.getTime();
+ const match=String(s.id||'').match(/^SESSAO-(\d{12,13})$/);
+ return match?Number(match[1]):null;
+}
+export function turnoCaixaFechado(s){return s.status==='fechada'||s.status==='fechado'||s.status==='closed'||Boolean(s.fechamento);}
 export function filtrarTurnosCaixa(sessoes,intervalo){
- return sessoes.filter(s=>{const t=Date.parse(s.createdAt||s.fechamento);return t>=Date.parse(intervalo.inicio)&&t<Date.parse(intervalo.fim);});
+ return sessoes.filter(s=>{const t=dataTurnoCaixa(s);return t!=null&&t>=Date.parse(intervalo.inicio)&&t<Date.parse(intervalo.fim);});
 }
 export function diferencaHistoricaCaixa(s){
- if(s.status!=='fechada')return {pendente:false,valor:null};
+ if(!turnoCaixaFechado(s))return {pendente:false,valor:null};
  const invalido=v=>v==null||v===''||!Number.isFinite(Number(v));
  const pendente=s.situacaoConciliacao==='PENDENTE_AUDITORIA'||(s.pendenciasConciliacao||[]).length>0||invalido(s.diferenca)||invalido(s.saldoInformado)||invalido(s.saldoSistema)
   || Math.abs((Number(s.saldoInformado)-Number(s.saldoSistema))-Number(s.diferenca))>0.021;
