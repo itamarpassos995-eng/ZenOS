@@ -83,7 +83,7 @@
   min-height: 42px; max-width: 100%; box-sizing: border-box;
   padding: 10px 38px 10px 12px !important;
   background-image: var(--zen-select-arrow) !important;
-  background-position: right 11px center; background-size: 18px; background-repeat: no-repeat;
+  background-position: right 11px center !important; background-size: 18px !important; background-repeat: no-repeat !important;
   font-family: inherit !important; font-size: 13px !important; font-weight: 650 !important;
   line-height: 1.4; letter-spacing: normal !important; text-transform: none !important;
   border-radius: 10px; box-shadow: inset 0 1px 0 #ffffff08;
@@ -91,7 +91,7 @@
 }
 :where(select:not(:disabled)):hover { border-color: var(--zen-field-focus); }
 :where(select):disabled { cursor: not-allowed; }
-.zen-top-control select { min-height: 28px; padding: 4px 27px 4px 7px !important; font-size: 11px !important; background-position: right 5px center; background-size: 15px; }
+.zen-top-control select { min-height: 28px; padding: 4px 27px 4px 7px !important; font-size: 11px !important; background-position: right 5px center !important; background-size: 15px !important; }
 :where(button:not([class]):not([style])), .zen-action {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   min-height: 40px; padding: 10px 15px; box-sizing: border-box;

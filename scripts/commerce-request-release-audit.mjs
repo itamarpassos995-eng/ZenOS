@@ -46,7 +46,7 @@ const allowed=new Set([
   'src/core/productMoney.js','src/core/syncMerge.js',
   // Acabamento dos controles e consulta/impressão de caixas históricos, sem mutações.
   'src/components/GestaoCaixas.jsx','src/components/GestaoCaixas.css',
-  'src/core/cashAuditHistory.js','src/form-controls.css','scripts/product-cash-startup.test.mjs',
+  'src/core/cashAuditHistory.js','src/form-controls.css','scripts/product-cash-startup.test.mjs','scripts/form-controls-contrast.test.mjs',
 ]);
 assert.ok(changed.every(p=>allowed.has(p)),'GATE_FAIL: alteração fora do pacote de solicitação: '+changed.filter(x=>!allowed.has(x)).join(', '));
 const read=path=>fs.readFileSync(path,'utf8');
