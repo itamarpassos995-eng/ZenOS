@@ -537,3 +537,5 @@ A execução [GitHub Actions #42333625128](https://github.com/itamarpassos995-en
 | G10 | PASS | Bloqueios fiscais, bancários, legados e financeiros documentados |
 
 **DECISÃO OBRIGATÓRIA:** `PREPARATION_OF_C_ALLOWED=false`; `EXECUTION_OF_C_ALLOWED=false`. Os testes sintéticos não autorizam baixas, crédito, restituição ou emissão fiscal em produção. Os dados e negócios reais não foram modificados; nenhum merge/deploy foi executado. O MASTER de 259 requisitos e 20 cenários segue intacto. A CI extensa permanece por acionamento manual.
+
+> **CI integrada B.4 confirmada — 2026-11-07:** [#42420488604](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42420488604), SHA `b1c8b849754a24d58414c6a9737bb34861273c40`, SUCCESS. Regrediram positivamente testes 3.1, integração Emulator, Fases 2/2.1/3, transações/concorrência e Chromium desktop/mobile. Smoke G2/G4/G5 [#42420385476](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42420385476), SUCCESS. A aprovação de suítes **não encerra** os gates com evidências de negócio faltantes; G1–G6, G8–G9 PARTIAL, G7/G10 PASS histórico. Manter os 259 IDs e 20 cenários; C bloqueada.
