@@ -51,7 +51,7 @@ test('B2 legacy unmatched, foreign, duplicate and non-liquidated links fail clos
  assert.ok(report([obligation,good],{complete:false}).issues.includes('SOURCE_PAGINATION_INCOMPLETE'));
 });
 test('B2 id and customer mismatches cannot reconcile with other sale',()=>{
- const b={...obligation,referenciaId:'O999'};
+ const b={...obligation,id:'DEBT-OTHER',referenciaId:'O999'};
  assert.ok(report([obligation,b]).issues.includes('FOREIGN_FINANCIAL_EVENT'));
  assert.throws(()=>report([obligation],{adjustment:{...adjustment,saleId:'O999'}}),{code:'SOURCE_REFERENCE_MISMATCH'});
 });
