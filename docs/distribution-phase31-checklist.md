@@ -415,3 +415,17 @@ Resultado real nos logs:
 | D31-16-* | Testes `phase31-reconciliation.test.mjs`, `reconciliation.test.mjs`, CI Node/Firestore/Chromium | **EM TESTE** | Homologação final, 32 casos B.1, regressões completas e evidências por jurisdição |
 
 **Importante:** livro `financeiro_livro` e venda `pagamentos` não possuem vínculo universal de parcela/pagamento liquidado. A B.1 trata lacunas como bloqueios; ela **não** baixa crédito, não cria restituição, não altera livro financeiro e não registra pagamento presumido. As evidências definitivas de CI serão vinculadas em adendo após validação final.
+
+
+## Evidência de homologação B.1 — CI final aprovada
+
+**GitHub Actions:** [execução #42329581878](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42329581878), **SUCCESS**; código funcional avaliado no commit `e5f88bcd06ecd3f2723c0244d291d4cc269c2b2a`. Commits posteriores alteram apenas a política de disparo do workflow e a documentação.
+
+- **25/25** testes Node: fundação, cliente, ledger de ocorrências, contratos comerciais, conciliação conservadora, FIADO/FX e lançamentos extras sem atribuição.
+- **30/30** testes reais Firebase Emulator: venda e comprovantes, alteração de origem `STALE`, idempotência, isolamento por empresa, operador financeiro, integridade do estoque, saldo cliente e livro financeiro.
+- **50/50** testes de regressão de domínio das fases anteriores e **15/15** testes transacionais da Fase 3; etapas de concorrência antigas aprovadas.
+- `npm run build`: **SUCCESS**.
+- Chromium desktop e mobile: **SUCCESS**, incluindo o painel B.1 em português, estado de conciliação bloqueado sem fonte comprovada e indicação `STALE` após alterar o registro sintético de origem.
+- [Artefato de evidências](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42329581878/artifacts/13556877310) `distribution-phase31-b1-browser-evidence`, ID **13556877310**: capturas, `reconciliation-browser-integrity.json`, `database-integrity.json` e relatórios Chromium.
+
+**Limites expressos:** aprovação de testes sintéticos não prova liquidação bancária nem conciliação de contas a receber de clientes reais. O livro financeiro atual não impõe referência universal de parcela/pagamento e liquidação externa; essas fontes ficam pendentes sem inferência. Os **32 cenários de aceite da ordem B.1** não estão todos comprovados (especialmente parcelas reais, recebimentos multimoeda com câmbio histórico e reversões anteriores). Nenhum dos 259 requisitos do MASTER foi marcado automaticamente concluído. A Entrega C continua bloqueada; não houve merge, deploy, migração, estorno ou efeito em caixa/estoque.
