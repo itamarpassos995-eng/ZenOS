@@ -1,6 +1,16 @@
-name: Distribution Phase 3.1 A.3 validation
+name: Distribution Phase 3.1 B validation
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feat/distribution-logistics-foundation
+    paths:
+      - '.github/workflows/distribution-phase31-a2.yml'
+      - 'src/core/distribution/phase31Commercial.js'
+      - 'operational-functions/src/distribution/commercialService.js'
+      - 'operational-functions/test/distribution/commercial.test.mjs'
+      - 'src/components/DistributionCommercial.jsx'
+      - 'scripts/distribution/phase31-commercial.test.mjs'
 permissions:
   contents: read
 jobs:
@@ -20,11 +30,11 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm ci --ignore-scripts --no-audit --no-fund --prefix operational-functions
       - name: Phase 3.1 foundation tests
-        run: node --test scripts/distribution/phase31-foundation.test.mjs scripts/distribution/phase31-client.test.mjs scripts/distribution/phase31-facts.test.mjs
+        run: node --test scripts/distribution/phase31-foundation.test.mjs scripts/distribution/phase31-client.test.mjs scripts/distribution/phase31-facts.test.mjs scripts/distribution/phase31-commercial.test.mjs
       - name: React build
         run: npm run build
       - name: Firebase Emulator V2 integration tests
-        run: npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.distribution-v2.json 'node --test operational-functions/test/distribution/occurrences.test.mjs operational-functions/test/distribution/evidence.test.mjs'
+        run: npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.distribution-v2.json 'node --test operational-functions/test/distribution/occurrences.test.mjs operational-functions/test/distribution/evidence.test.mjs operational-functions/test/distribution/commercial.test.mjs'
 
       - name: Previous phase 2 and 2.1 domain regressions
         run: npm run distribution:test
@@ -44,6 +54,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: distribution-phase31-a3-browser-evidence
+          name: distribution-phase31-b-browser-evidence
           path: tmp/distribution31a2/
           if-no-files-found: warn
