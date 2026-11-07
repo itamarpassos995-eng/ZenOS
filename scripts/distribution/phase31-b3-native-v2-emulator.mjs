@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import {initializeApp,deleteApp} from 'firebase/app';
 import {getAuth,connectAuthEmulator,createUserWithEmailAndPassword} from 'firebase/auth';
-import {getFirestore,connectFirestoreEmulator,doc,getDoc,setDoc} from 'firebase/firestore';
+import {getFirestore,connectFirestoreEmulator,doc,getDoc,setDoc,serverTimestamp} from 'firebase/firestore';
 import {getOperationalSnapshot,clearOperationalSession} from '../../src/core/operationalRepository.js';
 import {persistV1BusinessOperationSafe} from '../../src/core/productionSync.js';
 import {pdvCreditLink,validateFinanceLink} from '../../src/core/distribution/phase31NativeFinanceLinks.js';
@@ -28,7 +28,7 @@ try{
  await setDoc(doc(db,'lojas',uid,'dados','operacao'),{
   marker:'B3_V1_UNTOUCHED',clientes:[client],historicoVendas:[]});
  await setDoc(doc(db,...root),{
-  schema:2,state:'ready',sequence:0,lastReceipt:'0'.repeat(64),sourceChecksum:'b3-native-synthetic',
+  schema:2,state:'ready',sequence:0,lastReceipt:'0'.repeat(64),updatedAtServer:serverTimestamp(),sourceChecksum:'b3-native-synthetic',
   fieldManifest:manifest,fieldCounts:{clientes:1,historicoVendas:0},
   fieldRevisions:{clientes:0,historicoVendas:0}});
  await setDoc(doc(db,...root,'clientes','C1'),{
