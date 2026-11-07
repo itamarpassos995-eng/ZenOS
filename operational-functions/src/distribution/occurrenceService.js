@@ -62,11 +62,16 @@ export function buildOccurrences({db,ctx,authorize,now=()=>Date.now()}) {
     at:new Date(now()).toISOString(),legalRuleRef:null,
     originalDocument:{id:confirmed.id,reference:confirmed.reference,country:confirmed.country}};
   }
-  if(type!=='CREATE')return null;
+  if(type!=='CREATE'){
+   if(!validKey(payload?.eventId)||typeof payload.note!=='string'||!payload.note.trim()||
+      payload.note.length>1000)error('INVALID_OCCURRENCE_EVENT');
+   return {next:payload.next,eventId:payload.eventId,note:payload.note,
+    at:new Date(now()).toISOString()};
+  }
   const refs=payload?.refs;if(!refs||!validKey(refs.saleId)||!validKey(refs.productId)||
     !validKey(refs.customerId)||!validKey(refs.orderId)||
     !/^\d+$/.test(String(refs.orderLineId||'')))error('SOURCE_REFERENCE_REQUIRED');
-  if(payload.tenantId!==uid||payload.id!==occurrenceId||
+  if(payload.tenantId!=null&&payload.tenantId!==uid||payload.id!==occurrenceId||
     payload.reportedBy!=null&&payload.reportedBy!==actor.operatorId)error('OCCURRENCE_CONTEXT_MISMATCH');
   if(payload.originalAmount!=null||payload.fiscalOriginal!=null||payload.country!=null)
     error('CLIENT_SNAPSHOT_FORBIDDEN');
