@@ -4,20 +4,30 @@ on:
     branches: [feat/distribution-logistics-foundation]
     paths:
       - '.github/workflows/distribution-phase31-b4-smoke.yml'
+      - 'scripts/distribution/phase31-b4-multi-sale-v2-emulator.mjs'
+      - 'src/core/distribution/phase31ReturnLineage.js'
+      - 'scripts/distribution/phase31-return-lineage.test.mjs'
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
       - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm ci --ignore-scripts --no-audit --no-fund --prefix operational-functions
+      - name: B4 native V2 multivenda receipt proof using authenticated client SDK
+        run: npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.distribution-v2.json 'node scripts/distribution/phase31-b4-multi-sale-v2-emulator.mjs'
       - name: B4 focused finance safety tests
         run: node --test scripts/distribution/phase31-native-links.test.mjs scripts/distribution/phase31-credit-allocation.test.mjs scripts/distribution/phase31-return-lineage.test.mjs
       - name: React build
