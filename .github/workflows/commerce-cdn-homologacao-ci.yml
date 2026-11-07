@@ -18,6 +18,7 @@ on:
       - 'scripts/commerce-cdn-publicar.test.mjs'
       - 'scripts/commerce-cdn-pedido.test.mjs'
       - 'scripts/commerce-cdn-preview.test.mjs'
+      - 'scripts/commerce-blob-sdk.test.mjs'
       - 'docs/ARQUITETURA_COMMERCE_PUBLICO.md'
       - '.github/workflows/commerce-cdn-homologacao-ci.yml'
   workflow_dispatch:
@@ -32,9 +33,9 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+      - name: Instalar dependências travadas
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Testar contrato puro sem Firestore
-        run: node --test scripts/commerce-cdn-homologacao.test.mjs scripts/commerce-cdn-client.test.mjs scripts/commerce-cdn-api.test.mjs scripts/commerce-cdn-publicar.test.mjs scripts/commerce-cdn-pedido.test.mjs scripts/commerce-cdn-preview.test.mjs
+        run: node --test scripts/commerce-cdn-homologacao.test.mjs scripts/commerce-cdn-client.test.mjs scripts/commerce-cdn-api.test.mjs scripts/commerce-cdn-publicar.test.mjs scripts/commerce-cdn-pedido.test.mjs scripts/commerce-cdn-preview.test.mjs scripts/commerce-blob-sdk.test.mjs
       - name: Compilar frontend atual sem alterar produção
-        run: |
-          npm ci --ignore-scripts --no-audit --no-fund
-          npm run build
+        run: npm run build
