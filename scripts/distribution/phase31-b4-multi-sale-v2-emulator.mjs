@@ -170,6 +170,24 @@ try{
   operationKey:'recebimento-fiado:REC1'});
  assert.equal(again.cloudOk,true,again.error?.message);
  assert.equal(again.alreadyCommitted,true);
+ // Same operation key with different payload must fail closed, not overwrite
+ // the original receipt or create a second book entry.
+ const conflict=await persistV1BusinessOperationSafe({db,userId:uid,
+  changes:[{field:'clientes',baseValue:before.clientes,
+   value:[{...before.clientes[0],saldoDevedorBRL:1149}]},
+   {field:'historicoVendas',baseValue:before.historicoVendas,
+    value:plan.patches.map(x=>x.nextSale)}],
+  financialEntries:[receipt],
+  guards:[{type:'client_receipt_snapshot',clientId:'C1',
+   clientName:client.nome,balanceBRL:1600},
+   {type:'entity_field_equals',field:'historicoVendas',entityId:'V1',
+    entityKey:'id',property:'creditAllocationsV2',expected:[]},
+   {type:'entity_field_equals',field:'historicoVendas',entityId:'V2',
+    entityKey:'id',property:'creditAllocationsV2',expected:[]}],
+  operationKey:'recebimento-fiado:REC1'});
+ assert.equal(conflict.cloudOk,false,'Conflicting replay must be rejected');
+ const stillSaved=(await getDoc(doc(db,'lojas',uid,'financeiro_livro','REC1'))).data();
+ assert.equal(stillSaved.valor,450);
  const afterRetry=(await getOperationalSnapshot(db,uid)).data();
  assert.equal(afterRetry.clientes[0].saldoDevedorBRL,1150);
  assert.equal(afterRetry.historicoVendas.find(v=>v.id==='V1').creditAllocationsV2.length,1);
