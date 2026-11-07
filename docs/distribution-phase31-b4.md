@@ -89,3 +89,21 @@ Resultados reais da execução consolidada serão vinculados em adendo depois de
 O conciliador `src/core/distribution/phase31ReturnLineage.js` agora classifica como `CONFLICT / DUPLICATE_RETURN_JOURNAL` duas entradas do livro com o mesmo ID de devolução, mesmo quando o segundo documento aparenta ser idêntico. Antes, a duplicidade poderia ser ignorada ao montar o mapa de evidências. `scripts/distribution/phase31-return-lineage.test.mjs` contém um teste negativo dedicado. **A alteração é apenas de classificação de evidência; não executa reembolso, baixa, estoque ou emissão fiscal.**
 
 Commits: `4c81cb16962ca51d8aae5523ba70345c624c3519` (código) e `578c5e50919e7ad602ce0b02e5bb79fd889dd1fd` (teste). Resultado da CI no SHA final: **a confirmar**, não atribuir PASS. O avanço local não publicado da fixture `phase31-b3-native-v2-emulator.mjs` com recibo de R$ 450 distribuído por duas vendas/parcelas não foi substituído nem reproduzido, e permanece **sem comprovação CI** neste SHA. G4 continua PARTIAL, assim como B.4. `PREPARATION_OF_C_ALLOWED=false`; `EXECUTION_OF_C_ALLOWED=false`. Preservados 259 requisitos e 20 cenários MASTER.
+
+## Retomada B.4 — provas nativas adicionais e G4 (2026-11-07)
+
+**Base auditada:** `1360f615e7f86440492533beb33f9040ffbcb1a9`. O teste original `scripts/distribution/phase31-b3-native-v2-emulator.mjs` permaneceu **intacto**. O diff local perdido não foi recuperado literalmente; a capacidade informada no histórico foi reproduzida em fixture nova, evitando sobrescrever evidências.
+
+**G2/G5 — prova multivenda independente:** `scripts/distribution/phase31-b4-multi-sale-v2-emulator.mjs` escreve duas vendas sintéticas através de **dois comandos PDV autenticados**, preservando `projetarHistoricoNovaVendaPDV` (uma venda por comando). Depois registra um único recebimento de **R$ 450**, alocado em **R$ 100** à primeira venda e **R$ 150 + R$ 200** a duas parcelas da segunda venda. Confere saldo agregado **R$ 1.600 → R$ 1.150**, único documento financeiro REC1, metadados da alocação e retry idempotente com fingerprint/guards idênticos. Nada disso comprova liquidação bancária externa.
+
+**G4 — prova nativa adicional:** `scripts/distribution/phase31-b4-native-returns-v2-emulator.mjs` registra uma devolução parcial de **R$ 400** e outra totalizando **R$ 1.000**, com quantidades **1 + 1 / 2**, confere lançamentos internos `DEVOLUCAO-D1` e `DEVOLUCAO-D2`, classificação interna e limites, retry idempotente e recusa tentativa adicional. O saldo do cliente não é compensado e nenhum pagamento/estorno/fiscal externo é simulado. São operações sintéticas em Emulator, não homologação de todo o fluxo de tela.
+
+**Endurecimento do conciliador:** `phase31ReturnLineage.js` detecta documentos repetidos, limites de quantidade e valor excedidos, divergência de snapshot e ausência de prova da venda original. A resposta separa `limitsVerified`, `externalSettlement:UNVERIFIED`, `fiscalAuthorization:UNVERIFIED` e `eligibleForExecution:false`. Histórico legado incompleto não pode ser promovido a compensação executável.
+
+**Provas CI concluídas:** [smoke G2/G5 + build #42420198166](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42420198166) — SUCCESS no SHA `2b2fc7635b6348b61cf6e27fe97b8c84984dc77b`; [smoke G2/G4/G5 + testes financeiros + build #42420385476](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42420385476) — SUCCESS no SHA `e111e3db538bd56063e6900521c5e64858265dbb`. As tentativas anteriores que falharam serviram para corrigir a fixture: não são PASS.
+
+**Regressão integrada:** [run #42420488604](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42420488604), disparada por atualização isolada de workflow no SHA `b1c8b849754a24d58414c6a9737bb34861273c40`. Registrar a conclusão **somente após consultar o resultado real**.
+
+**Pendências:** histórico legado, reversões bancárias externas, provas de liquidação multimoeda, perfis e cross-tenant completos, concorrência de todas as modalidades, os 56 cenários exigidos e aprovação integral de G1–G10. G4 continua **PARTIAL**; G2 e G5 também **PARTIAL**. Não elevar G8/G9 sem cobertura integral. Os 259 requisitos e 20 cenários originais foram preservados.
+
+`PREPARATION_OF_C_ALLOWED=false` e `EXECUTION_OF_C_ALLOWED=false`. Sem merge, deploy deliberado, baixa, restituição ou emissão fiscal real.
