@@ -4,12 +4,12 @@ import {allocateOriginalLine,makeCommercialDraft,transitionCommercialDraft,inter
 const sale={id:'O001',tipoDocumento:'venda',clienteId:'C1',moedaDocumento:'PYG',totalOriginal:199950,
  itens:[{id:'P1',qtd:5,totalBRL:150,precoPraticadoBRL:30}],taxasCambio:{BRL:1,PYG:1333}};
 const occurrence={id:'OCC1',tenantId:'tenant',establishmentId:'store',country:'PY',
- quantity:3,impactKind:'PHYSICAL',sourceKind:'MANUAL',factId:'fact1',
+ quantity:3,reason:'DELIVERY_SHORTAGE',impactKind:'PHYSICAL',sourceKind:'MANUAL',factId:'fact1',
  refs:{saleId:'O001',customerId:'C1',orderLineId:'0',productId:'P1'},
  states:{logistics:'CONFIRMED',fiscal:'NOT_REQUESTED',financial:'NOT_REQUESTED'},
  fiscalOriginal:{verified:true,id:'INV1',country:'PY',reference:'CDC1'}};
 const arg={id:'ADJ1',tenantId:'tenant',establishmentId:'store',occurrence,sale,
- type:'PARTIAL_RETURN',quantity:2,actorId:'admin',at:'2026-11-07T04:00:00Z',
+ type:'SHORTAGE',quantity:2,actorId:'admin',at:'2026-11-07T04:00:00Z',
  fiscalCandidate:'NOTA_CREDITO_ELECTRONICA'};
 test('historical weights, original exchange rates, PYG allocation and no float conversion',()=>{
  const d=makeCommercialDraft(arg);
