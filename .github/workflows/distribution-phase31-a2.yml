@@ -33,7 +33,7 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm ci --ignore-scripts --no-audit --no-fund --prefix operational-functions
       - name: Phase 3.1 foundation tests
-        run: node --test scripts/distribution/phase31-foundation.test.mjs scripts/distribution/phase31-client.test.mjs scripts/distribution/phase31-facts.test.mjs scripts/distribution/phase31-commercial.test.mjs scripts/distribution/phase31-reconciliation.test.mjs scripts/distribution/phase31-financial-links.test.mjs scripts/distribution/phase31-native-links.test.mjs
+        run: node --test scripts/distribution/phase31-c-gates.test.mjs scripts/distribution/phase31-foundation.test.mjs scripts/distribution/phase31-client.test.mjs scripts/distribution/phase31-facts.test.mjs scripts/distribution/phase31-commercial.test.mjs scripts/distribution/phase31-reconciliation.test.mjs scripts/distribution/phase31-financial-links.test.mjs scripts/distribution/phase31-native-links.test.mjs
       - name: React build
         run: npm run build
       - name: Firebase Emulator V2 integration tests
