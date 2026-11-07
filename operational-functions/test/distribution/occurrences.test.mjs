@@ -221,3 +221,20 @@ test('A3 trip-bound shortage uses actual signed delivery proof as immutable fact
  await assert.rejects(service.occurrenceQuery(other.uid,other.token,{
   type:'detail',occurrenceId:cmd.occurrenceId}),{code:'OCCURRENCE_NOT_FOUND'});
 });
+
+test('A3 informational invoice mismatch does not consume capacity of physical shortage',async()=>{
+ const f=await setup('PY');
+ const informative=await create(f,{reason:'INVOICE_DELIVERY_MISMATCH',quantity:2});
+ const physical=await create(f,{reason:'DELIVERY_SHORTAGE',quantity:3});
+ const info=(await detail(f,informative.cmd.occurrenceId)).occurrence;
+ const physicalOcc=(await detail(f,physical.cmd.occurrenceId)).occurrence;
+ assert.equal(info.impactKind,'INFORMATIONAL');
+ assert.equal(physicalOcc.impactKind,'PHYSICAL');
+ assert.notEqual(info.factId,physicalOcc.factId);
+ const facts=await db.collection(`${f.root}/distribution_occurrence_facts`).get();
+ assert.equal(facts.size,2);
+ assert.deepEqual(facts.docs.map(d=>d.data().active).sort((a,b)=>a-b),[1,3]);
+ const duplicate=createInput(f,{reason:'INVOICE_DELIVERY_MISMATCH',quantity:1});
+ duplicate.payload.id=duplicate.occurrenceId;
+ await assert.rejects(service.occurrenceCommand(f.uid,f.token,duplicate),{code:'DUPLICATE_FACT'});
+});
