@@ -112,7 +112,7 @@ export function createFiscalAdjustmentDraft(occurrence,{id,type,originalDocument
     eligibilityVerified:false
   });
   copy.fiscalDocuments.push(draft);copy.revision++;
-  copy.history.push({eventId,domain:'fiscal',from:'DRAFT',to:'DOCUMENT_REVIEW_REQUIRED',actorId,at,note:type});
+  copy.history.push({eventId,domain:'fiscal',from:occurrence.states.fiscal,to:'DOCUMENT_REVIEW_REQUIRED',actorId,at,note:type});
   // No fiscal, financial or inventory mutation is performed by this contract.
   return freeze(copy);
 }
