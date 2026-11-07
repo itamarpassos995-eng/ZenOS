@@ -16,6 +16,7 @@ on:
       - 'src/components/Vendas.jsx'
       - 'operational-functions/src/distribution/reconciliationService.js'
       - 'firestore.distribution-v2-emulator.rules'
+      - 'src/components/DistributionReconciliation.jsx'
 permissions:
   contents: read
 jobs:
