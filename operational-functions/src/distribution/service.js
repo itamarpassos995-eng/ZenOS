@@ -1,4 +1,5 @@
 import {buildTrips} from './trips.js';
+import {buildOccurrences} from './occurrenceService.js';
 import {buildSettlement} from './settlement.js';
 import {distributionPeriod} from '../../../src/core/distribution/period.js';
 import {criarEventoEstoque} from '../../../src/core/stockAuditCore.js';
@@ -271,5 +272,6 @@ export function distributionService(db,{now=()=>Date.now()}={}) {
  async function logout(uid,sessionToken){return db.runTransaction(async tx=>{const c=await ctx(tx,uid);await authorize(tx,uid,sessionToken,c,'any');tx.delete(db.doc(`${c.root}/distribution_sessions/${hash(sessionToken)}`));return {ok:true};});}
  const finalize=buildSettlement({db,ctx,authorize,login,now});
  const trips=buildTrips({db,ctx,authorize,finalize,now});
- return {login,command,query,logout,finalize,...trips};
+ const occurrences=buildOccurrences({db,ctx,authorize,now});
+ return {login,command,query,logout,finalize,...trips,...occurrences};
 }
