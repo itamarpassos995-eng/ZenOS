@@ -303,3 +303,27 @@ O commit documental é o que introduz simultaneamente estes três caminhos na br
 ## Adendos
 
 Nenhum adendo de escopo nesta entrega. A ordem de preservação desta execução define o processo de documentação e a parada após salvamento; não altera o conteúdo imutável do MASTER.
+
+
+## Continuidade — Entrega A inicial (sem aceite funcional)
+
+**Commits desta execução:** `7b7374e` (domínio), `9da592b` (host autorizado), `caad4ae` (testes), `ff09e61` (relatório), `2ba2ac3` (ajuste de histórico), `2cce6f4` (matriz).
+
+**Arquivos adicionados:**
+- `src/core/distribution/phase31Foundation.js`
+- `operational-functions/src/distribution/occurrences.js`
+- `scripts/distribution/phase31-foundation.test.mjs`
+- `docs/distribution-phase31-implementation-a.md`
+
+**Estados por grupo:**
+- EM TESTE (somente contratos não conectados ao servidor): `D31-01-001..006`, `D31-02-007`, `D31-02-010..011`, `D31-03-002`, `D31-03-017`, `D31-04-003..004`, `D31-04-007`, `D31-05-003..013`, `D31-05-015..017`, `D31-05-021..023`, `D31-05-026..028`, `D31-12-003`, `D31-12-006`, `D31-12-012..014`.
+- BLOQUEADO para **emissão fiscal real** em BR/PY: legislação e elegibilidade específicas, provedor autorizado e recibo oficial ainda não comprovados.
+- NÃO INICIADO / pendente de auditoria para todos os demais IDs, mantendo os 259 requisitos íntegros.
+
+**Evidência executada:** smoke de JS em interpretador V8 isolado, cobrindo estados, rascunho PY sem autorização, ausência de efeito financeiro e replay idempotente (com shim JSON de cópia). Não equivale à execução Node/Emulator. Testes unitários Node foram escritos, porém **ainda não executados nem homologados** neste ambiente; não reportar como aprovados.
+
+**Integração faltante:** servidor Firestore V2, permissões reais/PIN, persistência/receipts/outbox reais, Central PT/ES, validação das referências originais contra banco, fotos e evidências de produção, leis vigentes e provedor fiscal. As alterações locais não publicadas no Work continuam fora do alcance desta execução.
+
+**Próxima ação:** rodar `node --test scripts/distribution/phase31-foundation.test.mjs` em Node 22, completar integração real e homologar no Firebase Emulator antes de elevar quaisquer IDs para CONCLUÍDO. Ver [relatório da Entrega A](distribution-phase31-implementation-a.md).
+
+Nenhum merge, deploy, migração real ou alteração de clientes. MASTER não alterado.
