@@ -1070,6 +1070,20 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
         totalOriginal:converterDeBRL(totalFinalBRL,moeda),
 
         totalBRL: totalFinalBRL,
+        ...(tipoFinalizacao==='venda'&&valorFiadoOperacao>0?{
+          // B.4: actual credit is a single obligation unless a real installment
+          // schedule was configured. Never manufacture due dates or installments.
+          financeCreditV2:{
+            schema:1,receivableId:`REC-${vendaId}`,
+            originalBRL:Number(valorFiadoOperacao.toFixed(2)),
+            installments:[{
+              id:`INST-${vendaId}-AGGREGATE`,
+              amountBRL:Number(valorFiadoOperacao.toFixed(2)),
+              kind:'AGGREGATE_NO_SCHEDULE',dueAt:null
+            }]
+          },
+          creditAllocationsV2:[]
+        }:{}),
         lucroBRL: tipoFinalizacao === 'venda' ? totalFinalBRL - cmvVendaBRL : lucroEstimadoBRL,
         ...(tipoFinalizacao === 'venda' ? { cmvBRL: cmvVendaBRL } : {}),
         trocoBRL: tipoFinalizacao === 'venda' ? trocoTotalBRL : 0,
