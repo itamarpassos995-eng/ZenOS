@@ -61,7 +61,7 @@ export function reconcileLinkedObligations({sale,adjustment,ledger=[],complete=t
   installments.set(e.installmentId,{id:e.installmentId,receivableId:e.receivableId,
    original,paid:0n,reverse:0n,compensated:0n,events:[e.id],state:'PENDING',dueAt:e.vencimento||null});
  }
- const receipts=new Map(),reversals=new Map(),reversalKeys=new Set(),usedIds=new Set();
+ const receipts=new Map(),reversals=new Map(),compensationKeys=new Set(),usedIds=new Set();
  const entries=[...byId.values()].filter(e=>ADDITIVE.has(e.financeEventType))
    .sort((a,b)=>String(a.createdAt||'').localeCompare(String(b.createdAt||''))||a.id.localeCompare(b.id));
  for(const e of entries){
@@ -76,8 +76,6 @@ export function reconcileLinkedObligations({sale,adjustment,ledger=[],complete=t
    usedIds.add(e.paymentId);receipts.set(e.id,{event:e,amount:value});
    target.paid+=value;target.events.push(e.id);
   }else if(e.financeEventType==='REVERSAL'){
-   if(reversalKeys.has(e.sourceEventId)){issues.add('DUPLICATE_REVERSAL');continue;}
-   reversalKeys.add(e.sourceEventId);
    const origin=receipts.get(e.sourceEventId);
    if(!origin||origin.event.installmentId!==e.installmentId||
       origin.event.receivableId!==e.receivableId){issues.add('REVERSAL_ORIGIN_MISSING');continue}
@@ -86,8 +84,8 @@ export function reconcileLinkedObligations({sale,adjustment,ledger=[],complete=t
    reversals.set(e.sourceEventId,already+value);
    target.reverse+=value;target.events.push(e.id);
   }else{
-   if(reversalKeys.has('comp:'+e.sourceEventId)){issues.add('DUPLICATE_COMPENSATION');continue;}
-   reversalKeys.add('comp:'+e.sourceEventId);
+   if(compensationKeys.has(e.sourceEventId)){issues.add('DUPLICATE_COMPENSATION');continue;}
+   compensationKeys.add(e.sourceEventId);
    target.compensated+=value;previousCompensations+=value;target.events.push(e.id);
   }
  }
@@ -106,7 +104,7 @@ export function reconcileLinkedObligations({sale,adjustment,ledger=[],complete=t
  // This overlay handles full-credit sales only. Mixed immediate payment/fiado
  // needs separately proven payment allocation — no shortcut via customer balance.
  if(originalDebt!==amount)issues.add('SALE_OBLIGATIONS_MISMATCH');
- if(previousCompensations>adjust)issues.add('PRIOR_COMPENSATION_REVIEW_REQUIRED');
+
  if(ledger.length!==seen.size)issues.add('DUPLICATE_LEDGER_EVENT');
  const confirmed=issues.size===0;
  return {
