@@ -17,6 +17,19 @@ export const ADJUSTMENT_TYPES=Object.freeze([
  'PARTIAL_REFUSAL','WRONG_PRODUCT','REPLACEMENT','REPLENISHMENT',
  'POST_SALE_DISCOUNT','INVOICE_DELIVERY_MISMATCH'
 ]);
+export const TYPES_BY_OCCURRENCE=Object.freeze({
+ PICKING_SHORTAGE:Object.freeze(['SHORTAGE']),
+ DELIVERY_SHORTAGE:Object.freeze(['SHORTAGE']),
+ PARTIAL_DELIVERY:Object.freeze(['SHORTAGE','PARTIAL_RETURN']),
+ DAMAGED:Object.freeze(['DAMAGED','PARTIAL_RETURN','TOTAL_RETURN']),
+ TOTAL_REFUSAL:Object.freeze(['TOTAL_RETURN']),
+ PARTIAL_REFUSAL:Object.freeze(['PARTIAL_REFUSAL','PARTIAL_RETURN']),
+ LATER_RETURN:Object.freeze(['TOTAL_RETURN','PARTIAL_RETURN']),
+ WRONG_PRODUCT:Object.freeze(['WRONG_PRODUCT','REPLACEMENT']),
+ REPLACEMENT:Object.freeze(['REPLACEMENT','REPLENISHMENT']),
+ LOSS:Object.freeze(['SHORTAGE']),
+ INVOICE_DELIVERY_MISMATCH:Object.freeze(['INVOICE_DELIVERY_MISMATCH','POST_SALE_DISCOUNT'])
+});
 export const FISCAL_CANDIDATES=Object.freeze({
  PY:Object.freeze(['NOTA_CREDITO_ELECTRONICA','NOTA_REMISION_ELECTRONICA','CANCELAMENTO_REQUEST']),
  BR:Object.freeze(['NFE_DEVOLUCAO','NFE_ENTRADA','NFE_NOTA_CREDITO','CANCELAMENTO_REQUEST'])
@@ -71,6 +84,7 @@ export function makeCommercialDraft({id,tenantId,establishmentId,occurrence,sale
  check(occurrence?.tenantId===tenantId&&occurrence?.establishmentId===establishmentId&&
   occurrence.states?.logistics==='CONFIRMED'&&occurrence.states?.financial!=='SETTLED','OCCURRENCE_NOT_CONFIRMED');
  check(ADJUSTMENT_TYPES.includes(type),'ADJUSTMENT_TYPE_INVALID');
+ check(TYPES_BY_OCCURRENCE[occurrence.reason]?.includes(type)===true,'ADJUSTMENT_SOURCE_REASON_MISMATCH');
  check(['BR','PY'].includes(occurrence.country),'FISCAL_COUNTRY_NOT_CONFIGURED');
  check(fiscalCandidate===null||FISCAL_CANDIDATES[occurrence.country].includes(fiscalCandidate),'FISCAL_TYPE_COUNTRY_MISMATCH');
  check(occurrence.refs?.saleId===String(sale?.id)&&occurrence.refs?.customerId===String(sale?.clienteId),'SOURCE_REFERENCE_MISMATCH');
