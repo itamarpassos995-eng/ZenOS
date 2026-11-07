@@ -13,6 +13,7 @@ on:
       - 'src/core/distribution/phase31FinancialLinks.js'
       - 'operational-functions/src/distribution/reconciliationService.js'
       - 'scripts/distribution/phase31-native-links.test.mjs'
+      - 'scripts/distribution/phase31-b3-native-v2-emulator.mjs'
 permissions:
   contents: read
 jobs:
@@ -38,6 +39,8 @@ jobs:
       - name: Firebase Emulator V2 integration tests
         run: npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.distribution-v2.json 'node --test operational-functions/test/distribution/occurrences.test.mjs operational-functions/test/distribution/evidence.test.mjs operational-functions/test/distribution/commercial.test.mjs operational-functions/test/distribution/reconciliation.test.mjs operational-functions/test/distribution/financialLinks.test.mjs'
 
+      - name: Native B.3 V2 sale/receipt atomic write integration
+        run: npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.distribution-v2.json 'node scripts/distribution/phase31-b3-native-v2-emulator.mjs'
       - name: Previous phase 2 and 2.1 domain regressions
         run: npm run distribution:test
       - name: Previous phase 3 transaction regressions
