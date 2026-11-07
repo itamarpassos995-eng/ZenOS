@@ -6,7 +6,7 @@ const requireAdmin=createRequire(new URL('../../operational-functions/package.js
 const {initializeApp:initializeAdminApp,deleteApp:deleteAdminApp}=requireAdmin('firebase-admin/app');
 const {getFirestore:adminFirestore}=requireAdmin('firebase-admin/firestore');
 import {getAuth,connectAuthEmulator,createUserWithEmailAndPassword} from 'firebase/auth';
-import {getFirestore,connectFirestoreEmulator,doc,getDoc,setDoc,serverTimestamp} from 'firebase/firestore';
+import {getFirestore,connectFirestoreEmulator,doc,getDoc,setDoc} from 'firebase/firestore';
 import {getOperationalSnapshot,clearOperationalSession} from '../../src/core/operationalRepository.js';
 import {persistV1BusinessOperationSafe} from '../../src/core/productionSync.js';
 import {pdvCreditLink,validateFinanceLink} from '../../src/core/distribution/phase31NativeFinanceLinks.js';
@@ -38,7 +38,7 @@ try{
   marker:'B3_V1_UNTOUCHED',clientes:[client],historicoVendas:[]});
  console.log('[B4] SEED V1 OK / HEAD START');
  await fixtureDb.doc(root.join('/')).set({
-  schema:2,state:'ready',sequence:0,lastReceipt:'0'.repeat(64),updatedAtServer:serverTimestamp(),sourceChecksum:'b3-native-synthetic',
+  schema:2,state:'ready',sequence:0,lastReceipt:'0'.repeat(64),updatedAtServer:new Date(),sourceChecksum:'b3-native-synthetic',
   fieldManifest:manifest,fieldCounts:{clientes:1,historicoVendas:0},
   fieldRevisions:{clientes:0,historicoVendas:0}});
  console.log('[B4] HEAD OK / CLIENT START');
