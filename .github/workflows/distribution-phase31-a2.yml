@@ -1,22 +1,6 @@
 name: Distribution Phase 3.1 B.4 native finance and security validation
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - feat/distribution-logistics-foundation
-    paths:
-      - '.github/workflows/distribution-phase31-a2.yml'
-      - 'scripts/distribution/phase31-b3-native-v2-emulator.mjs'
-      - 'src/core/distribution/phase31ReturnLineage.js'
-      - 'scripts/distribution/phase31-return-lineage.test.mjs'
-      - 'scripts/distribution/phase31-credit-allocation.test.mjs'
-      - 'src/core/distribution/phase31CreditAllocation.js'
-      - 'src/components/Clientes.jsx'
-      - 'src/components/PDV.jsx'
-      - 'src/components/Vendas.jsx'
-      - 'operational-functions/src/distribution/reconciliationService.js'
-      - 'firestore.distribution-v2-emulator.rules'
-      - 'src/components/DistributionReconciliation.jsx'
 permissions:
   contents: read
 jobs:
