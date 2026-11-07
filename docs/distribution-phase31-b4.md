@@ -149,3 +149,7 @@ Commits: `4c81cb16962ca51d8aae5523ba70345c624c3519` (código) e `578c5e50919e7ad
 **G9 integrado:** [#42423103191](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42423103191), SHA `aa8656f504c2de3335dc0e46e1ffe44f763eea16`, adiciona estes testes ao workflow existente e executa regressões das Fases 2/2.1/3/3.1, build e Chromium. Estado final deve ser confirmado pelo GitHub, sem inferência.
 
 **Gate formal:** G1–G6, G8–G9 `PARTIAL` até evidências completas; G7 e G10 PASS histórico. `PREPARATION_OF_C_ALLOWED=false`, `EXECUTION_OF_C_ALLOWED=false`. Sem merge, deploy deliberado, dados reais, baixa financeira ou emissão fiscal. MASTER de 259 requisitos intacto.
+
+### Confirmação posterior — CI G9 integrada (2026-11-07)
+
+**GitHub Actions [#42423103191](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42423103191): SUCCESS**, SHA de execução `aa8656f504c2de3335dc0e46e1ffe44f763eea16`. Etapas aprovadas: prova cliente V2; testes 3.1 incluindo legados G4 e FX G3; build React; integração Firebase V2 incluindo operador G6 e concorrência G5; regressões de fases anteriores; Chromium desktop/mobile e evidências de navegador. **G9 mantém PARTIAL por cobertura incompleta dos 20 cenários MASTER e ausência da lista canônica dos 56 adicionais**; sucesso técnico de CI não é homologação fiscal ou bancária. Os commits posteriores ao SHA testado são exclusivamente documentais. C bloqueada.
