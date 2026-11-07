@@ -8,7 +8,7 @@ import {setupTrip,planned,route,trip,db,service,PIN} from './trip-fixture.mjs';
 const operator=(id,permissoes={})=>({id,patente:'vendedor',permissoes});
 test('G6 explicit grants use existing operator vocabulary, finance needs PDV',()=>{
  const matrix=[
-  {id:'admin',permissions:{},allowed:['admin','stock','trip','driver','manage','returns','finance','fiscalReview','pdv']},
+  {id:'admin',permissions:{},allowed:['admin','stock','trip','tripView','driver','manage','returns','finance','fiscalReview','pdv']},
   {id:'driver',permissions:{distributionDriver:true},allowed:['driver','trip','tripView']},
   {id:'manager',permissions:{distributionManage:true},allowed:['manage','trip','tripView','fiscalReview']},
   {id:'returns',permissions:{distributionReturns:true},allowed:['returns','trip','tripView']},
