@@ -183,10 +183,27 @@ export function buildOccurrences({db,ctx,authorize,now=()=>Date.now()}) {
     if(!s.exists||s.data().generation!==c.generation)error('OCCURRENCE_NOT_FOUND');
     return {occurrence:s.data()};
    }
-   if(input.type!=='list')error('INVALID_QUERY');
+   if(input.type!=='list'&&input.type!=='sourceOrders')error('INVALID_QUERY');
+   if(input.type==='sourceOrders')await authorize(tx,uid,sessionToken,c,'returns');
    const from=Number(input.from),to=Number(input.to),limit=Number(input.limit??12);
    if(!Number.isSafeInteger(from)||!Number.isSafeInteger(to)||to<=from||
      to-from>370*86400000||!Number.isSafeInteger(limit)||limit<1||limit>30)error('INVALID_PERIOD');
+   if(input.type==='sourceOrders'){
+    let q=db.collection(`${c.base}/vendas`).where('data.createdAt','>=',new Date(from).toISOString())
+      .where('data.createdAt','<',new Date(to).toISOString()).orderBy('data.createdAt').orderBy('__name__');
+    if(input.cursor){
+     if(!validKey(input.cursor.id)||!Number.isFinite(Date.parse(input.cursor.at)))error('INVALID_CURSOR');
+     q=q.startAfter(input.cursor.at,entityDoc(c,'vendas',input.cursor.id));
+    }
+    const page=await tx.get(q.limit(limit+1)),docs=page.docs.slice(0,limit);
+    const items=docs.filter(d=>!d.data().deleted&&['venda','pre_pedido'].includes(d.data().data?.tipoDocumento))
+      .map(d=>{const o=d.data().data;return {id:String(o.id),clienteId:String(o.clienteId||''),
+       clienteNome:o.clienteNome||'',moedaDocumento:o.moedaDocumento,
+       itens:(o.itens||[]).map(i=>({nome:i.nome,qtd:i.qtd,
+        produtoOriginalId:String(i.produtoOriginalId??i.id),sku:i.produtoOriginalSku??i.sku}))};});
+    const last=docs.at(-1);
+    return {items,next:page.size>limit&&last?{id:last.id,at:last.data().data.createdAt}:null};
+   }
    let q=db.collection(`${c.root}/distribution_occurrences`)
     .where('createdAt','>=',from).where('createdAt','<',to).orderBy('createdAt').orderBy('__name__');
    if(input.cursor){
