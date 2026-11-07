@@ -281,6 +281,9 @@ export default function Clientes({ userId,perfilLoja = {}, commitOperacaoNegocio
           changes, financialEntries:[financeiro],
           guards: [
             { type:'client_receipt_snapshot', clientId:clienteAtual.id, clientName:clienteAtual.nome, balanceBRL:saldoAntes },
+            ...(vendaVinculada?[{type:'entity_field_equals',field:'historicoVendas',
+             entityId:String(vendaVinculada.id),entityKey:'id',property:'clienteId',
+             expected:vendaVinculada.clienteId,message:'Venda vinculada alterada. Recebimento bloqueado.'}]:[]),
             ...(dinheiroFisico ? [{ type:'cash_session_open', sessionId:sessaoAtiva.id }] : []),
           ],
           operationKey: 'recebimento-fiado:' + recebimentoId,
