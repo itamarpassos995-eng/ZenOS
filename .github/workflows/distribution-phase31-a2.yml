@@ -1,17 +1,6 @@
 name: Distribution Phase 3.1 A.2 validation
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - feat/distribution-logistics-foundation
-    paths:
-      - 'operational-functions/src/distribution/**'
-      - 'operational-functions/test/distribution/occurrences.test.mjs'
-      - 'src/core/distribution/**'
-      - 'src/components/DistributionCentral.jsx'
-      - 'src/components/DistributionOccurrences.*'
-      - 'scripts/distribution/phase31-foundation.test.mjs'
-      - '.github/workflows/distribution-phase31-a2.yml'
 permissions:
   contents: read
 jobs:
