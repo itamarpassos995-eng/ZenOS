@@ -7,7 +7,7 @@ import { interpretarValorMonetario } from '../core/cashMoneyInput';
 import { auditarVinculosFiado, encontrarConflitosIdsRecebimento } from '../core/clientCreditLinkAudit';
 import {validateFinanceLink} from '../core/distribution/phase31NativeFinanceLinks.js';
 
-export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, historicoVendas = [], setClientes, moeda, fmt, t, tx = (pt) => pt, converterDeBRL, converterParaBRL }) {
+export default function Clientes({ userId,perfilLoja = {}, commitOperacaoNegocio, livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, historicoVendas = [], setClientes, moeda, fmt, t, tx = (pt) => pt, converterDeBRL, converterParaBRL }) {
   const [filtroPaisCliente, setFiltroPaisCliente] = useState('todos');
   const [buscaClienteTexto, setBuscaClienteTexto] = useState('');
   
@@ -245,7 +245,7 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
       statusLiquidacao:'REGISTERED_UNVERIFIED',
       currencyEvidence:{valorAtribuidoBRL:valBRL,taxaCambioAplicada:valorOriginal/valBRL,
        data:createdAt,fonte:'CAIXA_ZENOS_REGISTRO_LOCAL'}
-    },{lojaId:String(vendaVinculada.lojaId||clienteAtual.lojaId||'not-required'),
+    },{lojaId:String(userId),
        referenciaId:recebimentoId,clienteId:clienteAtual.id,ledgerId:recebimentoId}):null;
     const financeiro = {
       id: recebimentoId,
