@@ -125,7 +125,9 @@ try{
  assert.equal(after.historicoVendas.find(v=>v.id==='V1').creditAllocationsV2[0].allocations[0].amountBRL,250);
  const again=await persistV1BusinessOperationSafe({db,userId:uid,
   changes:[{field:'clientes',baseValue:before.clientes,
-   value:[{...before.clientes[0],saldoDevedorBRL:750}]}],
+   value:[{...before.clientes[0],saldoDevedorBRL:750}]},
+   {field:'historicoVendas',baseValue:before.historicoVendas,
+    value:plan.patches.map(x=>x.nextSale)}],
   financialEntries:[receipt],
   guards:[{type:'client_receipt_snapshot',clientId:'C1',
    clientName:client.nome,balanceBRL:1000},
