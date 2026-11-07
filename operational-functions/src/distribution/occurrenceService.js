@@ -18,9 +18,9 @@ const decimalMinor=(value,precision)=>{
 const permissions={
  'distribution.occurrence.create':'returns',
  'distribution.occurrence.review':'returns',
- 'distribution.fiscal.review':'manage',
+ 'distribution.fiscal.review':'fiscalReview',
  'distribution.finance.review':'finance',
- 'distribution.fiscal.draft':'manage'
+ 'distribution.fiscal.draft':'fiscalReview'
 };
 function fiscalSource(sale,country){
  // An approved existing fiscal reference is required before drafting an adjustment.
