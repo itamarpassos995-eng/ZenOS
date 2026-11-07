@@ -419,3 +419,17 @@ Resultado real nos logs:
 - Evidências: artifact `distribution-phase31-b-browser-evidence` ID **13556540282**, acessível na página do run acima; capturas `commercial-internal-pt.png`, `occurrences-desktop-pt.png`, `occurrences-mobile-es.png`, além de `browser-integrity.json` e `database-integrity.json`.
 
 **Aceite:** implementação B **homologada para os cenários sintéticos efetivamente testados**, com bloqueios para emissão fiscal real e compensação financeira. Conciliação de parcelas efetivamente pagas, qualificação fiscal definitiva por UF/regime, parecer/consentimento SIFEN, PDF fiscal validado e revisão legal/contábil por empresa continuam **pendentes**. Nenhuma transação da Entrega C foi executada. O MASTER dos 259 IDs permanece intacto; nenhum ID agregado pode ser encerrado por presunção.
+
+
+## Entrega B.1 — conciliação financeira de origem (homologação parcial)
+
+[Relatório técnico B.1](distribution-phase31-b1.md). O MASTER original de **259 requisitos e 20 cenários permanece intacto**, sem fechamento agregado indevido.
+
+| IDs afetados | Implementação verificável | Estado | O que impede aceite integral |
+|---|---|---|---|
+| D31-06-*; D31-07-*; D31-08-* | `phase31Reconciliation.js` lê origens V2 e separa confirmação do pagamento, dívida original e proposta financeira não executada | **EM TESTE** | Liquidações do fiado por parcela não vinculadas à venda, provas de liquidação externa e política comercial aprovada |
+| D31-09-*; D31-10-* | Histórico de conciliação versionado, vínculo ao ajuste B, estado `STALE` após mudança das fontes | **EM TESTE** | Conciliação de estornos anteriores, conciliação fiscal válida e protocolos de terceiros |
+| D31-12-*; D31-15-* | Servidor financeiro autenticado, recibos idempotentes, consulta limitada a 31 registros, painel sob demanda PT/ES | **EM TESTE** | Regra/índices instalados em produção, consultas extensas, medição faturável de leituras |
+| D31-16-* | Testes `phase31-reconciliation.test.mjs`, `reconciliation.test.mjs`, CI Node/Firestore/Chromium | **EM TESTE** | Homologação final, 32 casos B.1, regressões completas e evidências por jurisdição |
+
+**Importante:** livro `financeiro_livro` e venda `pagamentos` não possuem vínculo universal de parcela/pagamento liquidado. A B.1 trata lacunas como bloqueios; ela **não** baixa crédito, não cria restituição, não altera livro financeiro e não registra pagamento presumido. As evidências definitivas de CI serão vinculadas em adendo após validação final.
