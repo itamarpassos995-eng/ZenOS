@@ -473,3 +473,20 @@ Não foi feita migração histórica, nenhuma baixa de parcelas, estorno, crédi
 | D31-16-* | `phase31-native-links.test.mjs`, `phase31-c-gates.test.mjs`, integração Emulator das fases anteriores e prova nativa separada | EM TESTE | Validar run final, 38 cenários completos e prova de transação cliente estrita |
 
 **Decisão formal:** `PREPARATION_OF_C_ALLOWED=false`. Trava em `src/core/distribution/phase31CGates.js` exige G1–G10 em PASS com SHA e evidências; `EXECUTION_OF_C_ALLOWED` nunca é habilitada pela B.3. Nenhum merge, deploy, migração real, alteração de estoque, caixa ou restituição foi autorizado.
+
+
+## Homologação consolidada B.3 — CI #42333625128
+
+A execução [GitHub Actions #42333625128](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42333625128) terminou em **SUCCESS**, com SHA testado `2ec5060a1ce9bd8df7ad8d93e31cc1e772e19428`:
+
+- **36/36** testes Node incluindo contratos nativos e a trava formal G1–G10;
+- **34/34** testes Firestore/Auth Emulator (serviços de distribuição e conciliação);
+- **61/61** testes de regressão de domínio e **15/15** testes transacionais da Fase 3;
+- regressões de concorrência das Fases 2 e 3: **SUCCESS**;
+- build React/Vite: **SUCCESS**;
+- Chromium PT desktop e ES mobile: **SUCCESS**, incluindo cenário sintético de fiado parcial e integridade V2;
+- artefato [`distribution-phase31-b3-browser-evidence`](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42333625128/artifacts/13558587344), ID `13558587344`, com imagens e JSONs de integridade.
+
+**Diferença essencial de escopo:** esse workflow validou os contratos puros, a integração do servidor de conciliação e os fluxos Chromium já existentes. **Não executou o script separado `phase31-b3-native-v2-emulator.mjs`**; sua execução anterior falhou nas regras V2 estritas com `PERMISSION_DENIED` (evidências acima). As alterações posteriores a esse SHA incluem exclusivamente restauração das regras do Emulator à baseline e documentação. Nenhum PASS pode ser atribuído ao teste que foi excluído.
+
+**Gate G9 = PARTIAL, G1 = PARTIAL, G4 = BLOCKED.** Os demais estão na matriz G1–G10 desta página. Em particular, faltam vínculos nativos por parcela e distribuição entre múltiplas vendas, reversões anteriores verificadas por transação, confirmação bancária independente e todos os 38 cenários da ordem B.3. A situação formal permanece `PREPARATION_OF_C_ALLOWED=false` e `EXECUTION_OF_C_ALLOWED=false`. Nenhum merge, deploy, migração em cliente real ou estorno.
