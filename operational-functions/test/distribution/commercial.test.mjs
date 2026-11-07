@@ -27,7 +27,7 @@ async function occurrence(f,{quantity=3,country='PY',saleId='O001'}={}){
 function create(f,occId,extra={}){
  const id='ADJ-'+randomUUID(),key=randomUUID();
  return {id,key,occurrenceId:occId,type:'CREATE',expectedRevision:0,
-  payload:{type:'PARTIAL_RETURN',quantity:2,fiscalCandidate:'NOTA_CREDITO_ELECTRONICA',...extra}};
+  payload:{type:'SHORTAGE',quantity:2,fiscalCandidate:'NOTA_CREDITO_ELECTRONICA',...extra}};
 }
 const invoke=(f,cmd)=>service.adjustmentCommand(f.uid,f.session,cmd);
 const read=(f,id)=>service.adjustmentQuery(f.uid,f.session,{type:'detail',id});
@@ -74,11 +74,11 @@ test('B forbids across-country fiscal candidates, fabricated values and unauthor
  const f=await setup('BR'),occ=await occurrence(f,{country:'BR'});
  const cmd=create(f,occ);
  await assert.rejects(invoke(f,cmd),{code:'FISCAL_TYPE_COUNTRY_MISMATCH'});
- await assert.rejects(invoke(f,{...cmd,key:randomUUID(),payload:{type:'PARTIAL_RETURN',quantity:2,amount:1}}),
+ await assert.rejects(invoke(f,{...cmd,key:randomUUID(),payload:{type:'SHORTAGE',quantity:2,amount:1}}),
  {code:'CLIENT_SOURCE_FORBIDDEN'});
  const onlyStock=await service.login(f.uid,{operatorId:'stock',pin:PIN});
  await assert.rejects(service.adjustmentCommand(f.uid,onlyStock.sessionToken,{
-  ...cmd,key:randomUUID(),payload:{type:'PARTIAL_RETURN',quantity:2}}),{code:'FORBIDDEN'});
+  ...cmd,key:randomUUID(),payload:{type:'SHORTAGE',quantity:2}}),{code:'FORBIDDEN'});
  const valid=create(f,occ,{fiscalCandidate:'NFE_DEVOLUCAO'});
  await invoke(f,valid);
  const saved=(await read(f,valid.id)).adjustment;
