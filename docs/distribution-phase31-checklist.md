@@ -429,3 +429,17 @@ Resultado real nos logs:
 - [Artefato de evidências](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42329581878/artifacts/13556877310) `distribution-phase31-b1-browser-evidence`, ID **13556877310**: capturas, `reconciliation-browser-integrity.json`, `database-integrity.json` e relatórios Chromium.
 
 **Limites expressos:** aprovação de testes sintéticos não prova liquidação bancária nem conciliação de contas a receber de clientes reais. O livro financeiro atual não impõe referência universal de parcela/pagamento e liquidação externa; essas fontes ficam pendentes sem inferência. Os **32 cenários de aceite da ordem B.1** não estão todos comprovados (especialmente parcelas reais, recebimentos multimoeda com câmbio histórico e reversões anteriores). Nenhum dos 259 requisitos do MASTER foi marcado automaticamente concluído. A Entrega C continua bloqueada; não houve merge, deploy, migração, estorno ou efeito em caixa/estoque.
+
+
+## Entrega B.2 — vínculos financeiros explicitamente comprovados
+
+[Relatório técnico B.2](distribution-phase31-b2.md). O MASTER original de **259 requisitos/20 cenários** está intacto. O resultado abaixo significa cobertura técnica parcial, não emissão/autorização financeira.
+
+| Grupo | Prova técnica | Estado | Aceite ainda bloqueado |
+|---|---|---|---|
+| D31-06-* / D31-07-* / D31-08-* | `phase31FinancialLinks.js`: vínculo explícito venda-parcela-recebimento; 3 pagamentos parciais, saldo em minor units; estornos parciais por evento de origem | EM TESTE | Recebimentos legados sem `financeLinkVersion:2`, fluxo nativo de gravação de parcelas e divisão de pagamentos entre vendas |
+| D31-09-* / D31-10-* | `reconciliationService.js`: hash da fonte, revisão e histórico `STALE`; `FinancialCompensationEligibilityV1` somente leitura | EM TESTE | Conciliação de créditos fiscais oficiais e execução financeira (Entrega C) |
+| D31-12-* / D31-15-* | Servidor com PIN/permissão `finance`, segregação por tenant e consulta paginada por `referenciaId` até 300 eventos; nenhuma varredura global | EM TESTE | Índices de produção não instalados; eventos acima do limite bloqueados; métricas de faturamento Firestore não comprovadas |
+| D31-16-* | `phase31-financial-links.test.mjs`, `financialLinks.test.mjs`, Chromium na branch, CI | EM TESTE | Validar run final com o código consolidado; nem todos os 42 casos da ordem B.2 têm evidência |
+
+Não foi feita migração histórica, nenhuma baixa de parcelas, estorno, crédito financeiro, alteração no caixa, estoque ou PDV de produção. A liberação da preparação da Entrega C permanece **condicionada** à integração e homologação dos vínculos financeiros reais, sem concessão automática de autorização.
