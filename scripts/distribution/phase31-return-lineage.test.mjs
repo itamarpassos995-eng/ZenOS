@@ -38,3 +38,36 @@ test('B4 rejects duplicate journal evidence even when the repeated entry looks v
  assert.equal(result.eligibleForExecution,false);
  assert.equal(result.externalSettlement,'UNVERIFIED');
 });
+
+test('B4 verifies partial and total returned quantities only with sale and journal snapshots',()=>{
+ const base={...sale,totalBRL:100,itens:[{id:'I1',qtd:2,qtdDevolvida:2}],
+  devolucoes:[{...sale.devolucoes[0],itens:[{itemVendaId:'I1',quantidade:1}]},
+   {id:'D2',valorBRL:25,itens:[{itemVendaId:'I1',quantidade:1}]}]};
+ const other={...journal,id:'DEVOLUCAO-D2',referenciaId:'D2',valor:25};
+ const r=check(base,[journal,other]);
+ assert.equal(r.classification,'VERIFIED');
+ assert.equal(r.limitsVerified,true);
+ assert.equal(r.limitEvidence,'RETURN_CAPACITY_MATCHED');
+ assert.equal(r.eligibleForExecution,false);
+ assert.equal(r.externalSettlement,'UNVERIFIED');
+});
+
+test('B4 blocks return above original quantity and original monetary value',()=>{
+ const original={...sale,totalBRL:100,itens:[{id:'I1',qtd:2,qtdDevolvida:3}],
+  devolucoes:[{...sale.devolucoes[0],itens:[{itemVendaId:'I1',quantidade:3}]}]};
+ const overQty=check(original);
+ assert.equal(overQty.classification,'CONFLICT');
+ assert.equal(overQty.limitEvidence,'RETURN_QUANTITY_EXCEEDED');
+ const overValue=check({...original,totalBRL:50,
+  itens:[{id:'I1',qtd:3,qtdDevolvida:3}]});
+ assert.equal(overValue.classification,'CONFLICT');
+ assert.equal(overValue.limitEvidence,'RETURN_VALUE_EXCEEDED');
+});
+
+test('B4 never claims limits verified without original historical item evidence',()=>{
+ const result=check();
+ assert.equal(result.classification,'VERIFIED');
+ assert.equal(result.limitsVerified,false);
+ assert.equal(result.limitEvidence,'RETURN_QUANTITY_SOURCE_MISSING');
+ assert.equal(result.eligibleForExecution,false);
+});
