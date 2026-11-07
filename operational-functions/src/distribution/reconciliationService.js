@@ -1,5 +1,6 @@
 import {hash,id,error} from './security.js';
 import {calculateFinancialOrigin,canonicalFinancialSource} from '../../../src/core/distribution/phase31Reconciliation.js';
+import {reconcileLinkedObligations} from '../../../src/core/distribution/phase31FinancialLinks.js';
 /** Emulator-only read-audit host. Reads V2 sale and existing financeiro_livro.
  * No writes to sales, receivables, cash, customer, payments or stock.
  */
@@ -8,27 +9,41 @@ export function buildFinancialReconciliation({db,ctx,authorize,now=()=>Date.now(
  const document=(c,collection,key)=>db.doc(`${c.root}/${collection}/${id(key)}`);
  async function sources(tx,c,adjustment){
   const saleRef=db.doc(`${c.base}/vendas/${id(adjustment.saleId)}`);
-  const [saleSnap,customerSnap,ledgerSnap]=await Promise.all([
+  const [saleSnap,customerSnap]=await Promise.all([
    tx.get(saleRef),
-   tx.get(db.doc(`${c.base}/clientes/${id(adjustment.customerId)}`)),
-   tx.get(db.collection(`${c.root}/financeiro_livro`)
-    .where('referenciaId','==',adjustment.saleId).limit(31))
+   tx.get(db.doc(`${c.base}/clientes/${id(adjustment.customerId)}`))
   ]);
+  // B.2 cursor pagination avoids downloading a whole collection. A bounded scan
+  // that cannot prove completeness must fail closed; never silently truncate.
+  const financialQuery=db.collection(`${c.root}/financeiro_livro`)
+    .where('referenciaId','==',adjustment.saleId).orderBy('__name__');
+  const pages=[];let cursor=null,sourceComplete=false,readCount=2;
+  for(let p=0;p<10;p++){
+   const query=cursor?financialQuery.startAfter(cursor).limit(31):financialQuery.limit(31);
+   const page=await tx.get(query);readCount+=page.size;
+   if(page.size===0){sourceComplete=true;break;}
+   const take=page.docs.slice(0,30);pages.push(...take);
+   if(page.size<=30){sourceComplete=true;break;}
+   cursor=take.at(-1);
+  }
   if(!saleSnap.exists||saleSnap.data().deleted||!customerSnap.exists||
      customerSnap.data().deleted)error('SOURCE_NOT_FOUND');
   const sale=saleSnap.data().data;
   if(String(sale.id)!==adjustment.saleId||String(sale.clienteId)!==adjustment.customerId)
    error('SOURCE_REFERENCE_MISMATCH');
-  const ledger=ledgerSnap.docs.slice(0,30).map(d=>({...d.data(),id:d.id}));
+  const ledger=pages.map(d=>({...d.data(),id:d.id}));
   if(ledger.some(e=>e.lojaId&&String(e.lojaId)!==adjustment.tenantId))
    error('FOREIGN_LEDGER_RECORD');
-  const sourceComplete=ledgerSnap.size<=30;
+  const hasV2Links=ledger.some(e=>e.financeLinkVersion===2);
+  // Do not mix verified V2 credit with unlinked legacy entries.
+  const computed=hasV2Links?
+   reconcileLinkedObligations({sale,adjustment,ledger,complete:sourceComplete}):
+   calculateFinancialOrigin({sale,adjustment,ledger,sourceComplete});
   const sourceFingerprint=hash(canonicalFinancialSource({
    sale,ledger,sourceComplete,customerId:customerSnap.data().data?.id,
    saleVersion:saleSnap.data().version,customerVersion:customerSnap.data().version
   }));
-  const computed=calculateFinancialOrigin({sale,adjustment,ledger,sourceComplete});
-  return {computed,sourceFingerprint,readCount:2+ledgerSnap.size};
+  return {computed,sourceFingerprint,readCount};
  }
  async function reconciliationCommand(uid,sessionToken,input){
   if(!keyOk(input?.adjustmentId)||!keyOk(input?.key)||
