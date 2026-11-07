@@ -20,14 +20,15 @@ export const token = () => randomBytes(32).toString('hex');
 export const distributionPermission=(op,scope='stock')=>{
  if(!op)return false;
  if(op.id==='admin'||op.permissoes?.admin===true)return true;
- if(scope==='tripView')return ['distributionManage','distributionReturns','distributionFinance'].some(k=>op.permissoes?.[k]===true);
+ if(scope==='tripView')return ['distributionManage','distributionReturns','distributionFinance','distributionFiscalReview'].some(k=>op.permissoes?.[k]===true);
  if(scope==='any')return canOperate(op)||distributionPermission(op,'trip');
- if(scope==='trip')return ['distributionDriver','distributionManage','distributionReturns','distributionFinance'].some(k=>op.permissoes?.[k]===true);
+ if(scope==='trip')return ['distributionDriver','distributionManage','distributionReturns','distributionFinance','distributionFiscalReview'].some(k=>op.permissoes?.[k]===true);
  if(scope==='admin')return false;
  if(scope==='pdv')return op.permissoes?.pdv===true;
  if(scope==='driver')return op.permissoes?.distributionDriver===true;
  if(scope==='manage')return op.permissoes?.distributionManage===true;
  if(scope==='returns')return op.permissoes?.distributionReturns===true;
  if(scope==='finance')return op.permissoes?.distributionFinance===true && op.permissoes?.pdv===true;
+ if(scope==='fiscalReview')return op.permissoes?.distributionFiscalReview===true||op.permissoes?.distributionManage===true;
  return canOperate(op);
 };
