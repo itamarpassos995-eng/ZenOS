@@ -23,7 +23,7 @@ try{
  await run(['scripts/distribution/phase31-a2-browser.mjs']);
  await run(['scripts/distribution/phase31-b1-browser.mjs']);
  const stock=(await db.doc(`${f.base}/produtos/P1`).get()).data().data;
- const ledger=await db.collection(`${f.base}/financeiro_livro`).get();
+ const ledger=await db.collection(`${f.root}/financeiro_livro`).get();
  const occurrences=await db.collection(`${f.root}/distribution_occurrences`).get();
  if(stock.estoque!==100||ledger.size!==4||occurrences.size!==1)throw Error('OCCURRENCE_INTEGRITY_FAILED');
  const expectedEvents=new Set(['DEBT1','PAY1','PAY2','PAY3']);
