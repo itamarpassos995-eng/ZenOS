@@ -29,12 +29,21 @@ try{
  if(o.fiscalDocuments.length!==1||o.fiscalDocuments[0].authorized!==false||
    o.fiscalDocuments[0].eligibilityVerified!==false||
    o.states.financial!=='NOT_REQUESTED')throw Error('FISCAL_DRAFT_EFFECT_CONFLICT');
+ const adjustments=await db.collection(`${f.root}/distribution_adjustments`).get();
+ const representations=await db.collection(`${f.root}/distribution_adjustment_representations`).get();
+ const lineReservations=await db.collection(`${f.root}/distribution_adjustment_sale_lines`).get();
+ if(adjustments.size!==1||representations.size!==1||lineReservations.size!==1||
+   adjustments.docs[0].data().fiscalDocument.authorized!==false||
+   adjustments.docs[0].data().financialPreview.state!=='RECONCILIATION_REQUIRED'||
+   adjustments.docs[0].data().value.currency!=='PYG'||
+   adjustments.docs[0].data().value.minor!=='79980')
+  throw Error('COMMERCIAL_ADJUSTMENT_INTEGRITY_FAILED');
  const evidence=await db.collection(`${f.root}/distribution_evidence`).get();
  if(evidence.size!==1||o.evidence?.length!==1||o.evidence[0].base64!==undefined||
    !o.evidence[0].sha256||o.evidence[0].status!=='INVALIDATED'||evidence.docs[0].data().status!=='INVALIDATED')throw Error('PRIVATE_EVIDENCE_INTEGRITY_FAILED');
  await writeFile('tmp/distribution31a2/database-integrity.json',JSON.stringify({
   passed:true,stock:stock.estoque,ledgerEntries:ledger.size,occurrences:occurrences.size,
-  financialState:o.states.financial,fiscalState:o.states.fiscal,authorized:o.fiscalDocuments[0].authorized,privateEvidence:evidence.size
+  financialState:o.states.financial,fiscalState:o.states.fiscal,authorized:o.fiscalDocuments[0].authorized,privateEvidence:evidence.size,commercialDrafts:adjustments.size,commercialMinor:adjustments.docs[0].data().value.minor
  },null,2));
  console.log('PHASE31_A2_BROWSER_AND_DATABASE_SUCCESS');
 }finally{
