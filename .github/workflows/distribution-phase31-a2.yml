@@ -6,6 +6,9 @@ on:
       - feat/distribution-logistics-foundation
     paths:
       - '.github/workflows/distribution-phase31-a2.yml'
+      - 'operational-functions/src/distribution/occurrenceFacts.js'
+      - 'operational-functions/src/distribution/occurrenceService.js'
+      - 'operational-functions/test/distribution/occurrences.test.mjs'
 permissions:
   contents: read
 jobs:
