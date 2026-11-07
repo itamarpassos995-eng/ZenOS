@@ -78,10 +78,10 @@ try{
  console.log('[B4] SESSION OK / NATIVE SALE COMMIT START');
  const first=await persistV1BusinessOperationSafe({db,userId:uid,
   changes:[
-   {field:'historicoVendas',baseValue:initial.historicoVendas,value:[sale,sale2]},
+   {field:'historicoVendas',baseValue:initial.historicoVendas,value:[sale]},
    {field:'clientes',baseValue:initial.clientes,
-    value:[{...client,saldoDevedorBRL:1600}]}
-  ],financialEntries:[obligation,obligation2],operationKey:'pdv:V1'});
+    value:[{...client,saldoDevedorBRL:1000}]}
+  ],financialEntries:[obligation],operationKey:'pdv:V1'});
  assert.equal(first.cloudOk,true,first.error?.message);
  const bill=(await getDoc(doc(db,'lojas',uid,'financeiro_livro',obligation.id))).data();
  assert.equal(bill.valor,1000);
@@ -89,6 +89,19 @@ try{
  assert.equal(bill.financeLink.financeEventType,'OBLIGATION');
  assert.equal(bill.financeLink.saleId,'V1');
  assert.equal(bill.financeLink.statusLiquidacao,'DEBT_REGISTERED');
+ // The native PDV intentionally allows only ONE new sale per pdv:* command.
+ // Create V2 as a second independently authenticated business transaction.
+ const afterFirst=(await getOperationalSnapshot(db,uid)).data();
+ assert.equal(afterFirst.historicoVendas.length,1);
+ assert.equal(afterFirst.clientes[0].saldoDevedorBRL,1000);
+ const second=await persistV1BusinessOperationSafe({db,userId:uid,
+  changes:[
+   {field:'historicoVendas',baseValue:afterFirst.historicoVendas,
+    value:[...afterFirst.historicoVendas,sale2]},
+   {field:'clientes',baseValue:afterFirst.clientes,
+    value:[{...afterFirst.clientes[0],saldoDevedorBRL:1600}]}
+  ],financialEntries:[obligation2],operationKey:'pdv:V2'});
+ assert.equal(second.cloudOk,true,second.error?.message);
  const before=(await getOperationalSnapshot(db,uid)).data();
  assert.equal(before.clientes[0].saldoDevedorBRL,1600);
  assert.equal(before.historicoVendas.length,2);
