@@ -15,8 +15,8 @@ export function buildFinancialReconciliation({db,ctx,authorize,now=()=>Date.now(
   ]);
   // B.2 cursor pagination avoids downloading a whole collection. A bounded scan
   // that cannot prove completeness must fail closed; never silently truncate.
-  // Native PDV V1 and V2 both atomically write to the tenant-owned financial ledger.
-  const financialQuery=db.collection(`${c.base}/financeiro_livro`)
+  // c.root = lojas/{tenant}; c.base = native V2 generation. Ledger is tenant-scoped.
+  const financialQuery=db.collection(`${c.root}/financeiro_livro`)
     .where('referenciaId','==',adjustment.saleId).orderBy('__name__');
   const pages=[];let cursor=null,sourceComplete=false,readCount=2;
   for(let p=0;p<10;p++){
