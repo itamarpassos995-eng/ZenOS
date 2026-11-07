@@ -324,3 +324,12 @@ Evidência consolidada: [relatório A.2](distribution-phase31-a2.md) e [GitHub A
 | D31-16-* | 8 testes de domínio + 6 testes Firestore Emulator + build aprovado | EM TESTE | Completar 20 cenários MASTER, regressões e jornada visual desktop/mobile |
 
 **Limite do aceite:** testes registrados em Actions estão aprovados no SHA `7aa47a2`, e não houve edição de código funcional após esse SHA antes do relatório; alterações posteriores restringiram gatilhos CI/documentação. Não houve execução Chromium, regras reais instaladas ou provedor fiscal autorizado. Não declarar CONCLUÍDO qualquer requisito agregado sem todas suas evidências.
+
+
+## Entrega A.2 — evidência Chromium aprovada
+
+**Execução oficial em CI:** [#42319497676](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42319497676), SHA `f0afb3e5cec26bc2ea242a87cc147ce08b144ce0`, **SUCCESS**. Resultado real: **10/10** Node (domínio+cliente), **6/6** transações Firestore Emulator, build React/Vite aprovado, fluxo Chromium **desktop 1440×1050 PT e mobile 390×844 ES**, integridade de estoque 100, livro financeiro sem lançamentos, rascunho fiscal `authorized:false`, `eligibilityVerified:false`. Artefato `distribution-phase31-a2-browser-evidence` no run #42319497676, id 13552571080. Ver detalhes em [relatório A.2](distribution-phase31-a2.md).
+
+**Rastreabilidade adicional:** D31-05-001, D31-05-003..026, D31-01-001..006, D31-12-003/006/012..014 e D31-16-* tiveram **jornadas sintéticas relevantes testadas**. Não se declara nenhum ID agregado `CONCLUÍDO`: permanecem lacunas de evidências/fotos privadas, prevenção contra duplicidade semântica com chaves distintas, regras fiscais oficiais, perfis/escopos de todos os operadores, 20 cenários MASTER, e regressões ampliadas. O MASTER permanece imutável e os 259 IDs continuam preservados.
+
+**Próxima ação:** revisão de deduplicação por evento físico e validação das provas/logísticas, regressões integrais Fases 2/2.1/3 e aceite de acessibilidade, sem abrir Entrega B ou produção.
