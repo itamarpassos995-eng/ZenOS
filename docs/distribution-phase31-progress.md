@@ -508,3 +508,22 @@ A execução [GitHub Actions #42333625128](https://github.com/itamarpassos995-en
 **Diferença essencial de escopo:** esse workflow validou os contratos puros, a integração do servidor de conciliação e os fluxos Chromium já existentes. **Não executou o script separado `phase31-b3-native-v2-emulator.mjs`**; sua execução anterior falhou nas regras V2 estritas com `PERMISSION_DENIED` (evidências acima). As alterações posteriores a esse SHA incluem exclusivamente restauração das regras do Emulator à baseline e documentação. Nenhum PASS pode ser atribuído ao teste que foi excluído.
 
 **Gate G9 = PARTIAL, G1 = PARTIAL, G4 = BLOCKED.** Os demais estão na matriz G1–G10 desta página. Em particular, faltam vínculos nativos por parcela e distribuição entre múltiplas vendas, reversões anteriores verificadas por transação, confirmação bancária independente e todos os 38 cenários da ordem B.3. A situação formal permanece `PREPARATION_OF_C_ALLOWED=false` e `EXECUTION_OF_C_ALLOWED=false`. Nenhum merge, deploy, migração em cliente real ou estorno.
+
+
+## Entrega B.4 — prova V2, alocações verificáveis e origem de estornos
+
+[Relatório detalhado B.4](distribution-phase31-b4.md). O MASTER original dos 259 IDs e 20 cenários permanece intacto; nenhuma categoria é fechada por simples criação de código.
+
+| Escopo | Evidência direta | Status |
+|---|---|---|
+| G1 — cliente Firebase V2 | `phase31-b3-native-v2-emulator.mjs`, migração sintética de fixture com Admin SDK, operação de venda/recebimento com SDK cliente e regras V2 originais | EM TESTE, condicionado ao SHA de homologação consolidado |
+| G2 — fiado/parcelas | `phase31CreditAllocation.js`, `PDV.jsx`, `Clientes.jsx`: alocações em centavos, um recibo para várias vendas, guarda remota por parcela e lançamento financeiro único | PARCIAL; calendário real de parcelas/legados e cenários multivenda nativos requerem evidências |
+| G3 — câmbio histórico | moeda de recebimento e câmbio atribuído preservados; não há presunção de liquidação externa | PARCIAL |
+| G4 — estornos anteriores | `phase31ReturnLineage.js`, `Vendas.jsx`: evento da própria devolução marcado `RETURN_RECORDED` e conferência das referências de venda/cliente/valor | PARCIAL; estornos legados e prova externa continuam bloqueados |
+| G5/G6 — idempotência/isolamento | transação original V2, guardas de crédito, `operationKey`, regras do Emulator | EM TESTE |
+| G7 — STALE | B.1/B.2 com fingerprint e revisão | PASS nos cenários anteriores; regressão B.4 pendente |
+| G8 — integridade | operação original unifica histórico, cliente e livro; nenhum saldo/estoque real modificado na branch | EM TESTE |
+| G9 — CI/Chromium | workflow B.4 obrigatório com prova nativa, testes Node/Firestore/React/Chromium | EM TESTE |
+| G10 — documentação | relatório B.4 e rastreabilidade sem apagar o histórico | PASS |
+
+**Decisão:** `PREPARATION_OF_C_ALLOWED=false` e `EXECUTION_OF_C_ALLOWED=false`. A B.4 não concede autorização financeira. Não houve merge, deploy, migração real, estorno real nem atualização de regras de produção.
