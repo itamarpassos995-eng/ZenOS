@@ -11,6 +11,8 @@ export function createDistributionClient(user,{fetcher=fetch,now=()=>Date.now()}
   async routeQuery(input,{refresh=false}={}){const key='trip:'+JSON.stringify(input),hit=cache.get(key);if(!refresh&&hit&&now()-hit.at<30000)return structuredClone(hit.value);const value=await post('route-query',input);cache.set(key,{at:now(),value});if(cache.size>64)cache.delete(cache.keys().next().value);return value;},
   async routeCommand(input){const value=await post('route-command',input);cache.clear();return value;},
   async routePost(input){const value=await post('route-post',input);cache.clear();return value;},
+  async occurrenceQuery(input,{refresh=false,signal}={}){const key='occ:'+JSON.stringify(input),hit=cache.get(key);if(!refresh&&hit&&now()-hit.at<30000)return structuredClone(hit.value);const value=await post('occurrence-query',input,signal);cache.set(key,{at:now(),value});return value;},
+  async occurrenceCommand(type,occurrenceId,expectedRevision,payload={},key=crypto.randomUUID()){const result=await post('occurrence-command',{type,occurrenceId,expectedRevision,payload,key});cache.clear();return result;},
   invalidate(){cache.clear();},
   async logout(){await post('logout',{});session=null;cache.clear();pending.clear();},
   clear(){session=null;cache.clear();pending.clear();},
