@@ -28,6 +28,8 @@ export function createDistributionClient(user,{fetcher=fetch,now=()=>Date.now()}
     const result=await post('occurrence-evidence-invalidate',{...input,key:pending.get(identity)});
     pending.delete(identity);cache.clear();return result;
   },
+  async adjustmentQuery(input,{refresh=false}={}){const key='adj:'+JSON.stringify(input),hit=cache.get(key);if(!refresh&&hit&&now()-hit.at<30000)return structuredClone(hit.value);const value=await post('adjustment-query',input);cache.set(key,{at:now(),value});return value;},
+  async adjustmentCommand(type,id,occurrenceId,expectedRevision,payload={},key=null){const identity='adj:'+JSON.stringify({type,id,occurrenceId,expectedRevision,payload});if(!pending.has(identity))pending.set(identity,key||crypto.randomUUID());const result=await post('adjustment-command',{type,id,occurrenceId,expectedRevision,payload,key:pending.get(identity)});pending.delete(identity);cache.clear();return result;},
   invalidate(){cache.clear()},
   async logout(){await post('logout',{});session=null;cache.clear();pending.clear();},
   clear(){session=null;cache.clear();pending.clear();},
