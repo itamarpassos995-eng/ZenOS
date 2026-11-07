@@ -86,6 +86,7 @@ export function buildFinancialReconciliation({db,ctx,authorize,now=()=>Date.now(
    if(input.type==='history'&&(!Number.isSafeInteger(input.revision)||input.revision<0))
     error('INVALID_REVISION');
    const recSnap=await tx.get(ref),record=recSnap.data();
+   if(!record&&input.type==='detail')return {reconciliation:null,missing:true};
    if(!record||record.tenantId!==uid||record.generation!==c.generation)error('RECONCILIATION_NOT_FOUND');
    if(input.type==='history')return {reconciliation:record,historical:true};
    const current=await sources(tx,c,a);
