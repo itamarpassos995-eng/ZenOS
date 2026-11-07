@@ -1,3 +1,4 @@
+import {validateFinanceLink} from './distribution/phase31NativeFinanceLinks.js';
 const limparId = (valor) => String(valor || '')
   .normalize('NFD')
   .replace(/[\u0300-\u036f]/g, '')
@@ -32,6 +33,7 @@ export const criarLancamentoFinanceiro = ({
   saldoClienteAntes = null,
   saldoClienteDepois = null,
   detalhes = null,
+  financeLink = null,
 }) => {
   const valorNum = Math.max(0, Number(valor) || 0);
   if (!lojaId) throw new Error('Loja não identificada para o lançamento financeiro.');
@@ -62,6 +64,7 @@ export const criarLancamentoFinanceiro = ({
     saldoClienteAntes: saldoClienteAntes == null ? null : Number(saldoClienteAntes),
     saldoClienteDepois: saldoClienteDepois == null ? null : Number(saldoClienteDepois),
     detalhes: detalhes && typeof detalhes === 'object' ? detalhes : null,
+    ...(financeLink ? { financeLink:validateFinanceLink(financeLink,{lojaId,referenciaId,clienteId,ledgerId:idFinal}) } : {}),
     schema: 'ATT07_V1_ADITIVO',
   };
 };
