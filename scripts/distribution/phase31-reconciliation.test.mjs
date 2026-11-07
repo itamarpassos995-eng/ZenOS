@@ -46,6 +46,12 @@ test('B1 cancelled/duplicated/foreign ledger and cross-sale id are blocked',()=>
  assert.equal(foreign.state,'DISCREPANCY');
  assert.throws(()=>calc({adjustment:{...adjustment(),saleId:'other'}}),{code:'SOURCE_REFERENCE_MISMATCH'});
 });
+test('B1 unrelated extra sale ledger event cannot be silently ignored',()=>{
+ const extra={...receipt(),id:'LED2',paymentId:'UNLINKED',status:'liquidado'};
+ const report=calc({ledger:[receipt(),extra]});
+ assert.equal(report.state,'DISCREPANCY');
+ assert.ok(report.issues.includes('UNATTRIBUTED_LEDGER_RECORD'));
+});
 test('B1 source completeness and mutation require new verification',()=>{
  const a=calc({sourceComplete:false});
  assert.equal(a.state,'RECONCILIATION_REQUIRED');
