@@ -3,16 +3,17 @@ import {distributionMoney} from '../core/distribution/i18n.js';
 import './DistributionOccurrences.css';
 
 const copy={
- pt:{title:'Ocorrências e Devoluções',subtitle:'Conferência logística, revisão fiscal e financeira independentes.',new:'Registrar ocorrência',order:'Pedido do PDV',line:'Produto',reason:'Motivo',quantity:'Quantidade',description:'Descrição da ocorrência',create:'Salvar ocorrência',list:'Ocorrências registradas',empty:'Nenhuma ocorrência neste período.',today:'Hoje',refresh:'Atualizar',close:'Fechar',next:'Próxima página',back:'Anterior',details:'Abrir detalhes',history:'Histórico de eventos',logistics:'Logística',fiscal:'Fiscal',financial:'Financeiro',review:'Iniciar conferência',confirm:'Confirmar ocorrência',discard:'Descartar ocorrência',requestFiscal:'Solicitar rascunho fiscal',draft:'Preparar rascunho interno',country:'País',type:'Documento',pending:'Pendente de revisão legal e fiscal',noOrigin:'Não há referência fiscal autorizada e comprovada vinculada a esta venda. Rascunho indisponível.',notIssued:'Nenhum documento foi transmitido ou autorizado.',blocked:'Ajustes financeiros e estoque estão bloqueados nesta etapa.',select:'Selecionar',loaded:'Dados confirmados no servidor.',source:'Vínculos da venda',origin:'Documento fiscal original',reasons:{PICKING_SHORTAGE:'Falta na separação',DELIVERY_SHORTAGE:'Falta na entrega',PARTIAL_DELIVERY:'Entrega parcial',DAMAGED:'Avaria',TOTAL_REFUSAL:'Recusa total',PARTIAL_REFUSAL:'Recusa parcial',LATER_RETURN:'Devolução posterior',WRONG_PRODUCT:'Produto incorreto',REPLACEMENT:'Substituição',LOSS:'Extravio',INVOICE_DELIVERY_MISMATCH:'Divergência da fatura'},states:{REPORTED:'Registrada',UNDER_REVIEW:'Em conferência',CONFIRMED:'Confirmada',RESOLVED:'Resolvida',DISMISSED:'Descartada',NOT_REQUESTED:'Não solicitado',DRAFT:'Rascunho',REVIEW_REQUIRED:'Revisão pendente',BLOCKED:'Bloqueado',REJECTED:'Rejeitado'}},
- es:{title:'Incidencias y Devoluciones',subtitle:'Verificación logística, fiscal y financiera independientes.',new:'Registrar incidencia',order:'Pedido del PDV',line:'Producto',reason:'Motivo',quantity:'Cantidad',description:'Descripción de la incidencia',create:'Guardar incidencia',list:'Incidencias registradas',empty:'No hay incidencias en este período.',today:'Hoy',refresh:'Actualizar',close:'Cerrar',next:'Página siguiente',back:'Anterior',details:'Abrir detalles',history:'Historial de eventos',logistics:'Logística',fiscal:'Fiscal',financial:'Financiero',review:'Iniciar verificación',confirm:'Confirmar incidencia',discard:'Descartar incidencia',requestFiscal:'Solicitar borrador fiscal',draft:'Preparar borrador interno',country:'País',type:'Documento',pending:'Pendiente de revisión legal y fiscal',noOrigin:'No existe referencia fiscal autorizada y comprobada para esta venta. Borrador no disponible.',notIssued:'Ningún documento fue transmitido ni autorizado.',blocked:'Ajustes financieros y de stock bloqueados en esta etapa.',select:'Seleccionar',loaded:'Datos confirmados en el servidor.',source:'Referencias de venta',origin:'Documento fiscal original',reasons:{PICKING_SHORTAGE:'Falta en preparación',DELIVERY_SHORTAGE:'Falta en entrega',PARTIAL_DELIVERY:'Entrega parcial',DAMAGED:'Avería',TOTAL_REFUSAL:'Rechazo total',PARTIAL_REFUSAL:'Rechazo parcial',LATER_RETURN:'Devolución posterior',WRONG_PRODUCT:'Producto incorrecto',REPLACEMENT:'Sustitución',LOSS:'Pérdida',INVOICE_DELIVERY_MISMATCH:'Diferencia con factura'},states:{REPORTED:'Registrada',UNDER_REVIEW:'En verificación',CONFIRMED:'Confirmada',RESOLVED:'Resuelta',DISMISSED:'Descartada',NOT_REQUESTED:'No solicitado',DRAFT:'Borrador',REVIEW_REQUIRED:'Revisión pendiente',BLOCKED:'Bloqueado',REJECTED:'Rechazado'}}
+ pt:{title:'Ocorrências e Devoluções',subtitle:'Conferência logística, revisão fiscal e financeira independentes.',new:'Registrar ocorrência',order:'Pedido do PDV',line:'Produto',reason:'Motivo',quantity:'Quantidade',description:'Descrição da ocorrência',create:'Salvar ocorrência',list:'Ocorrências registradas',empty:'Nenhuma ocorrência neste período.',today:'Hoje',refresh:'Atualizar',close:'Fechar',next:'Próxima página',back:'Anterior',details:'Abrir detalhes',history:'Histórico de eventos',logistics:'Logística',fiscal:'Fiscal',financial:'Financeiro',review:'Iniciar conferência',confirm:'Confirmar ocorrência',discard:'Descartar ocorrência',requestFiscal:'Solicitar rascunho fiscal',draft:'Preparar rascunho interno',country:'País',type:'Documento',pending:'Pendente de revisão legal e fiscal',evidences:'Evidências privadas',addEvidence:'Anexar evidência',downloadEvidence:'Baixar evidência',sizeLimit:'PNG, JPEG ou PDF de até 1 MB.',noOrigin:'Não há referência fiscal autorizada e comprovada vinculada a esta venda. Rascunho indisponível.',notIssued:'Nenhum documento foi transmitido ou autorizado.',blocked:'Ajustes financeiros e estoque estão bloqueados nesta etapa.',select:'Selecionar',loaded:'Dados confirmados no servidor.',source:'Vínculos da venda',origin:'Documento fiscal original',reasons:{PICKING_SHORTAGE:'Falta na separação',DELIVERY_SHORTAGE:'Falta na entrega',PARTIAL_DELIVERY:'Entrega parcial',DAMAGED:'Avaria',TOTAL_REFUSAL:'Recusa total',PARTIAL_REFUSAL:'Recusa parcial',LATER_RETURN:'Devolução posterior',WRONG_PRODUCT:'Produto incorreto',REPLACEMENT:'Substituição',LOSS:'Extravio',INVOICE_DELIVERY_MISMATCH:'Divergência da fatura'},states:{REPORTED:'Registrada',UNDER_REVIEW:'Em conferência',CONFIRMED:'Confirmada',RESOLVED:'Resolvida',DISMISSED:'Descartada',NOT_REQUESTED:'Não solicitado',DRAFT:'Rascunho',REVIEW_REQUIRED:'Revisão pendente',BLOCKED:'Bloqueado',REJECTED:'Rejeitado'}},
+ es:{title:'Incidencias y Devoluciones',subtitle:'Verificación logística, fiscal y financiera independientes.',new:'Registrar incidencia',order:'Pedido del PDV',line:'Producto',reason:'Motivo',quantity:'Cantidad',description:'Descripción de la incidencia',create:'Guardar incidencia',list:'Incidencias registradas',empty:'No hay incidencias en este período.',today:'Hoy',refresh:'Actualizar',close:'Cerrar',next:'Página siguiente',back:'Anterior',details:'Abrir detalles',history:'Historial de eventos',logistics:'Logística',fiscal:'Fiscal',financial:'Financiero',review:'Iniciar verificación',confirm:'Confirmar incidencia',discard:'Descartar incidencia',requestFiscal:'Solicitar borrador fiscal',draft:'Preparar borrador interno',country:'País',type:'Documento',pending:'Pendiente de revisión legal y fiscal',evidences:'Evidencias privadas',addEvidence:'Adjuntar evidencia',downloadEvidence:'Descargar evidencia',sizeLimit:'PNG, JPEG o PDF de hasta 1 MB.',noOrigin:'No existe referencia fiscal autorizada y comprobada para esta venta. Borrador no disponible.',notIssued:'Ningún documento fue transmitido ni autorizado.',blocked:'Ajustes financieros y de stock bloqueados en esta etapa.',select:'Seleccionar',loaded:'Datos confirmados en el servidor.',source:'Referencias de venta',origin:'Documento fiscal original',reasons:{PICKING_SHORTAGE:'Falta en preparación',DELIVERY_SHORTAGE:'Falta en entrega',PARTIAL_DELIVERY:'Entrega parcial',DAMAGED:'Avería',TOTAL_REFUSAL:'Rechazo total',PARTIAL_REFUSAL:'Rechazo parcial',LATER_RETURN:'Devolución posterior',WRONG_PRODUCT:'Producto incorrecto',REPLACEMENT:'Sustitución',LOSS:'Pérdida',INVOICE_DELIVERY_MISMATCH:'Diferencia con factura'},states:{REPORTED:'Registrada',UNDER_REVIEW:'En verificación',CONFIRMED:'Confirmada',RESOLVED:'Resuelta',DISMISSED:'Descartada',NOT_REQUESTED:'No solicitado',DRAFT:'Borrador',REVIEW_REQUIRED:'Revisión pendiente',BLOCKED:'Bloqueado',REJECTED:'Rechazado'}}
 };
 const documentTypes={PY:['NOTA_CREDITO_ELECTRONICA','NOTA_REMISION_ELECTRONICA','CANCELAMENTO_REQUEST'],BR:['NFE_DEVOLUCAO','NFE_ENTRADA','NFE_NOTA_CREDITO','CANCELAMENTO_REQUEST']};
 const defaultForm={orderId:'',lineIndex:'0',reason:'DELIVERY_SHORTAGE',quantity:'1',description:''};
 export default function DistributionOccurrences({client,session,range,language}){
  const t=copy[language==='es'?'es':'pt'],[rows,setRows]=useState([]),[next,setNext]=useState(null),[page,setPage]=useState(0),[cursors,setCursors]=useState([null]);
  const [orders,setOrders]=useState([]),[orderCursor,setOrderCursor]=useState(null),[detail,setDetail]=useState(null),[form,setForm]=useState(defaultForm),[creating,setCreating]=useState(false);
+ const [evidenceFile,setEvidenceFile]=useState(null),[evidenceKind,setEvidenceKind]=useState('PHOTO');
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[reload,setReload]=useState(0),[filterReason,setFilterReason]=useState(''),[filterState,setFilterState]=useState(''),[docType,setDocType]=useState('');
- const pendingCreate=useRef(null),pendingAction=useRef(null);
+ const pendingCreate=useRef(null),pendingAction=useRef(null),pendingEvidence=useRef(null);
  const canManage=session.capabilities?.includes('manage')||session.capabilities?.includes('returns')||session.capabilities?.includes('admin');
  const canFiscal=session.capabilities?.includes('manage')||session.capabilities?.includes('admin');
  const localState=v=>t.states[v]||v;
@@ -52,6 +53,42 @@ export default function DistributionOccurrences({client,session,range,language})
  }catch(e){setError(e.code||'REQUEST_FAILED');}finally{setBusy(false);}};
  const transition=(domain,next)=>operate('TRANSITION_'+domain.toUpperCase(),{next,eventId:'EV-'+crypto.randomUUID(),note:next,at:new Date().toISOString()});
  const fiscalDraft=()=>operate('DRAFT_FISCAL',{id:'DF-'+crypto.randomUUID(),eventId:'EV-'+crypto.randomUUID(),type:docType});
+ const readFileBase64=file=>new Promise((resolve,reject)=>{
+  const reader=new FileReader();
+  reader.onerror=()=>reject(new Error('FILE_READ_FAILED'));
+  reader.onload=()=>resolve(String(reader.result).split(',')[1]||'');
+  reader.readAsDataURL(file);
+ });
+ const uploadEvidence=async()=>{
+  if(!detail||!evidenceFile)return;
+  setBusy(true);setError('');try{
+   if(evidenceFile.size>1_000_000||evidenceFile.size<12)throw new Error('EVIDENCE_FILE_INVALID');
+   if(!['image/png','image/jpeg','application/pdf'].includes(evidenceFile.type))throw new Error('EVIDENCE_FILE_INVALID');
+   const signature=[detail.id,detail.revision,evidenceKind,evidenceFile.name,evidenceFile.size].join('|');
+   if(pendingEvidence.current?.signature!==signature){
+    pendingEvidence.current={signature,id:'EV-'+crypto.randomUUID(),key:crypto.randomUUID(),
+     base64:await readFileBase64(evidenceFile)};
+   }
+   const {id,key,base64}=pendingEvidence.current;
+   await client.occurrenceEvidenceUpload({
+    id,key,occurrenceId:detail.id,expectedRevision:detail.revision,
+    kind:evidenceKind,mediaType:evidenceFile.type,base64
+   });
+   pendingEvidence.current=null;setEvidenceFile(null);await open(detail.id);setNotice(t.loaded);setReload(n=>n+1);
+  }catch(e){setError(e.code||e.message||'UPLOAD_FAILED');}finally{setBusy(false);}
+ };
+ const downloadEvidence=async item=>{
+  setBusy(true);setError('');try{
+   const response=await client.occurrenceEvidenceRead(detail.id,item.id);
+   const binary=atob(response.base64),bytes=new Uint8Array(binary.length);
+   for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+   const url=URL.createObjectURL(new Blob([bytes],{type:response.mediaType}));
+   const anchor=document.createElement('a');
+   anchor.href=url;anchor.download=item.id+'.'+(response.mediaType==='application/pdf'?'pdf':response.mediaType==='image/png'?'png':'jpg');
+   document.body.append(anchor);anchor.click();anchor.remove();
+   setTimeout(()=>URL.revokeObjectURL(url),60000);
+  }catch(e){setError(e.code||'EVIDENCE_NOT_FOUND');}finally{setBusy(false);}
+ };
  const results=rows.filter(o=>(!filterReason||o.reason===filterReason)&&(!filterState||Object.values(o.states).includes(filterState)));
  return <section className="dist-occ" data-testid="distribution-occurrences">
   <div className="dist-occ-heading"><div><span className="dist-eyebrow">ZENOS · {t.country} BR / PY</span><h2>{t.title}</h2><p>{t.subtitle}</p></div><div className="dist-actionbar"><button disabled={busy} onClick={()=>{client.invalidate();load();}}>{t.refresh}</button>{canManage&&<button className="primary" disabled={busy} onClick={()=>{setCreating(true);setOrders([]);setForm(defaultForm);fetchOrders();}}>{t.new}</button>}</div></div>
@@ -72,6 +109,23 @@ export default function DistributionOccurrences({client,session,range,language})
      <article><small>{t.fiscal}</small><strong>{localState(detail.states.fiscal)}</strong>{canFiscal&&detail.states.logistics==='CONFIRMED'&&detail.states.fiscal==='NOT_REQUESTED'&&<button disabled={busy} onClick={()=>transition('fiscal','DRAFT')}>{t.requestFiscal}</button>}
       {canFiscal&&['DRAFT','REVIEW_REQUIRED'].includes(detail.states.fiscal)&&detail.fiscalOriginal&&<><label>{t.type}<select value={docType} onChange={e=>setDocType(e.target.value)}>{documentTypes[detail.country]?.map(v=><option key={v} value={v}>{v.replaceAll('_',' ')}</option>)}</select></label><button disabled={busy||!docType} onClick={fiscalDraft}>{t.draft}</button></>}{!detail.fiscalOriginal&&<p>{t.noOrigin}</p>}<p>{t.notIssued}</p></article>
      <article><small>{t.financial}</small><strong>{localState(detail.states.financial)}</strong><p>{t.blocked}</p></article></div>
+    <div className="dist-occ-evidence">
+     <h3>{t.evidences}</h3>
+     {canManage&&<div className="dist-occ-evidence-controls"><label>{t.evidences}
+       <input type="file" accept="image/png,image/jpeg,application/pdf" disabled={busy}
+        onChange={e=>{setEvidenceFile(e.target.files?.[0]||null);pendingEvidence.current=null;}}/>
+      </label><label>{t.select}<select value={evidenceKind} onChange={e=>{setEvidenceKind(e.target.value);pendingEvidence.current=null;}}>
+       <option value="PHOTO">Foto</option><option value="SIGNATURE">Assinatura / Firma</option>
+       <option value="DOCUMENT">Documento / Documento</option></select></label>
+      <button disabled={busy||!evidenceFile} onClick={uploadEvidence}>{t.addEvidence}</button>
+     </div>}
+     <p>{t.sizeLimit}</p>
+     {(detail.evidence||[]).filter(item=>item.status==='ACTIVE').map(item=>
+      <div key={item.id} className="dist-occ-evidence-item">
+       <span>{item.kind} · {item.id} · {item.bytes} bytes</span>
+       <button disabled={busy} onClick={()=>downloadEvidence(item)}>{t.downloadEvidence}</button>
+      </div>)}
+    </div>
     <h3>{t.history}</h3><div className="dist-occ-events">{detail.history.map(e=><p key={e.eventId}>{new Date(e.at).toLocaleString(language==='es'?'es-PY':'pt-BR')} · {e.actorId} · {e.domain} · {localState(e.to)}</p>)}</div>
     {!!detail.fiscalDocuments.length&&<div className="dist-occ-events"><h3>{t.pending}</h3>{detail.fiscalDocuments.map(d=><p key={d.id}>{d.type} · {d.originalDocument.reference} · {localState(d.status)}</p>)}</div>}
    </div></div>}
