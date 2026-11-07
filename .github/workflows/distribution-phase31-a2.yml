@@ -14,6 +14,9 @@ on:
       - 'operational-functions/src/distribution/reconciliationService.js'
       - 'scripts/distribution/phase31-native-links.test.mjs'
       - 'scripts/distribution/phase31-b3-native-v2-emulator.mjs'
+      - 'firestore.distribution-v2-emulator.rules'
+      - 'src/core/distribution/phase31CGates.js'
+      - 'scripts/distribution/phase31-c-gates.test.mjs'
 permissions:
   contents: read
 jobs:
