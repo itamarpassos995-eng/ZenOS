@@ -1,4 +1,4 @@
-name: Distribution Phase 3.1 B.3 guarded validation
+name: Distribution Phase 3.1 B.4 security and finance validation
 on:
   workflow_dispatch:
   push:
@@ -31,9 +31,8 @@ jobs:
       - name: Firebase Emulator V2 integration tests
         run: npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.distribution-v2.json 'node --test operational-functions/test/distribution/occurrences.test.mjs operational-functions/test/distribution/evidence.test.mjs operational-functions/test/distribution/commercial.test.mjs operational-functions/test/distribution/reconciliation.test.mjs operational-functions/test/distribution/financialLinks.test.mjs'
 
-      # B.3 native client write against strict emulator rules remains a separate
-      # BLOCKED security gate until the rule evaluation failure is resolved;
-      # do not report this suite as green or relax production rules.
+      - name: B.4 native client V2 write security proof — mandatory
+        run: npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.distribution-v2.json 'node scripts/distribution/phase31-b3-native-v2-emulator.mjs'
       - name: Previous phase 2 and 2.1 domain regressions
         run: npm run distribution:test
       - name: Previous phase 3 transaction regressions
