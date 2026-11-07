@@ -148,7 +148,7 @@ export function buildOccurrences({db,ctx,authorize,now=()=>Date.now()}) {
     ...(loadId?{loadId}:{}),...(manifestId?{manifestId}:{}),
     ...(original?{invoiceId:original.id}:{})},
    originalAmount:amount,fiscalOriginal:original,evidence:[],
-   factId,sourceKind,sourceProof, factCapacity,
+   factId,sourceKind,sourceProofId:sourceProof, factCapacity,
    continuationOf:payload.continuationOf||null,
   };
  }
@@ -177,6 +177,7 @@ export function buildOccurrences({db,ctx,authorize,now=()=>Date.now()}) {
     const factRef=factId?rootDoc(c,'distribution_occurrence_facts',factId):null;
     const factSnap=!receipt&&factRef?await tx.get(factRef):null;
     const factBefore=factSnap?.exists?factSnap.data():null;
+    if(factBefore&&factBefore.generation!==c.generation)error('V2_ROUTE_CHANGED');
     let factAfter=null;
     if(!receipt&&type==='CREATE'){
      if(!verified?.factId)error('FACT_SOURCE_REQUIRED');
@@ -186,6 +187,9 @@ export function buildOccurrences({db,ctx,authorize,now=()=>Date.now()}) {
       capacity:verified.factCapacity,continuationOf:verified.continuationOf,
       actorId:actor.operatorId,at:verified.reportedAt});
     }
+    if(!receipt&&type==='TRANSITION_LOGISTICS'&&payload?.next==='CONFIRMED'&&
+      current?.sourceKind==='MANUAL'&&actor.operatorId!=='admin'&&
+      actor.permissions?.distributionManage!==true)error('MANUAL_REVIEW_MANAGER_REQUIRED');
     if(!receipt&&type==='TRANSITION_LOGISTICS'&&payload?.next==='DISMISSED'&&factRef){
      factAfter=releaseFact(factBefore,{occurrenceId,actorId:actor.operatorId,at:verified.at});
     }
