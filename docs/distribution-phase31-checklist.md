@@ -294,3 +294,17 @@ Regras oficiais instaladas; segurança do endpoint hospedado; integração defin
 ## Política de manutenção
 
 Antes de qualquer alteração futura, ler os três documentos. Referenciar os IDs implementados no commit e atualizar a matriz e o controle no mesmo commit. Para CONCLUÍDO, registrar arquivos, SHA verificável, comandos/resultados e evidências; alegações de testes anteriores exigem verificação. Caso uma regra fiscal seja incerta, registrar BLOQUEADO para o efeito real, mesmo que a simulação esteja testada. Não substituir uma obrigação por um teste isolado ou protótipo. Melhorias futuras são adendos versionados.
+
+
+## Registro de implementação inicial — Entrega A (não homologada)
+
+A referência MASTER e os 259 IDs acima permanecem intactos. Ver [relatório técnico](distribution-phase31-implementation-a.md).
+
+| Grupo de IDs (existência parcial) | Evidência de código | Estado | Lacuna para aceite |
+|---|---|---|---|
+| D31-01-001..006; D31-05-026..028 | `src/core/distribution/phase31Foundation.js` | EM TESTE | Integrar V2 e avaliar efeitos completos, inclusive proteção de compensações reais |
+| D31-02-007; D31-02-010..011; D31-03-002; D31-03-017; D31-04-003..004; D31-04-007 | `src/core/distribution/phase31Foundation.js` | EM TESTE / emissão real BLOQUEADA | Validar elegibilidade fiscal, normas oficiais, provedores e autorizações reais |
+| D31-05-003..013; D31-05-015..017; D31-05-021..023 | `src/core/distribution/phase31Foundation.js` | EM TESTE | Persistência real, conferência no banco, UI, dados/evidências complementares |
+| D31-12-003; D31-12-006; D31-12-012..014 | `operational-functions/src/distribution/occurrences.js` | EM TESTE | Integrar ao backend existente com validação servidor de PIN, identidade e Firestore V2 |
+
+Teste declarado no código: `scripts/distribution/phase31-foundation.test.mjs`. Foi realizada validação JS isolada com as limitações relatadas; **não houve execução comprovada de Node, Emulator ou navegador**. Nenhum grupo está CONCLUÍDO. Nenhum dos demais requisitos é removido, adiado definitivamente ou implicitamente aceito.
