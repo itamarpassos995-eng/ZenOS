@@ -45,7 +45,7 @@ export default function DistributionCommercial({client,occurrence,session,langua
  };
  const advance=async next=>{if(!selected||reason.trim().length<5)return;
   setBusy(true);setError('');try{
-   const type=['LEGAL_REVIEW_REQUIRED','INTERNALLY_REVIEWED'].includes(next)?'TRANSITION_FISCAL':'TRANSITION_COMMERCIAL';
+   const type=next==='LEGAL_REVIEW_REQUIRED'||(next==='REJECTED'&&['FISCAL_REVIEW','LEGAL_REVIEW_REQUIRED'].includes(selected.status))?'TRANSITION_FISCAL':'TRANSITION_COMMERCIAL';
    if(!pending.current)pending.current={key:crypto.randomUUID(),eventId:'EV-'+crypto.randomUUID()};
    await client.adjustmentCommand(type,selected.id,occurrence.id,selected.revision,{
     next,eventId:pending.current.eventId,reason},pending.current.key);
@@ -75,7 +75,7 @@ export default function DistributionCommercial({client,occurrence,session,langua
     {canManage&&selected.status==='COMMERCIAL_REVIEW'&&<button disabled={busy||reason.trim().length<5} onClick={()=>advance('FISCAL_REVIEW')}>{t.fiscalReview}</button>}
     {canFiscal&&selected.status==='FISCAL_REVIEW'&&<button disabled={busy||reason.trim().length<5} onClick={()=>advance('LEGAL_REVIEW_REQUIRED')}>{t.legal}</button>}
 
-    {canManage&&['DRAFT','COMMERCIAL_REVIEW'].includes(selected.status)&&<button disabled={busy||reason.trim().length<5} onClick={()=>advance('CANCELLED')}>{t.cancel}</button>}
+    {canManage&&selected.status==='DRAFT'&&<button disabled={busy||reason.trim().length<5} onClick={()=>advance('CANCELLED')}>{t.cancel}</button>}
     {(canManage||canFiscal)&&['COMMERCIAL_REVIEW','FISCAL_REVIEW','LEGAL_REVIEW_REQUIRED'].includes(selected.status)&&<button disabled={busy||reason.trim().length<5} onClick={()=>advance('REJECTED')}>{t.reject}</button>}
    </div>
    {representation&&<label className="dist-commercial-version">{t.version}
