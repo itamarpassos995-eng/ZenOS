@@ -104,3 +104,54 @@ test('query paginates within the tenant and survives service recreation',async()
  const second=await again.occurrenceQuery(f.uid,f.token,{type:'list',from:now-86400000,to:now+86400000,limit:1,cursor:page.next});
  assert.equal(second.items.length,1);assert.notEqual(second.items[0].id,page.items[0].id);
 });
+
+test('A3 rejects simultaneous semantic duplicate facts even with unrelated command keys',async()=>{
+ const f=await setup('PY');
+ const first=createInput(f),second=createInput(f);
+ first.payload.id=first.occurrenceId;second.payload.id=second.occurrenceId;
+ const results=await Promise.allSettled([
+  service.occurrenceCommand(f.uid,f.token,first),
+  service.occurrenceCommand(f.uid,f.token,second)]);
+ assert.equal(results.filter(x=>x.status==='fulfilled').length,1);
+ assert.equal(results.find(x=>x.status==='rejected').reason.code,'DUPLICATE_FACT');
+ assert.equal((await db.collection(`${f.root}/distribution_occurrences`).get()).size,1);
+ assert.equal((await db.collection(`${f.root}/distribution_occurrence_facts`).get()).size,1);
+ assert.equal((await db.collection(`${f.root}/distribution_occurrence_receipts`).get()).size,1);
+});
+test('A3 accumulates only explicit continuation, enforces capacity and preserves prior claim',async()=>{
+ const f=await setup('PY');
+ const original=await create(f,{quantity:2});
+ const continuation=createInput(f,{quantity:3,continuationOf:original.cmd.occurrenceId});
+ continuation.payload.id=continuation.occurrenceId;
+ await service.occurrenceCommand(f.uid,f.token,continuation);
+ const excessive=createInput(f,{quantity:1,continuationOf:original.cmd.occurrenceId});
+ excessive.payload.id=excessive.occurrenceId;
+ await assert.rejects(service.occurrenceCommand(f.uid,f.token,excessive),{code:'FACT_CAPACITY_EXCEEDED'});
+ const facts=await db.collection(`${f.root}/distribution_occurrence_facts`).get();
+ assert.equal(facts.docs[0].data().active,5);
+ assert.equal(Object.keys(facts.docs[0].data().claims).length,2);
+});
+test('A3 dismissal releases a claim atomically without erasing audit history',async()=>{
+ const f=await setup('PY');const created=await create(f,{quantity:2});
+ const oldId=created.cmd.occurrenceId;
+ const discarded=await next(f,{occurrenceId:oldId,revision:0},'TRANSITION_LOGISTICS','DISMISSED');
+ assert.equal(discarded.states.logistics,'DISMISSED');
+ const replacement=await create(f,{quantity:3});
+ assert.equal(replacement.result.revision,0);
+ const facts=await db.collection(`${f.root}/distribution_occurrence_facts`).get();
+ assert.equal(facts.docs[0].data().active,3);
+ assert.equal(facts.docs[0].data().claims[oldId].state,'RELEASED');
+ assert.equal((await detail(f,oldId)).occurrence.states.logistics,'DISMISSED');
+ assert.equal((await db.collection(`${f.root}/distribution_occurrence_events`).get()).size,3);
+});
+test('A3 blocks arbitrary private evidence references and fabricated trip proofs',async()=>{
+ const f=await setup('PY');
+ const arbitrary=createInput(f,{evidence:[{id:'e1',kind:'PHOTO',reference:'another-store/private.jpg'}]});
+ arbitrary.payload.id=arbitrary.occurrenceId;
+ await assert.rejects(service.occurrenceCommand(f.uid,f.token,arbitrary),{code:'EVIDENCE_UPLOAD_NOT_CONFIGURED'});
+ const forged=createInput(f,{refs:{saleId:'O001',orderId:'O001',customerId:'C1',
+  orderLineId:'0',productId:'P1',tripId:'fake-trip'}});
+ forged.payload.id=forged.occurrenceId;
+ await assert.rejects(service.occurrenceCommand(f.uid,f.token,forged),{code:'TRIP_SOURCE_MISMATCH'});
+ assert.equal((await db.collection(`${f.root}/distribution_occurrences`).get()).size,0);
+});
