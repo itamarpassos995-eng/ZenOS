@@ -1,6 +1,7 @@
 import {executeOccurrenceCommand} from './occurrences.js';
 import {error,hash,id} from './security.js';
 import {PRECISION} from '../../../src/core/distribution/domain.js';
+import {sourceFact,reserveFact,releaseFact} from './occurrenceFacts.js';
 
 /** Phase 3.1 A.2: Firestore V2, emulator-only service host.
  * All source verification, authorization and writes occur in one transaction.
@@ -93,16 +94,29 @@ export function buildOccurrences({db,ctx,authorize,now=()=>Date.now()}) {
   if(quantity>integer(Number(item.qtd),1))error('RETURN_EXCEEDED');
   const physical=integer(Number(sale._distribution?.dispatched?.[index]??item.movimentoEstoqueVenda?.total??item.qtd),0);
   if(quantity>physical)error('QUANTITY_NOT_DISPATCHED');
+  // Source fact capacity is the maximum possible adjustment, never an amount from the client.
+  let factCapacity=physical,sourceKind='MANUAL',sourceProof=null;
   let tripId=null,loadId=null,manifestId=null;
   if(refs.tripId!=null){
    if(!validKey(refs.tripId))error('INVALID_REFERENCE');
    const trip=await tx.get(rootDoc(c,'distribution_trips',refs.tripId)),value=trip.data();
-   if(!value||value.generation!==c.generation||
-     !value.stops?.some(stop=>stop.orderId===refs.saleId &&
-       stop.lines?.some(line=>String(line.orderLineId)===String(index) &&
-         String(line.productId)===refs.productId && quantity<=line.quantity)))
-      error('TRIP_SOURCE_MISMATCH');
-   tripId=refs.tripId;
+   if(!value||value.generation!==c.generation)error('TRIP_SOURCE_MISMATCH');
+   const match=value.stops?.flatMap(stop=>stop.lines
+      .filter(line=>stop.orderId===refs.saleId &&
+        String(line.orderLineId)===String(index) &&
+        String(line.productId)===refs.productId)
+      .map(line=>({stop,line})))||[];
+   if(match.length!==1)error('TRIP_SOURCE_MISMATCH');
+   const {stop,line}=match[0];
+   if(!stop.proofId||!['TOTAL','PARTIAL','REFUSED','FAILED'].includes(stop.state))
+      error('DELIVERY_PROOF_REQUIRED');
+   if(payload?.proofId!=null&&payload.proofId!==stop.proofId)error('PROOF_MISMATCH');
+   const evidence=await tx.get(rootDoc(c,'distribution_trip_events',stop.proofId));
+   if(!evidence.exists||evidence.data().type!=='DELIVER'||
+      evidence.data().tripId!==refs.tripId)error('DELIVERY_PROOF_REQUIRED');
+   factCapacity=integer(Number(line.returning),0);
+   if(factCapacity===0||quantity>factCapacity)error('FACT_CAPACITY_EXCEEDED');
+   sourceKind='TRIP';sourceProof=stop.proofId;tripId=refs.tripId;
   }
   if(refs.loadId!=null){
    if(!validKey(refs.loadId))error('INVALID_REFERENCE');
@@ -120,6 +134,10 @@ export function buildOccurrences({db,ctx,authorize,now=()=>Date.now()}) {
   if(refs.invoiceId!=null&&(!original||original.id!==refs.invoiceId))error('FISCAL_SOURCE_NOT_VERIFIED');
   const establishedId=String(c.config.establishmentId||uid);
   if(!validKey(establishedId))error('INVALID_ESTABLISHMENT');
+  if(payload?.evidence?.length)error('EVIDENCE_UPLOAD_NOT_CONFIGURED');
+  const factOrigin=sourceFact({tenantId:uid,establishmentId:establishedId,
+    saleId:refs.saleId,lineIndex:index,kind:sourceKind,tripId,proofId:sourceProof});
+  const factId=hash(factOrigin);
   return {
    id:occurrenceId,tenantId:uid,establishmentId:establishedId,country,
    reason:payload.reason,description:payload.description,quantity,
@@ -129,7 +147,9 @@ export function buildOccurrences({db,ctx,authorize,now=()=>Date.now()}) {
     sellerId:String(sale.vendedorId||''),...(tripId?{tripId}:{}),
     ...(loadId?{loadId}:{}),...(manifestId?{manifestId}:{}),
     ...(original?{invoiceId:original.id}:{})},
-   originalAmount:amount,fiscalOriginal:original,evidence:payload.evidence||[],
+   originalAmount:amount,fiscalOriginal:original,evidence:[],
+   factId,sourceKind,sourceProof, factCapacity,
+   continuationOf:payload.continuationOf||null,
   };
  }
  async function occurrenceCommand(uid,sessionToken,input) {
@@ -152,6 +172,23 @@ export function buildOccurrences({db,ctx,authorize,now=()=>Date.now()}) {
     const saved=receipt?{identity:receipt.identity,operatorId:receipt.operatorId,result:receipt.result}:null;
     const current=snap.exists?snap.data():null;
     const verified=receipt?null:await verifiedPayload(tx,c,uid,actor,type,payload,current,occurrenceId);
+    // Semantic fact lock is read in the same transaction as idempotency and occurrence.
+    const factId=type==='CREATE'?verified?.factId:current?.factId;
+    const factRef=factId?rootDoc(c,'distribution_occurrence_facts',factId):null;
+    const factSnap=!receipt&&factRef?await tx.get(factRef):null;
+    const factBefore=factSnap?.exists?factSnap.data():null;
+    let factAfter=null;
+    if(!receipt&&type==='CREATE'){
+     if(!verified?.factId)error('FACT_SOURCE_REQUIRED');
+     if(verified.continuationOf&&actor.operatorId!=='admin'&&actor.permissions?.distributionManage!==true)
+       error('CONTINUATION_APPROVAL_REQUIRED');
+     factAfter=reserveFact(factBefore,{factId,occurrenceId,quantity:verified.quantity,
+      capacity:verified.factCapacity,continuationOf:verified.continuationOf,
+      actorId:actor.operatorId,at:verified.reportedAt});
+    }
+    if(!receipt&&type==='TRANSITION_LOGISTICS'&&payload?.next==='DISMISSED'&&factRef){
+     factAfter=releaseFact(factBefore,{occurrenceId,actorId:actor.operatorId,at:verified.at});
+    }
     const result=await apply({occurrence:current,receipt:saved,actor:principal,validatedPayload:verified});
     if(result.replay)return {...result.result,replayed:true};
     const opId=hash(`occ:${uid}:${key}`),sequence=integer(c.head.sequence)+1;
@@ -161,6 +198,7 @@ export function buildOccurrences({db,ctx,authorize,now=()=>Date.now()}) {
       current?.createdAt??now(),updatedAt:now(),updatedBy:actor.operatorId};
     if(Buffer.byteLength(JSON.stringify(doc))>650000)error('REQUEST_TOO_LARGE');
     tx.set(occurrenceRef,doc);
+    if(factAfter&&factRef)tx.set(factRef,{...factAfter,generation:c.generation,updatedAt:now()});
     tx.create(receiptRef,{generation:c.generation,identity:JSON.stringify(stable(tenantCommand)),
       operatorId:actor.operatorId,result:result.result,createdAt:now()});
     tx.create(rootDoc(c,'distribution_occurrence_events',opId),event);
