@@ -34,7 +34,7 @@ test('private evidence attaches and reads exact bytes only with authenticated te
  assert.equal((await db.collection(`${f.root}/financeiro_livro`).get()).size,0);
  assert.equal((await db.doc(`${f.base}/produtos/P1`).get()).data().data.estoque,100);
  await assert.rejects(service.occurrenceEvidenceRead(f.uid,'invalid',{occurrenceId:f.occId,id:command.id}));
- await assert.rejects(service.occurrenceEvidenceUpload(f.uid,f.token,{...command,key:randomUUID(),base64:SAMPLE_PNG}),{code:'EVIDENCE_ID_COLLISION'});
+ await assert.rejects(service.occurrenceEvidenceUpload(f.uid,f.token,{...command,expectedRevision:1,key:randomUUID(),base64:SAMPLE_PNG}),{code:'EVIDENCE_ID_COLLISION'});
 });
 test('private evidence rejects MIME spoofing, oversized files and invalid format',async()=>{
  assert.throws(()=>decodePrivateEvidence(Buffer.from('This is not an image').toString('base64'),'image/png'),{code:'EVIDENCE_MAGIC_INVALID'});
