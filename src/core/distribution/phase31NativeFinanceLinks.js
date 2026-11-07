@@ -19,6 +19,19 @@ export function validateFinanceLink(link,{lojaId,referenciaId,clienteId,ledgerId
  if(link.financeEventType==='RECEIPT'&&(!id(link.receivableId)||!id(link.installmentId)))
   fail('FINANCE_LINK_INSTALLMENT_REQUIRED');
  if(link.financeEventType==='REVERSAL'&&!id(link.reversalOf))fail('FINANCE_LINK_ORIGIN_REQUIRED');
+ if(link.allocations!=null){
+  if(link.financeEventType!=='RECEIPT'||!Array.isArray(link.allocations)||
+   !link.allocations.length||link.allocations.length>40||
+   !Array.isArray(link.saleIds)||!link.saleIds.length)fail('FINANCE_ALLOCATION_INVALID');
+  const expected=new Set(link.allocations.map(x=>String(x.saleId))),listed=new Set(link.saleIds);
+  if(expected.size!==listed.size||[...expected].some(v=>!listed.has(v))||
+   link.allocations.some(x=>!id(x.saleId)||!id(x.installmentId)||
+    !Number.isFinite(x.amountBRL)||x.amountBRL<=0||
+    !Number.isSafeInteger(Math.round(x.amountBRL*100))))fail('FINANCE_ALLOCATION_INVALID');
+  const total=Math.round(link.allocations.reduce((n,x)=>n+x.amountBRL,0)*100);
+  if(total!==Math.round(Number(link.currencyEvidence?.valorAtribuidoBRL||0)*100))
+   fail('FINANCE_ALLOCATION_TOTAL_MISMATCH');
+ }
  return {financeLinkVersion:2,financeEventType:link.financeEventType,
   saleId:link.saleId,lojaId:String(lojaId),clienteId:String(clienteId||''),
   paymentId:link.paymentId,sourceEventId:link.sourceEventId,
@@ -27,7 +40,8 @@ export function validateFinanceLink(link,{lojaId,referenciaId,clienteId,ledgerId
   statusLiquidacao:link.statusLiquidacao||'REGISTERED_UNVERIFIED',
   comprovanteId:link.comprovanteId||null,
   currencyEvidence:link.currencyEvidence||null,
-  reversalOf:link.reversalOf||null,ledgerId:ledgerId||null};
+  reversalOf:link.reversalOf||null,ledgerId:ledgerId||null,
+  ...(link.allocations?{allocations:link.allocations,saleIds:link.saleIds}:{})};
 }
 /** Existing PDV creates one aggregated debt in the financial ledger.
  * This link documents that aggregate faithfully, without inventing installments.
