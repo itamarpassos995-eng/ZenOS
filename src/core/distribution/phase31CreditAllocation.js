@@ -13,6 +13,10 @@ export const creditObligationForSale=sale=>{
  if(!sale||!key(String(sale.id||''))||sale.financeCreditV2?.schema!==1)
   reject('CREDIT_SOURCE_UNVERIFIED');
  const x=sale.financeCreditV2;
+ // A prior commercial return may already have reduced the client's debt.
+ // Without an allocated reversal, never reuse the original credit face value.
+ if(Array.isArray(sale.devolucoes)&&sale.devolucoes.length)
+  reject('CREDIT_PRIOR_RETURN_REVIEW_REQUIRED');
  const owed=cents(x.originalBRL);
  const source=(sale.pagamentos||[]).filter(p=>p.formaId==='crediario')
   .reduce((n,p)=>n+Math.round(Number(p.valorConvertidoBRL||0)*100),0);
