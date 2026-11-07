@@ -33,3 +33,23 @@ O fluxo A.3 exige evidência de testes Node, Firestore Emulator, Chromium deskto
 **Próximo passo:** obter e registrar o último CI com todas as etapas efetivamente verdes; corrigir qualquer regressão. A Entrega B continua NÃO INICIADA.
 
 **IDs com evidência parcial relevante:** `D31-01-001..006`, `D31-02-007`, `D31-03-002`, `D31-04-003..004`, `D31-05-001..028`, `D31-12-003/006/012..014`, `D31-15-*` e `D31-16-*`. Nenhum ID é encerrado automaticamente.
+
+
+## Evidências de homologação real
+
+**GitHub Actions #42325929715 — SUCCESS** em [run verificável](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42325929715), SHA `51bddb56328730d7d524820e4b8deffa6ddd8d99`.
+
+Resultados extraídos dos logs do job:
+
+- **14/14 testes Node** de contratos, cliente e ledger semântico;
+- **18/18 testes transacionais** no Firebase Emulator;
+- **39/39 testes de regressão de domínio** das fases anteriores;
+- **15/15 testes Phase 3** registrados no job de transações;
+- execução de concorrência Phase 3 e Phase 2 concluída com sucesso;
+- **build React/Vite concluído**;
+- **jornada Chromium real desktop 1440×1050 (PT) e mobile 390×844 (ES)**, incluindo registro, revisão, rascunho fiscal interno, upload/download e invalidação de evidência privada, estado fiscal pendente, invariância de estoque e ausência de lançamento financeiro;
+- [evidências browser A.3](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42325929715): artifact `distribution-phase31-a3-browser-evidence`, ID `13555705296`, com capturas e integridade.
+
+Uma suíte posterior inclui a separação do fato físico e da divergência informativa (sem consumo de capacidade física), e seu resultado deve ser registrado separadamente; **não confundir CI aprovado em um commit com outro mais recente**.
+
+Os dados de todos esses cenários são sintéticos do projeto `demo-zenos-local`. A aprovação no Emulator não autoriza implantação nem prova aderência fiscal oficial BR/PY.
