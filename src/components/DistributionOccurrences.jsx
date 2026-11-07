@@ -1,4 +1,4 @@
-import React,{useCallback,useEffect,useMemo,useState} from 'react';
+import React,{useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {distributionMoney} from '../core/distribution/i18n.js';
 import './DistributionOccurrences.css';
 
@@ -12,6 +12,7 @@ export default function DistributionOccurrences({client,session,range,language})
  const t=copy[language==='es'?'es':'pt'],[rows,setRows]=useState([]),[next,setNext]=useState(null),[page,setPage]=useState(0),[cursors,setCursors]=useState([null]);
  const [orders,setOrders]=useState([]),[orderCursor,setOrderCursor]=useState(null),[detail,setDetail]=useState(null),[form,setForm]=useState(defaultForm),[creating,setCreating]=useState(false);
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[reload,setReload]=useState(0),[filterReason,setFilterReason]=useState(''),[filterState,setFilterState]=useState(''),[docType,setDocType]=useState('');
+ const pendingCreate=useRef(null),pendingAction=useRef(null);
  const canManage=session.capabilities?.includes('manage')||session.capabilities?.includes('returns')||session.capabilities?.includes('admin');
  const canFiscal=session.capabilities?.includes('manage')||session.capabilities?.includes('admin');
  const localState=v=>t.states[v]||v;
@@ -29,17 +30,24 @@ export default function DistributionOccurrences({client,session,range,language})
  }catch(e){setError(e.code||'REQUEST_FAILED');}finally{setBusy(false);}};
  const open=async id=>{setBusy(true);setError('');try{const r=await client.occurrenceQuery({type:'detail',occurrenceId:id},{refresh:true});setDetail(r.occurrence);setDocType(documentTypes[r.occurrence.country]?.[0]||'');}catch(e){setError(e.code||'REQUEST_FAILED');}finally{setBusy(false);}};
  const create=async e=>{e.preventDefault();if(!selectedOrder||!selectedLine)return;setBusy(true);setError('');try{
-  const id='OCC-'+crypto.randomUUID();
-  await client.occurrenceCommand('CREATE',id,0,{
-   id,tenantId:session.tenantId||undefined,
-   refs:{saleId:selectedOrder.id,orderId:selectedOrder.id,customerId:selectedOrder.clienteId,
-    orderLineId:String(form.lineIndex),productId:selectedLine.produtoOriginalId},
-   reason:form.reason,quantity:Number(form.quantity),description:form.description
-  });
+  const signature=JSON.stringify([form,selectedOrder.id,selectedLine.produtoOriginalId]);
+  if(pendingCreate.current?.signature!==signature){
+   const id='OCC-'+crypto.randomUUID();pendingCreate.current={signature,id,key:crypto.randomUUID(),payload:{
+    id,refs:{saleId:selectedOrder.id,orderId:selectedOrder.id,customerId:selectedOrder.clienteId,
+     orderLineId:String(form.lineIndex),productId:selectedLine.produtoOriginalId},
+    reason:form.reason,quantity:Number(form.quantity),description:form.description
+   }};
+  }
+  const {id,key,payload}=pendingCreate.current;
+  await client.occurrenceCommand('CREATE',id,0,payload,key);
+  pendingCreate.current=null;
   setCreating(false);setForm(defaultForm);setNotice(t.loaded);setReload(n=>n+1);await open(id);
  }catch(e){setError(e.code||'REQUEST_FAILED');}finally{setBusy(false);}};
  const operate=async(type,payload)=>{if(!detail)return;setBusy(true);setError('');setNotice('');try{
-  await client.occurrenceCommand(type,detail.id,detail.revision,payload);
+  const signature=JSON.stringify([type,detail.id,detail.revision]);
+  if(pendingAction.current?.signature!==signature)pendingAction.current={signature,key:crypto.randomUUID(),payload};
+  await client.occurrenceCommand(type,detail.id,detail.revision,pendingAction.current.payload,pendingAction.current.key);
+  pendingAction.current=null;
   await open(detail.id);setNotice(t.loaded);setReload(n=>n+1);
  }catch(e){setError(e.code||'REQUEST_FAILED');}finally{setBusy(false);}};
  const transition=(domain,next)=>operate('TRANSITION_'+domain.toUpperCase(),{next,eventId:'EV-'+crypto.randomUUID(),note:next,at:new Date().toISOString()});
