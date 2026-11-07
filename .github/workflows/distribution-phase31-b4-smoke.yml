@@ -8,6 +8,7 @@ on:
       - 'scripts/distribution/phase31-b4-native-returns-v2-emulator.mjs'
       - 'scripts/distribution/phase31-b4-security-negative-v2-emulator.mjs'
       - 'scripts/distribution/phase31-b4-multicurrency.test.mjs'
+      - 'operational-functions/test/distribution/b4-operator-matrix.test.mjs'
       - 'src/core/distribution/phase31ReturnLineage.js'
       - 'scripts/distribution/phase31-return-lineage.test.mjs'
   workflow_dispatch:
@@ -35,6 +36,8 @@ jobs:
         run: npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.distribution-v2.json 'node scripts/distribution/phase31-b4-native-returns-v2-emulator.mjs'
       - name: G1 G6 authentication, cross-tenant and forged V2 negative tests
         run: npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.distribution-v2.json 'node scripts/distribution/phase31-b4-security-negative-v2-emulator.mjs'
+      - name: G6 operator matrix and server-side permission negatives
+        run: npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.distribution-v2.json 'node --test operational-functions/test/distribution/b4-operator-matrix.test.mjs'
       - name: B4 focused finance safety tests
         run: node --test scripts/distribution/phase31-native-links.test.mjs scripts/distribution/phase31-credit-allocation.test.mjs scripts/distribution/phase31-return-lineage.test.mjs scripts/distribution/phase31-b4-multicurrency.test.mjs
       - name: React build
