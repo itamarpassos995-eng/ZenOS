@@ -1,18 +1,6 @@
 name: Distribution Phase 3.1 B validation
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - feat/distribution-logistics-foundation
-    paths:
-      - '.github/workflows/distribution-phase31-a2.yml'
-      - 'src/core/distribution/phase31Commercial.js'
-      - 'operational-functions/src/distribution/commercialService.js'
-      - 'operational-functions/test/distribution/commercial.test.mjs'
-      - 'src/components/DistributionCommercial.jsx'
-      - 'scripts/distribution/phase31-commercial.test.mjs'
-      - 'scripts/distribution/phase31-a2-browser.mjs'
-      - 'scripts/distribution/phase31-a2-homologate.mjs'
 permissions:
   contents: read
 jobs:
