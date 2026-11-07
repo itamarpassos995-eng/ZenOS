@@ -57,7 +57,7 @@ export function distributionService(db,{now=()=>Date.now()}={}) {
    const expiresAt=now()+1800000;
    tx.set(attempt.ref,{failures:0,windowAt:now(),blockedUntil:0});
    tx.create(db.doc(`${c.root}/distribution_sessions/${hash(secret)}`),{uid,operatorId,generation:c.generation,scope,credential:credentialFingerprint(op),expiresAt});
-   return {sessionToken:secret,operatorId,operatorName:op.nome,scope,capabilities:['admin','stock','driver','manage','returns','finance'].filter(p=>distributionPermission(op,p)),timeZone:c.config.timezone||'America/Asuncion',expiresAt};
+   return {sessionToken:secret,operatorId,operatorName:op.nome,scope,capabilities:['admin','stock','driver','manage','returns','finance','fiscalReview'].filter(p=>distributionPermission(op,p)),timeZone:c.config.timezone||'America/Asuncion',expiresAt};
   });
   if(result.failed)error('INVALID_CREDENTIAL');return result;
  }
