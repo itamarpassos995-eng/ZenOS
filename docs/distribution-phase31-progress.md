@@ -1,5 +1,7 @@
 # Fase 3.1 — Controle de execução
 
+> **Retomada B.4 G4 (2026-11-07):** base `70b007cb25c7f03b088eb301824e8d91d1188a1d`; commits `4c81cb16962ca51d8aae5523ba70345c624c3519` (guard de livro duplicado), `578c5e50919e7ad602ce0b02e5bb79fd889dd1fd` (teste) e `1a9abf6d9d41568242a426a4ca364fedd3044b34` (relatório). Teste incluído mas **não executado na CI do novo HEAD** nesta retomada. Evidência local da fixture V2 R$ 450/duas vendas/parcelas indisponível no Git remoto e não substituída. G4 `PARTIAL`, B.4 parcial; demais gates sem promoção. `PREPARATION_OF_C_ALLOWED=false`, `EXECUTION_OF_C_ALLOWED=false`. Sem merge, deploy manual, dados reais ou efeitos financeiros/fiscais.
+
 ## Estado da preservação
 
 MASTER original recuperado integralmente, sem reconstrução de memória. SHA-256: `c63fbb599d9ffaaa359ecaeb665e4c3ae78615becb2697c9c17b21e0355e8bde`. Base remota confirmada: `bd65b2754a16bde9be17712fcc6683d6e18acd64`. Referências: [MASTER](distribution-phase31-master.md), [matriz](distribution-phase31-checklist.md).
