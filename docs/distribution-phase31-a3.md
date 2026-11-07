@@ -53,3 +53,22 @@ Resultados extraídos dos logs do job:
 Uma suíte posterior inclui a separação do fato físico e da divergência informativa (sem consumo de capacidade física), e seu resultado deve ser registrado separadamente; **não confundir CI aprovado em um commit com outro mais recente**.
 
 Os dados de todos esses cenários são sintéticos do projeto `demo-zenos-local`. A aprovação no Emulator não autoriza implantação nem prova aderência fiscal oficial BR/PY.
+
+
+## Homologação final da A.3 — GitHub Actions #42326100945
+
+**Resultado verificado:** [execução GitHub Actions #42326100945](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42326100945) — **SUCCESS** no SHA de implementação `edf36d4eae4a95ee1a8bb30e31a18e193d55c42f`.
+
+- **14/14 testes Node** dos contratos, cliente e fatos semânticos;
+- **19/19 testes reais no Firebase Emulator**, incluindo prova da viagem, segurança por perfis, anexos privados, invalidação e divergência informativa sem consumo de quantidade física;
+- **39/39 testes de regressão de domínio** das fases anteriores;
+- **15/15 testes transacionais da Fase 3**;
+- concorrência das Fases 2 e 3: etapas **SUCCESS**;
+- `npm run build`: **SUCCESS**;
+- navegador Chromium PT desktop 1440×1050 e ES mobile 390×844: **SUCCESS**;
+- integridade V2: estoque sintético preservado, livro financeiro sem novos lançamentos, documento fiscal interno não autorizado, prova privada anexada e depois invalidada com auditoria;
+- evidências (capturas, arquivo privado de teste e JSON de integridade) no artifact `distribution-phase31-a3-browser-evidence`, ID **13554903497**, dentro da execução vinculada acima.
+
+A CI verifica o código até `edf36d4`. Após ele, somente foi acrescentada uma asserção de teste para família informativa, editada a política de CI para acionamento manual e produzida documentação — **nenhuma nova alteração operacional**. O arquivo MASTER permanece intocado. Não houve merge/deploy nem emissão fiscal.
+
+**Limite do aceite:** a A.3 está homologada **para os fluxos sintéticos cobertos**, não para produção. A store de evidências é local e temporária do Emulator; pendem armazenamento privado de Distribuição em produção, regras/índices instalados, análise legal DNIT/SEFAZ, verificação de eventos manuais independentes, medição real de leituras, retenção/limpeza e aceite integral dos demais IDs da Fase 3.1.
