@@ -11,7 +11,7 @@ export function validateFinanceLink(link,{lojaId,referenciaId,clienteId,ledgerId
   !id(link.saleId)||!id(link.paymentId)||!id(link.sourceEventId)||!currency(link.moedaOrigem)||
   typeof link.valorOriginal!=='number'||!Number.isFinite(link.valorOriginal)||link.valorOriginal<=0)
   fail('FINANCE_LINK_INVALID');
- if(String(link.saleId)!==String(referenciaId)&&link.financeEventType!=='REVERSAL')fail('FINANCE_LINK_SALE_MISMATCH');
+ if(String(link.saleId)!==String(referenciaId)&&!['REVERSAL','RECEIPT'].includes(link.financeEventType))fail('FINANCE_LINK_SALE_MISMATCH');
  if(link.clienteId!=null&&String(link.clienteId)!==String(clienteId))fail('FINANCE_LINK_CUSTOMER_MISMATCH');
  if(link.lojaId!=null&&String(link.lojaId)!==String(lojaId))fail('FINANCE_LINK_TENANT_MISMATCH');
  if(link.financeEventType==='OBLIGATION'&&(!id(link.receivableId)||!id(link.installmentId)))
