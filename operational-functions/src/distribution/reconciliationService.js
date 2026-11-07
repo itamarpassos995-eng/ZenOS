@@ -16,17 +16,28 @@ export function buildFinancialReconciliation({db,ctx,authorize,now=()=>Date.now(
   // B.2 cursor pagination avoids downloading a whole collection. A bounded scan
   // that cannot prove completeness must fail closed; never silently truncate.
   // c.root = lojas/{tenant}; c.base = native V2 generation. Ledger is tenant-scoped.
-  const financialQuery=db.collection(`${c.root}/financeiro_livro`)
-    .where('referenciaId','==',adjustment.saleId).orderBy('__name__');
-  const pages=[];let cursor=null,sourceComplete=false,readCount=2;
-  for(let p=0;p<10;p++){
-   const query=cursor?financialQuery.startAfter(cursor).limit(31):financialQuery.limit(31);
-   const page=await tx.get(query);readCount+=page.size;
-   if(page.size===0){sourceComplete=true;break;}
-   const take=page.docs.slice(0,30);pages.push(...take);
-   if(page.size<=30){sourceComplete=true;break;}
-   cursor=take.at(-1);
+  const financial=db.collection(`${c.root}/financeiro_livro`);
+  // PDV sale journal references saleId; native client receipts keep their own
+  // receiptId as referenciaId and link to the sale through financeLink.saleId.
+  const queries=[
+   financial.where('referenciaId','==',adjustment.saleId).orderBy('__name__'),
+   financial.where('financeLink.saleId','==',adjustment.saleId).orderBy('__name__')
+  ];
+  const docs=new Map();let sourceComplete=true,readCount=2;
+  for(const financialQuery of queries){
+   let cursor=null,complete=false;
+   for(let p=0;p<10;p++){
+    const query=cursor?financialQuery.startAfter(cursor).limit(31):financialQuery.limit(31);
+    const page=await tx.get(query);readCount+=page.size;
+    if(page.size===0){complete=true;break;}
+    const take=page.docs.slice(0,30);
+    for(const item of take)docs.set(item.ref.path,item);
+    if(page.size<=30){complete=true;break;}
+    cursor=take.at(-1);
+   }
+   if(!complete)sourceComplete=false;
   }
+  const pages=[...docs.values()].sort((a,b)=>a.id.localeCompare(b.id));
   if(!saleSnap.exists||saleSnap.data().deleted||!customerSnap.exists||
      customerSnap.data().deleted)error('SOURCE_NOT_FOUND');
   const sale=saleSnap.data().data;
@@ -39,7 +50,8 @@ export function buildFinancialReconciliation({db,ctx,authorize,now=()=>Date.now(
    return {...raw,...(meta?{
     financeLinkVersion:meta.financeLinkVersion,financeEventType:meta.financeEventType,
     receivableId:meta.receivableId,installmentId:meta.installmentId,
-    paymentId:meta.paymentId,sourceEventId:meta.sourceEventId
+    paymentId:meta.paymentId,sourceEventId:meta.sourceEventId,
+    nativeReferenciaId:raw.referenciaId,referenciaId:meta.saleId
    }:{}),id:doc.id};
   });
   if(ledger.some(e=>e.lojaId&&String(e.lojaId)!==adjustment.tenantId))
