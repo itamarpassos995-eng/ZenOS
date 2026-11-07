@@ -17,3 +17,19 @@ test('B3 rejects unevidenced PASS and preserves technical-only distinction',()=>
  assert.equal(complete.PREPARATION_OF_C_ALLOWED,true);
  assert.equal(complete.EXECUTION_OF_C_ALLOWED,false);
 });
+
+test('each gate independently blocks preparation when its evidence is incomplete', () => {
+ for (const gate of Object.keys(B3_GATES)) {
+  const incomplete = [
+   {status:'PARTIAL', sha, evidence:all[gate].evidence},
+   {status:'BLOCKED', sha, evidence:all[gate].evidence},
+   {status:'PASS', sha:'invalid', evidence:all[gate].evidence},
+   {status:'PASS', sha, evidence:[' ', null]},
+  ];
+  for (const [index, entry] of incomplete.entries()) {
+   const result = evaluatePreparationOfC({...all, [gate]:entry});
+   assert.equal(result.PREPARATION_OF_C_ALLOWED, false, `${gate} case ${index}`);
+   assert.equal(result.EXECUTION_OF_C_ALLOWED, false, `${gate} case ${index}`);
+  }
+ }
+});

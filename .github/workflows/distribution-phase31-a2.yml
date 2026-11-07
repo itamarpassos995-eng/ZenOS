@@ -4,6 +4,7 @@ on:
     branches: [feat/distribution-logistics-foundation]
     paths:
       - '.github/workflows/distribution-phase31-a2.yml'
+      - 'scripts/distribution/phase31-c-gates.test.mjs'
   workflow_dispatch:
 permissions:
   contents: read

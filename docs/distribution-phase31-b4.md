@@ -153,3 +153,25 @@ Commits: `4c81cb16962ca51d8aae5523ba70345c624c3519` (código) e `578c5e50919e7ad
 ### Confirmação posterior — CI G9 integrada (2026-11-07)
 
 **GitHub Actions [#42423103191](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42423103191): SUCCESS**, SHA de execução `aa8656f504c2de3335dc0e46e1ffe44f763eea16`. Etapas aprovadas: prova cliente V2; testes 3.1 incluindo legados G4 e FX G3; build React; integração Firebase V2 incluindo operador G6 e concorrência G5; regressões de fases anteriores; Chromium desktop/mobile e evidências de navegador. **G9 mantém PARTIAL por cobertura incompleta dos 20 cenários MASTER e ausência da lista canônica dos 56 adicionais**; sucesso técnico de CI não é homologação fiscal ou bancária. Os commits posteriores ao SHA testado são exclusivamente documentais. C bloqueada.
+
+## Revalidação da ordem MASTER — 2026-11-07
+
+Base remota conferida antes da alteração: `cbc214b8670d446f6c0d03a71c1ad9ab58beb618`. O diff desde `aa8656f504c2de3335dc0e46e1ffe44f763eea16`, SHA da [CI integrada #42423103191](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42423103191), continha apenas documentação. O status Vercel da base retornou falha por limite de builds.
+
+| Gate | Decisão | Evidência preservada e lacuna |
+|---|---|---|
+| G1 | PARTIAL | Escrita cliente V2 e negativas de autenticação/geração. Falta provar as escritas financeiras no fluxo completo de operador. |
+| G2 | PARTIAL | Recebimento nativo de R$ 450 alocado entre duas vendas e parcelas. Falta a cadeia completa de renegociação e pagamento parcial legado. |
+| G3 | PARTIAL | Casos BRL/PYG/USD/EUR e rejeição sem câmbio ou liquidação comprovados. Faltam evidências de integração por meio de pagamento. |
+| G4 | PARTIAL | Devoluções V2 e rejeição de origens legadas incompletas ou conflitantes. Falta conciliar reversões anteriores e confirmações externas. |
+| G5 | PARTIAL | Replay conflitante e disputas simultâneas dentro da distribuição. Falta a corrida integrada PDV, recebimento e devolução. |
+| G6 | PARTIAL | Isolamento Firebase entre UIDs e grants no serviço de distribuição. Falta provar autorização delegada ponta a ponta para as operações financeiras do PDV. |
+| G7 | PASS histórico | Preservada a prova de invalidação STALE das B.1/B.2. |
+| G8 | PARTIAL | Matriz dos 20 originais com 17 PARTIAL e 3 BLOCKED. Fonte individual dos 56 adicionais indisponível nas fontes consultadas. |
+| G9 | PARTIAL | CI anterior aprovada no seu SHA. A cobertura de homologação integral ainda depende de G8. |
+| G10 | PASS histórico | Restrições fiscais, bancárias e financeiras seguem documentadas. |
+
+A busca pela lista dos 56 incluiu os anexos disponíveis da conversa de origem e o histórico dos documentos no Git. As referências ao total não identificaram uma lista canônica com descrição e aceite individual. A regressão em `scripts/distribution/phase31-c-gates.test.mjs` verifica G1–G10 individualmente com estados PARTIAL/BLOCKED, SHA inválido e evidência vazia. Os dados desse teste são sintéticos e exercitam somente a regra de liberação. As oito evidências de CI anteriores e o MASTER foram preservados.
+
+`PREPARATION_OF_C_ALLOWED=false`
+`EXECUTION_OF_C_ALLOWED=false`
