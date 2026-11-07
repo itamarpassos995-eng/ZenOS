@@ -160,17 +160,25 @@ test('A3 dedicated fiscal reviewer can only prepare fiscal draft, not create log
  const f=await setup('PY'),operatorRef=db.doc(`${f.base}/operadores/stock`);
  await operatorRef.update({'data.permissoes':{distributionFiscalReview:true}});
  const fiscal=await service.login(f.uid,{operatorId:'stock',pin:PIN,scope:'trip'});
+ await db.doc(`${f.base}/vendas/O001`).update({'data.fiscalOriginal':{id:'INV1',country:'PY',reference:'CDC-FAKE-TEST-ONLY',status:'autorizado'}});
  const created=await create(f);
  let state=await next(f,{occurrenceId:created.cmd.occurrenceId,revision:0},'TRANSITION_LOGISTICS','UNDER_REVIEW');
  state=await next(f,{occurrenceId:created.cmd.occurrenceId,revision:state.revision},'TRANSITION_LOGISTICS','CONFIRMED');
  const detailRead=await service.occurrenceQuery(f.uid,fiscal.sessionToken,{type:'detail',occurrenceId:created.cmd.occurrenceId});
  assert.equal(detailRead.occurrence.states.logistics,'CONFIRMED');
+ state=await service.occurrenceCommand(f.uid,fiscal.sessionToken,{
+  type:'TRANSITION_FISCAL',occurrenceId:created.cmd.occurrenceId,
+  expectedRevision:state.revision,key:randomUUID(),
+  payload:{next:'DRAFT',eventId:'EV-'+randomUUID(),note:'Revisão fiscal'}});
+ const drafted=await draft({...f,token:fiscal.sessionToken},{
+  occurrenceId:created.cmd.occurrenceId,revision:state.revision},'NOTA_CREDITO_ELECTRONICA');
+ assert.equal(drafted.states.fiscal,'REVIEW_REQUIRED');
  const cmd=createInput(f);cmd.payload.id=cmd.occurrenceId;
  await assert.rejects(service.occurrenceCommand(f.uid,fiscal.sessionToken,cmd),{code:'FORBIDDEN'});
  await assert.rejects(service.occurrenceEvidenceUpload(f.uid,fiscal.sessionToken,{
   occurrenceId:created.cmd.occurrenceId,id:'E1',key:randomUUID(),expectedRevision:state.revision,
-  kind:'PHOTO',mediaType:'image/png',base64:'aGVsbG8='
- }));
+  kind:'PHOTO',mediaType:'image/png',base64:'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/LysAAAAASUVORK5CYII='
+ }),{code:'FORBIDDEN'});
 });
 test('A3 operator permission changes invalidate privileged commands',async()=>{
  const f=await setup('PY');const created=await create(f);
