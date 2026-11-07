@@ -333,3 +333,20 @@ Evidência consolidada: [relatório A.2](distribution-phase31-a2.md) e [GitHub A
 **Rastreabilidade adicional:** D31-05-001, D31-05-003..026, D31-01-001..006, D31-12-003/006/012..014 e D31-16-* tiveram **jornadas sintéticas relevantes testadas**. Não se declara nenhum ID agregado `CONCLUÍDO`: permanecem lacunas de evidências/fotos privadas, prevenção contra duplicidade semântica com chaves distintas, regras fiscais oficiais, perfis/escopos de todos os operadores, 20 cenários MASTER, e regressões ampliadas. O MASTER permanece imutável e os 259 IDs continuam preservados.
 
 **Próxima ação:** revisão de deduplicação por evento físico e validação das provas/logísticas, regressões integrais Fases 2/2.1/3 e aceite de acessibilidade, sem abrir Entrega B ou produção.
+
+
+## Entrega A.3 — proteção semântica e evidências privadas
+
+**Escopo técnico:** ver [relatório A.3](distribution-phase31-a3.md). Os **259 itens da matriz original** e os critérios do MASTER permanecem intactos. Não foi realizado merge, deploy ou alteração em empresa real.
+
+| IDs relacionados | Prova de implementação | Estado de aceite | Pendências |
+|---|---|---|---|
+| D31-01-001..006; D31-05-001..028 | `occurrenceFacts.js`, `occurrenceService.js`, `phase31Foundation.js`; testes de concorrência e prova logística | EM TESTE | Cobertura de todas as categorias de ocorrência, conflitos de fatos manuais legítimos e reconciliação final com B/C |
+| D31-05-*; D31-12-003/006/012..014 | `privateEvidence.js`, `evidenceService.js`, `DistributionOccurrences.jsx`; upload privado e invalidação auditada | EM TESTE / PROD BLOQUEADA | Store privada exclusiva de Distribuição, retenção, expurgo e monitoramento de objetos órfãos em produção |
+| D31-12-003/006/012..014 | `security.js`, `service.js`, `trips.js`, `occurrenceService.js`: permissão `distributionFiscalReview` e verificação por sessão | EM TESTE | Revisão integral dos papéis de todas as empresas e regras efetivas do Firestore |
+| D31-15-* | Carregamento sob demanda, consultas por período e sem listeners extras | EM TESTE | Medição de latência e leituras reais em produção não autorizada |
+| D31-16-* | `phase31-facts.test.mjs`, `occurrences.test.mjs`, `evidence.test.mjs`, testes Chromium; regressões 2/2.1/3 via GitHub Actions | EM TESTE | Registro da última execução abrangendo as alterações finais, critérios legais e homologação física |
+
+**Evidências CI já aprovadas na branch:** [#42325684537](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42325684537), [#42325623192](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42325623192) e [#42325508316](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42325508316), com testes de domínio, Firebase Emulator, browser e regressões nos respectivos SHAs. A versão consolidada após os últimos ajustes deve apresentar evidência própria antes do aceite integral.
+
+**Todos os estados fiscais transmitido/autorizado permanecem bloqueados.** Nenhum item dependente de A.3 ou de B/C/D/E foi fechado por aproximação; consultar detalhes em `docs/distribution-phase31-a3.md`.
