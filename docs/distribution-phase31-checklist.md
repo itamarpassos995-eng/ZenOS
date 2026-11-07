@@ -1,5 +1,7 @@
 # Fase 3.1 — Matriz de rastreabilidade
 
+> **B.4 prova adicional 2026-11-07:** G2/G5: duas vendas autenticadas separadas e um recibo de R$ 450 (R$ 100 + R$ 150 + R$ 200), saldo R$ 1.600 → R$ 1.150, retry idempotente: CI focada [#42420385476](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42420385476) SUCCESS. G4: devoluções internas parcial R$ 400 e total R$ 1.000, quantidade 2/2, bloqueio excedente, origem do livro e ausência de liquidação externa: mesma CI SUCCESS. **G2, G4, G5 continuam PARTIAL** por lacunas externas/legadas/concorrência. Full regressions [#42420488604](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42420488604) devem ser conferidas antes de marcar resultado. Não alterar os 259 IDs e 20 cenários. C bloqueada.
+
 > **Adendo B.4 G4 (2026-11-07):** proteção de `DUPLICATE_RETURN_JOURNAL` publicada nos commits `4c81cb1` e `578c5e5`, documentada em `docs/distribution-phase31-b4.md`. Novo HEAD documental `1a9abf6`. G4 permanece **PARTIAL** até regressão/Emulator/CI; nenhuma prova anterior foi invalidada ou promovida a PASS. Os 259 IDs e 20 cenários originais continuam inalterados. Entrega C proibida.
 
 ## Referência e método
