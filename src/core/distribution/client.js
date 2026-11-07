@@ -22,6 +22,12 @@ export function createDistributionClient(user,{fetcher=fetch,now=()=>Date.now()}
   async occurrenceEvidenceRead(occurrenceId,id){
     return post('occurrence-evidence-read',{occurrenceId,id});
   },
+  async occurrenceEvidenceInvalidate(input){
+    const identity='evi-invalidate:'+input.occurrenceId+':'+input.id+':'+input.expectedRevision;
+    if(!pending.has(identity))pending.set(identity,input.key||crypto.randomUUID());
+    const result=await post('occurrence-evidence-invalidate',{...input,key:pending.get(identity)});
+    pending.delete(identity);cache.clear();return result;
+  },
   invalidate(){cache.clear()},
   async logout(){await post('logout',{});session=null;cache.clear();pending.clear();},
   clear(){session=null;cache.clear();pending.clear();},
