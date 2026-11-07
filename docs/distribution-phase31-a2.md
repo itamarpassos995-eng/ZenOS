@@ -52,3 +52,21 @@ Esta etapa forneceu código real e testado para registro, leitura, conferência 
 Próxima ação controlada: testes Chromium desktop/mobile, verificação de reutilização do evento logístico para deduplicação, fotos/assinaturas privadas, permissão de operador de devoluções e regressões completas do módulo.
 
 **Nenhum merge, deploy, emissão fiscal, migração ou acesso a dados reais nesta entrega.**
+
+
+## Adendo — homologação Chromium concluída (execução de 7/11/2026)
+
+**Execução comprovada:** [GitHub Actions #42319497676](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42319497676), **SUCCESS**, SHA `f0afb3e5cec26bc2ea242a87cc147ce08b144ce0`.
+
+- **10/10** testes Node da fundação e cliente (incluindo recuperação de resposta perdida).
+- **6/6** testes transacionais reais no Firebase Auth/Firestore Emulator.
+- `npm run build` aprovado (Vite/React).
+- Chromium desktop **1440×1050 PT**: login, abertura da Central, escolha de pedido, registro, conferência logística, rascunho interno de Nota de Crédito PY, estados independentes.
+- Chromium mobile **390×844 ES**: consulta da ocorrência e documento pendente em espanhol.
+- Integridade V2 após o fluxo: **estoque sintético 100**, nenhum lançamento no livro financeiro, uma ocorrência persistida, `authorized:false`, `eligibilityVerified:false`, estado financeiro `NOT_REQUESTED`.
+- Evidências em [artifact distribution-phase31-a2-browser-evidence](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42319497676) (arquivo #13552571080): `occurrences-desktop-pt.png`, `occurrences-mobile-es.png`, `before-create-desktop.png`, `browser-integrity.json` e `database-integrity.json`.
+- A primeira execução visual [#42319158812](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42319158812) falhou em um seletor Playwright excessivamente estrito; o seletor foi corrigido, com captura diagnóstica, e a segunda execução demonstrou a jornada completa.
+
+O artefato registra dados **somente sintéticos**, nunca documento fiscal real. A validação Chromium resolve a pendência visual **do fluxo testado**, mas não fecha os 259 requisitos nem prova deduplicação semântica por evento físico, evidências privadas, integração fiscal oficial, permissões reais em produção, regressões amplas ou implantação. A emissão continua bloqueada.
+
+**Observação de rastreabilidade:** a execução visual aprovada ocorreu no SHA `f0afb3e`, antes de mudanças documentais deste adendo; nenhum código operacional foi alterado após essa execução.
