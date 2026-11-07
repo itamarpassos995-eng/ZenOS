@@ -1,5 +1,7 @@
 # Fase 3.1 — Matriz de rastreabilidade
 
+> **Adendo B.4 G4 (2026-11-07):** proteção de `DUPLICATE_RETURN_JOURNAL` publicada nos commits `4c81cb1` e `578c5e5`, documentada em `docs/distribution-phase31-b4.md`. Novo HEAD documental `1a9abf6`. G4 permanece **PARTIAL** até regressão/Emulator/CI; nenhuma prova anterior foi invalidada ou promovida a PASS. Os 259 IDs e 20 cenários originais continuam inalterados. Entrega C proibida.
+
 ## Referência e método
 
 Fonte integral: [MASTER imutável](distribution-phase31-master.md), arquivo original `Texto colado(20261106-213249).txt`, recebido nesta conversa. SHA-256 dos bytes originais e da transcrição: `c63fbb599d9ffaaa359ecaeb665e4c3ae78615becb2697c9c17b21e0355e8bde`. Codificação UTF-8; terminadores originais preservados. Base confirmada no GitHub: `bd65b2754a16bde9be17712fcc6683d6e18acd64`, branch `feat/distribution-logistics-foundation`.
