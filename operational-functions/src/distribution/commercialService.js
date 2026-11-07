@@ -34,6 +34,15 @@ export function buildCommercialAdjustments({db,ctx,authorize,now=()=>Date.now()}
    const occurrence=occSnap.data();
    if(!occurrence||occurrence.tenantId!==uid||occurrence.generation!==c.generation||
       occurrence.id!==command.occurrenceId)error('OCCURRENCE_NOT_FOUND');
+   const lineKey=hash([uid,occurrence.refs.saleId,occurrence.refs.orderLineId].join(':'));
+   const lineRef=rootDoc(c,'distribution_adjustment_sale_lines',lineKey);
+   const lineSnap=await tx.get(lineRef);
+   const lineLimit=lineSnap.exists?lineSnap.data():{
+    generation:c.generation,tenantId:uid,saleId:occurrence.refs.saleId,
+    orderLineId:occurrence.refs.orderLineId,active:0,claims:{},revision:0};
+   if(lineLimit.generation!==c.generation||lineLimit.tenantId!==uid||
+     lineLimit.saleId!==occurrence.refs.saleId||
+     lineLimit.orderLineId!==occurrence.refs.orderLineId)error('SALE_LINE_SOURCE_CHANGED');
    const old=adjustmentSnap.exists?adjustmentSnap.data():null;
    if(old&&(old.tenantId!==uid||old.generation!==c.generation))error('ADJUSTMENT_NOT_FOUND');
    const locked=lockSnap.exists?lockSnap.data():{tenantId:uid,occurrenceId:occurrence.id,
@@ -59,6 +68,8 @@ export function buildCommercialAdjustments({db,ctx,authorize,now=()=>Date.now()}
     quantity=safe(Number(payload.quantity));
     if(quantity===0||quantity>occurrence.quantity)error('ADJUSTMENT_QUANTITY_EXCEEDED');
     if(locked.active+quantity>occurrence.quantity)error('ADJUSTMENT_QUANTITY_EXCEEDED');
+    if(lineLimit.active+quantity>safe(Number(sale.itens[Number(occurrence.refs.orderLineId)]?.qtd)))
+     error('SALE_LINE_ADJUSTMENT_EXCEEDED');
     if(Object.keys(locked.claims).length>=60)error('ADJUSTMENT_HISTORY_LIMIT');
     // No trusted payment/receivable subledger is joined here; never infer amounts due
     // from sale.totalOriginal, pagamentOS array or customer's current balance.
@@ -69,6 +80,8 @@ export function buildCommercialAdjustments({db,ctx,authorize,now=()=>Date.now()}
     if(updated.value.minor==='0')error('ADJUSTMENT_ZERO_VALUE');
     locked.claims[command.id]={quantity,state:'ACTIVE',createdBy:actor.operatorId};
     locked.active+=quantity;locked.revision++;
+    lineLimit.claims[command.id]={quantity,state:'ACTIVE',occurrenceId:occurrence.id};
+    lineLimit.active+=quantity;lineLimit.revision++;
    }else{
     if(!old||old.occurrenceId!==occurrence.id)error('ADJUSTMENT_NOT_FOUND');
     if(command.type==='TRANSITION_COMMERCIAL'&&
@@ -88,7 +101,14 @@ export function buildCommercialAdjustments({db,ctx,authorize,now=()=>Date.now()}
        releasedBy:actor.operatorId,releasedAt:now()};
      locked.active-=old.quantity;
      if(locked.active<0)error('RESERVATION_CORRUPTED');
-     locked.revision++;release=true;
+     locked.revision++;
+     const claim=lineLimit.claims[command.id];
+     if(!claim||claim.state!=='ACTIVE'||claim.quantity!==old.quantity)
+      error('SALE_LINE_RESERVATION_CORRUPTED');
+     lineLimit.claims[command.id]={...claim,state:'RELEASED',releasedAt:now()};
+     lineLimit.active-=old.quantity;
+     if(lineLimit.active<0)error('SALE_LINE_RESERVATION_CORRUPTED');
+     lineLimit.revision++;release=true;
     }
    }
    const out={...updated,generation:c.generation,
@@ -100,6 +120,7 @@ export function buildCommercialAdjustments({db,ctx,authorize,now=()=>Date.now()}
     status:updated.status,reserved:!release};
    tx.set(adjustmentRef,out);
    tx.set(lockRef,{...locked,updatedAtMs:now()});
+   tx.set(lineRef,{...lineLimit,updatedAtMs:now()});
    tx.create(receiptRef,{identity,operatorId:actor.operatorId,generation:c.generation,result,createdAtMs:now()});
    tx.create(rootDoc(c,'distribution_adjustment_events',eventId),{eventId,tenantId:uid,
     adjustmentId:updated.id,occurrenceId:occurrence.id,operatorId:actor.operatorId,
