@@ -12,6 +12,9 @@ on:
       - 'operational-functions/test/distribution/evidence.test.mjs'
       - 'operational-functions/src/distribution/evidenceService.js'
       - 'operational-functions/src/distribution/privateEvidence.js'
+      - 'src/components/DistributionOccurrences.jsx'
+      - 'scripts/distribution/phase31-a2-browser.mjs'
+      - 'scripts/distribution/phase31-a2-homologate.mjs'
 permissions:
   contents: read
 jobs:
