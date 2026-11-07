@@ -56,3 +56,20 @@ test('private storage files are not stored under Firestore and require exact ten
  await assert.rejects(storage.read({tenantId:'another-company',occurrenceId:f.occId,evidenceId:id,sha256:staged.sha256}));
  await storage.discard({tenantId:f.uid,occurrenceId:f.occId,evidenceId:id});
 });
+
+test('A3 evidence invalidation remains in historical record but is denied to readers',async()=>{
+ const f=await identity(),id='EV-'+randomUUID();
+ const upload=await service.occurrenceEvidenceUpload(f.uid,f.token,{occurrenceId:f.occId,id,
+  expectedRevision:0,key:randomUUID(),kind:'DOCUMENT',mediaType:'image/png',base64:SAMPLE_PNG});
+ const request={occurrenceId:f.occId,id,expectedRevision:upload.revision,
+  key:randomUUID(),reason:'Anexo equivocado na conferência sintética'};
+ const invalidated=await service.occurrenceEvidenceInvalidate(f.uid,f.token,request);
+ assert.equal(invalidated.status,'INVALIDATED');
+ assert.equal((await service.occurrenceEvidenceInvalidate(f.uid,f.token,request)).replayed,true);
+ await assert.rejects(service.occurrenceEvidenceRead(f.uid,f.token,{occurrenceId:f.occId,id}),{code:'EVIDENCE_NOT_FOUND'});
+ const o=(await db.doc(`${f.root}/distribution_occurrences/${f.occId}`).get()).data();
+ assert.equal(o.evidence[0].status,'INVALIDATED');
+ assert.equal(o.evidence[0].invalidatedBy,'admin');
+ assert.equal(o.history.at(-1).to,'INVALIDATED');
+ assert.equal((await db.collection(`${f.root}/distribution_occurrence_events`).get()).size,3);
+});
