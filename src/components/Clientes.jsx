@@ -241,18 +241,52 @@ export default function Clientes({ userId,perfilLoja = {}, commitOperacaoNegocio
        mensagem:tx('Selecione novamente uma venda a prazo válida antes de receber.','Seleccione de nuevo una venta a crédito válida antes de cobrar.'),
        apenasConfirmar:true});
     }
-    const financeLink=vendaVinculada?validateFinanceLink({
+    // B.4: explicit individual allocations in the SAME critical sale+client+ledger
+    // operation. Legacy sales without a verified new-credit contract cannot be
+    // assigned by similarity of name, amount or date.
+    let planoAlocacao=null;
+    if(vendaVinculada){
+      try{
+        const extra=outrasVendasFiado.map(row=>({
+          saleId:String(row.saleId),installmentId:
+            historicoVendas.find(v=>String(v.id)===String(row.saleId))
+              ?.financeCreditV2?.installments?.[0]?.id||'',
+          amountBRL:Number(row.amountBRL)
+        }));
+        const principal=Number((valBRL-extra.reduce((sum,row)=>sum+row.amountBRL,0)).toFixed(2));
+        const primeira={
+          saleId:String(vendaVinculada.id),
+          installmentId:vendaVinculada.financeCreditV2?.installments?.[0]?.id||'',
+          amountBRL:principal
+        };
+        planoAlocacao=prepareVerifiedCreditAllocations({
+          sales:historicoVendas,clientId:clienteAtual.id,receiptId:recebimentoId,
+          receivedBRL:valBRL,allocations:[primeira,...extra]
+        });
+      }catch(error){
+        return setModalZen({variante:'warning',
+          titulo:tx('Vinculação não comprovada','Asignación no comprobada'),
+          mensagem:tx('Esta venda ou parcela não possui saldo verificável para o valor informado. Confira os recebimentos e tente novamente.',
+            'Esta venta o cuota no tiene saldo verificable para el importe indicado. Revise los cobros e intente de nuevo.'),
+          detalhes:[error.code||error.message],apenasConfirmar:true});
+      }
+    }
+    const financeLink=planoAlocacao?validateFinanceLink({
       financeLinkVersion:2,financeEventType:'RECEIPT',
       saleId:String(vendaVinculada.id),clienteId:String(clienteAtual.id),
       paymentId:recebimentoId,sourceEventId:`VENDA-${vendaVinculada.id}-FIADO`,
       receivableId:`REC-${vendaVinculada.id}`,
-      installmentId:`INST-${vendaVinculada.id}-AGGREGATE`,
+      installmentId:vendaVinculada.financeCreditV2.installments[0].id,
+      saleIds:[...new Set(planoAlocacao.allocations.map(x=>x.saleId))],
+      allocations:planoAlocacao.allocations,
       moedaOrigem:formaCfg.moedaOrigem,valorOriginal,
       statusLiquidacao:'REGISTERED_UNVERIFIED',
       currencyEvidence:{valorAtribuidoBRL:valBRL,taxaCambioAplicada:valorOriginal/valBRL,
        data:createdAt,fonte:'CAIXA_ZENOS_REGISTRO_LOCAL'}
     },{lojaId:String(userId),
        referenciaId:recebimentoId,clienteId:clienteAtual.id,ledgerId:recebimentoId}):null;
+    const vendasPropostas=planoAlocacao?historicoVendas.map(v=>
+      planoAlocacao.patches.find(p=>p.saleId===String(v.id))?.nextSale||v):historicoVendas;
     const financeiro = {
       id: recebimentoId,
       tipo: 'recebimento_fiado',
@@ -283,13 +317,21 @@ export default function Clientes({ userId,perfilLoja = {}, commitOperacaoNegocio
       if (typeof commitOperacaoNegocio === 'function') {
         const changes = [{ field:'clientes', value:clientesPropostos, storageSuffix:'clientes' }];
         if (mov) changes.push({ field:'caixaMovimentos', value:caixaProposto, storageSuffix:'caixa_movs' });
+        if(planoAlocacao)changes.push({field:'historicoVendas',value:vendasPropostas,storageSuffix:'historico_vendas'});
         const confirmado = await commitOperacaoNegocio({
           changes, financialEntries:[financeiro],
           guards: [
             { type:'client_receipt_snapshot', clientId:clienteAtual.id, clientName:clienteAtual.nome, balanceBRL:saldoAntes },
-            ...(vendaVinculada?[{type:'entity_field_equals',field:'historicoVendas',
-             entityId:String(vendaVinculada.id),entityKey:'id',property:'clienteId',
-             expected:vendaVinculada.clienteId,message:'Venda vinculada alterada. Recebimento bloqueado.'}]:[]),
+            ...(planoAlocacao?planoAlocacao.patches.flatMap(p=>[
+              {type:'entity_field_equals',field:'historicoVendas',
+               entityId:p.saleId,entityKey:'id',property:'creditAllocationsV2',
+               expected:p.previousAllocationSnapshot,
+               message:'Outro operador recebeu esta parcela. Atualize o extrato.'},
+              {type:'entity_field_equals',field:'historicoVendas',
+               entityId:p.saleId,entityKey:'id',property:'financeCreditV2',
+               expected:historicoVendas.find(v=>String(v.id)===p.saleId)?.financeCreditV2,
+               message:'A obrigação foi alterada. Atualize antes de receber.'},
+            ]):[]),
             ...(dinheiroFisico ? [{ type:'cash_session_open', sessionId:sessaoAtiva.id }] : []),
           ],
           operationKey: 'recebimento-fiado:' + recebimentoId,
@@ -297,6 +339,8 @@ export default function Clientes({ userId,perfilLoja = {}, commitOperacaoNegocio
         if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou o recebimento.');
         clientesConfirmados = confirmado.values?.clientes || clientesPropostos;
         caixaConfirmado = confirmado.values?.caixaMovimentos || caixaProposto;
+        if(planoAlocacao&&typeof setHistoricoVendas==='function')
+          setHistoricoVendas(confirmado.values?.historicoVendas||vendasPropostas);
       } else if (typeof registrarFinanceiro === 'function') {
         await registrarFinanceiro(financeiro);
       }
@@ -310,6 +354,8 @@ export default function Clientes({ userId,perfilLoja = {}, commitOperacaoNegocio
     }
 
     setModalZen({ variante:'success', titulo:tx('Recebimento registrado','Cobro registrado','Payment recorded'), mensagem:`${fmt(valBRL, 'BRL')} recebidos de ${clienteReceberFiado.nome}.`, detalhes:[`Saldo anterior: ${fmt(saldoAntes, 'BRL')}`, `Saldo atual: ${fmt(saldoDepois, 'BRL')}`, dinheiroFisico ? tx("Entrada registrada na gaveta do turno.","Ingreso registrado en la caja del turno.") : tx("Recebimento financeiro sem movimentar a gaveta física.","Cobro financiero sin movimiento en la caja física.")], apenasConfirmar:true });
+    recebimentoPendenteIdRef.current=null;
+    setOutrasVendasFiado([]);
     setModalReceberFiadoAberto(false);
     setClienteReceberFiado(null);
     setComprovanteFiado(comprovanteDeRecebimento(financeiro));
