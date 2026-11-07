@@ -6,7 +6,7 @@ Fonte canônica: `docs/distribution-phase31-checklist.md` seção 16, transcriç
 |---|---|---|---|
 | D31-16-002 | Venda à vista com devolução parcial | `phase31-b4-native-returns-v2-emulator.mjs` prova devolução parcial interna, mas usa venda fiada | PARTIAL |
 | D31-16-003 | Venda a prazo com abatimento de dívida | `trips.test.mjs` contém conciliação sintética de crédito por devolução | PARTIAL: sem toda cadeia fiscal |
-| D31-16-004 | Venda parcialmente quitada com devolução | `phase31-b4-multi-sale-v2-emulator.mjs` prova pagamento parcial; `phase31-b4-native-returns-v2-emulator.mjs` prova devolução, em fixtures diferentes | PARTIAL: não prova operação combinada |
+| D31-16-004 | Venda parcialmente quitada com devolução | `phase31-b4-native-returns-v2-emulator.mjs`: venda de R$ 1.000, recebimento de R$ 250 na parcela, devoluções internas de R$ 400 e R$ 600, saldo de R$ 750 e recibo original preservados no mesmo fluxo autenticado. [Etapa aprovada na CI #42425126667](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42425126667), SHA `2a12e269729c76344fbaaedeb9f6ffaeb68b1696`. | PARTIAL: prova nativa combinada; falta jornada completa com conciliação da devolução e decisões financeira e fiscal aplicáveis |
 | D31-16-005 | Falta de mercadoria na entrega | `trips.test.mjs` prova entrega parcial e reconciliação física | PARTIAL |
 | D31-16-006 | Avaria e quarentena | `trips.test.mjs` contém teste de quarentena sem reintegração indevida | PARTIAL |
 | D31-16-007 | Recusa total | `trips.test.mjs` cobre resultado REFUSED e quarentena | PARTIAL |

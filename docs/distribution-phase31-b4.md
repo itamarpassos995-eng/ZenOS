@@ -177,3 +177,24 @@ A busca pela lista dos 56 incluiu os anexos disponíveis da conversa de origem e
 `EXECUTION_OF_C_ALLOWED=false`
 
 > **Resultado da revalidação.** A [CI integrada #42424250200](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42424250200) concluiu com SUCCESS no SHA `ab4e047154b70db29eef2e9ca85a57f5fd595513`: escrita nativa V2, testes da Fase 3.1, build React, integração Firebase Emulator, regressões anteriores, Chromium desktop/mobile e artefato do navegador. A suíte local da Fase 3.1 passou 67/67. O GitHub registrou o Vercel desse SHA como Preview automático com sucesso e `production_environment=false`. O resultado técnico preserva a decisão dos gates acima e as duas autorizações continuam falsas.
+
+## Continuidade B.4 — recebimento parcial e devolução na mesma venda
+
+Base remota inicial: `5bfa0dde3f7959a2de30bf1441e9804b349555f8`. Prova adicionada em `scripts/distribution/phase31-b4-native-returns-v2-emulator.mjs`, SHA `2a12e269729c76344fbaaedeb9f6ffaeb68b1696`. A etapa dedicada da [CI integrada #42425126667](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42425126667) passou com Auth e Firestore Emulator. A venda de R$ 1.000 recebe R$ 250 alocados na obrigação e parcela verificadas. Após devoluções internas de R$ 400 e R$ 600, a venda preserva a alocação, o livro preserva o recibo original e o saldo segue em R$ 750. O retry da segunda devolução é idempotente e uma terceira devolução excedente é rejeitada sem diário adicional. Os estados fiscal e de liquidação externa seguem sem comprovação. Nenhuma execução financeira da C foi habilitada.
+
+| Gate | Decisão | IDs aplicáveis | Lacuna para aceite |
+|---|---|---|---|
+| G1 | PARTIAL | D31-06-002, D31-12-001 | Provar todas as escritas financeiras com identidade de operador no ponto de entrada. |
+| G2 | PARTIAL | D31-06-003, D31-06-005, D31-06-019, D31-16-004 | Homologar renegociação e pagamentos parciais legados com vínculos completos. |
+| G3 | PARTIAL | D31-16-019, D31-16-021 | Disponibilizar contrato/sandbox para confirmações por meio de pagamento e integrar às provas de câmbio histórico. |
+| G4 | PARTIAL | D31-06-018, D31-06-020, D31-16-004 | Comprovar reversões anteriores e confirmações externas. Abatimento autorizado de D31-06-004 depende da etapa financeira. |
+| G5 | PARTIAL | D31-06-008, D31-16-015, D31-16-016 | Provar corrida integrada PDV/recebimento/devolução, incluindo caixa, estoque e retomada. |
+| G6 | PARTIAL | D31-12-001, D31-12-002, D31-16-018 | Demonstrar grants e revogação delegada nas operações financeiras do PDV. |
+| G7 | PASS histórico | D31-09, D31-10 | Evidência de invalidação STALE preservada no escopo histórico. |
+| G8 | PARTIAL | D31-16-001 a D31-16-021 | Fechar a matriz dos 20 originais e recuperar a lista canônica dos 56 adicionais. |
+| G9 | PARTIAL | D31-16-001 a D31-16-021 | Cobertura de homologação ainda incompleta. |
+| G10 | PASS histórico | D31-06-017, D31-06-018 | Restrições fiscais e bancárias documentadas; execução desabilitada. |
+
+A busca dos 56 adicionais consultou os anexos já disponíveis, referências no histórico Git e branches clonadas, issues/PRs e o índice de artefatos da CI #42424250200. A busca de issues/PRs retornou o PR #56 de regras Firestore, sem lista no corpo. O índice de artefatos mostrou apenas evidência de navegador. Não foi recuperada lista individual. O Vercel reportou falha por limite de builds no SHA testado. Preparação e execução de C seguem desabilitadas.
+
+> **Regressão final.** [CI integrada #42425126667](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42425126667) e [CI focada #42425126660](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42425126660) concluíram com SUCCESS no mesmo SHA. A integrada aprovou escrita V2, Auth/Firestore Emulator, React, regressões anteriores e Chromium desktop/mobile, com [artefato de navegador](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42425126667/artifacts/13594398837). Localmente, 67/67 testes da Fase 3.1 passaram. A prova de devolução passou também com portas locais alternativas, pois a 8080 estava ocupada. A homologação dos gates permanece parcial, com 17 cenários originais PARTIAL e três BLOCKED. PREPARATION_OF_C_ALLOWED=false e EXECUTION_OF_C_ALLOWED=false.

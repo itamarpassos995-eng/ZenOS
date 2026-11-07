@@ -52,3 +52,5 @@ Fonte: `operational-functions/src/distribution/security.js`, `service.js`, `trip
 ## Decisão atual
 
 G1, G2, G3, G4, G5, G6, G8 e G9 **PARTIAL** até todas as evidências; G7 e G10 PASS histórico. `PREPARATION_OF_C_ALLOWED=false` e `EXECUTION_OF_C_ALLOWED=false`. Este documento não realiza lançamentos, concessões, compensações ou emissão fiscal.
+
+> **G2/G4 — continuidade:** a [prova V2 de D31-16-004](distribution-phase31-b4-20-original-scenarios.md) combina recebimento parcial e devolução no mesmo registro de venda, com alocação e recibo preservados. A conciliação financeira/fiscal integral e a jornada de operador seguem pendentes.
