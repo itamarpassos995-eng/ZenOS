@@ -459,3 +459,17 @@ Não foi feita migração histórica, nenhuma baixa de parcelas, estorno, crédi
 **Aceite técnico: PARCIAL / homologação sintética aprovada.** Os 42 cenários listados na ordem B.2 **não foram todos demonstrados**. Continua ausente a criação nativa obrigatória desses vínculos em todas as rotas reais de PDV/fiado; histórico legado ambíguo não pode ser atribuído, não há verificação independente de liquidação bancária, e pagamentos mistos entre várias vendas/parcelas ou renegociações ainda exigem cobertura adicional. A conciliação não deverá ser considerada pronta para execução real até sanar essas lacunas.
 
 **Decisão da preparação da Entrega C:** NÃO LIBERADA INTEGRALMENTE, por falta dos comprovantes e contratos de origem para os fluxos de produção. O objeto `FinancialCompensationEligibilityV1` permanece `executable:false`; qualquer futura restituição exigirá revalidação das fontes atuais e autorização fiscal/financeira. O MASTER de 259 IDs permaneceu intocado. Nenhum merge, deploy, pagamento, baixa, restituição ou movimento de estoque foi executado.
+
+
+## Fase 3.1 — Entrega B.3, vínculos nativos e gate objetivo para a C
+
+[Relatório B.3](distribution-phase31-b3.md). O MASTER com **259 requisitos e 20 cenários** continua imutável. Esta matriz **não transforma** a implementação parcial em aceitação final.
+
+| Requisitos relacionados | Evidência no código | Estado real | Bloqueio |
+|---|---|---|---|
+| D31-06-* / D31-07-* / D31-08-* | `phase31NativeFinanceLinks.js`, `PDV.jsx`, `Clientes.jsx`, `financialLedgerCore.js`; origem de fiado e seleção explícita da venda | PARCIAL | Falta criar/aprovar alocação obrigatória por parcela; recebimentos sem venda e históricos não têm vínculo comprovado |
+| D31-09-* / D31-10-* | `reconciliationService.js` consulta livro `lojas/{tenant}/financeiro_livro` e venda V2, com dois índices lógicos por venda/recibo e paginação | PARCIAL | Sem comprovação de quitação bancária, saldos confiáveis de crédito multivenda e todas as reversões históricas |
+| D31-12-* / D31-15-* | Link validado no mesmo lançamento financeiro V1/V2; preservação de valor contábil BRL, autenticação e consulta sob demanda | EM TESTE | Regras estritas de escrita client-side V2 **não homologadas** no cenário nativo B.3; não relaxar segurança |
+| D31-16-* | `phase31-native-links.test.mjs`, `phase31-c-gates.test.mjs`, integração Emulator das fases anteriores e prova nativa separada | EM TESTE | Validar run final, 38 cenários completos e prova de transação cliente estrita |
+
+**Decisão formal:** `PREPARATION_OF_C_ALLOWED=false`. Trava em `src/core/distribution/phase31CGates.js` exige G1–G10 em PASS com SHA e evidências; `EXECUTION_OF_C_ALLOWED` nunca é habilitada pela B.3. Nenhum merge, deploy, migração real, alteração de estoque, caixa ou restituição foi autorizado.
