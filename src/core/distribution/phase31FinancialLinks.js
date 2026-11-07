@@ -135,8 +135,12 @@ export function reconcileLinkedObligations({sale,adjustment,ledger=[],complete=t
   potential:null,financialExecution:'BLOCKED_B2',
   sourceIds:{saleId:String(sale.id),ledgerIds:[...seen].sort()},
   eligibility:{schema:'FinancialCompensationEligibilityV1',executable:false,
-   sourceDigest:canonicalFinancialSource({saleId:sale.id,ledgerIds:[...seen].sort()}),
-   preconditions:confirmed?['FINANCIAL_SOURCE_REVALIDATION_REQUIRED','FISCAL_APPROVAL_REQUIRED']:
-    [...issues].sort()},
+   tenantId:adjustment.tenantId,establishmentId:adjustment.establishmentId||null,
+   saleId:String(sale.id),customerId:String(sale.clienteId),adjustmentId:adjustment.id,
+   remainingPotentialUpperBound:m(adjust,c),priorCompensations:m(previousCompensations,c),
+   originalCurrency:c,sourceDigest:canonicalFinancialSource({
+    saleId:sale.id,ledgerIds:[...seen].sort(),installments:details}),
+   preconditions:confirmed?['FINANCIAL_SOURCE_REVALIDATION_REQUIRED','FISCAL_APPROVAL_REQUIRED',
+    'COMMERCE_POLICY_APPROVAL_REQUIRED']: [...issues].sort()},
  };
 }
