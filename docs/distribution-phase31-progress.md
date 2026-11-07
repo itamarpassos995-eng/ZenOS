@@ -401,3 +401,21 @@ A fonte `docs/distribution-phase31-master.md` e seus **259 requisitos** permanec
 | D31-15-*; D31-16-* | `phase31-commercial.test.mjs`, `commercial.test.mjs`, testes Chromium e regressões em CI | EM TESTE | Confirmar run definitivo e diferenças entre Emulator e produção |
 
 **Não declarar CONCLUÍDO** nenhum grupo que dependa de credenciamento fiscal, subledger financeiro, storage privado, classificação tributária oficial, emissão de nota ou dinheiro movimentado. Nenhum evento de outbox aciona ZenOS Connect. Nenhum merge ou deploy.
+
+
+## Entrega B — CI consolidada aprovada
+
+**GitHub Actions:** [execução #42327714182](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42327714182), **SUCCESS**, código funcional testado no SHA `39576257c1e656ce40c2d4de06435503b3a18d60`. As alterações posteriores foram somente documentação e política do workflow (manual), sem modificar o código funcional.
+
+Resultado real nos logs:
+
+- **18/18** testes Node (contratos de fundação, ledger semântico, cliente, multimoeda e domínio comercial).
+- **25/25** testes Firestore Emulator incluindo reservas por ocorrência e linha de venda, BR/PY, idempotência, permissões, preservação de vendas/estoque/financeiro e representações imutáveis.
+- **43/43** regressões de domínio e **15/15** testes transacionais Fase 3.
+- Etapas de concorrência Phase 2 e Phase 3: **SUCCESS**.
+- Build React/Vite: **SUCCESS**.
+- Chromium real desktop PT 1440×1050 e mobile ES 390×844: **SUCCESS**, incluindo criação do ajuste e espelho interno, ocorrências e evidências privadas.
+- Verificação pós-navegador do Emulator: 1 ajuste com valor histórico **PYG 79.980**, reserva transacional e versão interna; zero lançamentos no livro financeiro, saldo e estoque sintéticos intactos e nenhuma autorização fiscal.
+- Evidências: artifact `distribution-phase31-b-browser-evidence` ID **13556540282**, acessível na página do run acima; capturas `commercial-internal-pt.png`, `occurrences-desktop-pt.png`, `occurrences-mobile-es.png`, além de `browser-integrity.json` e `database-integrity.json`.
+
+**Aceite:** implementação B **homologada para os cenários sintéticos efetivamente testados**, com bloqueios para emissão fiscal real e compensação financeira. Conciliação de parcelas efetivamente pagas, qualificação fiscal definitiva por UF/regime, parecer/consentimento SIFEN, PDF fiscal validado e revisão legal/contábil por empresa continuam **pendentes**. Nenhuma transação da Entrega C foi executada. O MASTER dos 259 IDs permanece intacto; nenhum ID agregado pode ser encerrado por presunção.
