@@ -9,6 +9,9 @@ on:
       - 'operational-functions/src/distribution/occurrenceFacts.js'
       - 'operational-functions/src/distribution/occurrenceService.js'
       - 'operational-functions/test/distribution/occurrences.test.mjs'
+      - 'operational-functions/test/distribution/evidence.test.mjs'
+      - 'operational-functions/src/distribution/evidenceService.js'
+      - 'operational-functions/src/distribution/privateEvidence.js'
 permissions:
   contents: read
 jobs:
@@ -32,7 +35,7 @@ jobs:
       - name: React build
         run: npm run build
       - name: Firebase Emulator V2 integration tests
-        run: npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.distribution-v2.json 'node --test operational-functions/test/distribution/occurrences.test.mjs'
+        run: npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.distribution-v2.json 'node --test operational-functions/test/distribution/occurrences.test.mjs operational-functions/test/distribution/evidence.test.mjs'
 
       - name: Install browser runner
         run: |
