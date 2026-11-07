@@ -73,11 +73,14 @@ export function createDistributionOccurrence(input) {
       'FISCAL_SOURCE_NOT_VERIFIED');
     fiscalOriginal={id:f.id,reference:f.reference,country:f.country,verified:true};
   }
+  assert(input.factId==null||validId(input.factId),'INVALID_FACT_ORIGIN');
+  assert(input.sourceKind==null||['MANUAL','TRIP'].includes(input.sourceKind),'INVALID_FACT_ORIGIN');
   const now=input.reportedAt;
   return freeze({
     schema:OCCURRENCE_SCHEMA,id:input.id,tenantId:input.tenantId,establishmentId:input.establishmentId,
     country:input.country,reason:input.reason,description:input.description,
     quantity:input.quantity,refs:source,originalAmount,evidence,fiscalOriginal,
+    factId:input.factId||null,sourceKind:input.sourceKind||'MANUAL',
     states:{logistics:'REPORTED',fiscal:'NOT_REQUESTED',financial:'NOT_REQUESTED'},
     fiscalDocuments:[],revision:0,
     history:[{eventId:input.eventId || input.id,domain:'logistics',from:null,to:'REPORTED',
