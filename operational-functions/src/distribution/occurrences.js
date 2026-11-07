@@ -24,11 +24,10 @@ export async function executeOccurrenceCommand({command,authorize,transaction}) 
  if(![tenantId,occurrenceId,key].every(ident)||!Object.hasOwn(PERMISSIONS,type)||
    !Number.isSafeInteger(expectedRevision)||expectedRevision<0)fail('INVALID_COMMAND');
  if(typeof authorize!=='function'||typeof transaction!=='function')fail('SERVER_HOST_REQUIRED');
- const actor=await authorize({tenantId,permission:PERMISSIONS[type]});
- if(!actor||actor.tenantId!==tenantId||!ident(actor.operatorId)||
-   actor.moduleEnabled!==true||!actor.permissions?.includes(PERMISSIONS[type]))fail('FORBIDDEN');
  const identity=JSON.stringify(canonical(command));
- return transaction({tenantId,occurrenceId,key},async ({occurrence,receipt})=>{
+ return transaction({tenantId,occurrenceId,key,permission:PERMISSIONS[type],type,payload},async ({occurrence,receipt,actor,validatedPayload})=>{
+  if(!actor||actor.tenantId!==tenantId||!ident(actor.operatorId)||
+    actor.moduleEnabled!==true||!actor.permissions?.includes(PERMISSIONS[type]))fail('FORBIDDEN');
   if(receipt) {
    if(receipt.identity!==identity||receipt.operatorId!==actor.operatorId)fail('IDEMPOTENCY_CONFLICT');
    return {replay:true,result:structuredClone(receipt.result)};
@@ -36,14 +35,15 @@ export async function executeOccurrenceCommand({command,authorize,transaction}) 
   let updated;
   if(type==='CREATE') {
    if(occurrence)fail('OCCURRENCE_ALREADY_EXISTS');
-   if(expectedRevision!==0||payload?.id!==occurrenceId||payload?.tenantId!==tenantId||
-      payload?.reportedBy!==actor.operatorId)fail('OCCURRENCE_CONTEXT_MISMATCH');
-   updated=createDistributionOccurrence(payload);
+   if(expectedRevision!==0||!validatedPayload||validatedPayload.id!==occurrenceId||
+      validatedPayload.tenantId!==tenantId||validatedPayload.reportedBy!==actor.operatorId)fail('OCCURRENCE_CONTEXT_MISMATCH');
+   updated=createDistributionOccurrence(validatedPayload);
   }else{
    if(!occurrence||occurrence.tenantId!==tenantId||occurrence.id!==occurrenceId)fail('OCCURRENCE_NOT_FOUND');
    if(occurrence.revision!==expectedRevision)fail('REVISION_CONFLICT');
-   if(type==='DRAFT_FISCAL') updated=createFiscalAdjustmentDraft(occurrence,{
-    ...payload,actorId:actor.operatorId,expectedRevision
+   if(type==='DRAFT_FISCAL') if(!validatedPayload)fail('FISCAL_SOURCE_NOT_VERIFIED');
+   updated=createFiscalAdjustmentDraft(occurrence,{
+    ...validatedPayload,actorId:actor.operatorId,expectedRevision
    });
    else{
     const domain={TRANSITION_LOGISTICS:'logistics',TRANSITION_FISCAL:'fiscal',TRANSITION_FINANCIAL:'financial'}[type];
