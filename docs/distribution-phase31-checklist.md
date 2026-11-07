@@ -308,3 +308,19 @@ A referência MASTER e os 259 IDs acima permanecem intactos. Ver [relatório té
 | D31-12-003; D31-12-006; D31-12-012..014 | `operational-functions/src/distribution/occurrences.js` | EM TESTE | Integrar ao backend existente com validação servidor de PIN, identidade e Firestore V2 |
 
 Teste declarado no código: `scripts/distribution/phase31-foundation.test.mjs`. Foi realizada validação JS isolada com as limitações relatadas; **não houve execução comprovada de Node, Emulator ou navegador**. Nenhum grupo está CONCLUÍDO. Nenhum dos demais requisitos é removido, adiado definitivamente ou implicitamente aceito.
+
+
+## Entrega A.2 — integração V2 e Central de Ocorrências (homologação parcial)
+
+Evidência consolidada: [relatório A.2](distribution-phase31-a2.md) e [GitHub Actions aprovado no SHA 7aa47a2](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42318761946). Os **259 IDs originais mantêm suas unidades integrais e os respectivos critérios de aceite**; a tabela abaixo não os substitui.
+
+| IDs relacionados | Código / teste concreto | Estado atual | Critério ainda pendente |
+|---|---|---|---|
+| D31-01-001..006 | `src/core/distribution/phase31Foundation.js`; `operational-functions/src/distribution/occurrenceService.js`; testes domínio/Emulator | EM TESTE | Integração integral dos efeitos fiscais e financeiros autorizados |
+| D31-02-007; D31-02-010..011; D31-03-002; D31-03-017; D31-04-003..004; D31-04-007 | `phase31Foundation.js` e `occurrenceService.js` | EM TESTE; emissão real BLOQUEADA | Jurisdição, elegibilidade, protocolos oficiais, provedores e consentimentos |
+| D31-05-001..028 | `DistributionOccurrences.jsx`, `DistributionCentral.jsx`, `occurrenceService.js`, `occurrences.test.mjs` | EM TESTE | Captura/evidências reais, links completos de viagem, deduplicação por fato e testes Chromium |
+| D31-12-003; D31-12-006; D31-12-012..014 | `occurrences.js`, `occurrenceService.js`, integração Emulator | EM TESTE | Revisão de permissões finas e auditoria de segurança de implantação |
+| D31-15-* | Carregamento React.lazy, consultas Hoje com paginação de até 30 | EM TESTE | Medir leituras e latência em cenário real de homologação |
+| D31-16-* | 8 testes de domínio + 6 testes Firestore Emulator + build aprovado | EM TESTE | Completar 20 cenários MASTER, regressões e jornada visual desktop/mobile |
+
+**Limite do aceite:** testes registrados em Actions estão aprovados no SHA `7aa47a2`, e não houve edição de código funcional após esse SHA antes do relatório; alterações posteriores restringiram gatilhos CI/documentação. Não houve execução Chromium, regras reais instaladas ou provedor fiscal autorizado. Não declarar CONCLUÍDO qualquer requisito agregado sem todas suas evidências.
