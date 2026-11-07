@@ -12,9 +12,10 @@ export function classifySaleReturnHistory({sale,ledger=[],tenantId}){
  if(!sale||!key(String(sale.id))||!Array.isArray(ledger)||!key(String(tenantId)))
   fail('RETURN_AUDIT_INPUT_INVALID');
  const returns=Array.isArray(sale.devolucoes)?sale.devolucoes:[];
- const seenReturns=new Set(),journalById=new Map(),seenEvents=new Set();
+ const seenReturns=new Set(),journalById=new Map(),seenEvents=new Set(),duplicateEvents=new Set();
  for(const e of ledger){
-  if(!e?.id||seenEvents.has(String(e.id)))continue;
+  if(!e?.id)continue;
+  if(seenEvents.has(String(e.id))){duplicateEvents.add(String(e.id));continue;}
   seenEvents.add(String(e.id));
   if(e.tipo!=='devolucao')continue;
   const id=String(e.id);journalById.set(id,e);
@@ -30,6 +31,9 @@ export function classifySaleReturnHistory({sale,ledger=[],tenantId}){
   const summary={returnId:sourceId,ledgerId:entry?.id||null,saleId:String(sale.id)};
   if(!entry){items.push(classification('UNVERIFIED','JOURNAL_MISSING',summary));continue;}
   usedJournal.add(journalId);
+  if(duplicateEvents.has(journalId)){
+   items.push(classification('CONFLICT','DUPLICATE_RETURN_JOURNAL',summary));continue;
+  }
   if(String(entry.lojaId)!==String(tenantId)||
     String(entry.clienteId||'')!==String(sale.clienteId||'')||
     String(entry.detalhes?.vendaId||entry.financeLink?.saleId||'')!==String(sale.id)||
