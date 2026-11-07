@@ -1,4 +1,4 @@
-name: Distribution Phase 3.1 A.2 validation
+name: Distribution Phase 3.1 A.3 validation
 on:
   workflow_dispatch:
   push:
@@ -17,7 +17,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -31,22 +31,30 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm ci --ignore-scripts --no-audit --no-fund --prefix operational-functions
       - name: Phase 3.1 foundation tests
-        run: node --test scripts/distribution/phase31-foundation.test.mjs scripts/distribution/phase31-client.test.mjs
+        run: node --test scripts/distribution/phase31-foundation.test.mjs scripts/distribution/phase31-client.test.mjs scripts/distribution/phase31-facts.test.mjs
       - name: React build
         run: npm run build
       - name: Firebase Emulator V2 integration tests
         run: npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.distribution-v2.json 'node --test operational-functions/test/distribution/occurrences.test.mjs operational-functions/test/distribution/evidence.test.mjs'
 
+      - name: Previous phase 2 and 2.1 domain regressions
+        run: npm run distribution:test
+      - name: Previous phase 3 transaction regressions
+        run: npm run distribution:phase3
+      - name: Previous phase 3 race regressions
+        run: npm run distribution:phase3:concurrency
+      - name: Previous phase 2 concurrent writer regressions
+        run: npm run distribution:concurrency
       - name: Install browser runner
         run: |
           npm install --no-save --no-package-lock playwright@1.56.1
           npx playwright install --with-deps chromium
       - name: Chromium desktop/mobile + V2 integrity
         run: npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.distribution-v2.json 'node scripts/distribution/phase31-a2-homologate.mjs'
-      - name: Save Phase 3.1 A2 browser evidence
+      - name: Save Phase 3.1 A3 browser evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: distribution-phase31-a2-browser-evidence
+          name: distribution-phase31-a3-browser-evidence
           path: tmp/distribution31a2/
           if-no-files-found: warn
