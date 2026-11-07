@@ -33,7 +33,7 @@ export function validateFinanceLink(link,{lojaId,referenciaId,clienteId,ledgerId
    fail('FINANCE_ALLOCATION_TOTAL_MISMATCH');
  }
  return {financeLinkVersion:2,financeEventType:link.financeEventType,
-  saleId:link.saleId,lojaId:String(lojaId),clienteId:String(clienteId||''),
+  saleId:link.saleId,lojaId:String(lojaId),clienteId:clienteId==null?null:String(clienteId),
   paymentId:link.paymentId,sourceEventId:link.sourceEventId,
   receivableId:link.receivableId||null,installmentId:link.installmentId||null,
   moedaOrigem:link.moedaOrigem,valorOriginal:link.valorOriginal,
