@@ -50,7 +50,7 @@ try{
  await login(mobile);
  await mobile.getByRole('combobox',{name:'Idioma'}).selectOption('es');
  await mobile.getByRole('heading',{name:'Incidencias y Devoluciones'}).waitFor();
- await mobile.getByRole('button',{name:'Abrir detalles'}).first().click();
+ await mobile.locator('.dist-occ-item').first().click();
  await mobile.getByText('Ningún documento fue transmitido ni autorizado.').waitFor();
  await mobile.screenshot({path:'tmp/distribution31a2/occurrences-mobile-es.png',fullPage:true});
  screens.push('occurrences-mobile-es.png');
