@@ -54,6 +54,11 @@ try{
  const download=desktop.waitForEvent('download');
  await desktop.getByRole('button',{name:'Baixar evidência',exact:true}).click();
  const saved=await download;await saved.saveAs('tmp/distribution31a2/private-evidence-downloaded.png');
+ await desktop.getByRole('button',{name:'Invalidar evidência',exact:true}).first().click();
+ await desktop.getByLabel('Motivo da invalidação',{exact:true}).fill('Foto sintética substituída após conferência autorizada');
+ await desktop.locator('.dist-occ-evidence .dist-confirm').getByRole('button',{name:'Invalidar evidência',exact:true}).click();
+ await desktop.getByText(/Invalidada/).waitFor();
+ assert.equal(await desktop.getByRole('button',{name:'Baixar evidência',exact:true}).count(),0);
  await desktop.screenshot({path:'tmp/distribution31a2/occurrences-desktop-pt.png',fullPage:true});
  screens.push('occurrences-desktop-pt.png');
  const state=await desktop.locator('.dist-occ-status').innerText();
@@ -70,7 +75,7 @@ try{
  assert.deepEqual(errors,[]);
  await writeFile('tmp/distribution31a2/browser-integrity.json',JSON.stringify({
   passed:true,desktop:{width:1440,height:1050},mobile:{width:390,height:844},
-  screenshots:screens,checks:['login','occurrence create','server review','fiscal draft pending','private evidence upload/download','PT/ES','mobile layout','no http errors'],errors
+  screenshots:screens,checks:['login','occurrence create','server review','fiscal draft pending','private evidence upload/download/invalidation','PT/ES','mobile layout','no http errors'],errors
  },null,2));
  console.log('PHASE31_A2_BROWSER_SUCCESS',JSON.stringify(screens));
 }finally{
