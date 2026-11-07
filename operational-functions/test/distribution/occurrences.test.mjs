@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {db,seed,PIN} from './fixture.mjs';
 import {distributionService} from '../../src/distribution/service.js';
+import {setupTrip,planned,route,trip,signature} from './trip-fixture.mjs';
 const service=distributionService(db);
 const setup=async country=>{
  const f=await seed('distribution-occ-'+randomUUID().slice(0,8),{stock:100,orders:2});
@@ -187,4 +188,36 @@ test('A3 operator permission changes invalidate privileged commands',async()=>{
  await assert.rejects(service.occurrenceQuery(f.uid,f.token,{type:'detail',occurrenceId:created.cmd.occurrenceId}),{code:'FORBIDDEN'});
  const cmd=createInput(f);cmd.payload.id=cmd.occurrenceId;
  await assert.rejects(service.occurrenceCommand(f.uid,f.token,cmd),{code:'FORBIDDEN'});
+});
+
+test('A3 trip-bound shortage uses actual signed delivery proof as immutable fact origin',async()=>{
+ const f=await setupTrip({stock:100,orders:1});
+ await db.doc(`${f.root}/distribution_config/module`).update({fiscalCountry:'PY'});
+ await planned(f,['O001']);
+ await route(f,'driver','START','T1',1);
+ await route(f,'driver','DELIVER','T1',2,{
+  stopId:'O001',quantities:[3],outcome:'PARTIAL',receiver:'Recebedor teste',
+  identification:'TEST-ID',signature,note:'Faltaram duas unidades no destino',condition:'GOOD'
+ });
+ const t=(await trip(f)).trip,stop=t.stops[0];
+ assert.equal(stop.lines[0].returning,2);
+ const cmd=createInput(f,{quantity:2,proofId:stop.proofId,
+  refs:{saleId:'O001',orderId:'O001',customerId:'C1',orderLineId:'0',
+   productId:'P1',tripId:'T1'}});
+ cmd.payload.id=cmd.occurrenceId;
+ const recorded=await service.occurrenceCommand(f.uid,f.manager.sessionToken,cmd);
+ assert.equal(recorded.revision,0);
+ const saved=(await service.occurrenceQuery(f.uid,f.manager.sessionToken,{
+  type:'detail',occurrenceId:cmd.occurrenceId})).occurrence;
+ assert.equal(saved.sourceKind,'TRIP');
+ assert.equal(saved.sourceProofId,stop.proofId);
+ assert.equal(saved.refs.tripId,'T1');
+ const repeat=createInput(f,{quantity:1,proofId:stop.proofId,
+  refs:{saleId:'O001',orderId:'O001',customerId:'C1',orderLineId:'0',
+   productId:'P1',tripId:'T1'}});
+ repeat.payload.id=repeat.occurrenceId;
+ await assert.rejects(service.occurrenceCommand(f.uid,f.manager.sessionToken,repeat),{code:'DUPLICATE_FACT'});
+ const other=await setup('PY');
+ await assert.rejects(service.occurrenceQuery(other.uid,other.token,{
+  type:'detail',occurrenceId:cmd.occurrenceId}),{code:'OCCURRENCE_NOT_FOUND'});
 });
