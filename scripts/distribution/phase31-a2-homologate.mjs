@@ -25,7 +25,11 @@ try{
  const stock=(await db.doc(`${f.base}/produtos/P1`).get()).data().data;
  const ledger=await db.collection(`${f.root}/financeiro_livro`).get();
  const occurrences=await db.collection(`${f.root}/distribution_occurrences`).get();
- if(stock.estoque!==100||ledger.size!==0||occurrences.size!==1)throw Error('OCCURRENCE_INTEGRITY_FAILED');
+ if(stock.estoque!==100||ledger.size!==4||occurrences.size!==1)throw Error('OCCURRENCE_INTEGRITY_FAILED');
+ const expectedEvents=new Set(['DEBT1','PAY1','PAY2','PAY3']);
+ if(ledger.docs.some(d=>!expectedEvents.has(d.id)||d.data().lojaId!==f.uid||
+   d.data().referenciaId!=='O001'||d.data().financeLinkVersion!==2))
+  throw Error('UNEXPECTED_FINANCIAL_MUTATION');
  const o=occurrences.docs[0].data();
  if(o.fiscalDocuments.length!==1||o.fiscalDocuments[0].authorized!==false||
    o.fiscalDocuments[0].eligibilityVerified!==false||
