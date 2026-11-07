@@ -25,19 +25,24 @@ const sale={id:'V1',clienteId:'C1',clienteNome:client.nome,tipoDocumento:'venda'
 const manifest={clientes:{kind:'array',collection:'clientes',count:1},
  historicoVendas:{kind:'array',collection:'vendas',count:0}};
 try{
+ console.log('[B4] SEED V1 START');
  await setDoc(doc(db,'lojas',uid,'dados','operacao'),{
   marker:'B3_V1_UNTOUCHED',clientes:[client],historicoVendas:[]});
+ console.log('[B4] SEED V1 OK / HEAD START');
  await setDoc(doc(db,...root),{
   schema:2,state:'ready',sequence:0,lastReceipt:'0'.repeat(64),updatedAtServer:serverTimestamp(),sourceChecksum:'b3-native-synthetic',
   fieldManifest:manifest,fieldCounts:{clientes:1,historicoVendas:0},
   fieldRevisions:{clientes:0,historicoVendas:0}});
+ console.log('[B4] HEAD OK / CLIENT START');
  await setDoc(doc(db,...root,'clientes','C1'),{
   data:client,legacyField:'clientes',legacyIndex:0,version:0,deleted:false});
+ console.log('[B4] CLIENT OK / ROUTE START');
  await setDoc(doc(db,'lojas',uid,'dados','storage_control'),{
   mode:'v2',generation,sourceChecksum:'b3-native-synthetic',
   certificate:{sourceChecksum:'b3-native-synthetic',productionReady:true,
    v1WritersFenced:true,finalReconciliationPassed:true,
    pdvIntegrationPassed:true,rollbackPrepared:true}});
+ console.log('[B4] ROUTE OK / SESSION START');
  const initial=(await getOperationalSnapshot(db,uid)).data();
  assert.equal(initial.historicoVendas.length,0);
  const obligation={
@@ -47,6 +52,7 @@ try{
    vendaId:'V1',clienteId:'C1',lojaId:uid,valorFiadoBRL:1000,
    moedaDocumento:'BRL',pagamentos:sale.pagamentos})
  };
+ console.log('[B4] SESSION OK / NATIVE SALE COMMIT START');
  const first=await persistV1BusinessOperationSafe({db,userId:uid,
   changes:[
    {field:'historicoVendas',baseValue:initial.historicoVendas,value:[sale]},
@@ -76,6 +82,7 @@ try{
    statusLiquidacao:'REGISTERED_UNVERIFIED'
   },{lojaId:uid,referenciaId:'REC1',clienteId:'C1',ledgerId:'REC1'})
  };
+ console.log('[B4] SALE OK / NATIVE RECEIPT COMMIT START');
  const received=await persistV1BusinessOperationSafe({db,userId:uid,
   changes:[{field:'clientes',baseValue:before.clientes,
    value:[{...before.clientes[0],saldoDevedorBRL:750}]}],
