@@ -1,6 +1,6 @@
 import React,{useCallback,useEffect,useRef,useState} from 'react';
 import {distributionMoney} from '../core/distribution/i18n.js';
-import {FISCAL_CANDIDATES,INTERNAL_FISCAL_WARNING,ADJUSTMENT_TYPES} from '../core/distribution/phase31Commercial.js';
+import {FISCAL_CANDIDATES,INTERNAL_FISCAL_WARNING,ADJUSTMENT_TYPES,TYPES_BY_OCCURRENCE} from '../core/distribution/phase31Commercial.js';
 import './DistributionCommercial.css';
 const messages={
  pt:{title:'Ajustes comerciais e documentos fiscais',subtitle:'Rascunhos internos. Nenhuma movimentação financeira.',new:'Preparar ajuste comercial',quantity:'Quantidade',kind:'Motivo do ajuste',fiscal:'Candidato fiscal (revisão obrigatória)',none:'Sem candidato',create:'Salvar rascunho',empty:'Nenhum ajuste preparado.',status:'Estado interno',source:'Venda original',amount:'Valor comercial histórico',next:'Próxima página',reload:'Atualizar',view:'Consultar / reimprimir',print:'Imprimir espelho interno',reason:'Justificativa da decisão',review:'Encaminhar conferência',fiscalReview:'Encaminhar revisão fiscal',legal:'Bloquear até parecer fiscal',reject:'Rejeitar',cancel:'Descartar',internal:'Revisado internamente',return:'Voltar',pay:'Restituição e abatimento não executados',original:'Fatura original',cannot:'Documentação fiscal original não verificada; transmissão bloqueada.',state:{DRAFT:'Rascunho',COMMERCIAL_REVIEW:'Conferência comercial',FISCAL_REVIEW:'Revisão fiscal',LEGAL_REVIEW_REQUIRED:'Análise legal pendente',INTERNALLY_REVIEWED:'Revisado internamente',REJECTED:'Rejeitado',CANCELLED:'Descartado'},errors:{ADJUSTMENT_QUANTITY_EXCEEDED:'Quantidade acima do disponível para esta ocorrência.',ADJUSTMENT_TRANSITION_FORBIDDEN:'Transição não permitida.',FORBIDDEN:'Operador sem permissão.',REVISION_CONFLICT:'Outro operador alterou este registro. Atualize.',IDEMPOTENCY_CONFLICT:'Chave utilizada em outra operação.'}},
@@ -50,7 +50,7 @@ export default function DistributionCommercial({client,occurrence,session,langua
   {error&&<p role="alert" className="dist-alert">{t.errors[error]||error}</p>}
   <p className="dist-commercial-caution">{t.pay}</p>
   {form&&<form onSubmit={create} className="dist-commercial-form">
-   <label>{t.kind}<select value={form.type} onChange={e=>{setForm(v=>({...v,type:e.target.value}));pending.current=null;}}>{ADJUSTMENT_TYPES.map(k=><option key={k} value={k}>{k.replaceAll('_',' ')}</option>)}</select></label>
+   <label>{t.kind}<select value={form.type} onChange={e=>{setForm(v=>({...v,type:e.target.value}));pending.current=null;}}>{(TYPES_BY_OCCURRENCE[occurrence.reason]||[]).map(k=><option key={k} value={k}>{k.replaceAll('_',' ')}</option>)}</select></label>
    <label>{t.quantity}<input type="number" min="1" step="1" max={occurrence.quantity} value={form.quantity} required onChange={e=>{setForm(v=>({...v,quantity:e.target.value}));pending.current=null;}}/></label>
    <label>{t.fiscal}<select value={form.fiscalCandidate} onChange={e=>{setForm(v=>({...v,fiscalCandidate:e.target.value}));pending.current=null;}}><option value="">{t.none}</option>{FISCAL_CANDIDATES[occurrence.country]?.map(k=><option value={k} key={k}>{k.replaceAll('_',' ')}</option>)}</select></label>
    <div className="dist-actionbar"><button type="submit" disabled={busy} className="primary">{t.create}</button><button type="button" onClick={()=>setForm(null)}>{t.return}</button></div>
