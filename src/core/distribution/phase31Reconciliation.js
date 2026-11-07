@@ -37,7 +37,7 @@ export function calculateFinancialOrigin({sale,adjustment,ledger=[],sourceComple
  if(sale.tipoDocumento!=='venda'||sale.estado!=='concluida')issues.add('SALE_NOT_FINALIZED');
  if(!Array.isArray(sale.pagamentos))issues.add('SALE_PAYMENTS_NOT_AVAILABLE');
  const salePayments=Array.isArray(sale.pagamentos)?sale.pagamentos:[];
- const byRef=new Map();
+ const byRef=new Map(),matchedLedgerIds=new Set();
  for(const entry of ledger){
   if(!entry||typeof entry.id!=='string'||!entry.id||ids.has(entry.id)){
    issues.add('LEDGER_ID_DUPLICATED');continue;
@@ -67,6 +67,7 @@ export function calculateFinancialOrigin({sale,adjustment,ledger=[],sourceComple
    const backing=ledger.filter(e=>e.tipo==='venda_fiada'&&e.referenciaId===sale.id&&
     e.clienteId===sale.clienteId&&e.paymentId===pid);
    if(backing.length!==1){issues.add('RECEIVABLE_LINK_NOT_VERIFIED');continue;}
+   matchedLedgerIds.add(backing[0].id);
    open+=amount;
    issues.add('RECEIVABLE_CURRENT_BALANCE_NOT_VERIFIED');
    observed.push({id:pid,method,currency,originMinor:amount.toString(),evidence:'DEBT_REGISTERED',
@@ -76,7 +77,7 @@ export function calculateFinancialOrigin({sale,adjustment,ledger=[],sourceComple
   const matches=ledger.filter(e=>e.paymentId===pid&&e.referenciaId===sale.id&&
     e.clienteId===sale.clienteId&&e.tipo!=='venda_fiada');
   if(matches.length!==1){issues.add('PAYMENT_LEDGER_NOT_UNIQUE');continue;}
-  const entry=matches[0];
+  const entry=matches[0];matchedLedgerIds.add(entry.id);
   if(String(entry.moeda)!==currency){issues.add('PAYMENT_LEDGER_CURRENCY_MISMATCH');continue;}
   let ledgerAmount;
   try{ledgerAmount=minor(entry.valor,currency);}catch{issues.add('PAYMENT_LEDGER_AMOUNT_INVALID');continue;}
@@ -94,6 +95,7 @@ export function calculateFinancialOrigin({sale,adjustment,ledger=[],sourceComple
   observed.push({id:pid,method,currency,originMinor:amount.toString(),ledgerId:entry.id,
    evidence:entry.liquidacaoConfirmada===true&&entry.status==='liquidado'?'SETTLED':'PENDING'});
  }
+ if(ledger.some(e=>e?.id&&!matchedLedgerIds.has(e.id)))issues.add('UNATTRIBUTED_LEDGER_RECORD');
  const accounted=received+open+authorizedPending;
  if(accounted!==saleTotal)issues.add('SALE_OBLIGATIONS_MISMATCH');
  // Later receivables, partial settlements or refunds without sale-specific linkage block confirmation.
@@ -103,7 +105,7 @@ export function calculateFinancialOrigin({sale,adjustment,ledger=[],sourceComple
  let state='RECONCILED';
  if(issues.has('FX_EVIDENCE_REQUIRED'))state='FX_EVIDENCE_REQUIRED';
  else if(issues.has('EXTERNAL_SETTLEMENT_PENDING'))state='EXTERNAL_SETTLEMENT_PENDING';
- else if([...issues].some(i=>/MISMATCH|DUPLICATED|FOREIGN|CANCELLED|REVERSED/.test(i)))state='DISCREPANCY';
+ else if([...issues].some(i=>/MISMATCH|DUPLICATED|FOREIGN|CANCELLED|REVERSED|UNATTRIBUTED/.test(i)))state='DISCREPANCY';
  else if(issues.size)state='RECONCILIATION_REQUIRED';
  // No future compensation is approved here, even with a reconciled receipt.
  const eligible=state==='RECONCILED';
