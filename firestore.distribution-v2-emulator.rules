@@ -75,13 +75,7 @@ service cloud.firestore {
     allow read: if owner(store);
     allow update: if owner(store)&&validHead(request.resource.data)
      &&request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sequence','lastReceipt','fieldCounts','fieldRevisions','updatedAtServer'])
-     // The head update must avoid recursively reading its own after-state.
-     // Keep sequence, receipt and atomic-after-image guards unchanged.
-     &&active(store,generation)
-     &&resource.data.sequence+1==request.resource.data.sequence
-     &&request.resource.data.lastReceipt.size()==64
-     &&!exists(operation(store,generation,request.resource.data.lastReceipt))
-     &&getAfter(operation(store,generation,request.resource.data.lastReceipt)).data.sequence==request.resource.data.sequence;
+     &&command(store,generation,request.resource.data.lastReceipt,request.resource.data.sequence);
     match /operations/{id} {
      allow read: if owner(store);
      allow create: if owner(store)&&validReceipt(request.resource.data)&&command(store,generation,id,request.resource.data.sequence);
