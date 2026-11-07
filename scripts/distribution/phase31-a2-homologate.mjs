@@ -21,6 +21,7 @@ try{
  start(['node_modules/vite/bin/vite.js','--mode','homologacao','--host','127.0.0.1','--strictPort']);
  await wait('http://127.0.0.1:5173/distribution-homologacao.html');
  await run(['scripts/distribution/phase31-a2-browser.mjs']);
+ await run(['scripts/distribution/phase31-b1-browser.mjs']);
  const stock=(await db.doc(`${f.base}/produtos/P1`).get()).data().data;
  const ledger=await db.collection(`${f.root}/financeiro_livro`).get();
  const occurrences=await db.collection(`${f.root}/distribution_occurrences`).get();
