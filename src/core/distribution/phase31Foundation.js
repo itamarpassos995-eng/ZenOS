@@ -66,11 +66,18 @@ export function createDistributionOccurrence(input) {
   const source=checkRefs(input.refs);
   const originalAmount=checkMoney(input.originalAmount);
   const evidence=checkEvidence(input.evidence);
+  let fiscalOriginal=null;
+  if(input.fiscalOriginal!=null){
+    const f=input.fiscalOriginal;
+    assert(validId(f.id)&&validText(f.reference,200)&&f.country===input.country&&f.verified===true,
+      'FISCAL_SOURCE_NOT_VERIFIED');
+    fiscalOriginal={id:f.id,reference:f.reference,country:f.country,verified:true};
+  }
   const now=input.reportedAt;
   return freeze({
     schema:OCCURRENCE_SCHEMA,id:input.id,tenantId:input.tenantId,establishmentId:input.establishmentId,
     country:input.country,reason:input.reason,description:input.description,
-    quantity:input.quantity,refs:source,originalAmount,evidence,
+    quantity:input.quantity,refs:source,originalAmount,evidence,fiscalOriginal,
     states:{logistics:'REPORTED',fiscal:'NOT_REQUESTED',financial:'NOT_REQUESTED'},
     fiscalDocuments:[],revision:0,
     history:[{eventId:input.eventId || input.id,domain:'logistics',from:null,to:'REPORTED',
