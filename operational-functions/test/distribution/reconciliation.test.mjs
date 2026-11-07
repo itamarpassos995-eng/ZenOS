@@ -24,7 +24,7 @@ async function settlement(f,{state='liquidado',confirmed=true,currency='PYG'}={}
  await db.doc(`${f.base}/vendas/O001`).update({'data.tipoDocumento':'venda',
   'data.estado':'concluida','data.pagamentos':[{id:'PAY1',formaId:'dinheiro_pyg',
    moedaOrigem:currency,valorOriginal:currency==='PYG'?199950:150}]});
- await db.doc(`${f.base}/financeiro_livro/LED1`).set({
+ await db.doc(`${f.root}/financeiro_livro/LED1`).set({
   id:'LED1',lojaId:f.uid,referenciaId:'O001',clienteId:'C1',tipo:'recebimento_venda',
   paymentId:'PAY1',moeda:currency,valor:currency==='PYG'?199950:150,
   status:state,liquidacaoConfirmada:confirmed,comprovanteId:confirmed?'RECEIPT-SYNTHETIC':null});
@@ -36,7 +36,7 @@ async function read(f){return service.reconciliationQuery(f.uid,f.token,{
 test('B1 matches explicit settled source, snapshots receipt and preserves all financial source records',async()=>{
  const f=await setup();await settlement(f);
  const [origSale,origLedger,origClient,origProduct]=await Promise.all([
-  db.doc(`${f.base}/vendas/O001`).get(),db.doc(`${f.base}/financeiro_livro/LED1`).get(),
+  db.doc(`${f.base}/vendas/O001`).get(),db.doc(`${f.root}/financeiro_livro/LED1`).get(),
   db.doc(`${f.base}/clientes/C1`).get(),db.doc(`${f.base}/produtos/P1`).get()]);
  const cmd=await command(f);assert.equal(cmd.state,'RECONCILED');
  const data=(await read(f)).reconciliation;
@@ -45,7 +45,7 @@ test('B1 matches explicit settled source, snapshots receipt and preserves all fi
  assert.equal(data.adjustmentAmount.minor,'79980');
  assert.equal(data.financialExecution,'BLOCKED_B1');
  const [sale,ledger,client,product]=await Promise.all([
-  db.doc(`${f.base}/vendas/O001`).get(),db.doc(`${f.base}/financeiro_livro/LED1`).get(),
+  db.doc(`${f.base}/vendas/O001`).get(),db.doc(`${f.root}/financeiro_livro/LED1`).get(),
   db.doc(`${f.base}/clientes/C1`).get(),db.doc(`${f.base}/produtos/P1`).get()]);
  assert.deepEqual(sale.data(),origSale.data());assert.deepEqual(ledger.data(),origLedger.data());
  assert.deepEqual(client.data(),origClient.data());assert.deepEqual(product.data(),origProduct.data());
@@ -58,7 +58,7 @@ test('B1 refuses to classify card authorization as settled, blocks unverified cr
  const g=await setup();await db.doc(`${g.base}/vendas/O001`).update({
   'data.tipoDocumento':'venda','data.estado':'concluida',
   'data.pagamentos':[{id:'PAY1',formaId:'crediario',moedaOrigem:'PYG',valorOriginal:199950}]});
- await db.doc(`${g.base}/financeiro_livro/LED1`).set({
+ await db.doc(`${g.root}/financeiro_livro/LED1`).set({
   id:'LED1',lojaId:g.uid,referenciaId:'O001',clienteId:'C1',paymentId:'PAY1',
   tipo:'venda_fiada',moeda:'PYG',valor:199950,status:'aberto'});
  assert.equal((await command(g)).state,'RECONCILIATION_REQUIRED');
@@ -66,7 +66,7 @@ test('B1 refuses to classify card authorization as settled, blocks unverified cr
 });
 test('B1 marks persisted reconciliation STALE after payment mutation, with history retained',async()=>{
  const f=await setup();await settlement(f);await command(f);
- await db.doc(`${f.base}/financeiro_livro/LED1`).update({status:'estornado'});
+ await db.doc(`${f.root}/financeiro_livro/LED1`).update({status:'estornado'});
  const data=await read(f);assert.equal(data.stale,true);
  assert.equal(data.reconciliation.state,'STALE');
  assert.ok(data.reconciliation.issues.includes('SOURCE_CHANGED'));
