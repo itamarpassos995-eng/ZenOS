@@ -614,7 +614,7 @@ export default function Clientes({ userId,perfilLoja = {}, commitOperacaoNegocio
       {/* MODAL DE RECEBER CONTA / QUITAR FIADO COM CATÁLOGO COMPLETO */}
       {modalReceberFiadoAberto && clienteReceberFiado && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1500 }}>
-          <div style={{ backgroundColor: '#0b1120', border: '1px solid #10b981', borderRadius: '24px', width: '420px', padding: '28px', color: '#fff' }}>
+          <div style={{ backgroundColor: '#0b1120', border: '1px solid #10b981', borderRadius: '24px', width: '420px', maxWidth:'calc(100vw - 24px)', maxHeight:'90vh', overflowY:'auto', padding: '28px', color: '#fff' }}>
             <h3 style={{ fontSize: '18px', fontWeight: 900, margin: '0 0 6px 0', color: '#34d399' }}>{tx('Receber Conta de Cliente','Cobrar Cuenta del Cliente','Receive Customer Payment')}</h3>
             <div style={{ fontSize: '14px', fontWeight: 700, color: '#f8fafc', marginBottom: '16px' }}>{clienteReceberFiado.nome}</div>
             
@@ -632,14 +632,45 @@ export default function Clientes({ userId,perfilLoja = {}, commitOperacaoNegocio
               {tx('Vincular recebimento a uma venda (opcional, sem quitação presumida):',
                 'Vincular cobro a una venta (opcional, sin liquidación presumida):')}
             </label>
-            <select value={vendaFiadoSelecionada} onChange={e=>setVendaFiadoSelecionada(e.target.value)}
+            <select value={vendaFiadoSelecionada} onChange={e=>{setVendaFiadoSelecionada(e.target.value);setOutrasVendasFiado([]);}}
              style={{width:'100%',background:'#020617',border:'1px solid #334155',
               borderRadius:'8px',color:'#fff',padding:'10px',margin:'6px 0 16px'}}>
              <option value="">{tx('Sem atribuição a uma venda','Sin asignación a una venta')}</option>
              {historicoVendas.filter(v=>String(v.clienteId)===String(clienteReceberFiado.id)
-               &&v.tipoDocumento==='venda'&&v.pagamentos?.some(p=>p.formaId==='crediario'))
-               .map(v=><option key={v.id} value={String(v.id)}>{v.id} · {v.createdAt||''}</option>)}
+               &&v.tipoDocumento==='venda'&&v.financeCreditV2?.schema===1)
+               .map(v=><option key={v.id} value={String(v.id)}>
+                 {v.id} · {v.financeCreditV2.originalBRL?.toFixed?.(2)||'—'} BRL
+               </option>)}
             </select>
+            {vendaFiadoSelecionada&&<section aria-label={tx('Distribuição entre vendas','Distribución entre ventas')}
+             style={{display:'grid',gap:8,marginBottom:14}}>
+              {outrasVendasFiado.map((row,index)=><div key={index}
+               style={{display:'grid',gridTemplateColumns:'minmax(0,1fr) 100px 30px',gap:6}}>
+                <select aria-label={tx('Outra venda','Otra venta')} value={row.saleId}
+                 onChange={e=>setOutrasVendasFiado(rows=>rows.map((x,i)=>i===index?{...x,saleId:e.target.value}:x))}
+                 style={{background:'#020617',color:'#fff',border:'1px solid #475569',borderRadius:8}}>
+                 <option value="">{tx('Selecionar venda','Elegir venta')}</option>
+                 {historicoVendas.filter(v=>String(v.clienteId)===String(clienteReceberFiado.id)
+                   &&v.financeCreditV2?.schema===1&&String(v.id)!==vendaFiadoSelecionada)
+                   .map(v=><option key={v.id} value={String(v.id)}>{v.id}</option>)}
+                </select>
+                <input type="number" min="0.01" step="0.01" aria-label="BRL"
+                 value={row.amountBRL} placeholder="R$"
+                 onChange={e=>setOutrasVendasFiado(rows=>rows.map((x,i)=>i===index?{...x,amountBRL:e.target.value}:x))}
+                 style={{width:'100%',background:'#020617',color:'#fff',border:'1px solid #475569',borderRadius:8}}/>
+                <button type="button" aria-label={tx('Remover','Quitar')}
+                 onClick={()=>setOutrasVendasFiado(rows=>rows.filter((_,i)=>i!==index))}>×</button>
+               </div>)}
+              <button type="button" onClick={()=>setOutrasVendasFiado(rows=>[...rows,{saleId:'',amountBRL:''}])}
+               disabled={outrasVendasFiado.length>=8}
+               style={{background:'#172d3d',border:'1px solid #456072',color:'#d1fae5',borderRadius:8,padding:9}}>
+               + {tx('Distribuir em outra venda (BRL)','Distribuir en otra venta (BRL)')}
+              </button>
+              <small style={{color:'#94a3b8'}}>
+               {tx('A diferença entre o recebimento convertido em BRL e as parcelas adicionais será atribuída à venda principal.',
+                'La diferencia entre el cobro convertido a BRL y las asignaciones adicionales se aplicará a la venta principal.')}
+              </small>
+             </section>}
             <p style={{fontSize:'11px',color:'#94a3b8'}}>
               {tx('A seleção registra apenas a origem declarada. O pagamento ainda exige conferência de parcelas e liquidação.',
                'La selección registra solo el origen declarado. El pago todavía requiere verificación de cuotas y liquidación.')}
@@ -655,7 +686,7 @@ export default function Clientes({ userId,perfilLoja = {}, commitOperacaoNegocio
 
             <div style={{ display: 'flex', gap: '12px' }}>
               <button onClick={() => setModalReceberFiadoAberto(false)} type="button" style={{ flex: 1, backgroundColor: '#020617', border: '1px solid #1e293b', color: '#94a3b8', padding: '12px', borderRadius: '10px', fontWeight: 800, cursor: 'pointer' }}>{tx('Cancelar','Cancelar','Cancel')}</button>
-              <button onClick={confirmarRecebimentoFiado} type="button" style={{ flex: 2, background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', color: '#ffffff', padding: '12px', borderRadius: '10px', fontWeight: 900, cursor: 'pointer' }}>{tx('Baixar e Quitar','Registrar y Saldar','Post and Settle')}</button>
+              <button onClick={confirmarRecebimentoFiado} type="button" style={{ flex: 2, background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', color: '#ffffff', padding: '12px', borderRadius: '10px', fontWeight: 900, cursor: 'pointer' }}>{tx('Registrar recebimento','Registrar cobro','Record payment')}</button>
             </div>
           </div>
         </div>
