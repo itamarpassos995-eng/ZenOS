@@ -57,6 +57,7 @@ try{
  await write.commit();
  await page.getByRole('button',{name:'Conferir registros de origem',exact:true}).click();
  await page.getByText('Conciliado com evidências',{exact:true}).waitFor();
+ await page.getByText('Parcelas vinculadas (1)').click();
  await page.getByText('INST1 · PARTIALLY_PAID').waitFor();
  const rows=await db.collection(ref.path+'/distribution_reconciliations').get();
  assert.equal(rows.size,1);
