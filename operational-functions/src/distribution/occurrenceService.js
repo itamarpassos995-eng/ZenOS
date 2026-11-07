@@ -1,7 +1,7 @@
 import {executeOccurrenceCommand} from './occurrences.js';
 import {error,hash,id} from './security.js';
 import {PRECISION} from '../../../src/core/distribution/domain.js';
-import {sourceFact,reserveFact,releaseFact} from './occurrenceFacts.js';
+import {sourceFact,reserveFact,releaseFact,IMPACT_REASONS} from './occurrenceFacts.js';
 
 /** Phase 3.1 A.2: Firestore V2, emulator-only service host.
  * All source verification, authorization and writes occur in one transaction.
@@ -135,8 +135,9 @@ export function buildOccurrences({db,ctx,authorize,now=()=>Date.now()}) {
   const establishedId=String(c.config.establishmentId||uid);
   if(!validKey(establishedId))error('INVALID_ESTABLISHMENT');
   if(payload?.evidence?.length)error('EVIDENCE_UPLOAD_NOT_CONFIGURED');
+  const impactKind=IMPACT_REASONS.includes(payload.reason)?'PHYSICAL':'INFORMATIONAL';
   const factOrigin=sourceFact({tenantId:uid,establishmentId:establishedId,
-    saleId:refs.saleId,lineIndex:index,kind:sourceKind,tripId,proofId:sourceProof});
+    saleId:refs.saleId,lineIndex:index,kind:sourceKind,tripId,proofId:sourceProof,family:impactKind});
   const factId=hash(factOrigin);
   return {
    id:occurrenceId,tenantId:uid,establishmentId:establishedId,country,
@@ -148,7 +149,7 @@ export function buildOccurrences({db,ctx,authorize,now=()=>Date.now()}) {
     ...(loadId?{loadId}:{}),...(manifestId?{manifestId}:{}),
     ...(original?{invoiceId:original.id}:{})},
    originalAmount:amount,fiscalOriginal:original,evidence:[],
-   factId,sourceKind,sourceProofId:sourceProof, factCapacity,
+   factId,sourceKind,sourceProofId:sourceProof, factCapacity,impactKind,
    continuationOf:payload.continuationOf||null,
   };
  }
@@ -183,8 +184,10 @@ export function buildOccurrences({db,ctx,authorize,now=()=>Date.now()}) {
      if(!verified?.factId)error('FACT_SOURCE_REQUIRED');
      if(verified.continuationOf&&actor.operatorId!=='admin'&&actor.permissions?.distributionManage!==true)
        error('CONTINUATION_APPROVAL_REQUIRED');
-     factAfter=reserveFact(factBefore,{factId,occurrenceId,quantity:verified.quantity,
-      capacity:verified.factCapacity,continuationOf:verified.continuationOf,
+     factAfter=reserveFact(factBefore,{factId,occurrenceId,
+      quantity:verified.impactKind==='INFORMATIONAL'?1:verified.quantity,
+      capacity:verified.impactKind==='INFORMATIONAL'?1:verified.factCapacity,
+      continuationOf:verified.continuationOf,
       actorId:actor.operatorId,at:verified.reportedAt});
     }
     if(!receipt&&type==='TRANSITION_LOGISTICS'&&payload?.next==='CONFIRMED'&&
