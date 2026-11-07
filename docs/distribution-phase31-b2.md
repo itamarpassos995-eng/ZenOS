@@ -33,3 +33,19 @@ Os 42 cenários da ordem B.2 são critérios de aceite, **não uma lista automat
 **Testes CI:** registrar apenas SHAs e resultados retornados pelo GitHub Actions no adendo de evidências quando existirem. CI verde sobre dados sintéticos não substitui conciliação real, autorização fiscal ou validação de produção.
 
 **Sem merge, deploy, dados reais, emissão fiscal, estorno, baixa de fiado, movimentação de caixa/estoque ou contratação de serviços.**
+
+
+## Homologação consolidada B.2 — GitHub Actions #42331371202
+
+**CI real:** [GitHub Actions #42331371202](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42331371202), **SUCCESS**, código executado no SHA `d78eee377180571bf1d332f67b8cd55cee6051cf`.
+
+- **30/30** testes Node (domínio de ocorrências, contratos comerciais, cliente, conciliação B.1 e vínculos B.2).
+- **34/34** testes reais no Firebase Auth/Firestore Emulator, incluindo três pagamentos parciais por parcela, alterações de origem com `STALE`, isolamento multitenant, idempotência e consulta paginada acima de 30 lançamentos.
+- **55/55** regressões de domínio das fases anteriores e **15/15** testes transacionais da Fase 3. Etapas de concorrência das Fases 2 e 3: **SUCCESS**.
+- Build Vite/React: **SUCCESS**.
+- Chromium desktop PT e mobile ES: **SUCCESS**, incluindo conferência B.2 com saldo sintético PYG **90.000 recebidos / 109.950 em aberto**, visualização da parcela e contrato não executável, preservando histórico e caixa.
+- Artefato [`distribution-phase31-b2-browser-evidence`](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42331371202/artifacts/13557966027), ID `13557966027`: screenshots e evidências `b2-partial-credit-integrity.json`, `reconciliation-browser-integrity.json`, `database-integrity.json`.
+
+**Aceite técnico: PARCIAL / homologação sintética aprovada.** Os 42 cenários listados na ordem B.2 **não foram todos demonstrados**. Continua ausente a criação nativa obrigatória desses vínculos em todas as rotas reais de PDV/fiado; histórico legado ambíguo não pode ser atribuído, não há verificação independente de liquidação bancária, e pagamentos mistos entre várias vendas/parcelas ou renegociações ainda exigem cobertura adicional. A conciliação não deverá ser considerada pronta para execução real até sanar essas lacunas.
+
+**Decisão da preparação da Entrega C:** NÃO LIBERADA INTEGRALMENTE, por falta dos comprovantes e contratos de origem para os fluxos de produção. O objeto `FinancialCompensationEligibilityV1` permanece `executable:false`; qualquer futura restituição exigirá revalidação das fontes atuais e autorização fiscal/financeira. O MASTER de 259 IDs permaneceu intocado. Nenhum merge, deploy, pagamento, baixa, restituição ou movimento de estoque foi executado.
