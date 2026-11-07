@@ -96,7 +96,7 @@ test('missing verified original fiscal document blocks draft while retaining occ
  await assert.rejects(draft(f,{occurrenceId:cmd.occurrenceId,revision:o.revision},'NOTA_CREDITO_ELECTRONICA'),{code:'FISCAL_SOURCE_NOT_VERIFIED'});
 });
 test('query paginates within the tenant and survives service recreation',async()=>{
- const f=await setup('PY');await create(f);await create(f);
+ const f=await setup('PY');await create(f);await create(f,{refs:{saleId:'O002',orderId:'O002',customerId:'C1',orderLineId:'0',productId:'P1'}});
  const now=Date.now();
  const page=await service.occurrenceQuery(f.uid,f.token,{type:'list',from:now-86400000,to:now+86400000,limit:1});
  assert.equal(page.items.length,1);assert.ok(page.next);
