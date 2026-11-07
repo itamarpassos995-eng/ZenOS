@@ -155,3 +155,28 @@ test('A3 blocks arbitrary private evidence references and fabricated trip proofs
  await assert.rejects(service.occurrenceCommand(f.uid,f.token,forged),{code:'TRIP_SOURCE_MISMATCH'});
  assert.equal((await db.collection(`${f.root}/distribution_occurrences`).get()).size,0);
 });
+
+test('A3 dedicated fiscal reviewer can only prepare fiscal draft, not create logistical occurrence',async()=>{
+ const f=await setup('PY'),operatorRef=db.doc(`${f.base}/operadores/stock`);
+ await operatorRef.update({'data.permissoes':{distributionFiscalReview:true}});
+ const fiscal=await service.login(f.uid,{operatorId:'stock',pin:PIN,scope:'trip'});
+ const created=await create(f);
+ let state=await next(f,{occurrenceId:created.cmd.occurrenceId,revision:0},'TRANSITION_LOGISTICS','UNDER_REVIEW');
+ state=await next(f,{occurrenceId:created.cmd.occurrenceId,revision:state.revision},'TRANSITION_LOGISTICS','CONFIRMED');
+ const detailRead=await service.occurrenceQuery(f.uid,fiscal.sessionToken,{type:'detail',occurrenceId:created.cmd.occurrenceId});
+ assert.equal(detailRead.occurrence.states.logistics,'CONFIRMED');
+ const cmd=createInput(f);cmd.payload.id=cmd.occurrenceId;
+ await assert.rejects(service.occurrenceCommand(f.uid,fiscal.sessionToken,cmd),{code:'FORBIDDEN'});
+ await assert.rejects(service.occurrenceEvidenceUpload(f.uid,fiscal.sessionToken,{
+  occurrenceId:created.cmd.occurrenceId,id:'E1',key:randomUUID(),expectedRevision:state.revision,
+  kind:'PHOTO',mediaType:'image/png',base64:'aGVsbG8='
+ }));
+});
+test('A3 operator permission changes invalidate privileged commands',async()=>{
+ const f=await setup('PY');const created=await create(f);
+ const operatorRef=db.doc(`${f.base}/operadores/admin`);
+ await operatorRef.update({'data.pinTrocaObrigatoria':true});
+ await assert.rejects(service.occurrenceQuery(f.uid,f.token,{type:'detail',occurrenceId:created.cmd.occurrenceId}),{code:'FORBIDDEN'});
+ const cmd=createInput(f);cmd.payload.id=cmd.occurrenceId;
+ await assert.rejects(service.occurrenceCommand(f.uid,f.token,cmd),{code:'FORBIDDEN'});
+});
