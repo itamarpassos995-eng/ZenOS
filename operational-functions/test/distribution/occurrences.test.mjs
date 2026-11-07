@@ -37,7 +37,7 @@ test('V2 creates bounded occurrence with server-derived PYG amount, receipts, im
  assert.equal(data.originalAmount.minor,'79980');assert.equal(data.originalAmount.currency,'PYG');
  assert.equal(data.states.fiscal,'NOT_REQUESTED');assert.equal(data.states.financial,'NOT_REQUESTED');
  assert.equal((await db.doc(`${f.base}/produtos/P1`).get()).data().data.estoque,before);
- assert.equal((await db.collection(`${f.root}/financeiro_livro`).get()).size,0);
+ assert.equal((await db.collection(`${f.base}/financeiro_livro`).get()).size,0);
  assert.equal((await db.collection(`${f.root}/distribution_occurrence_events`).get()).size,1);
  assert.equal((await db.collection(`${f.root}/distribution_outbox`).get()).size,1);
  assert.equal((await db.doc(`${f.base}/vendas/O001`).get()).data().data.totalOriginal,sale.totalOriginal);
@@ -83,7 +83,7 @@ test('BR and PY fiscal drafts require verified server references and remain pend
   assert.equal(saved.fiscalDocuments[0].authorized,false);
   assert.equal(saved.fiscalDocuments[0].transmitted,false);
   assert.equal(saved.fiscalDocuments[0].eligibilityVerified,false);
-  assert.equal((await db.collection(`${f.root}/financeiro_livro`).get()).size,0);
+  assert.equal((await db.collection(`${f.base}/financeiro_livro`).get()).size,0);
   assert.equal((await db.doc(`${f.base}/produtos/P1`).get()).data().data.estoque,100);
   await assert.rejects(draft(f,{occurrenceId:cmd.occurrenceId,revision:state.revision},
    country==='PY'?'NFE_DEVOLUCAO':'NOTA_CREDITO_ELECTRONICA'),{code:'FISCAL_TYPE_COUNTRY_MISMATCH'});
