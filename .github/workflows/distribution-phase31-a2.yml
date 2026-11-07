@@ -1,6 +1,18 @@
-name: Distribution Phase 3.1 B.2 validation
+name: Distribution Phase 3.1 B.3 validation
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feat/distribution-logistics-foundation
+    paths:
+      - '.github/workflows/distribution-phase31-a2.yml'
+      - 'src/core/distribution/phase31NativeFinanceLinks.js'
+      - 'src/core/financialLedgerCore.js'
+      - 'src/components/PDV.jsx'
+      - 'src/components/Clientes.jsx'
+      - 'src/core/distribution/phase31FinancialLinks.js'
+      - 'operational-functions/src/distribution/reconciliationService.js'
+      - 'scripts/distribution/phase31-native-links.test.mjs'
 permissions:
   contents: read
 jobs:
@@ -20,7 +32,7 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm ci --ignore-scripts --no-audit --no-fund --prefix operational-functions
       - name: Phase 3.1 foundation tests
-        run: node --test scripts/distribution/phase31-foundation.test.mjs scripts/distribution/phase31-client.test.mjs scripts/distribution/phase31-facts.test.mjs scripts/distribution/phase31-commercial.test.mjs scripts/distribution/phase31-reconciliation.test.mjs scripts/distribution/phase31-financial-links.test.mjs
+        run: node --test scripts/distribution/phase31-foundation.test.mjs scripts/distribution/phase31-client.test.mjs scripts/distribution/phase31-facts.test.mjs scripts/distribution/phase31-commercial.test.mjs scripts/distribution/phase31-reconciliation.test.mjs scripts/distribution/phase31-financial-links.test.mjs scripts/distribution/phase31-native-links.test.mjs
       - name: React build
         run: npm run build
       - name: Firebase Emulator V2 integration tests
@@ -44,6 +56,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: distribution-phase31-b2-browser-evidence
+          name: distribution-phase31-b3-browser-evidence
           path: tmp/distribution31a2/
           if-no-files-found: warn
