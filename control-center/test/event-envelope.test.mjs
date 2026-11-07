@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {normalizeIncomingEvent,makeInboxInsert} from '../src/domain/event-envelope.mjs';
+import {nextRetryAt,classifyDeliveryError} from '../src/domain/retry-policy.mjs';
+const e={eventId:'evt-123456789',eventType:'organization.registered.v1',version:1,organizationUid:'tenant-123456',occurredAt:'2026-11-02T10:00:00Z',payload:{displayName:'Empresa de Teste'}};
+test('não aceita navegador alegando origem confiável',()=>assert.throws(()=>normalizeIncomingEvent(e,{}),/UNVERIFIED_PRODUCER/));
+test('tenant de origem precisa corresponder ao evento',()=>assert.throws(()=>normalizeIncomingEvent(e,{verifiedSource:'zenos-backend',verifiedOrganizationUid:'another-tenant'}),/TENANT_MISMATCH/));
+test('aceita somente produtor identificado pelo transporte verificado',()=>assert.equal(normalizeIncomingEvent(e,{verifiedSource:'zenos-backend',verifiedOrganizationUid:'tenant-123456'}).organizationUid,'tenant-123456'));
+test('SQL de inbox é parametrizado e idempotente',()=>{const sql=makeInboxInsert({...e,source:'zenos-backend'});assert.match(sql.text,/ON CONFLICT \(event_id\) DO NOTHING/);assert.equal(sql.values[2],'tenant-123456');assert.equal(sql.values.length,4)});
+test('backoff de entrega cresce e tem limite',()=>{const t=Date.parse(nextRetryAt({attempt:4,nowMs:0,baseMs:1000,capMs:5000}));assert.equal(t,5000)});
+test('falhas temporárias podem ser reenviadas; dados inválidos exigem revisão',()=>{assert.equal(classifyDeliveryError({statusCode:503}),'retry');assert.equal(classifyDeliveryError({statusCode:429}),'retry');assert.equal(classifyDeliveryError({statusCode:400}),'dead_letter')});
