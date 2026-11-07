@@ -23,7 +23,7 @@ export async function executeOccurrenceCommand({command,authorize,transaction}) 
  const {tenantId,occurrenceId,key,type,payload,expectedRevision}=command||{};
  if(![tenantId,occurrenceId,key].every(ident)||!Object.hasOwn(PERMISSIONS,type)||
    !Number.isSafeInteger(expectedRevision)||expectedRevision<0)fail('INVALID_COMMAND');
- if(typeof authorize!=='function'||typeof transaction!=='function')fail('SERVER_HOST_REQUIRED');
+ if(typeof transaction!=='function')fail('SERVER_HOST_REQUIRED');
  const identity=JSON.stringify(canonical(command));
  return transaction({tenantId,occurrenceId,key,permission:PERMISSIONS[type],type,payload},async ({occurrence,receipt,actor,validatedPayload})=>{
   if(!actor||actor.tenantId!==tenantId||!ident(actor.operatorId)||
