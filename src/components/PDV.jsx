@@ -16,6 +16,7 @@ import { atualizarProdutoUnico, localizarIndiceProdutoUnico, skuJaExiste, gerarI
 import { formatarEquivalenciaBRL, moedasAtivasRecibo } from '../core/receiptCurrency';
 import { validarCredencialGerencial } from '../core/accessControl';
 import { calcularCmvVenda } from '../core/salesFinancials';
+import {pdvCreditLink,pdvImmediatePaymentLink} from '../core/distribution/phase31NativeFinanceLinks.js';
 import { validarComposicaoPagamento } from '../core/paymentValidation';
 import { interpretarValorMonetario } from '../core/cashMoneyInput';
 import { lerRascunhoPDV, salvarRascunhoPDV, apagarRascunhoPDV } from '../core/pdvDraft';
@@ -1125,6 +1126,8 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
               saldoClienteAntes: clienteAntes,
               saldoClienteDepois: clienteDepois,
               observacao: `Venda fiada ${vendaId}`,
+              financeLink:pdvCreditLink({vendaId,clienteId:novaVenda.clienteId,lojaId:userId,
+               valorFiadoBRL:valorFiadoTotal,moedaDocumento:novaVenda.moedaDocumento,pagamentos:pagamentosLancados}),
             });
           }
 
@@ -1164,6 +1167,9 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
               clienteId: novaVenda.clienteId,
               clienteNome: novaVenda.clienteNome,
               observacao: `Venda ${vendaId} • ${pag.rotulo}`,
+              financeLink:pdvImmediatePaymentLink({vendaId,clienteId:novaVenda.clienteId,
+               lojaId:userId,pagamento:pag,
+               ledgerId:`VENDA-${vendaId}-PG-${index}-${String(pag.formaId || 'outro')}`}),
             });
           }
         } catch (erroFinanceiro) {
