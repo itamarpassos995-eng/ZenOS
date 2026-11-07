@@ -47,7 +47,7 @@ test('B creates PY original-currency proposal with reserved quantity, unchanged 
  assert.equal((await db.doc(`${f.base}/produtos/P1`).get()).data().data.estoque,f.stock);
  assert.deepEqual((await db.doc(`${f.base}/clientes/C1`).get()).data(),beforeClient);
  assert.deepEqual((await db.doc(`${f.base}/vendas/O001`).get()).data(),beforeSale);
- assert.equal((await db.collection(`${f.base}/financeiro_livro`).get()).size,0);
+ assert.equal((await db.collection(`${f.root}/financeiro_livro`).get()).size,0);
  const replay=await invoke(f,cmd);assert.equal(replay.replayed,true);
  await assert.rejects(invoke(f,{...cmd,payload:{...cmd.payload,quantity:1}}),{code:'IDEMPOTENCY_CONFLICT'});
 });
