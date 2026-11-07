@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {reconcileLinkedObligations} from '../../src/core/distribution/phase31FinancialLinks.js';
 const sale={id:'O001',clienteId:'C1',moedaDocumento:'PYG',totalOriginal:1000000,
- tipoDocumento:'venda',estado:'concluida'};
+ tipoDocumento:'venda',estado:'concluida',pagamentos:[{id:'CREDIT1',formaId:'crediario',moedaOrigem:'PYG',valorOriginal:1000000}]};
 const adjustment={id:'ADJ1',tenantId:'tenant',establishmentId:'store1',saleId:'O001',
  customerId:'C1',value:{currency:'PYG',minor:'250000'}};
 const obligation={id:'DEBT1',financeLinkVersion:2,financeEventType:'OBLIGATION',
