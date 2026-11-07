@@ -10,6 +10,7 @@ import {getFirestore,connectFirestoreEmulator,doc,getDoc,setDoc} from 'firebase/
 import {getOperationalSnapshot,clearOperationalSession} from '../../src/core/operationalRepository.js';
 import {persistV1BusinessOperationSafe} from '../../src/core/productionSync.js';
 import {pdvCreditLink,validateFinanceLink} from '../../src/core/distribution/phase31NativeFinanceLinks.js';
+import {prepareVerifiedCreditAllocations} from '../../src/core/distribution/phase31CreditAllocation.js';
 if(process.env.FIRESTORE_EMULATOR_HOST!=='127.0.0.1:8080'||process.env.GCLOUD_PROJECT!=='demo-zenos-local')
  throw Error('B3_NATIVE_REFUSES_PRODUCTION');
 const application=initializeApp({apiKey:'demo-key',projectId:'demo-zenos-local',
@@ -29,7 +30,10 @@ const sale={id:'V1',clienteId:'C1',clienteNome:client.nome,tipoDocumento:'venda'
  estado:'concluida',moedaDocumento:'BRL',totalOriginal:1000,totalBRL:1000,itens:[],
  createdAt:'2026-11-07T02:00:00.000Z',
  pagamentos:[{id:'CR1',formaId:'crediario',moedaOrigem:'BRL',valorOriginal:1000,
-  valorConvertidoBRL:1000,taxaCambioAplicada:1}]};
+  valorConvertidoBRL:1000,taxaCambioAplicada:1}],
+ financeCreditV2:{schema:1,receivableId:'REC-V1',originalBRL:1000,
+  installments:[{id:'INST-V1-AGGREGATE',amountBRL:1000,kind:'AGGREGATE_NO_SCHEDULE',dueAt:null}]},
+ creditAllocationsV2:[]};
 const manifest={clientes:{kind:'array',collection:'clientes',count:1},
  historicoVendas:{kind:'array',collection:'vendas',count:0}};
 try{
@@ -77,6 +81,9 @@ try{
  const before=(await getOperationalSnapshot(db,uid)).data();
  assert.equal(before.clientes[0].saldoDevedorBRL,1000);
  assert.equal(before.historicoVendas.length,1);
+ const plan=prepareVerifiedCreditAllocations({sales:before.historicoVendas,clientId:'C1',
+  receiptId:'REC1',receivedBRL:250,allocations:[{saleId:'V1',
+   installmentId:'INST-V1-AGGREGATE',amountBRL:250}]});
  const receipt={
   id:'REC1',tipo:'recebimento_fiado',origem:'clientes',referenciaId:'REC1',valor:250,
   clienteId:'C1',clienteNome:client.nome,formaPagamento:'dinheiro_brl',
@@ -87,16 +94,21 @@ try{
    saleId:'V1',paymentId:'REC1',sourceEventId:'VENDA-V1-FIADO',
    receivableId:'REC-V1',installmentId:'INST-V1-AGGREGATE',clienteId:'C1',
    lojaId:uid,moedaOrigem:'BRL',valorOriginal:250,
-   statusLiquidacao:'REGISTERED_UNVERIFIED'
+   statusLiquidacao:'REGISTERED_UNVERIFIED',allocations:plan.allocations,
+   saleIds:['V1'],currencyEvidence:{valorAtribuidoBRL:250}
   },{lojaId:uid,referenciaId:'REC1',clienteId:'C1',ledgerId:'REC1'})
  };
  console.log('[B4] SALE OK / NATIVE RECEIPT COMMIT START');
  const received=await persistV1BusinessOperationSafe({db,userId:uid,
   changes:[{field:'clientes',baseValue:before.clientes,
-   value:[{...before.clientes[0],saldoDevedorBRL:750}]}],
+   value:[{...before.clientes[0],saldoDevedorBRL:750}]},
+   {field:'historicoVendas',baseValue:before.historicoVendas,
+    value:plan.patches.map(x=>x.nextSale)}],
   financialEntries:[receipt],
   guards:[{type:'client_receipt_snapshot',clientId:'C1',
-   clientName:client.nome,balanceBRL:1000}],
+   clientName:client.nome,balanceBRL:1000},
+   {type:'entity_field_equals',field:'historicoVendas',entityId:'V1',
+    entityKey:'id',property:'creditAllocationsV2',expected:[]}],
   operationKey:'recebimento-fiado:REC1'});
  assert.equal(received.cloudOk,true,received.error?.message);
  const saved=(await getDoc(doc(db,'lojas',uid,'financeiro_livro','REC1'))).data();
@@ -105,14 +117,20 @@ try{
  assert.equal(saved.financeLink.saleId,'V1');
  assert.equal(saved.financeLink.statusLiquidacao,'REGISTERED_UNVERIFIED');
  assert.equal(saved.financeLink.sourceEventId,'VENDA-V1-FIADO');
+ assert.equal(saved.financeLink.allocations[0].amountBRL,250);
+ assert.equal(saved.financeLink.saleIds[0],'V1');
  const after=(await getOperationalSnapshot(db,uid)).data();
  assert.equal(after.clientes[0].saldoDevedorBRL,750);
+ assert.equal(after.historicoVendas.find(v=>v.id==='V1').creditAllocationsV2[0].receiptId,'REC1');
+ assert.equal(after.historicoVendas.find(v=>v.id==='V1').creditAllocationsV2[0].allocations[0].amountBRL,250);
  const again=await persistV1BusinessOperationSafe({db,userId:uid,
   changes:[{field:'clientes',baseValue:before.clientes,
    value:[{...before.clientes[0],saldoDevedorBRL:750}]}],
   financialEntries:[receipt],
   guards:[{type:'client_receipt_snapshot',clientId:'C1',
-   clientName:client.nome,balanceBRL:1000}],
+   clientName:client.nome,balanceBRL:1000},
+   {type:'entity_field_equals',field:'historicoVendas',entityId:'V1',
+    entityKey:'id',property:'creditAllocationsV2',expected:[]}],
   operationKey:'recebimento-fiado:REC1'});
  assert.equal(again.cloudOk,true,again.error?.message);
  assert.equal(again.alreadyCommitted,true);
