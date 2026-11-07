@@ -6,6 +6,7 @@ on:
       - '.github/workflows/distribution-phase31-b4-smoke.yml'
       - 'scripts/distribution/phase31-b4-multi-sale-v2-emulator.mjs'
       - 'scripts/distribution/phase31-b4-native-returns-v2-emulator.mjs'
+      - 'scripts/distribution/phase31-b4-security-negative-v2-emulator.mjs'
       - 'src/core/distribution/phase31ReturnLineage.js'
       - 'scripts/distribution/phase31-return-lineage.test.mjs'
   workflow_dispatch:
@@ -31,6 +32,8 @@ jobs:
         run: npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.distribution-v2.json 'node scripts/distribution/phase31-b4-multi-sale-v2-emulator.mjs'
       - name: B4 native V2 partial/full return and capacity proof
         run: npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.distribution-v2.json 'node scripts/distribution/phase31-b4-native-returns-v2-emulator.mjs'
+      - name: G1 G6 authentication, cross-tenant and forged V2 negative tests
+        run: npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.distribution-v2.json 'node scripts/distribution/phase31-b4-security-negative-v2-emulator.mjs'
       - name: B4 focused finance safety tests
         run: node --test scripts/distribution/phase31-native-links.test.mjs scripts/distribution/phase31-credit-allocation.test.mjs scripts/distribution/phase31-return-lineage.test.mjs
       - name: React build
