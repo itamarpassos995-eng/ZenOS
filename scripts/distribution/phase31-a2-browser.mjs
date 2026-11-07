@@ -45,6 +45,15 @@ try{
  await desktop.getByRole('button',{name:'Preparar rascunho interno',exact:true}).waitFor();
  await desktop.getByRole('button',{name:'Preparar rascunho interno',exact:true}).click();
  await desktop.getByText('Nenhum documento foi transmitido ou autorizado.').waitFor();
+ const image=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/LysAAAAASUVORK5CYII=','base64');
+ await desktop.locator('.dist-occ-evidence-controls input[type=file]').setInputFiles({
+  name:'foto-sintetica.png',mimeType:'image/png',buffer:image
+ });
+ await desktop.getByRole('button',{name:'Anexar evidência',exact:true}).click();
+ await desktop.getByRole('button',{name:'Baixar evidência',exact:true}).waitFor();
+ const download=desktop.waitForEvent('download');
+ await desktop.getByRole('button',{name:'Baixar evidência',exact:true}).click();
+ const saved=await download;await saved.saveAs('tmp/distribution31a2/private-evidence-downloaded.png');
  await desktop.screenshot({path:'tmp/distribution31a2/occurrences-desktop-pt.png',fullPage:true});
  screens.push('occurrences-desktop-pt.png');
  const state=await desktop.locator('.dist-occ-status').innerText();
@@ -61,7 +70,7 @@ try{
  assert.deepEqual(errors,[]);
  await writeFile('tmp/distribution31a2/browser-integrity.json',JSON.stringify({
   passed:true,desktop:{width:1440,height:1050},mobile:{width:390,height:844},
-  screenshots:screens,checks:['login','occurrence create','server review','fiscal draft pending','PT/ES','mobile layout','no http errors'],errors
+  screenshots:screens,checks:['login','occurrence create','server review','fiscal draft pending','private evidence upload/download','PT/ES','mobile layout','no http errors'],errors
  },null,2));
  console.log('PHASE31_A2_BROWSER_SUCCESS',JSON.stringify(screens));
 }finally{
