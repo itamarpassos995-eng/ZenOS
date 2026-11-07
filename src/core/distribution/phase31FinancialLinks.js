@@ -33,6 +33,14 @@ export function reconcileLinkedObligations({sale,adjustment,ledger=[],complete=t
     String(sale.clienteId)!==adjustment.customerId)problem('SOURCE_REFERENCE_MISMATCH');
  const issues=new Set(),byId=new Map(),installments=new Map(),seen=new Set();
  if(!complete)issues.add('SOURCE_PAGINATION_INCOMPLETE');
+ if(sale.tipoDocumento!=='venda'||sale.estado!=='concluida')issues.add('SALE_NOT_FINALIZED');
+ if(!Array.isArray(sale.pagamentos))issues.add('SALE_PAYMENTS_NOT_AVAILABLE');
+ let recordedCredit=0n;
+ for(const p of Array.isArray(sale.pagamentos)?sale.pagamentos:[]){
+  if(p.formaId!=='crediario'){issues.add('MIXED_PAYMENT_ALLOCATION_REQUIRED');continue;}
+  if(p.moedaOrigem!==c){issues.add('SALE_CREDIT_FX_REVIEW_REQUIRED');continue;}
+  try{recordedCredit+=validMoney(p.valorOriginal,c);}catch{issues.add('SALE_CREDIT_AMOUNT_UNVERIFIED');}
+ }
  const amount=validMoney(sale.totalOriginal,c),adjust=BigInt(adjustment.value.minor);
  let verifiedReceived=0n,previousCompensations=0n,externalPending=0n;
  for(const e of ledger){
@@ -53,6 +61,7 @@ export function reconcileLinkedObligations({sale,adjustment,ledger=[],complete=t
   byId.set(e.id,e);
  }
  const obligations=[...byId.values()].filter(e=>e.financeEventType==='OBLIGATION');
+ const debtEvidenceId=new Map(obligations.map(e=>[e.installmentId,e.id]));
  for(const e of obligations){
   if(installments.has(e.installmentId)){issues.add('DUPLICATE_INSTALLMENT');continue;}
   let original;
@@ -73,6 +82,9 @@ export function reconcileLinkedObligations({sale,adjustment,ledger=[],complete=t
   if(value<=0n){issues.add('FINANCE_AMOUNT_INVALID');continue}
   if(!stateOf(e)){externalPending+=value;issues.add('EXTERNAL_SETTLEMENT_PENDING');continue;}
   if(e.financeEventType==='RECEIPT'){
+   if(e.sourceEventId!==debtEvidenceId.get(e.installmentId)){
+    issues.add('PAYMENT_OBLIGATION_ORIGIN_MISMATCH');continue;
+   }
    usedIds.add(e.paymentId);receipts.set(e.id,{event:e,amount:value});
    target.paid+=value;target.events.push(e.id);
   }else if(e.financeEventType==='REVERSAL'){
@@ -104,6 +116,7 @@ export function reconcileLinkedObligations({sale,adjustment,ledger=[],complete=t
  // This overlay handles full-credit sales only. Mixed immediate payment/fiado
  // needs separately proven payment allocation — no shortcut via customer balance.
  if(originalDebt!==amount)issues.add('SALE_OBLIGATIONS_MISMATCH');
+ if(recordedCredit!==originalDebt)issues.add('SALE_CREDIT_PAYMENT_MISMATCH');
 
  if(ledger.length!==seen.size)issues.add('DUPLICATE_LEDGER_EVENT');
  const confirmed=issues.size===0;
