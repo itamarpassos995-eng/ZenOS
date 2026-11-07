@@ -46,7 +46,7 @@ Registros legados e estornos cuja relação com a venda esteja apenas em texto, 
 | G6 — isolamento e permissões | PARTIAL | V2 autenticado e guardas por cliente; revisão completa dos papéis/queries nativos ainda pendente |
 | G7 — `STALE` | PASS | Fingerprint da origem e verificação de revisão na B.1/B.2, quando fontes acessíveis |
 | G8 — integridade de caixa/estoque/cliente | PARTIAL | Contratos nativos preservados; nenhuma evidência de todos os fluxos 38 casos |
-| G9 — regressões e navegador | NOT_TESTED | Atualizar com resultado final verificável do GitHub Actions |
+| G9 — regressões e navegador | PARTIAL | [CI #42333625128](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42333625128) aprovada, mas prova separada de escrita nativa estrita permanece bloqueada |
 | G10 — bloqueios documentados | PASS | Este relatório registra gaps fiscais, bancários, legado e ausência de execução financeira |
 
 `PREPARATION_OF_C_ALLOWED=false` até todos os gates estarem `PASS`, com evidências independentes. A C não foi iniciada e não existem tokens executáveis de compensação.
@@ -65,3 +65,20 @@ Foi realizada uma tentativa de ajuste nas regras **exclusivamente do emulador**,
 
 O bloqueio não foi contornado por ampliar permissões de produção, desabilitar transações nem inventar liquidações. Para fechar G1/G6/G9, será necessário investigar a avaliação de regras da geração V2 com uma fixture homologada pelo próprio protocolo, executar novamente a escrita cliente autenticada e provar no mesmo commit/ambiente que recibo, venda e saldo avançam uma única vez.
 
+
+
+## Homologação consolidada B.3 — CI #42333625128
+
+A execução [GitHub Actions #42333625128](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42333625128) terminou em **SUCCESS**, com SHA testado `2ec5060a1ce9bd8df7ad8d93e31cc1e772e19428`:
+
+- **36/36** testes Node incluindo contratos nativos e a trava formal G1–G10;
+- **34/34** testes Firestore/Auth Emulator (serviços de distribuição e conciliação);
+- **61/61** testes de regressão de domínio e **15/15** testes transacionais da Fase 3;
+- regressões de concorrência das Fases 2 e 3: **SUCCESS**;
+- build React/Vite: **SUCCESS**;
+- Chromium PT desktop e ES mobile: **SUCCESS**, incluindo cenário sintético de fiado parcial e integridade V2;
+- artefato [`distribution-phase31-b3-browser-evidence`](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42333625128/artifacts/13558587344), ID `13558587344`, com imagens e JSONs de integridade.
+
+**Diferença essencial de escopo:** esse workflow validou os contratos puros, a integração do servidor de conciliação e os fluxos Chromium já existentes. **Não executou o script separado `phase31-b3-native-v2-emulator.mjs`**; sua execução anterior falhou nas regras V2 estritas com `PERMISSION_DENIED` (evidências acima). As alterações posteriores a esse SHA incluem exclusivamente restauração das regras do Emulator à baseline e documentação. Nenhum PASS pode ser atribuído ao teste que foi excluído.
+
+**Gate G9 = PARTIAL, G1 = PARTIAL, G4 = BLOCKED.** Os demais estão na matriz G1–G10 desta página. Em particular, faltam vínculos nativos por parcela e distribuição entre múltiplas vendas, reversões anteriores verificadas por transação, confirmação bancária independente e todos os 38 cenários da ordem B.3. A situação formal permanece `PREPARATION_OF_C_ALLOWED=false` e `EXECUTION_OF_C_ALLOWED=false`. Nenhum merge, deploy, migração em cliente real ou estorno.
