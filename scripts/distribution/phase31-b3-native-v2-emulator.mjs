@@ -1,6 +1,10 @@
 // Strictly synthetic V2 native write test. Never connects to production.
 import assert from 'node:assert/strict';
 import {initializeApp,deleteApp} from 'firebase/app';
+import {createRequire} from 'node:module';
+const requireAdmin=createRequire(new URL('../../operational-functions/package.json',import.meta.url));
+const {initializeApp:initializeAdminApp,deleteApp:deleteAdminApp}=requireAdmin('firebase-admin/app');
+const {getFirestore:adminFirestore}=requireAdmin('firebase-admin/firestore');
 import {getAuth,connectAuthEmulator,createUserWithEmailAndPassword} from 'firebase/auth';
 import {getFirestore,connectFirestoreEmulator,doc,getDoc,setDoc,serverTimestamp} from 'firebase/firestore';
 import {getOperationalSnapshot,clearOperationalSession} from '../../src/core/operationalRepository.js';
@@ -13,6 +17,10 @@ const application=initializeApp({apiKey:'demo-key',projectId:'demo-zenos-local',
 const auth=getAuth(application),db=getFirestore(application);
 connectAuthEmulator(auth,'http://127.0.0.1:9099',{disableWarnings:true});
 connectFirestoreEmulator(db,'127.0.0.1',8080);
+// Admin SDK is used ONLY for privileged synthetic migration fixture setup.
+// All actual business transactions below MUST use the signed-in client SDK and rules.
+const fixtureAdmin=initializeAdminApp({projectId:'demo-zenos-local'},'b4-seed-'+Date.now());
+const fixtureDb=adminFirestore(fixtureAdmin);
 const uid=(await createUserWithEmailAndPassword(auth,
  'b3-native-'+Date.now()+'@example.test','EmulatorOnly!1248')).user.uid;
 const generation='0123456789abcdef01234567',root=['lojas',uid,'v2_generations',generation];
@@ -29,15 +37,15 @@ try{
  await setDoc(doc(db,'lojas',uid,'dados','operacao'),{
   marker:'B3_V1_UNTOUCHED',clientes:[client],historicoVendas:[]});
  console.log('[B4] SEED V1 OK / HEAD START');
- await setDoc(doc(db,...root),{
+ await fixtureDb.doc(root.join('/')).set({
   schema:2,state:'ready',sequence:0,lastReceipt:'0'.repeat(64),updatedAtServer:serverTimestamp(),sourceChecksum:'b3-native-synthetic',
   fieldManifest:manifest,fieldCounts:{clientes:1,historicoVendas:0},
   fieldRevisions:{clientes:0,historicoVendas:0}});
  console.log('[B4] HEAD OK / CLIENT START');
- await setDoc(doc(db,...root,'clientes','C1'),{
+ await fixtureDb.doc([...root,'clientes','C1'].join('/')).set({
   data:client,legacyField:'clientes',legacyIndex:0,version:0,deleted:false});
  console.log('[B4] CLIENT OK / ROUTE START');
- await setDoc(doc(db,'lojas',uid,'dados','storage_control'),{
+ await fixtureDb.doc(['lojas',uid,'dados','storage_control'].join('/')).set({
   mode:'v2',generation,sourceChecksum:'b3-native-synthetic',
   certificate:{sourceChecksum:'b3-native-synthetic',productionReady:true,
    v1WritersFenced:true,finalReconciliationPassed:true,
@@ -115,4 +123,5 @@ try{
 }finally{
  clearOperationalSession(db,uid);
  await deleteApp(application);
+ await deleteAdminApp(fixtureAdmin);
 }
