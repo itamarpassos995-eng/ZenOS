@@ -85,5 +85,53 @@ export function buildOccurrenceEvidence({db,ctx,authorize,now=()=>Date.now(),sto
     evidenceId:input.id,sha256:metadata.sha256});
   return {id:input.id,mediaType:metadata.mediaType,base64:bytes.toString('base64')};
  }
- return {occurrenceEvidenceUpload,occurrenceEvidenceRead};
+ async function occurrenceEvidenceInvalidate(uid,sessionToken,input) {
+  if(![input?.occurrenceId,input?.id,input?.key].every(keyOk)||
+    !Number.isSafeInteger(input.expectedRevision)||input.expectedRevision<0||
+    typeof input.reason!=='string'||input.reason.trim().length<6||
+    input.reason.length>300)error('INVALID_EVIDENCE_COMMAND');
+  const identity=hash(stable({tenantId:uid,...input}));
+  return db.runTransaction(async tx=>{
+   const c=await ctx(tx,uid),actor=await authorize(tx,uid,sessionToken,c,'manage');
+   const occRef=rootDoc(c,'distribution_occurrences',input.occurrenceId),
+     evidenceRef=rootDoc(c,'distribution_evidence',hash(input.id)),
+     receiptRef=rootDoc(c,'distribution_evidence_receipts',hash(input.key));
+   const [occSnap,evSnap,receiptSnap]=await Promise.all([tx.get(occRef),tx.get(evidenceRef),tx.get(receiptRef)]);
+   if(receiptSnap.exists){
+    const r=receiptSnap.data();
+    if(r.generation!==c.generation||r.operatorId!==actor.operatorId||r.fingerprint!==identity)
+     error('IDEMPOTENCY_CONFLICT');
+    return {...r.result,replayed:true};
+   }
+   const original=occSnap.data(),ev=evSnap.data();
+   if(!original||original.generation!==c.generation||original.tenantId!==uid||
+     !ev||ev.generation!==c.generation||ev.tenantId!==uid||
+     ev.occurrenceId!==input.occurrenceId)error('EVIDENCE_NOT_FOUND');
+   if(original.revision!==input.expectedRevision)error('REVISION_CONFLICT');
+   if(ev.status!=='ACTIVE')error('EVIDENCE_ALREADY_INVALIDATED');
+   const current=original.evidence?.find(e=>e.id===input.id);
+   if(!current||current.status!=='ACTIVE')error('EVIDENCE_NOT_FOUND');
+   const at=new Date(now()).toISOString(),eventId=hash(`occ-invalidate:${uid}:${input.key}`);
+   const revision=original.revision+1;
+   const updated={...original,revision,updatedAt:now(),updatedBy:actor.operatorId,
+    evidence:original.evidence.map(e=>e.id===input.id?
+      {...e,status:'INVALIDATED',invalidatedAt:at,invalidatedBy:actor.operatorId,reason:input.reason}:e),
+    history:[...original.history,{eventId,domain:'evidence',from:'ACTIVE',to:'INVALIDATED',
+      actorId:actor.operatorId,at,note:input.reason}]};
+   const result={occurrenceId:input.occurrenceId,evidenceId:input.id,status:'INVALIDATED',revision};
+   tx.set(occRef,updated);
+   tx.update(evidenceRef,{status:'INVALIDATED',invalidatedBy:actor.operatorId,invalidatedAt:at,
+    reason:input.reason});
+   tx.create(receiptRef,{fingerprint:identity,operatorId:actor.operatorId,generation:c.generation,result});
+   tx.create(rootDoc(c,'distribution_occurrence_events',eventId),{id:eventId,tenantId:uid,
+    occurrenceId:input.occurrenceId,revision,type:'EVIDENCE_INVALIDATED',
+    operatorId:actor.operatorId,serverAt:now(),payload:{evidenceId:input.id}});
+   tx.create(rootDoc(c,'distribution_outbox',eventId),{schema:1,id:eventId,tenantId:uid,
+    type:'distribution.occurrence.evidence-invalidated.v1',entityId:original.id,
+    payload:{occurrenceId:original.id,evidenceId:input.id},state:'LOCAL_ONLY',occurredAt:at});
+   tx.update(db.doc(c.base),{sequence:c.head.sequence+1,lastReceipt:eventId});
+   return result;
+  },{maxAttempts:15});
+ }
+ return {occurrenceEvidenceUpload,occurrenceEvidenceRead,occurrenceEvidenceInvalidate};
 }
