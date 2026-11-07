@@ -15,7 +15,8 @@ export function buildFinancialReconciliation({db,ctx,authorize,now=()=>Date.now(
   ]);
   // B.2 cursor pagination avoids downloading a whole collection. A bounded scan
   // that cannot prove completeness must fail closed; never silently truncate.
-  const financialQuery=db.collection(`${c.root}/financeiro_livro`)
+  // Native PDV V1 and V2 both atomically write to the tenant-owned financial ledger.
+  const financialQuery=db.collection(`${c.base}/financeiro_livro`)
     .where('referenciaId','==',adjustment.saleId).orderBy('__name__');
   const pages=[];let cursor=null,sourceComplete=false,readCount=2;
   for(let p=0;p<10;p++){
@@ -31,7 +32,16 @@ export function buildFinancialReconciliation({db,ctx,authorize,now=()=>Date.now(
   const sale=saleSnap.data().data;
   if(String(sale.id)!==adjustment.saleId||String(sale.clienteId)!==adjustment.customerId)
    error('SOURCE_REFERENCE_MISMATCH');
-  const ledger=pages.map(d=>({...d.data(),id:d.id}));
+  const ledger=pages.map(doc=>{
+   const raw=doc.data(),meta=raw.financeLink?.financeLinkVersion===2?raw.financeLink:null;
+   // Metadata complements the existing BRL journal entry; it never overwrites
+   // its booked amount, currency or external settlement state.
+   return {...raw,...(meta?{
+    financeLinkVersion:meta.financeLinkVersion,financeEventType:meta.financeEventType,
+    receivableId:meta.receivableId,installmentId:meta.installmentId,
+    paymentId:meta.paymentId,sourceEventId:meta.sourceEventId
+   }:{}),id:doc.id};
+  });
   if(ledger.some(e=>e.lojaId&&String(e.lojaId)!==adjustment.tenantId))
    error('FOREIGN_LEDGER_RECORD');
   const hasV2Links=ledger.some(e=>e.financeLinkVersion===2);
