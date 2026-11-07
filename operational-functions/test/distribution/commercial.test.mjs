@@ -116,3 +116,24 @@ test('B isolates stores, rejects unconfirmed occurrence and respects optimistic 
  await assert.rejects(service.adjustmentQuery(other.uid,other.session,{type:'detail',id:cmd.id}),
  {code:'ADJUSTMENT_NOT_FOUND'});
 });
+
+test('B protects a sale line across two distinct legitimate occurrence facts',async()=>{
+ const f=await setup('PY');
+ const shortage=await occurrence(f,{quantity:3});
+ const mismatchId='OCC-'+randomUUID();
+ await service.occurrenceCommand(f.uid,f.session,{type:'CREATE',key:randomUUID(),
+  occurrenceId:mismatchId,expectedRevision:0,payload:{id:mismatchId,
+   reason:'INVOICE_DELIVERY_MISMATCH',quantity:3,description:'Diferença documental sintética',
+   refs:{saleId:'O001',orderId:'O001',customerId:'C1',orderLineId:'0',productId:'P1'}}});
+ for(const [next,revision] of [['UNDER_REVIEW',0],['CONFIRMED',1]]){
+  await service.occurrenceCommand(f.uid,f.session,{type:'TRANSITION_LOGISTICS',key:randomUUID(),
+   occurrenceId:mismatchId,expectedRevision:revision,
+   payload:{next,eventId:'EV-'+randomUUID(),note:'Conferência sintética'}});
+ }
+ const first=create(f,shortage,{quantity:3});await invoke(f,first);
+ const second=create(f,mismatchId,{type:'INVOICE_DELIVERY_MISMATCH',quantity:3});
+ await assert.rejects(invoke(f,second),{code:'SALE_LINE_ADJUSTMENT_EXCEEDED'});
+ const line=await db.collection(`${f.root}/distribution_adjustment_sale_lines`).get();
+ assert.equal(line.size,1);
+ assert.equal(line.docs[0].data().active,3);
+});
