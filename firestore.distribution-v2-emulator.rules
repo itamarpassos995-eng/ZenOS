@@ -75,17 +75,7 @@ service cloud.firestore {
     allow read: if owner(store);
     allow update: if owner(store)&&validHead(request.resource.data)
      &&request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sequence','lastReceipt','fieldCounts','fieldRevisions','updatedAtServer'])
-     // On the head's OWN update, use request.resource instead of getAfter(head):
-    // getAfter(head) may return an unavailable after-image during its own rule evaluation.
-    // The receipt must exist in the same atomic transaction; never authorize a head-only advance.
-    &&request.resource.data.lastReceipt is string
-    &&request.resource.data.lastReceipt.size()==64
-    &&active(store,generation)
-    &&resource.data.sequence+1==request.resource.data.sequence
-    &&!exists(operation(store,generation,request.resource.data.lastReceipt))
-    &&getAfter(operation(store,generation,request.resource.data.lastReceipt)).data.get('schema',0)==2
-    &&getAfter(operation(store,generation,request.resource.data.lastReceipt)).data.get('sequence',-1)==request.resource.data.sequence
-    &&getAfter(operation(store,generation,request.resource.data.lastReceipt)).data.get('fingerprint','').size()==64;
+     &&command(store,generation,request.resource.data.lastReceipt,request.resource.data.sequence);
     match /operations/{id} {
      allow read: if owner(store);
      allow create: if owner(store)&&validReceipt(request.resource.data)&&command(store,generation,id,request.resource.data.sequence);
