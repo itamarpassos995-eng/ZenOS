@@ -175,3 +175,5 @@ A busca pela lista dos 56 incluiu os anexos disponíveis da conversa de origem e
 
 `PREPARATION_OF_C_ALLOWED=false`
 `EXECUTION_OF_C_ALLOWED=false`
+
+> **Resultado da revalidação.** A [CI integrada #42424250200](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42424250200) concluiu com SUCCESS no SHA `ab4e047154b70db29eef2e9ca85a57f5fd595513`: escrita nativa V2, testes da Fase 3.1, build React, integração Firebase Emulator, regressões anteriores, Chromium desktop/mobile e artefato do navegador. A suíte local da Fase 3.1 passou 67/67. O GitHub registrou o Vercel desse SHA como Preview automático com sucesso e `production_environment=false`. O resultado técnico preserva a decisão dos gates acima e as duas autorizações continuam falsas.
