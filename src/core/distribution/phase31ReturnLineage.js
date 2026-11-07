@@ -8,6 +8,44 @@ const cents=n=>Number.isFinite(Number(n))&&Number(n)>=0?
 const key=s=>typeof s==='string'&&s.length>0&&s.length<=120;
 const classification=(status,reason,source={})=>({status,reason,...source,
  externalSettlement:'UNVERIFIED',eligibleForExecution:false});
+/** Read-only capacity check. Missing historical quantities never become proof. */
+function auditReturnCapacity(sale,returns){
+ if(!returns.length||!Array.isArray(sale.itens)||!sale.itens.length)
+  return {verified:false,reason:'RETURN_QUANTITY_SOURCE_MISSING'};
+ const sold=new Map(),used=new Map();
+ for(const item of sale.itens){
+  const id=String(item?.id||''),qty=Number(item?.qtd);
+  if(!key(id)||sold.has(id)||!Number.isFinite(qty)||qty<=0)
+   return {verified:false,reason:'RETURN_QUANTITY_SOURCE_INVALID'};
+  sold.set(id,qty);
+ }
+ let sum=0;
+ for(const r of returns){
+  if(!Array.isArray(r.itens)||!r.itens.length)
+   return {verified:false,reason:'RETURN_QUANTITY_EVIDENCE_MISSING'};
+  const amount=cents(r.valorBRL);
+  if(amount===null||amount<=0)return {verified:false,reason:'RETURN_VALUE_INVALID',conflict:true};
+  sum+=amount;
+  for(const line of r.itens){
+   const id=String(line?.itemVendaId||''),qty=Number(line?.quantidade);
+   if(!sold.has(id)||!Number.isFinite(qty)||qty<=0)
+    return {verified:false,reason:'RETURN_QUANTITY_SOURCE_MISMATCH',conflict:true};
+   used.set(id,(used.get(id)||0)+qty);
+   if(used.get(id)>sold.get(id)+1e-9)
+    return {verified:false,reason:'RETURN_QUANTITY_EXCEEDED',conflict:true};
+  }
+ }
+ const gross=cents(sale.totalBRL);
+ if(gross!==null&&gross>0&&sum>gross)
+  return {verified:false,reason:'RETURN_VALUE_EXCEEDED',conflict:true};
+ for(const item of sale.itens){
+  if(item.qtdDevolvida==null)return {verified:false,reason:'RETURN_QUANTITY_SNAPSHOT_MISSING'};
+  const qty=Number(item.qtdDevolvida);
+  if(!Number.isFinite(qty)||Math.abs(qty-(used.get(String(item.id))||0))>1e-9)
+   return {verified:false,reason:'RETURN_QUANTITY_SNAPSHOT_MISMATCH',conflict:true};
+ }
+ return {verified:true,reason:'RETURN_CAPACITY_MATCHED'};
+}
 export function classifySaleReturnHistory({sale,ledger=[],tenantId}){
  if(!sale||!key(String(sale.id))||!Array.isArray(ledger)||!key(String(tenantId)))
   fail('RETURN_AUDIT_INPUT_INVALID');
@@ -60,11 +98,14 @@ export function classifySaleReturnHistory({sale,ledger=[],tenantId}){
   items.push(classification('CONFLICT','ORPHAN_RETURN_JOURNAL',{
    returnId:String(e.referenciaId||''),ledgerId,saleId:String(sale.id)}));
  }
+ const capacity=auditReturnCapacity(sale,returns);
+ if(capacity.conflict)items.push(classification('CONFLICT',capacity.reason,{saleId:String(sale.id)}));
  const anyConflict=items.some(i=>i.status==='CONFLICT');
  const anyIncomplete=items.some(i=>i.status!=='VERIFIED');
  return {schema:'DistributionReturnLineageV1',saleId:String(sale.id),
   classification:anyConflict?'CONFLICT':anyIncomplete?'PARTIAL_EVIDENCE':'VERIFIED',
   items,eligibleForExecution:false,
-  limitsVerified:!anyIncomplete&&items.length>0,
+  limitsVerified:capacity.verified&&!anyIncomplete&&items.length>0,
+  limitEvidence:capacity.reason,
   externalSettlement:'UNVERIFIED'};
 }
