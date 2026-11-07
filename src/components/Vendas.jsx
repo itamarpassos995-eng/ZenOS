@@ -12,6 +12,7 @@ import ZenShareButton from './ZenShareButton';
 import { normalizarPerfilLoja, larguraCssRecibo } from '../core/storeProfile';
 import { calcularResumoSessao } from '../core/cashSession';
 import { formatarEquivalenciaBRL, moedasAtivasRecibo } from '../core/receiptCurrency';
+import { nativeReturnLineageLink } from '../core/distribution/phase31NativeFinanceLinks.js';
 
 export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoesCaixa = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, saldoSessaoFisicoBRL = 0, perfilLoja, vouchers = [], setVouchers, userId, operadorAtivo, historicoVendas, historicoVendasCompleto, setHistoricoVendas, produtos, setProdutos, clientes, setClientes, fmt, t, tx, patenteUsuario, moeda, converterDeBRL }) {
   const [vendaExpandida, setVendaExpandida] = useState(null);
@@ -355,6 +356,12 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
       saldoClienteAntes: metodoReembolso === 'credito_fiado' ? saldoClienteAntes : null,
       saldoClienteDepois: metodoReembolso === 'credito_fiado' ? saldoClienteDepois : null,
       observacao: `Devolução da venda ${vendaSendoDevolvida?.id || '—'} • ${metodoLabel}`,
+      financeLink:nativeReturnLineageLink({
+        saleId:vendaSendoDevolvida?.id,returnId:devolucaoId,
+        clientId:vendaSendoDevolvida?.clienteId,tenantId:userId,
+        amountBRL:totalEstornoBRL,method:metodoReembolso,
+        operatorId:operadorAtivo?.id||'admin'
+      }),
       detalhes: {
         vendaId: vendaSendoDevolvida?.id || null,
         voucherCodigo,
