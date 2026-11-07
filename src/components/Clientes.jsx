@@ -6,8 +6,9 @@ import { formaEhDinheiro, lancamentosDoCliente } from '../core/financialLedger';
 import { interpretarValorMonetario } from '../core/cashMoneyInput';
 import { auditarVinculosFiado, encontrarConflitosIdsRecebimento } from '../core/clientCreditLinkAudit';
 import {validateFinanceLink} from '../core/distribution/phase31NativeFinanceLinks.js';
+import {prepareVerifiedCreditAllocations} from '../core/distribution/phase31CreditAllocation.js';
 
-export default function Clientes({ userId,perfilLoja = {}, commitOperacaoNegocio, livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, historicoVendas = [], setClientes, moeda, fmt, t, tx = (pt) => pt, converterDeBRL, converterParaBRL }) {
+export default function Clientes({ userId,perfilLoja = {}, commitOperacaoNegocio, livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, historicoVendas = [], setHistoricoVendas, setClientes, moeda, fmt, t, tx = (pt) => pt, converterDeBRL, converterParaBRL }) {
   const [filtroPaisCliente, setFiltroPaisCliente] = useState('todos');
   const [buscaClienteTexto, setBuscaClienteTexto] = useState('');
   
@@ -20,6 +21,8 @@ export default function Clientes({ userId,perfilLoja = {}, commitOperacaoNegocio
   const [valorAmortizacaoInput, setValorAmortizacaoInput] = useState('');
   const [formaAmortizacaoSel, setFormaAmortizacaoSel] = useState('dinheiro_brl');
   const [vendaFiadoSelecionada,setVendaFiadoSelecionada]=useState('');
+  const [outrasVendasFiado,setOutrasVendasFiado]=useState([]);
+  const recebimentoPendenteIdRef=useRef(null);
   const [clienteExtrato, setClienteExtrato] = useState(null);
   const [comprovanteFiado, setComprovanteFiado] = useState(null);
   const recebimentoEmAndamentoRef = useRef(false);
@@ -158,6 +161,8 @@ export default function Clientes({ userId,perfilLoja = {}, commitOperacaoNegocio
     setValorAmortizacaoInput(cli.saldoDevedorBRL > 0 ? String(cli.saldoDevedorBRL) : '');
     setFormaAmortizacaoSel('dinheiro_brl');
     setVendaFiadoSelecionada('');
+    setOutrasVendasFiado([]);
+    recebimentoPendenteIdRef.current=null;
     setModalReceberFiadoAberto(true);
   };
 
@@ -203,7 +208,8 @@ export default function Clientes({ userId,perfilLoja = {}, commitOperacaoNegocio
     }
 
     const saldoDepois = Math.max(0, saldoAntes - valBRL);
-    const recebimentoId = `REC-${Date.now()}`;
+    const recebimentoId=recebimentoPendenteIdRef.current||
+      (recebimentoPendenteIdRef.current=`REC-${crypto.randomUUID()}`);
     const createdAt = new Date().toISOString();
     const clientesPropostos = clientes.map(c => c.id === clienteReceberFiado.id ? { ...c, saldoDevedorBRL: saldoDepois } : c);
     const mov = dinheiroFisico ? {
