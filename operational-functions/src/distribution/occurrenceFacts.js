@@ -8,14 +8,15 @@ const safe=n=>Number.isSafeInteger(n)&&n>=0;
 export const IMPACT_REASONS=Object.freeze([
  'PICKING_SHORTAGE','DELIVERY_SHORTAGE','PARTIAL_DELIVERY','DAMAGED',
  'TOTAL_REFUSAL','PARTIAL_REFUSAL','LATER_RETURN','WRONG_PRODUCT',
- 'REPLACEMENT','LOSS','INVOICE_DELIVERY_MISMATCH'
+ 'REPLACEMENT','LOSS'
 ]);
-export function sourceFact({tenantId,establishmentId,saleId,lineIndex,tripId,proofId,kind='MANUAL'}) {
+export function sourceFact({tenantId,establishmentId,saleId,lineIndex,tripId,proofId,kind='MANUAL',family='PHYSICAL'}) {
  if(![tenantId,establishmentId,saleId].every(id)||!safe(lineIndex))fail('INVALID_FACT_ORIGIN');
  if(kind==='TRIP'&&(!id(tripId)||!id(proofId)))fail('PROOF_REQUIRED');
  if(!['MANUAL','TRIP'].includes(kind))fail('INVALID_FACT_ORIGIN');
+ if(!['PHYSICAL','INFORMATIONAL'].includes(family))fail('INVALID_FACT_ORIGIN');
  // No amount, day, free text or client-generated occurrence ID in identity.
- return [tenantId,establishmentId,saleId,String(lineIndex),kind,
+ return [tenantId,establishmentId,saleId,String(lineIndex),kind,family,
   kind==='TRIP'?tripId:'',kind==='TRIP'?proofId:''].join('|');
 }
 export function reserveFact(fact,{factId,occurrenceId,quantity,capacity,continuationOf=null,actorId,at}) {
