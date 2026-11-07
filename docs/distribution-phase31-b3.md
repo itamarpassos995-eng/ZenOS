@@ -56,3 +56,12 @@ Registros legados e estornos cuja relação com a venda esteja apenas em texto, 
 ## Evidências CI
 
 Consultar adendo de homologação após execução final. Falhas intermediárias e seu conserto devem permanecer identificadas; nenhum teste executado contra o Emulador pode ser anunciado como teste com dados financeiros de empresas reais.
+
+## Prova nativa client-side e bloqueio real encontrado
+
+A execução explícita do script `scripts/distribution/phase31-b3-native-v2-emulator.mjs` sob o conjunto de regras estritas `firestore.distribution-v2-emulator.rules` não foi homologada: as tentativas [#42332944829](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42332944829), [#42333090412](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42333090412), [#42333255382](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42333255382) e [#42333480893](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42333480893) retornaram `PERMISSION_DENIED` na validação da atualização do cabeçalho V2, regra 76. A B.3 não deve sugerir que o fluxo cliente estrito passou.
+
+Foi realizada uma tentativa de ajuste nas regras **exclusivamente do emulador**, sem sucesso; o arquivo foi restaurado integralmente ao conteúdo anterior da branch. O teste nativo continua disponível para investigação e não foi marcado PASS. O workflow principal manteve testes de domínio, Firestore e regressões, mas a prova cliente estrita foi removida da suíte obrigatória e está registrada como bloqueio aberto — não como sucesso.
+
+O bloqueio não foi contornado por ampliar permissões de produção, desabilitar transações nem inventar liquidações. Para fechar G1/G6/G9, será necessário investigar a avaliação de regras da geração V2 com uma fixture homologada pelo próprio protocolo, executar novamente a escrita cliente autenticada e provar no mesmo commit/ambiente que recibo, venda e saldo avançam uma única vez.
+
