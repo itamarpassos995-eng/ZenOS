@@ -83,3 +83,9 @@ Resultados reais da execução consolidada serão vinculados em adendo depois de
 | G10 | PASS | Bloqueios fiscais, bancários, legados e financeiros documentados |
 
 **DECISÃO OBRIGATÓRIA:** `PREPARATION_OF_C_ALLOWED=false`; `EXECUTION_OF_C_ALLOWED=false`. Os testes sintéticos não autorizam baixas, crédito, restituição ou emissão fiscal em produção. Os dados e negócios reais não foram modificados; nenhum merge/deploy foi executado. O MASTER de 259 requisitos e 20 cenários segue intacto. A CI extensa permanece por acionamento manual.
+
+## Continuidade G4 — proteção de evidência duplicada (2026-11-07)
+
+O conciliador `src/core/distribution/phase31ReturnLineage.js` agora classifica como `CONFLICT / DUPLICATE_RETURN_JOURNAL` duas entradas do livro com o mesmo ID de devolução, mesmo quando o segundo documento aparenta ser idêntico. Antes, a duplicidade poderia ser ignorada ao montar o mapa de evidências. `scripts/distribution/phase31-return-lineage.test.mjs` contém um teste negativo dedicado. **A alteração é apenas de classificação de evidência; não executa reembolso, baixa, estoque ou emissão fiscal.**
+
+Commits: `4c81cb16962ca51d8aae5523ba70345c624c3519` (código) e `578c5e50919e7ad602ce0b02e5bb79fd889dd1fd` (teste). Resultado da CI no SHA final: **a confirmar**, não atribuir PASS. O avanço local não publicado da fixture `phase31-b3-native-v2-emulator.mjs` com recibo de R$ 450 distribuído por duas vendas/parcelas não foi substituído nem reproduzido, e permanece **sem comprovação CI** neste SHA. G4 continua PARTIAL, assim como B.4. `PREPARATION_OF_C_ALLOWED=false`; `EXECUTION_OF_C_ALLOWED=false`. Preservados 259 requisitos e 20 cenários MASTER.
