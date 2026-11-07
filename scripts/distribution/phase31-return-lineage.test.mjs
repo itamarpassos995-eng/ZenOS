@@ -30,3 +30,11 @@ test('B4 detects duplicate return ID and orphan journal without side effects',()
  const orphan={...journal,id:'DEVOLUCAO-D2',referenciaId:'D2'};
  assert.ok(check(sale,[journal,orphan]).items.some(i=>i.reason==='ORPHAN_RETURN_JOURNAL'));
 });
+
+test('B4 rejects duplicate journal evidence even when the repeated entry looks valid',()=>{
+ const result=check(sale,[journal,{...journal}]);
+ assert.equal(result.classification,'CONFLICT');
+ assert.equal(result.items[0].reason,'DUPLICATE_RETURN_JOURNAL');
+ assert.equal(result.eligibleForExecution,false);
+ assert.equal(result.externalSettlement,'UNVERIFIED');
+});
