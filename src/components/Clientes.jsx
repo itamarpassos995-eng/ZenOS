@@ -287,6 +287,14 @@ export default function Clientes({ userId,perfilLoja = {}, commitOperacaoNegocio
        referenciaId:recebimentoId,clienteId:clienteAtual.id,ledgerId:recebimentoId}):null;
     const vendasPropostas=planoAlocacao?historicoVendas.map(v=>
       planoAlocacao.patches.find(p=>p.saleId===String(v.id))?.nextSale||v):historicoVendas;
+    if(planoAlocacao&&(typeof commitOperacaoNegocio!=='function'||
+      typeof setHistoricoVendas!=='function')){
+      return setModalZen({variante:'danger',
+       titulo:tx('Operação indisponível','Operación no disponible'),
+       mensagem:tx('A vinculação do fiado exige confirmação atômica de vendas, saldo e livro financeiro. Nenhum valor foi recebido.',
+        'La asignación de crédito requiere confirmación atómica de ventas, saldo y libro financiero. No se registró ningún cobro.'),
+       apenasConfirmar:true});
+    }
     const financeiro = {
       id: recebimentoId,
       tipo: 'recebimento_fiado',
