@@ -7,11 +7,11 @@ const id=v=>typeof v==='string'&&/^[A-Za-z0-9._:-]{1,120}$/.test(v);
 const currency=v=>['BRL','PYG','USD','EUR'].includes(v);
 export function validateFinanceLink(link,{lojaId,referenciaId,clienteId,ledgerId}={}){
  if(link==null)return null;
- if(link.financeLinkVersion!==2||!['OBLIGATION','RECEIPT','REVERSAL','COMPENSATION','SALE_PAYMENT'].includes(link.financeEventType)||
+ if(link.financeLinkVersion!==2||!['OBLIGATION','RECEIPT','REVERSAL','COMPENSATION','SALE_PAYMENT','RETURN_RECORDED'].includes(link.financeEventType)||
   !id(link.saleId)||!id(link.paymentId)||!id(link.sourceEventId)||!currency(link.moedaOrigem)||
   typeof link.valorOriginal!=='number'||!Number.isFinite(link.valorOriginal)||link.valorOriginal<=0)
   fail('FINANCE_LINK_INVALID');
- if(String(link.saleId)!==String(referenciaId)&&!['REVERSAL','RECEIPT'].includes(link.financeEventType))fail('FINANCE_LINK_SALE_MISMATCH');
+ if(String(link.saleId)!==String(referenciaId)&&!['REVERSAL','RECEIPT','RETURN_RECORDED'].includes(link.financeEventType))fail('FINANCE_LINK_SALE_MISMATCH');
  if(link.clienteId!=null&&String(link.clienteId)!==String(clienteId))fail('FINANCE_LINK_CUSTOMER_MISMATCH');
  if(link.lojaId!=null&&String(link.lojaId)!==String(lojaId))fail('FINANCE_LINK_TENANT_MISMATCH');
  if(link.financeEventType==='OBLIGATION'&&(!id(link.receivableId)||!id(link.installmentId)))
@@ -59,4 +59,20 @@ export function pdvImmediatePaymentLink({vendaId,clienteId,lojaId,pagamento,ledg
   currencyEvidence:{amountBRL:pagamento.valorConvertidoBRL,
    rateAtSale:pagamento.taxaCambioAplicada,method:pagamento.formaId}
  },{lojaId,referenciaId:vendaId,clienteId,ledgerId});
+}
+
+/** Metadata for an already-existing native return operation; it is NOT proof
+ * that the bank/card processor settled a refund or a fiscal credit note exists.
+ */
+export function nativeReturnLineageLink({saleId,returnId,clientId,tenantId,amountBRL,method,operatorId}){
+ if(!id(String(saleId||''))||!id(String(returnId||''))||!id(String(tenantId||''))||
+    !Number.isFinite(amountBRL)||amountBRL<=0)fail('RETURN_LINEAGE_INVALID');
+ return validateFinanceLink({
+  financeLinkVersion:2,financeEventType:'RETURN_RECORDED',
+  saleId:String(saleId),clienteId:clientId==null?null:String(clientId),
+  lojaId:String(tenantId),paymentId:`DEVOLUCAO-${returnId}`,
+  sourceEventId:String(returnId),moedaOrigem:'BRL',valorOriginal:amountBRL,
+  statusLiquidacao:'REGISTERED_UNVERIFIED',
+  currencyEvidence:{method:String(method||'unknown'),operatorId:String(operatorId||'unknown')}
+ },{lojaId:tenantId,referenciaId:returnId,clienteId:clientId,ledgerId:`DEVOLUCAO-${returnId}`});
 }
