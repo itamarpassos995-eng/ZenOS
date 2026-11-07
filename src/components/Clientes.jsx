@@ -5,6 +5,7 @@ import ZenShareButton from './ZenShareButton';
 import { formaEhDinheiro, lancamentosDoCliente } from '../core/financialLedger';
 import { interpretarValorMonetario } from '../core/cashMoneyInput';
 import { auditarVinculosFiado, encontrarConflitosIdsRecebimento } from '../core/clientCreditLinkAudit';
+import {validateFinanceLink} from '../core/distribution/phase31NativeFinanceLinks.js';
 
 export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, historicoVendas = [], setClientes, moeda, fmt, t, tx = (pt) => pt, converterDeBRL, converterParaBRL }) {
   const [filtroPaisCliente, setFiltroPaisCliente] = useState('todos');
@@ -18,6 +19,7 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
   const [clienteReceberFiado, setClienteReceberFiado] = useState(null);
   const [valorAmortizacaoInput, setValorAmortizacaoInput] = useState('');
   const [formaAmortizacaoSel, setFormaAmortizacaoSel] = useState('dinheiro_brl');
+  const [vendaFiadoSelecionada,setVendaFiadoSelecionada]=useState('');
   const [clienteExtrato, setClienteExtrato] = useState(null);
   const [comprovanteFiado, setComprovanteFiado] = useState(null);
   const recebimentoEmAndamentoRef = useRef(false);
@@ -155,6 +157,7 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
     setClienteReceberFiado(cli);
     setValorAmortizacaoInput(cli.saldoDevedorBRL > 0 ? String(cli.saldoDevedorBRL) : '');
     setFormaAmortizacaoSel('dinheiro_brl');
+    setVendaFiadoSelecionada('');
     setModalReceberFiadoAberto(true);
   };
 
@@ -220,6 +223,30 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
       operador: operadorAtivo?.nome || 'Administrador',
     } : null;
     const caixaProposto = mov ? [mov, ...(caixaMovimentos || [])] : caixaMovimentos;
+    // A payment to the client's generic balance is not proof of allocation
+    // to a particular sale. Only an explicitly selected sale receives B3 provenance;
+    // no bank settlement or installment payoff is asserted.
+    const vendaVinculada=vendaFiadoSelecionada?
+      historicoVendas.find(v=>String(v.id)===vendaFiadoSelecionada&&
+        String(v.clienteId)===String(clienteAtual.id)&&v.tipoDocumento==='venda'&&
+        v.pagamentos?.some(p=>p.formaId==='crediario')):null;
+    if(vendaFiadoSelecionada&&!vendaVinculada){
+      return setModalZen({variante:'warning',titulo:tx('Venda não confirmada','Venta no confirmada'),
+       mensagem:tx('Selecione novamente uma venda a prazo válida antes de receber.','Seleccione de nuevo una venta a crédito válida antes de cobrar.'),
+       apenasConfirmar:true});
+    }
+    const financeLink=vendaVinculada?validateFinanceLink({
+      financeLinkVersion:2,financeEventType:'RECEIPT',
+      saleId:String(vendaVinculada.id),clienteId:String(clienteAtual.id),
+      paymentId:recebimentoId,sourceEventId:`VENDA-${vendaVinculada.id}-FIADO`,
+      receivableId:`REC-${vendaVinculada.id}`,
+      installmentId:`INST-${vendaVinculada.id}-AGGREGATE`,
+      moedaOrigem:formaCfg.moedaOrigem,valorOriginal,
+      statusLiquidacao:'REGISTERED_UNVERIFIED',
+      currencyEvidence:{valorAtribuidoBRL:valBRL,taxaCambioAplicada:valorOriginal/valBRL,
+       data:createdAt,fonte:'CAIXA_ZENOS_REGISTRO_LOCAL'}
+    },{lojaId:String(vendaVinculada.lojaId||clienteAtual.lojaId||'not-required'),
+       referenciaId:recebimentoId,clienteId:clienteAtual.id,ledgerId:recebimentoId}):null;
     const financeiro = {
       id: recebimentoId,
       tipo: 'recebimento_fiado',
@@ -227,6 +254,7 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
       referenciaId: recebimentoId,
       valor: valBRL,
       formaPagamento: formaAmortizacaoSel,
+      ...(financeLink?{financeLink}:{ }),
       detalhes: {moedaOrigem:formaCfg.moedaOrigem,valorOriginal,taxaCambioAplicada:valorOriginal/valBRL},
       createdAt,
       afetaCaixaFisico: dinheiroFisico,
@@ -545,6 +573,22 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
             <label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800 }}>{tx("Valor a Receber / Quitar (","Importe a cobrar / liquidar (")}{moeda}):</label>
             <input type="text" ref={inputValorAmortizacaoRef} value={valorAmortizacaoInput} onChange={e => setValorAmortizacaoInput(e.target.value)} placeholder="0.00" onFocus={e=>e.target.select()} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #10b981', borderRadius: '12px', color: '#34d399', fontSize: '24px', fontWeight: 900, textAlign: 'center', padding: '14px', outline: 'none', marginTop: '8px', marginBottom: '16px', boxSizing: 'border-box' }} autoFocus />
 
+            <label style={{fontSize:'11px',color:'#cbd5e1',fontWeight:800}}>
+              {tx('Vincular recebimento a uma venda (opcional, sem quitação presumida):',
+                'Vincular cobro a una venta (opcional, sin liquidación presumida):')}
+            </label>
+            <select value={vendaFiadoSelecionada} onChange={e=>setVendaFiadoSelecionada(e.target.value)}
+             style={{width:'100%',background:'#020617',border:'1px solid #334155',
+              borderRadius:'8px',color:'#fff',padding:'10px',margin:'6px 0 16px'}}>
+             <option value="">{tx('Sem atribuição a uma venda','Sin asignación a una venta')}</option>
+             {historicoVendas.filter(v=>String(v.clienteId)===String(clienteReceberFiado.id)
+               &&v.tipoDocumento==='venda'&&v.pagamentos?.some(p=>p.formaId==='crediario'))
+               .map(v=><option key={v.id} value={String(v.id)}>{v.id} · {v.createdAt||''}</option>)}
+            </select>
+            <p style={{fontSize:'11px',color:'#94a3b8'}}>
+              {tx('A seleção registra apenas a origem declarada. O pagamento ainda exige conferência de parcelas e liquidação.',
+               'La selección registra solo el origen declarado. El pago todavía requiere verificación de cuotas y liquidación.')}
+            </p>
             <label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800 }}>{tx('Forma de Recebimento:','Forma de Cobro:','Payment Method:')}</label>
             <select value={formaAmortizacaoSel} onChange={e => setFormaAmortizacaoSel(e.target.value)} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '12px', outline: 'none', marginTop: '6px', marginBottom: '24px', boxSizing: 'border-box' }}>
               {catalogoFormas.map(f => (
