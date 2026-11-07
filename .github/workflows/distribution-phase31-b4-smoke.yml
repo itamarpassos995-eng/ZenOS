@@ -1,0 +1,24 @@
+name: Distribution B4 final walk-in safeguard
+on:
+  push:
+    branches: [feat/distribution-logistics-foundation]
+    paths:
+      - '.github/workflows/distribution-phase31-b4-smoke.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: B4 focused finance safety tests
+        run: node --test scripts/distribution/phase31-native-links.test.mjs scripts/distribution/phase31-credit-allocation.test.mjs scripts/distribution/phase31-return-lineage.test.mjs
+      - name: React build
+        run: npm run build
