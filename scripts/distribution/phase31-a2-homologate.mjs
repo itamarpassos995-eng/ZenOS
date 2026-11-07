@@ -31,7 +31,7 @@ try{
    o.states.financial!=='NOT_REQUESTED')throw Error('FISCAL_DRAFT_EFFECT_CONFLICT');
  const evidence=await db.collection(`${f.root}/distribution_evidence`).get();
  if(evidence.size!==1||o.evidence?.length!==1||o.evidence[0].base64!==undefined||
-   !o.evidence[0].sha256)throw Error('PRIVATE_EVIDENCE_INTEGRITY_FAILED');
+   !o.evidence[0].sha256||o.evidence[0].status!=='INVALIDATED'||evidence.docs[0].data().status!=='INVALIDATED')throw Error('PRIVATE_EVIDENCE_INTEGRITY_FAILED');
  await writeFile('tmp/distribution31a2/database-integrity.json',JSON.stringify({
   passed:true,stock:stock.estoque,ledgerEntries:ledger.size,occurrences:occurrences.size,
   financialState:o.states.financial,fiscalState:o.states.fiscal,authorized:o.fiscalDocuments[0].authorized,privateEvidence:evidence.size
