@@ -387,3 +387,17 @@ Nenhum merge, deploy, migração real ou alteração de clientes. MASTER não al
 A CI verifica o código até `edf36d4`. Após ele, somente foi acrescentada uma asserção de teste para família informativa, editada a política de CI para acionamento manual e produzida documentação — **nenhuma nova alteração operacional**. O arquivo MASTER permanece intocado. Não houve merge/deploy nem emissão fiscal.
 
 **Limite do aceite:** a A.3 está homologada **para os fluxos sintéticos cobertos**, não para produção. A store de evidências é local e temporária do Emulator; pendem armazenamento privado de Distribuição em produção, regras/índices instalados, análise legal DNIT/SEFAZ, verificação de eventos manuais independentes, medição real de leituras, retenção/limpeza e aceite integral dos demais IDs da Fase 3.1.
+
+
+## Fase 3.1 — Entrega B, implementação comercial
+
+A fonte `docs/distribution-phase31-master.md` e seus **259 requisitos** permanecem imutáveis. Ver [relatório técnico B](distribution-phase31-b.md).
+
+| Conjunto de IDs | Código e evidência | Estado | Bloqueio para aceite integral |
+|---|---|---|---|
+| D31-02-001..011; D31-03-001..017; D31-04-001..014 | `phase31Commercial.js`, `commercialService.js`; tipos candidatos por país, fonte fiscal preservada, emissão BLOQUEADA | EM TESTE / LEGAL_REVIEW_REQUIRED | Elegibilidade normativa vigente, protocolos de autorização DNIT/SEFAZ, validador fiscal por operação e UF/regime |
+| D31-05-*; D31-06-* | `commercialService.js`, `commercial.test.mjs`: reservas por ocorrência e por linha de venda; origem e valor imutáveis | EM TESTE | Conciliação real de parcelas e comprovantes V2; ajustes financeiros não executados nesta fase |
+| D31-10-*; D31-12-* | `DistributionCommercial.jsx`, transições com PIN/autorizações, representações históricas e impressão navegador PT/ES | EM TESTE | PDF persistido, aceite visual completo e assinatura/autorização externa |
+| D31-15-*; D31-16-* | `phase31-commercial.test.mjs`, `commercial.test.mjs`, testes Chromium e regressões em CI | EM TESTE | Confirmar run definitivo e diferenças entre Emulator e produção |
+
+**Não declarar CONCLUÍDO** nenhum grupo que dependa de credenciamento fiscal, subledger financeiro, storage privado, classificação tributária oficial, emissão de nota ou dinheiro movimentado. Nenhum evento de outbox aciona ZenOS Connect. Nenhum merge ou deploy.
