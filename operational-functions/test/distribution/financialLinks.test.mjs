@@ -7,6 +7,7 @@ const service=distributionService(db);
 async function setup(){
  const f=await seed('distribution-b2-'+randomUUID().slice(0,9),{orders:1});
  await db.doc(`${f.root}/distribution_config/module`).update({fiscalCountry:'PY'});
+ await db.doc(`${f.base}/vendas/O001`).update({'data.totalOriginal':1000000,'data.tipoDocumento':'venda','data.estado':'concluida','data.pagamentos':[{id:'PAY1',formaId:'crediario',moedaOrigem:'PYG',valorOriginal:1000000}]});
  const login=await service.login(f.uid,{operatorId:'admin',pin:PIN});
  const id='OCC-'+randomUUID();
  await service.occurrenceCommand(f.uid,login.sessionToken,{type:'CREATE',occurrenceId:id,key:randomUUID(),
@@ -19,9 +20,7 @@ async function setup(){
  const adjustmentId='ADJ-'+randomUUID();
  await service.adjustmentCommand(f.uid,login.sessionToken,{type:'CREATE',id:adjustmentId,
   occurrenceId:id,expectedRevision:0,key:randomUUID(),payload:{type:'SHORTAGE',quantity:2}});
- await db.doc(`${f.base}/vendas/O001`).update({'data.tipoDocumento':'venda',
-  'data.estado':'concluida','data.totalOriginal':1000000,
-  'data.pagamentos':[{id:'PAY1',formaId:'crediario',moedaOrigem:'PYG',valorOriginal:1000000}]});
+
  const prefix={lojaId:f.uid,referenciaId:'O001',clienteId:'C1',financeLinkVersion:2,
   receivableId:'DEBT1',installmentId:'INST1',moeda:'PYG'};
  await db.doc(`${f.root}/financeiro_livro/D1`).set({...prefix,id:'D1',financeEventType:'OBLIGATION',valor:1000000,
