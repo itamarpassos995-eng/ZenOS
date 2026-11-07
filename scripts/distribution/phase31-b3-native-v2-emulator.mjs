@@ -28,7 +28,7 @@ try{
  await setDoc(doc(db,'lojas',uid,'dados','operacao'),{
   marker:'B3_V1_UNTOUCHED',clientes:[client],historicoVendas:[]});
  await setDoc(doc(db,...root),{
-  schema:2,state:'ready',sequence:0,sourceChecksum:'b3-native-synthetic',
+  schema:2,state:'ready',sequence:0,lastReceipt:'0'.repeat(64),sourceChecksum:'b3-native-synthetic',
   fieldManifest:manifest,fieldCounts:{clientes:1,historicoVendas:0},
   fieldRevisions:{clientes:0,historicoVendas:0}});
  await setDoc(doc(db,...root,'clientes','C1'),{
