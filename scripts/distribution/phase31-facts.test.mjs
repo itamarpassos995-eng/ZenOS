@@ -10,6 +10,7 @@ test('A3 fact identity uses trusted sale, item and delivery proof rather than re
  assert.equal(sourceFact(origin),sourceFact({...origin}));
  assert.notEqual(sourceFact(origin),sourceFact({...origin,saleId:'O002'}));
  assert.notEqual(sourceFact(origin),sourceFact({...origin,tenantId:'other-company'}));
+ assert.notEqual(sourceFact(origin),sourceFact({...origin,family:'INFORMATIONAL'}));
  assert.notEqual(sourceFact({...origin,kind:'TRIP',tripId:'T1',proofId:'P1'}),
   sourceFact({...origin,kind:'TRIP',tripId:'T1',proofId:'P2'}));
  assert.throws(()=>sourceFact({...origin,kind:'TRIP',tripId:'T1'}),{code:'PROOF_REQUIRED'});
