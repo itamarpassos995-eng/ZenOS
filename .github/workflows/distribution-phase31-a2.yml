@@ -1,4 +1,4 @@
-name: Distribution Phase 3.1 B.4 security and finance validation
+name: Distribution Phase 3.1 B.4 native finance and security validation
 on:
   workflow_dispatch:
   push:
@@ -9,6 +9,13 @@ on:
       - 'scripts/distribution/phase31-b3-native-v2-emulator.mjs'
       - 'src/core/distribution/phase31ReturnLineage.js'
       - 'scripts/distribution/phase31-return-lineage.test.mjs'
+      - 'scripts/distribution/phase31-credit-allocation.test.mjs'
+      - 'src/core/distribution/phase31CreditAllocation.js'
+      - 'src/components/Clientes.jsx'
+      - 'src/components/PDV.jsx'
+      - 'src/components/Vendas.jsx'
+      - 'operational-functions/src/distribution/reconciliationService.js'
+      - 'firestore.distribution-v2-emulator.rules'
 permissions:
   contents: read
 jobs:
@@ -30,7 +37,7 @@ jobs:
       - name: B.4 native client V2 write security proof — mandatory
         run: npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.distribution-v2.json 'node scripts/distribution/phase31-b3-native-v2-emulator.mjs'
       - name: Phase 3.1 foundation tests
-        run: node --test scripts/distribution/phase31-c-gates.test.mjs scripts/distribution/phase31-foundation.test.mjs scripts/distribution/phase31-client.test.mjs scripts/distribution/phase31-facts.test.mjs scripts/distribution/phase31-commercial.test.mjs scripts/distribution/phase31-reconciliation.test.mjs scripts/distribution/phase31-financial-links.test.mjs scripts/distribution/phase31-native-links.test.mjs scripts/distribution/phase31-return-lineage.test.mjs
+        run: node --test scripts/distribution/phase31-c-gates.test.mjs scripts/distribution/phase31-foundation.test.mjs scripts/distribution/phase31-client.test.mjs scripts/distribution/phase31-facts.test.mjs scripts/distribution/phase31-commercial.test.mjs scripts/distribution/phase31-reconciliation.test.mjs scripts/distribution/phase31-financial-links.test.mjs scripts/distribution/phase31-native-links.test.mjs scripts/distribution/phase31-return-lineage.test.mjs scripts/distribution/phase31-credit-allocation.test.mjs
       - name: React build
         run: npm run build
       - name: Firebase Emulator V2 integration tests
