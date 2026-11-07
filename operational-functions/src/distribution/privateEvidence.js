@@ -17,6 +17,7 @@ function verify(bytes,mediaType) {
  if(!Buffer.isBuffer(bytes)||bytes.length<12||bytes.length>MAX_BYTES||!Object.hasOwn(types,mediaType))
   error('EVIDENCE_FILE_INVALID');
  if(mediaType==='image/png'){
+  if(bytes.length<24)error('EVIDENCE_MAGIC_INVALID');
   if(!bytes.subarray(0,8).equals(Buffer.from('89504e470d0a1a0a','hex'))||
     bytes.toString('ascii',12,16)!=='IHDR')error('EVIDENCE_MAGIC_INVALID');
   const w=bytes.readUInt32BE(16),h=bytes.readUInt32BE(20);
