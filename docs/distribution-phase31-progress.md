@@ -327,3 +327,18 @@ Nenhum adendo de escopo nesta entrega. A ordem de preservação desta execução
 **Próxima ação:** rodar `node --test scripts/distribution/phase31-foundation.test.mjs` em Node 22, completar integração real e homologar no Firebase Emulator antes de elevar quaisquer IDs para CONCLUÍDO. Ver [relatório da Entrega A](distribution-phase31-implementation-a.md).
 
 Nenhum merge, deploy, migração real ou alteração de clientes. MASTER não alterado.
+
+
+## Continuidade — Entrega A.2 (implementação integrada; aceite visual pendente)
+
+**Referência:** [relatório técnico A.2](distribution-phase31-a2.md); [CI 42318761946 — sucesso](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42318761946), SHA `7aa47a2fe7db8e149637bd8abb843dad88482ccc`.
+
+**Implementado e registrado na branch:** host transacional e consultas V2 (`operational-functions/src/distribution/occurrenceService.js`); contratos de comando/autorização (`occurrences.js`); endpoints locais (`service.js`, `server.js`); cliente autenticado (`src/core/distribution/client.js`); Central de Ocorrências PT/ES responsiva (`DistributionOccurrences.jsx`, `DistributionOccurrences.css`, `DistributionCentral.jsx`); testes Emulator (`operational-functions/test/distribution/occurrences.test.mjs`); workflow manual (`.github/workflows/distribution-phase31-a2.yml`).
+
+**Teste aprovado:** 8/8 domínio e host, 6/6 transações Firebase Emulator, build React/Vite com 199 módulos transformados. Nenhuma emissão fiscal real, documento autorizado fictício, movimento automático de estoque ou lançamento financeiro.
+
+**Estados rastreáveis:** `D31-01-*`, `D31-02-007`, `D31-02-010..011`, `D31-03-002`, `D31-03-017`, `D31-04-003..004`, `D31-04-007`, `D31-05-*`, `D31-12-003`, `D31-12-006`, `D31-12-012..014`, `D31-15-*` e `D31-16-*`: **EM TESTE**, com os critérios e lacunas descritos na matriz. Emissão fiscal BR/PY **BLOQUEADA** sem regra legal vigente e confirmação oficial. A Entrega A.2 **não tem aceite integral** devido à ausência de jornada Chromium mobile/desktop, regressões consolidadas, deduplicação semântica entre IDs distintos e evidências privadas.
+
+**Sem mudança nos 259 requisitos do MASTER.** O CI comprova o escopo de contratos, backend/Emulator e build, não o funcionamento da emissão fiscal em produção ou todo o fluxo visual. Não fez merge, deploy, migração, alteração de clientes ou serviços pagos adicionais.
+
+**Próxima ação técnica:** homologar a Central no Chromium desktop 1440×1050 e mobile 390×844; confirmar permissões de retornos, filtros, evidências e deduplicação de ocorrências por fato; rodar regressões Fases 2/2.1/3. Somente após essas evidências reconsiderar aceite da A.2 ou avançar à Entrega B.
