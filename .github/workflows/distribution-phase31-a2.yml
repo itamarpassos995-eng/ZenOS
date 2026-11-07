@@ -1,5 +1,9 @@
 name: Distribution Phase 3.1 B.4 native finance and security validation
 on:
+  push:
+    branches: [feat/distribution-logistics-foundation]
+    paths:
+      - '.github/workflows/distribution-phase31-a2.yml'
   workflow_dispatch:
 permissions:
   contents: read
