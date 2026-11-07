@@ -61,3 +61,9 @@ test('B4 native return lineage is a historical return record, not a bank-verifie
  assert.equal(x.sourceEventId,'D1');
  assert.equal(x.saleId,'S1');
 });
+
+test('B4 refuses to allocate further debt when earlier refund modified credit without a proven reversal',()=>{
+ const a={...sale('SA',300),devolucoes:[{id:'D1',valorBRL:50,metodoReembolso:'credito_fiado'}]};
+ assert.throws(()=>plan([a],[{saleId:'SA',installmentId:'INST-SA-AGGREGATE',amountBRL:100}],100),
+  {code:'CREDIT_PRIOR_RETURN_REVIEW_REQUIRED'});
+});
