@@ -68,6 +68,7 @@ export function calculateFinancialOrigin({sale,adjustment,ledger=[],sourceComple
     e.clienteId===sale.clienteId&&e.paymentId===pid);
    if(backing.length!==1){issues.add('RECEIVABLE_LINK_NOT_VERIFIED');continue;}
    open+=amount;
+   issues.add('RECEIVABLE_CURRENT_BALANCE_NOT_VERIFIED');
    observed.push({id:pid,method,currency,originMinor:amount.toString(),evidence:'DEBT_REGISTERED',
     ledgerId:backing[0].id});
    continue;
