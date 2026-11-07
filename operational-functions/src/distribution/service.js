@@ -1,6 +1,7 @@
 import {buildTrips} from './trips.js';
 import {buildOccurrences} from './occurrenceService.js';
 import {buildOccurrenceEvidence} from './evidenceService.js';
+import {buildCommercialAdjustments} from './commercialService.js';
 import {buildSettlement} from './settlement.js';
 import {distributionPeriod} from '../../../src/core/distribution/period.js';
 import {criarEventoEstoque} from '../../../src/core/stockAuditCore.js';
@@ -275,5 +276,6 @@ export function distributionService(db,{now=()=>Date.now()}={}) {
  const trips=buildTrips({db,ctx,authorize,finalize,now});
  const occurrences=buildOccurrences({db,ctx,authorize,now});
  const evidence=buildOccurrenceEvidence({db,ctx,authorize,now});
- return {login,command,query,logout,finalize,...trips,...occurrences,...evidence};
+ const commercial=buildCommercialAdjustments({db,ctx,authorize,now});
+ return {login,command,query,logout,finalize,...trips,...occurrences,...evidence,...commercial};
 }
