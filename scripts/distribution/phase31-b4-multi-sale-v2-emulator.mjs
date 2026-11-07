@@ -164,6 +164,8 @@ try{
   guards:[{type:'client_receipt_snapshot',clientId:'C1',
    clientName:client.nome,balanceBRL:1600},
    {type:'entity_field_equals',field:'historicoVendas',entityId:'V1',
+    entityKey:'id',property:'creditAllocationsV2',expected:[]},
+   {type:'entity_field_equals',field:'historicoVendas',entityId:'V2',
     entityKey:'id',property:'creditAllocationsV2',expected:[]}],
   operationKey:'recebimento-fiado:REC1'});
  assert.equal(again.cloudOk,true,again.error?.message);
