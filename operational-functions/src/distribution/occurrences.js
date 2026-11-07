@@ -41,14 +41,16 @@ export async function executeOccurrenceCommand({command,authorize,transaction}) 
   }else{
    if(!occurrence||occurrence.tenantId!==tenantId||occurrence.id!==occurrenceId)fail('OCCURRENCE_NOT_FOUND');
    if(occurrence.revision!==expectedRevision)fail('REVISION_CONFLICT');
-   if(type==='DRAFT_FISCAL') if(!validatedPayload)fail('FISCAL_SOURCE_NOT_VERIFIED');
-   updated=createFiscalAdjustmentDraft(occurrence,{
-    ...validatedPayload,actorId:actor.operatorId,expectedRevision
-   });
-   else{
+   if(type==='DRAFT_FISCAL'){
+    if(!validatedPayload)fail('FISCAL_SOURCE_NOT_VERIFIED');
+    updated=createFiscalAdjustmentDraft(occurrence,{
+     ...validatedPayload,actorId:actor.operatorId,expectedRevision
+    });
+   }else{
+    if(!validatedPayload)fail('SERVER_VALIDATION_REQUIRED');
     const domain={TRANSITION_LOGISTICS:'logistics',TRANSITION_FISCAL:'fiscal',TRANSITION_FINANCIAL:'financial'}[type];
     updated=transitionOccurrence(occurrence,{
-     ...payload,domain,actorId:actor.operatorId,expectedRevision
+     ...validatedPayload,domain,actorId:actor.operatorId,expectedRevision
     });
    }
   }
