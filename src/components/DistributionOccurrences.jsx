@@ -24,7 +24,7 @@ export default function DistributionOccurrences({client,session,range,language})
  const selectedOrder=useMemo(()=>orders.find(o=>o.id===form.orderId),[orders,form.orderId]);
  const selectedLine=selectedOrder?.itens?.[Number(form.lineIndex)];
  const fetchOrders=async(cursor=null)=>{setBusy(true);setError('');try{
-  const r=await client.query({type:'orders',from:Date.parse(range.inicio),to:Date.parse(range.fim),limit:12,cursor},{refresh:true});
+  const r=await client.occurrenceQuery({type:'sourceOrders',from:Date.parse(range.inicio),to:Date.parse(range.fim),limit:12,cursor},{refresh:true});
   setOrders(prev=>cursor?[...prev,...r.items]:r.items);setOrderCursor(r.next);
  }catch(e){setError(e.code||'REQUEST_FAILED');}finally{setBusy(false);}};
  const open=async id=>{setBusy(true);setError('');try{const r=await client.occurrenceQuery({type:'detail',occurrenceId:id},{refresh:true});setDetail(r.occurrence);setDocType(documentTypes[r.occurrence.country]?.[0]||'');}catch(e){setError(e.code||'REQUEST_FAILED');}finally{setBusy(false);}};
