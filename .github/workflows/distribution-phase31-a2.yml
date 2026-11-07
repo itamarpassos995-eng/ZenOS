@@ -9,6 +9,9 @@ on:
       - 'src/core/distribution/phase31Reconciliation.js'
       - 'operational-functions/src/distribution/reconciliationService.js'
       - 'operational-functions/test/distribution/reconciliation.test.mjs'
+      - 'scripts/distribution/phase31-reconciliation.test.mjs'
+      - 'scripts/distribution/phase31-b1-browser.mjs'
+      - 'scripts/distribution/phase31-a2-homologate.mjs'
 permissions:
   contents: read
 jobs:
