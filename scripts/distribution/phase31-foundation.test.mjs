@@ -83,12 +83,12 @@ test('revision conflicts and duplicate event are rejected without mutation',()=>
  rejects(()=>transitionOccurrence(occ,event('logistics','UNDER_REVIEW',0,{eventId:'occ1'})),'DUPLICATE_EVENT');
  assert.equal(occ.revision,0);
 });
-function host() {
+function host(principal=()=>auth()) {
  let occurrence=null;const receipts=new Map();const events=[];let tail=Promise.resolve();
  return {events,get occurrence(){return occurrence;},
   transaction:async (scope,callback)=>{
    const next=tail.then(async()=>{
-    const value=await callback({occurrence:occurrence?structuredClone(occurrence):null,receipt:receipts.get(scope.key)});
+    const value=await callback({occurrence:occurrence?structuredClone(occurrence):null,receipt:receipts.get(scope.key),actor:await principal(),validatedPayload:scope.type==='CREATE'?scope.payload:null});
     if(!value.replay){occurrence=structuredClone(value.occurrence);receipts.set(scope.key,structuredClone(value.receipt));events.push(value.outbox);}
     return value.result;
    });tail=next.catch(()=>{});return next;
@@ -98,14 +98,15 @@ function host() {
 const auth=async()=>({tenantId:'tenant1',operatorId:'operator1',moduleEnabled:true,permissions:['distribution.occurrence.create']});
 const command={tenantId:'tenant1',occurrenceId:'occ1',key:'unique1',type:'CREATE',expectedRevision:0,payload:input()};
 test('server host contract idempotently persists one occurrence/event on repeated command',async()=>{
- const h=host();const run=()=>executeOccurrenceCommand({command,authorize:auth,transaction:h.transaction});
+ const h=host();const run=()=>executeOccurrenceCommand({command,transaction:h.transaction});
  const [a,b]=await Promise.all([run(),run()]);
  assert.deepEqual(a,b);assert.equal(h.events.length,1);assert.equal(h.occurrence.id,'occ1');
- await assert.rejects(()=>executeOccurrenceCommand({command:{...command,payload:input({quantity:3})},authorize:auth,transaction:h.transaction}),e=>e.code==='IDEMPOTENCY_CONFLICT');
+ await assert.rejects(()=>executeOccurrenceCommand({command:{...command,payload:input({quantity:3})},transaction:h.transaction}),e=>e.code==='IDEMPOTENCY_CONFLICT');
 });
 test('server contract fails closed on cross-tenant actor and missing permission',async()=>{
- const h=host();
- await assert.rejects(()=>executeOccurrenceCommand({command,authorize:async()=>({...await auth(),tenantId:'tenant2'}),transaction:h.transaction}),e=>e.code==='FORBIDDEN');
- await assert.rejects(()=>executeOccurrenceCommand({command,authorize:async()=>({...await auth(),permissions:[]}),transaction:h.transaction}),e=>e.code==='FORBIDDEN');
- assert.equal(h.events.length,0);
+ const other=host(async()=>({...await auth(),tenantId:'tenant2'}));
+ await assert.rejects(()=>executeOccurrenceCommand({command,transaction:other.transaction}),e=>e.code==='FORBIDDEN');
+ const missing=host(async()=>({...await auth(),permissions:[]}));
+ await assert.rejects(()=>executeOccurrenceCommand({command,transaction:missing.transaction}),e=>e.code==='FORBIDDEN');
+ assert.equal(other.events.length,0);assert.equal(missing.events.length,0);
 });
