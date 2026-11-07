@@ -40,6 +40,16 @@ try{
  await desktop.getByRole('button',{name:'Iniciar conferência',exact:true}).click();
  await desktop.getByRole('button',{name:'Confirmar ocorrência',exact:true}).waitFor();
  await desktop.getByRole('button',{name:'Confirmar ocorrência',exact:true}).click();
+ await desktop.getByTestId('distribution-commercial').waitFor();
+ await desktop.getByRole('button',{name:'Preparar ajuste comercial',exact:true}).click();
+ await desktop.locator('.dist-commercial-form input[type=number]').fill('2');
+ await desktop.getByRole('button',{name:'Salvar rascunho',exact:true}).click();
+ await desktop.locator('.dist-commercial-row').first().waitFor();
+ await desktop.locator('.dist-commercial-row').first().click();
+ await desktop.getByText('DOCUMENTO INTERNO — SEM VALIDADE FISCAL',{exact:true}).waitFor();
+ await desktop.getByRole('button',{name:'Imprimir espelho interno',exact:true}).waitFor();
+ await desktop.screenshot({path:'tmp/distribution31a2/commercial-internal-pt.png',fullPage:true});
+ screens.push('commercial-internal-pt.png');
  await desktop.getByRole('button',{name:'Solicitar rascunho fiscal',exact:true}).waitFor();
  await desktop.getByRole('button',{name:'Solicitar rascunho fiscal',exact:true}).click();
  await desktop.getByRole('button',{name:'Preparar rascunho interno',exact:true}).waitFor();
@@ -75,7 +85,7 @@ try{
  assert.deepEqual(errors,[]);
  await writeFile('tmp/distribution31a2/browser-integrity.json',JSON.stringify({
   passed:true,desktop:{width:1440,height:1050},mobile:{width:390,height:844},
-  screenshots:screens,checks:['login','occurrence create','server review','fiscal draft pending','private evidence upload/download/invalidation','PT/ES','mobile layout','no http errors'],errors
+  screenshots:screens,checks:['login','occurrence create','server review','commercial draft with historical amount','nonfiscal historical representation','fiscal draft pending','private evidence upload/download/invalidation','PT/ES','mobile layout','no http errors'],errors
  },null,2));
  console.log('PHASE31_A2_BROWSER_SUCCESS',JSON.stringify(screens));
 }finally{
