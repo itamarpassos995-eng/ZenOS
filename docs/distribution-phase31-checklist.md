@@ -509,3 +509,27 @@ A execução [GitHub Actions #42333625128](https://github.com/itamarpassos995-en
 | G10 — documentação | relatório B.4 e rastreabilidade sem apagar o histórico | PASS |
 
 **Decisão:** `PREPARATION_OF_C_ALLOWED=false` e `EXECUTION_OF_C_ALLOWED=false`. A B.4 não concede autorização financeira. Não houve merge, deploy, migração real, estorno real nem atualização de regras de produção.
+
+
+## B.4 — Homologação final e decisão de gates (2026-11-07)
+
+**CI completa B.4:** [GitHub Actions #42377927469](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42377927469), **SUCCESS**, código testado `8637ea578934cc5b156f376493244c5224f0d756`: prova obrigatória `PHASE31_B3_NATIVE_V2_SUCCESS` via SDK cliente autenticada com regras V2 originais; **46/46** testes Node, **34/34** testes Firebase Emulator, **71/71** regressões de domínio, **15/15** testes transacionais da Fase 3, build React, corrida das fases anteriores e Chromium desktop PT/mobile ES aprovados. [Evidências Chromium e integridade, artifact 13576422529](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42377927469/artifacts/13576422529).
+
+**Proteção adicional final:** [GitHub Actions #42378185114](https://github.com/itamarpassos995-eng/ZenOS/actions/runs/42378185114), **SUCCESS**, código testado `6b5c59c8a4d54f69e6cee2c2dbc94767d98fdf7e`: **15/15** testes financeiros focados e build React, inclusive a correção de venda imediata sem cliente cadastrado, `clienteId=null`. A segunda execução é um teste de segurança focado e **não** substitui a suíte integrada completa do commit anterior.
+
+**Causa raiz G1 demonstrada:** a fixture anterior falhava durante a inicialização privilegiada de `v2_generations/{generation}` com SDK cliente, **antes de vender**, não na venda efetiva. A fixture passou a usar Admin SDK **somente para semear dados sintéticos no Emulator**, e a operação de venda/recebimento continuou exclusivamente na SDK cliente e nas regras V2 originais, que foram restauradas integralmente. Nenhuma regra de produção foi modificada.
+
+| Gate | Estado final | Motivo |
+|---|---|---|
+| G1 | PARTIAL | Prova nativa positiva V2 passou sob regras originais; falta cobertura completa de identidade de operador, todas as escritas e testes negativos multiempresa no mesmo fluxo |
+| G2 | PARTIAL | Alocação atômica de recibo único por venda provada e regras multi-venda testadas em domínio; falta homologação SDK cliente de múltiplas vendas e parcelamento real/renegociação |
+| G3 | PARTIAL | Moeda histórica preservada; falta conciliação de liquidação externa e câmbio original comprovado em todos os meios |
+| G4 | PARTIAL | Origem de devolução nativa e conferência de diário histórico implementadas; casos legados e reversão bancária anterior sem comprovação mantidos bloqueados |
+| G5 | PARTIAL | Retry idempotente nativo passou; falta cobertura concorrente de todas as modalidades e históricos |
+| G6 | PARTIAL | Regras originais preservadas e autenticação SDK cliente provada; faltam testes negativos completos de perfis/tenants para novas alocações |
+| G7 | PASS | `STALE` por alteração de origem financeira com testes anteriores preservados |
+| G8 | PARTIAL | Integridade da transação de venda/cliente/recibo e regressões aprovadas; faltam todos os 56 cenários de caixa/estoque/cliente |
+| G9 | PARTIAL | Suítes e Chromium aprovados, mas não todos os 56 cenários obrigatórios desta ordem |
+| G10 | PASS | Bloqueios fiscais, bancários, legados e financeiros documentados |
+
+**DECISÃO OBRIGATÓRIA:** `PREPARATION_OF_C_ALLOWED=false`; `EXECUTION_OF_C_ALLOWED=false`. Os testes sintéticos não autorizam baixas, crédito, restituição ou emissão fiscal em produção. Os dados e negócios reais não foram modificados; nenhum merge/deploy foi executado. O MASTER de 259 requisitos e 20 cenários segue intacto. A CI extensa permanece por acionamento manual.
