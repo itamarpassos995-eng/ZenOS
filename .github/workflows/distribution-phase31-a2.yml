@@ -11,6 +11,7 @@ on:
       - 'operational-functions/test/distribution/financialLinks.test.mjs'
       - 'scripts/distribution/phase31-financial-links.test.mjs'
       - 'src/components/DistributionReconciliation.jsx'
+      - 'scripts/distribution/phase31-b1-browser.mjs'
 permissions:
   contents: read
 jobs:
