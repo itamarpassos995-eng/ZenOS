@@ -23,10 +23,10 @@ async function setup(){
 
  const prefix={lojaId:f.uid,referenciaId:'O001',clienteId:'C1',financeLinkVersion:2,
   receivableId:'DEBT1',installmentId:'INST1',moeda:'PYG'};
- await db.doc(`${f.root}/financeiro_livro/D1`).set({...prefix,id:'D1',financeEventType:'OBLIGATION',valor:1000000,
+ await db.doc(`${f.base}/financeiro_livro/D1`).set({...prefix,id:'D1',financeEventType:'OBLIGATION',valor:1000000,
   createdAt:'2026-11-01T00:00:00Z'});
  for(const [id,value,day] of [['R1',200000,2],['R2',150000,3],['R3',100000,4]]){
-  await db.doc(`${f.root}/financeiro_livro/${id}`).set({...prefix,id,
+  await db.doc(`${f.base}/financeiro_livro/${id}`).set({...prefix,id,
    financeEventType:'RECEIPT',valor:value,createdAt:`2026-11-0${day}T00:00:00Z`,
    paymentId:id,sourceEventId:'D1',status:'liquidado',liquidacaoConfirmada:true,
    comprovanteId:'SYNTH-'+id});
@@ -41,7 +41,7 @@ test('B2 Firestore V2 3 partial payments return 450000 received and 550000 open 
  const saleBefore=(await db.doc(`${f.base}/vendas/O001`).get()).data(),
   clientBefore=(await db.doc(`${f.base}/clientes/C1`).get()).data(),
   stockBefore=(await db.doc(`${f.base}/produtos/P1`).get()).data(),
-  receiptBefore=(await db.doc(`${f.root}/financeiro_livro/R1`).get()).data();
+  receiptBefore=(await db.doc(`${f.base}/financeiro_livro/R1`).get()).data();
  const cmd=await write(f);assert.equal(cmd.state,'RECONCILED');
  const result=(await read(f)).reconciliation;
  assert.equal(result.verifiedReceived.minor,'450000');
@@ -52,11 +52,11 @@ test('B2 Firestore V2 3 partial payments return 450000 received and 550000 open 
  assert.deepEqual((await db.doc(`${f.base}/vendas/O001`).get()).data(),saleBefore);
  assert.deepEqual((await db.doc(`${f.base}/clientes/C1`).get()).data(),clientBefore);
  assert.deepEqual((await db.doc(`${f.base}/produtos/P1`).get()).data(),stockBefore);
- assert.deepEqual((await db.doc(`${f.root}/financeiro_livro/R1`).get()).data(),receiptBefore);
+ assert.deepEqual((await db.doc(`${f.base}/financeiro_livro/R1`).get()).data(),receiptBefore);
 });
 test('B2 V2 fingerprint invalidates snapshot if installment payment changes',async()=>{
  const f=await setup();await write(f);
- await db.doc(`${f.root}/financeiro_livro/R2`).update({valor:145000});
+ await db.doc(`${f.base}/financeiro_livro/R2`).update({valor:145000});
  const r=await read(f);
  assert.equal(r.stale,true);assert.equal(r.reconciliation.state,'STALE');
  const h=await service.reconciliationQuery(f.uid,f.token,{type:'history',adjustmentId:f.adjustmentId,revision:0});
@@ -67,7 +67,7 @@ test('B2 V2 safe pagination checks more than 30 financial events',async()=>{
  const batch=db.batch();
  for(let i=0;i<35;i++){
   const id='X'+String(i).padStart(3,'0');
-  batch.set(db.doc(`${f.root}/financeiro_livro/${id}`),{
+  batch.set(db.doc(`${f.base}/financeiro_livro/${id}`),{
    id,lojaId:f.uid,referenciaId:'O001',clienteId:'C1',financeEventType:'RECEIPT',
    financeLinkVersion:1,valor:1,moeda:'PYG'});
  }
