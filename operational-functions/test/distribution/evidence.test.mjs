@@ -31,7 +31,7 @@ test('private evidence attaches and reads exact bytes only with authenticated te
  assert.equal(o.evidence[0].uploadedBy,'admin');
  assert.equal(o.evidence[0].base64,undefined);
  assert.equal((await db.collection(`${f.root}/distribution_evidence`).get()).size,1);
- assert.equal((await db.collection(`${f.root}/financeiro_livro`).get()).size,0);
+ assert.equal((await db.collection(`${f.base}/financeiro_livro`).get()).size,0);
  assert.equal((await db.doc(`${f.base}/produtos/P1`).get()).data().data.estoque,100);
  await assert.rejects(service.occurrenceEvidenceRead(f.uid,'invalid',{occurrenceId:f.occId,id:command.id}));
  await assert.rejects(service.occurrenceEvidenceUpload(f.uid,f.token,{...command,expectedRevision:1,key:randomUUID(),base64:SAMPLE_PNG}),{code:'EVIDENCE_ID_COLLISION'});
