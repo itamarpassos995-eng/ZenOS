@@ -51,3 +51,17 @@ test('B3 ledger normalization without B3 links preserves original schema and amo
  assert.equal(v.financeLink,undefined);
  assert.equal(v.schema,'ATT07_V1_ADITIVO');
 });
+
+test('B4 native walk-in immediate payment has no customer, but retains tenant, sale and amount',()=>{
+ const link=pdvImmediatePaymentLink({vendaId:'S-WALK',clienteId:null,lojaId:'COMPANY1',
+  ledgerId:'VENDA-S-WALK-PG-0-dinheiro_brl',
+  pagamento:{formaId:'dinheiro_brl',moedaOrigem:'BRL',valorOriginal:25,
+   valorConvertidoBRL:25,taxaCambioAplicada:1}});
+ const entry=criarLancamentoFinanceiro({
+  id:link.paymentId,lojaId:'COMPANY1',tipo:'venda',origem:'pdv',
+  referenciaId:'S-WALK',valor:25,clienteId:null,financeLink:link
+ });
+ assert.equal(entry.valor,25);
+ assert.equal(entry.financeLink.clienteId,null);
+ assert.equal(entry.financeLink.saleId,'S-WALK');
+});
