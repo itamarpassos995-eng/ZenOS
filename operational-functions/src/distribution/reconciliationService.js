@@ -1,6 +1,7 @@
 import {hash,id,error} from './security.js';
 import {calculateFinancialOrigin,canonicalFinancialSource} from '../../../src/core/distribution/phase31Reconciliation.js';
 import {reconcileLinkedObligations} from '../../../src/core/distribution/phase31FinancialLinks.js';
+import {classifySaleReturnHistory} from '../../../src/core/distribution/phase31ReturnLineage.js';
 /** Emulator-only read-audit host. Reads V2 sale and existing financeiro_livro.
  * No writes to sales, receivables, cash, customer, payments or stock.
  */
@@ -21,7 +22,9 @@ export function buildFinancialReconciliation({db,ctx,authorize,now=()=>Date.now(
   // receiptId as referenciaId and link to the sale through financeLink.saleId.
   const queries=[
    financial.where('referenciaId','==',adjustment.saleId).orderBy('__name__'),
-   financial.where('financeLink.saleId','==',adjustment.saleId).orderBy('__name__')
+   financial.where('financeLink.saleId','==',adjustment.saleId).orderBy('__name__'),
+   financial.where('financeLink.saleIds','array-contains',adjustment.saleId).orderBy('__name__'),
+   financial.where('detalhes.vendaId','==',adjustment.saleId).orderBy('__name__')
   ];
   const docs=new Map();let sourceComplete=true,readCount=2;
   for(const financialQuery of queries){
@@ -47,11 +50,16 @@ export function buildFinancialReconciliation({db,ctx,authorize,now=()=>Date.now(
    const raw=doc.data(),meta=raw.financeLink?.financeLinkVersion===2?raw.financeLink:null;
    // Metadata complements the existing BRL journal entry; it never overwrites
    // its booked amount, currency or external settlement state.
+   const chosen=meta?.allocations?.find(row=>String(row.saleId)===String(adjustment.saleId));
    return {...raw,...(meta?{
     financeLinkVersion:meta.financeLinkVersion,financeEventType:meta.financeEventType,
-    receivableId:meta.receivableId,installmentId:meta.installmentId,
-    paymentId:meta.paymentId,sourceEventId:meta.sourceEventId,
-    nativeReferenciaId:raw.referenciaId,referenciaId:meta.saleId
+    receivableId:chosen?`REC-${adjustment.saleId}`:meta.receivableId,
+    installmentId:chosen?.installmentId||meta.installmentId,
+    paymentId:meta.paymentId,
+    sourceEventId:chosen?`VENDA-${adjustment.saleId}-FIADO`:meta.sourceEventId,
+    nativeReferenciaId:raw.referenciaId,
+    ...(chosen?{valor:chosen.amountBRL,moeda:'BRL'}:{}),
+    referenciaId:meta.saleIds?.includes(adjustment.saleId)?adjustment.saleId:meta.saleId
    }:{}),id:doc.id};
   });
   if(ledger.some(e=>e.lojaId&&String(e.lojaId)!==adjustment.tenantId))
@@ -61,6 +69,18 @@ export function buildFinancialReconciliation({db,ctx,authorize,now=()=>Date.now(
   const computed=hasV2Links?
    reconcileLinkedObligations({sale,adjustment,ledger,complete:sourceComplete}):
    calculateFinancialOrigin({sale,adjustment,ledger,sourceComplete});
+  const returnLineage=classifySaleReturnHistory({
+   sale,ledger,tenantId:adjustment.tenantId
+  });
+  computed.returnLineage=returnLineage;
+  if(returnLineage.items.length>0){
+   computed.issues=[...new Set([...(computed.issues||[]),
+    'PREVIOUS_RETURN_EXTERNAL_SETTLEMENT_UNVERIFIED'])].sort();
+   computed.state='RECONCILIATION_REQUIRED';
+   computed.eligibility&&(computed.eligibility.preconditions=[
+    ...new Set([...(computed.eligibility.preconditions||[]),
+     'PREVIOUS_RETURN_EXTERNAL_SETTLEMENT_UNVERIFIED'])]);
+  }
   const sourceFingerprint=hash(canonicalFinancialSource({
    sale,ledger,sourceComplete,customerId:customerSnap.data().data?.id,
    saleVersion:saleSnap.data().version,customerVersion:customerSnap.data().version
