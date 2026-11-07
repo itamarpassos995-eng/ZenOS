@@ -75,7 +75,7 @@ export function buildCommercialAdjustments({db,ctx,authorize,now=()=>Date.now()}
       !['COMMERCIAL_REVIEW','FISCAL_REVIEW','REJECTED','CANCELLED','DRAFT'].includes(command.payload?.next))
      error('ADJUSTMENT_TRANSITION_FORBIDDEN');
     if(command.type==='TRANSITION_FISCAL'&&
-      !['LEGAL_REVIEW_REQUIRED','REJECTED','INTERNALLY_REVIEWED','COMMERCIAL_REVIEW'].includes(command.payload?.next))
+      !['LEGAL_REVIEW_REQUIRED','REJECTED','COMMERCIAL_REVIEW'].includes(command.payload?.next))
      error('ADJUSTMENT_TRANSITION_FORBIDDEN');
     updated=transitionCommercialDraft(old,{eventId:command.payload?.eventId,
       actorId:actor.operatorId,next:command.payload?.next,
