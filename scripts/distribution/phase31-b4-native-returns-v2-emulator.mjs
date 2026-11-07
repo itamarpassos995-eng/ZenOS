@@ -69,6 +69,40 @@ try{
    {field:'clientes',baseValue:initial.clientes,value:[{...client,saldoDevedorBRL:1000}]}],
   financialEntries:[obligation],operationKey:'pdv:V1'});
  assert.equal(savedSale.cloudOk,true,savedSale.error?.message);
+ const beforeReceipt=(await getOperationalSnapshot(db,uid)).data();
+ const plan=prepareVerifiedCreditAllocations({
+  sales:beforeReceipt.historicoVendas,clientId:'C1',receiptId:'REC1',receivedBRL:250,
+  allocations:[{saleId:'V1',installmentId:'INST-V1-AGGREGATE',amountBRL:250}]
+ });
+ const receipt={id:'REC1',tipo:'recebimento_fiado',origem:'clientes',referenciaId:'REC1',
+  valor:250,clienteId:'C1',clienteNome:client.nome,formaPagamento:'dinheiro_brl',
+  saldoClienteAntes:1000,saldoClienteDepois:750,
+  financeLink:validateFinanceLink({
+   financeLinkVersion:2,financeEventType:'RECEIPT',saleId:'V1',paymentId:'REC1',
+   sourceEventId:obligation.id,receivableId:'REC-V1',installmentId:'INST-V1-AGGREGATE',
+   clienteId:'C1',lojaId:uid,moedaOrigem:'BRL',valorOriginal:250,
+   statusLiquidacao:'REGISTERED_UNVERIFIED',allocations:plan.allocations,
+   saleIds:['V1'],currencyEvidence:{valorAtribuidoBRL:250}
+  },{lojaId:uid,referenciaId:'REC1',clienteId:'C1',ledgerId:'REC1'})
+ };
+ const paid=await persistV1BusinessOperationSafe({db,userId:uid,
+  changes:[
+   {field:'clientes',baseValue:beforeReceipt.clientes,
+    value:[{...beforeReceipt.clientes[0],saldoDevedorBRL:750}]},
+   {field:'historicoVendas',baseValue:beforeReceipt.historicoVendas,
+    value:plan.patches.map(x=>x.nextSale)}
+  ],financialEntries:[receipt],operationKey:'recebimento-fiado:REC1',
+  guards:[
+   {type:'client_receipt_snapshot',clientId:'C1',clientName:client.nome,balanceBRL:1000},
+   {type:'entity_field_equals',field:'historicoVendas',entityId:'V1',
+    entityKey:'id',property:'creditAllocationsV2',expected:[]}
+  ]
+ });
+ assert.equal(paid.cloudOk,true,paid.error?.message);
+ const receiptDoc=doc(db,'lojas',uid,'financeiro_livro','REC1');
+ const originalReceipt=(await getDoc(receiptDoc)).data();
+ assert.equal(originalReceipt.valor,250);
+ assert.equal(originalReceipt.financeLink.statusLiquidacao,'REGISTERED_UNVERIFIED');
  const event=(id,amount)=>({id,valorBRL:amount,metodoReembolso:'registro_interno',
   itens:[{itemVendaId:'IT1',quantidade:1}]});
  const journal=(id,amount)=>({id:`DEVOLUCAO-${id}`,tipo:'devolucao',
@@ -92,8 +126,12 @@ try{
   assert.equal(outcome.cloudOk,true,outcome.error?.message);
   return {changes,financialEntries,guards};
  };
- const afterSale=(await getOperationalSnapshot(db,uid)).data();
- await commitReturn('D1',400,afterSale,1);
+ const afterReceipt=(await getOperationalSnapshot(db,uid)).data();
+ assert.equal(afterReceipt.clientes[0].saldoDevedorBRL,750);
+ const originalAllocations=afterReceipt.historicoVendas[0].creditAllocationsV2;
+ assert.equal(originalAllocations[0].receiptId,'REC1');
+ assert.equal(originalAllocations[0].allocations[0].amountBRL,250);
+ await commitReturn('D1',400,afterReceipt,1);
  const afterPartial=(await getOperationalSnapshot(db,uid)).data();
  assert.equal(afterPartial.historicoVendas[0].estado,'parcial');
  assert.equal(afterPartial.historicoVendas[0].itens[0].qtdDevolvida,1);
@@ -102,7 +140,8 @@ try{
  const returnedSale=afterTotal.historicoVendas.find(x=>x.id==='V1');
  assert.equal(returnedSale.estado,'cancelada');
  assert.equal(returnedSale.itens[0].qtdDevolvida,2);
- assert.equal(afterTotal.clientes[0].saldoDevedorBRL,1000);
+ assert.equal(afterTotal.clientes[0].saldoDevedorBRL,750);
+ assert.deepEqual(returnedSale.creditAllocationsV2,originalAllocations);
  const ledger=[];
  for(const id of ['D1','D2']){
   const snap=await getDoc(doc(db,'lojas',uid,'financeiro_livro',`DEVOLUCAO-${id}`));
@@ -131,7 +170,8 @@ try{
   operationKey:'devolucao:D3'});
  assert.equal(bad.cloudOk,false,'Over-return must be rejected by authenticated SDK');
  assert.equal((await getDoc(doc(db,'lojas',uid,'financeiro_livro','DEVOLUCAO-D3'))).exists(),false);
- assert.equal((await getOperationalSnapshot(db,uid)).data().clientes[0].saldoDevedorBRL,1000);
+ assert.equal((await getOperationalSnapshot(db,uid)).data().clientes[0].saldoDevedorBRL,750);
+ assert.deepEqual((await getDoc(receiptDoc)).data(),originalReceipt);
  console.log('PHASE31_B4_NATIVE_RETURN_LIMITS_SUCCESS');
 }finally{
  clearOperationalSession(db,uid);

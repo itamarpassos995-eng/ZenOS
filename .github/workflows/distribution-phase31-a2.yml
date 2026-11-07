@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/distribution-phase31-a2.yml'
       - 'scripts/distribution/phase31-c-gates.test.mjs'
+      - 'scripts/distribution/phase31-b4-native-returns-v2-emulator.mjs'
   workflow_dispatch:
 permissions:
   contents: read
@@ -26,6 +27,8 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund --prefix operational-functions
       - name: B.4 native client V2 write security proof — mandatory
         run: npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.distribution-v2.json 'node scripts/distribution/phase31-b3-native-v2-emulator.mjs'
+      - name: B.4 partially paid sale and internal returns
+        run: npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.distribution-v2.json 'node scripts/distribution/phase31-b4-native-returns-v2-emulator.mjs'
       - name: Phase 3.1 foundation tests
         run: node --test scripts/distribution/phase31-c-gates.test.mjs scripts/distribution/phase31-foundation.test.mjs scripts/distribution/phase31-client.test.mjs scripts/distribution/phase31-facts.test.mjs scripts/distribution/phase31-commercial.test.mjs scripts/distribution/phase31-reconciliation.test.mjs scripts/distribution/phase31-financial-links.test.mjs scripts/distribution/phase31-native-links.test.mjs scripts/distribution/phase31-return-lineage.test.mjs scripts/distribution/phase31-credit-allocation.test.mjs scripts/distribution/phase31-b4-legacies.test.mjs scripts/distribution/phase31-b4-multicurrency.test.mjs
       - name: React build
