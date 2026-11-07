@@ -28,7 +28,11 @@ try{
  await login(desktop);
  assert.equal(await desktop.getByRole('heading',{name:'Ocorrências e Devoluções'}).count(),1);
  await desktop.getByRole('button',{name:'Registrar ocorrência',exact:true}).click();
- await desktop.getByLabel('Pedido do PDV',{exact:true}).selectOption('O001');
+ await desktop.screenshot({path:'tmp/distribution31a2/before-create-desktop.png',fullPage:true});
+ console.log('DEBUG_FORM',JSON.stringify({shade:await desktop.locator('.dist-occ-shade').count(),
+  labels:await desktop.locator('label').allTextContents(),
+  excerpt:(await desktop.locator('body').innerText()).slice(-1100)}));
+ await desktop.locator('.dist-occ-shade select').first().selectOption('O001');
  await desktop.getByLabel('Quantidade',{exact:true}).fill('2');
  await desktop.getByLabel('Descrição da ocorrência',{exact:true}).fill('Duas unidades faltaram na entrega sintética');
  await desktop.getByRole('button',{name:'Salvar ocorrência',exact:true}).click();
