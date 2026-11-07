@@ -1,18 +1,6 @@
 name: Distribution Phase 3.1 B.2 validation
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - feat/distribution-logistics-foundation
-    paths:
-      - '.github/workflows/distribution-phase31-a2.yml'
-      - 'src/core/distribution/phase31FinancialLinks.js'
-      - 'operational-functions/src/distribution/reconciliationService.js'
-      - 'operational-functions/test/distribution/financialLinks.test.mjs'
-      - 'scripts/distribution/phase31-financial-links.test.mjs'
-      - 'src/components/DistributionReconciliation.jsx'
-      - 'scripts/distribution/phase31-b1-browser.mjs'
-      - 'scripts/distribution/phase31-a2-homologate.mjs'
 permissions:
   contents: read
 jobs:
