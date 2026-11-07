@@ -15,7 +15,7 @@ export default function DistributionOccurrences({client,session,range,language})
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[reload,setReload]=useState(0),[filterReason,setFilterReason]=useState(''),[filterState,setFilterState]=useState(''),[docType,setDocType]=useState('');
  const pendingCreate=useRef(null),pendingAction=useRef(null),pendingEvidence=useRef(null);
  const canManage=session.capabilities?.includes('manage')||session.capabilities?.includes('returns')||session.capabilities?.includes('admin');
- const canFiscal=session.capabilities?.includes('manage')||session.capabilities?.includes('admin');
+ const canFiscal=session.capabilities?.includes('manage')||session.capabilities?.includes('admin')||session.capabilities?.includes('fiscalReview');
  const localState=v=>t.states[v]||v;
  const load=useCallback(async()=>{setBusy(true);setError('');try{
   const r=await client.occurrenceQuery({type:'list',from:Date.parse(range.inicio),to:Date.parse(range.fim),limit:12,cursor:cursors[page]},{refresh:true});
