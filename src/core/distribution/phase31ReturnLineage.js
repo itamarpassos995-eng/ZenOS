@@ -7,7 +7,7 @@ const cents=n=>Number.isFinite(Number(n))&&Number(n)>=0?
  Math.round(Number(n)*100):null;
 const key=s=>typeof s==='string'&&s.length>0&&s.length<=120;
 const classification=(status,reason,source={})=>({status,reason,...source,
- externalSettlement:'UNVERIFIED',eligibleForExecution:false});
+ externalSettlement:'UNVERIFIED',fiscalAuthorization:'UNVERIFIED',eligibleForExecution:false});
 /** Read-only capacity check. Missing historical quantities never become proof. */
 function auditReturnCapacity(sale,returns){
  if(!returns.length||!Array.isArray(sale.itens)||!sale.itens.length)
@@ -36,7 +36,8 @@ function auditReturnCapacity(sale,returns){
   }
  }
  const gross=cents(sale.totalBRL);
- if(gross!==null&&gross>0&&sum>gross)
+ if(gross===null||gross<=0)return {verified:false,reason:'RETURN_ORIGINAL_VALUE_MISSING'};
+ if(sum>gross)
   return {verified:false,reason:'RETURN_VALUE_EXCEEDED',conflict:true};
  for(const item of sale.itens){
   if(item.qtdDevolvida==null)return {verified:false,reason:'RETURN_QUANTITY_SNAPSHOT_MISSING'};
@@ -107,5 +108,5 @@ export function classifySaleReturnHistory({sale,ledger=[],tenantId}){
   items,eligibleForExecution:false,
   limitsVerified:capacity.verified&&!anyIncomplete&&items.length>0,
   limitEvidence:capacity.reason,
-  externalSettlement:'UNVERIFIED'};
+  externalSettlement:'UNVERIFIED',fiscalAuthorization:'UNVERIFIED'};
 }
