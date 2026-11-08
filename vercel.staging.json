@@ -1,0 +1,8 @@
+{
+  "buildCommand": "VITE_ZENOS_ENV=staging npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    {"source": "/", "destination": "/distribution-homologacao.html"},
+    {"source": "/__distribution/:operation", "destination": "/api/distribution-staging?operation=:operation"}
+  ]
+}

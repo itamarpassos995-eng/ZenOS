@@ -10,6 +10,8 @@ on:
       - 'scripts/distribution/domain.test.mjs'
       - 'operational-functions/test/distribution/emulator.test.mjs'
       - 'operational-functions/test/distribution/b4-concurrency-negative.test.mjs'
+      - 'api/distribution-staging.js'
+      - 'scripts/distribution/staging.test.mjs'
   workflow_dispatch:
 permissions:
   contents: read
@@ -35,6 +37,15 @@ jobs:
         run: npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local --config firebase.distribution-v2.json 'node scripts/distribution/phase31-b4-native-returns-v2-emulator.mjs'
       - name: Phase 3.1 foundation tests
         run: node --test scripts/distribution/phase31-c-gates.test.mjs scripts/distribution/phase31-foundation.test.mjs scripts/distribution/phase31-client.test.mjs scripts/distribution/phase31-facts.test.mjs scripts/distribution/phase31-commercial.test.mjs scripts/distribution/phase31-reconciliation.test.mjs scripts/distribution/phase31-financial-links.test.mjs scripts/distribution/phase31-native-links.test.mjs scripts/distribution/phase31-return-lineage.test.mjs scripts/distribution/phase31-credit-allocation.test.mjs scripts/distribution/phase31-b4-legacies.test.mjs scripts/distribution/phase31-b4-multicurrency.test.mjs
+      - name: Isolated staging build
+        env:
+          VITE_ZENOS_ENV: staging
+          VITE_FIREBASE_PROJECT_ID: zenos-distribution-staging
+          VITE_FIREBASE_AUTH_DOMAIN: zenos-distribution-staging.firebaseapp.com
+          VITE_FIREBASE_API_KEY: synthetic-build-only
+          VITE_FIREBASE_MESSAGING_SENDER_ID: '123456'
+          VITE_FIREBASE_APP_ID: '1:123456:web:synthetic'
+        run: npm run build && test -f dist/distribution-homologacao.html && test ! -f dist/index.html
       - name: React build
         run: npm run build
       - name: Loading and HTTP security integration tests

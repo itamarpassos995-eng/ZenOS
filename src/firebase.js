@@ -26,7 +26,23 @@ const homologationFirebaseConfig = {
   appId: "1:000000000000:web:zenoslocal"
 };
 
-const firebaseConfig = ZENOS_RUNTIME.isHomologacao
+function stagingConfig(env) {
+  const config = {
+    projectId: env.VITE_FIREBASE_PROJECT_ID,
+    apiKey: env.VITE_FIREBASE_API_KEY,
+    authDomain: env.VITE_FIREBASE_AUTH_DOMAIN,
+    appId: env.VITE_FIREBASE_APP_ID,
+    messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  };
+  if (config.projectId !== 'zenos-distribution-staging' ||
+      config.authDomain !== 'zenos-distribution-staging.firebaseapp.com' ||
+      Object.values(config).some(value => !value?.trim()) ||
+      !config.appId.startsWith(`1:${config.messagingSenderId}:web:`)) {
+    throw new Error('Invalid Firebase configuration for ZenOS Distribution staging');
+  }
+  return config;
+}
+const firebaseConfig = import.meta.env.VITE_ZENOS_ENV === 'staging' ? stagingConfig(import.meta.env) : ZENOS_RUNTIME.isHomologacao
   ? homologationFirebaseConfig
   : productionFirebaseConfig;
 
@@ -58,7 +74,7 @@ if (ZENOS_RUNTIME.isHomologacao) {
     `Auth ${ZENOS_RUNTIME.authEmulatorHost}:${ZENOS_RUNTIME.authEmulatorPort} — ` +
     `Firestore ${ZENOS_RUNTIME.firestoreEmulatorHost}:${ZENOS_RUNTIME.firestoreEmulatorPort}`
   );
-} else {
+} else if (ZENOS_RUNTIME.isProduction) {
   try {
     getAnalytics(app);
   } catch (error) {

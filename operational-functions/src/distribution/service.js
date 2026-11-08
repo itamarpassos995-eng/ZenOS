@@ -18,8 +18,10 @@ function minor(value,precision) {
  return BigInt(m[1])*10n**BigInt(precision)+BigInt(fraction.slice(0,precision)||0)+(Number(fraction[precision]||0)>=5?1n:0n);
 }
 const actions = new Set(['CREATE','RESERVE','START_PICK','CHECK','APPROVE','CONFIRM_LOADING','MANIFEST','DISPATCH','CANCEL']);
-export function distributionService(db,{now=()=>Date.now()}={}) {
- requireEmulators();
+export function distributionService(db,{now=()=>Date.now(),staging=false}={}) {
+ if(staging){
+  if(db.projectId!=='zenos-distribution-staging'||process.env.FIRESTORE_EMULATOR_HOST||process.env.FIREBASE_AUTH_EMULATOR_HOST)error('STAGING_PROJECT_REQUIRED');
+ }else requireEmulators();
  const day=(at,timezone)=>new Intl.DateTimeFormat('sv-SE',{timeZone:timezone||'America/Asuncion',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(at));
  const store = uid=>`lojas/${id(uid)}`;
  const ctx = async(tx,uid) => {
@@ -30,6 +32,7 @@ export function distributionService(db,{now=()=>Date.now()}={}) {
   if(head.data()?.schema!==2||head.data()?.state!=='ready'||head.data()?.sourceChecksum!==control.data()?.sourceChecksum)error('V2_NOT_READY');
   const entitlement=control.data().entitlements?.distribution;
   if(config.data()?.enabled!==true||entitlement?.enabled!==true||(entitlement.expiresAt!=null&&entitlement.expiresAt<=now()))error('MODULE_DISABLED');
+  if(staging&&config.data()?.pilotProfile!=='PYG_CREDIT_CASH_V1')error('STAGING_PROFILE_REQUIRED');
   return {root,base,head:head.data(),config:config.data(),generation:control.data().generation};
  };
  const authorize = async(tx,uid,sessionToken,c,scope='stock') => {
@@ -327,7 +330,7 @@ export function distributionService(db,{now=()=>Date.now()}={}) {
  const finalize=buildSettlement({db,ctx,authorize,login,now});
  const trips=buildTrips({db,ctx,authorize,finalize,now});
  const occurrences=buildOccurrences({db,ctx,authorize,now});
- const evidence=buildOccurrenceEvidence({db,ctx,authorize,now});
+ const evidence=staging?{}:buildOccurrenceEvidence({db,ctx,authorize,now});
  const commercial=buildCommercialAdjustments({db,ctx,authorize,now});
  const reconciliations=buildFinancialReconciliation({db,ctx,authorize,now});
  return {login,command,query,logout,finalize,...trips,...occurrences,...evidence,...commercial,...reconciliations};

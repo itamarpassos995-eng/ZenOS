@@ -6,6 +6,7 @@ const getHostname = () => {
 const hostname = getHostname();
 const localhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
 const metaEnv = import.meta.env || {};
+const staging = metaEnv.VITE_ZENOS_ENV === 'staging';
 const nodeEmulator = typeof process !== 'undefined' && Boolean(process?.env?.FIRESTORE_EMULATOR_HOST || process?.env?.FIREBASE_AUTH_EMULATOR_HOST);
 const modeHomologacao = metaEnv.MODE === 'homologacao' || metaEnv.VITE_ZENOS_ENV === 'homologacao' || nodeEmulator;
 // Em homologação aberta pela LAN (ex.: celular em 192.168.x.x), o navegador deve
@@ -17,20 +18,21 @@ const emulatorHost = String(
 
 // ATT 01.1: localhost é SEMPRE homologação. Não existe bypass para produção no navegador local.
 export const ZENOS_RUNTIME = Object.freeze({
-  environment: (localhost || modeHomologacao) ? 'HOMOLOGACAO' : 'PRODUCAO',
-  isHomologacao: localhost || modeHomologacao,
-  isProduction: !(localhost || modeHomologacao),
+  isStaging: staging,
+  environment: staging ? 'STAGING' : (localhost || modeHomologacao) ? 'HOMOLOGACAO' : 'PRODUCAO',
+  isHomologacao: !staging && (localhost || modeHomologacao),
+  isProduction: !staging && !(localhost || modeHomologacao),
   hostname,
-  firebaseProjectId: (localhost || modeHomologacao) ? 'demo-zenos-local' : 'zenos-ac6b2',
+  firebaseProjectId: staging ? 'zenos-distribution-staging' : (localhost || modeHomologacao) ? 'demo-zenos-local' : 'zenos-ac6b2',
   authEmulatorHost: emulatorHost,
   authEmulatorPort: 9099,
   firestoreEmulatorHost: emulatorHost,
   firestoreEmulatorPort: 8080,
   emulatorUiPort: 4000,
-  storageNamespace: (localhost || modeHomologacao) ? 'zenos_hml__' : '',
+  storageNamespace: staging ? 'zenos_distribution_staging__' : (localhost || modeHomologacao) ? 'zenos_hml__' : '',
 });
 
 export const runtimeStorageKey = (key) => {
   const original = String(key || '');
-  return ZENOS_RUNTIME.isHomologacao ? `${ZENOS_RUNTIME.storageNamespace}${original}` : original;
+  return (ZENOS_RUNTIME.isHomologacao || ZENOS_RUNTIME.isStaging) ? `${ZENOS_RUNTIME.storageNamespace}${original}` : original;
 };
