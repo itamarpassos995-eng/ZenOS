@@ -6,6 +6,21 @@ import {randomUUID} from 'node:crypto';
 import {distributionPermission} from '../../src/distribution/security.js';
 import {setupTrip,planned,dispatched,route,trip,db,service,PIN,signature} from './trip-fixture.mjs';
 const operator=(id,permissoes={})=>({id,patente:'vendedor',permissoes});
+test('Paraguay profile preserves integer PYG and blocks unsupported native credit writes',async()=>{
+ const f=await setupTrip({orders:1,stock:10});
+ await db.doc(`${f.root}/distribution_config/module`).update({pilotProfile:'PYG_CREDIT_CASH_V1'});
+ await planned(f,['O001']);
+ await route(f,'driver','START','T1',1);
+ await route(f,'driver','DELIVER','T1',2,{stopId:'O001',quantities:[5],outcome:'TOTAL',receiver:'Sintético',identification:'TEST',signature});
+ await assert.rejects(route(f,'driver','COLLECT','T1',3,{stopId:'O001',method:'dinheiro_pyg',currency:'PYG',amount:'100000'}),{code:'PILOT_PYG_CREDIT_UNAVAILABLE'});
+ await route(f,'driver','ARRIVE','T1',3);
+ await route(f,'manager','CLOSE_PHYSICAL','T1',4);
+ await assert.rejects(route(f,'manager','BEGIN_CLOSE','T1',5,{cashSessionId:'CASH1',counted:{PYG:'0'}}),{code:'PILOT_PYG_CREDIT_UNAVAILABLE'});
+ const result=(await trip(f)).trip;
+ assert.deepEqual(result.physicalClosure.deliveredByCurrency,{PYG:'199950'});
+ assert.equal(result.receipts.length,0);
+ assert.equal((await db.collection(`${f.root}/financeiro_livro`).get()).size,0);
+});
 test('BRL pilot carries three customers through one manifest, custody and physical closure',async()=>{
  const f=await setupTrip({orders:3,stock:30});
  await db.doc(`${f.root}/distribution_config/module`).update({pilotProfile:'BRL_CREDIT_CASH_V1'});

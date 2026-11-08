@@ -11,6 +11,7 @@ const management=new Set(['SAVE_VEHICLE','SAVE_ROUTE','CREATE_TRIP','REORDER','A
 const warehouse=new Set(['CHECK_RETURN','CLOSE_PHYSICAL','HANDOVER_CHEQUE']);
 const finance=new Set(['BEGIN_CLOSE','CLOSE','REFUND']);
 const driverActions=new Set(['START','DELIVER','INCIDENT','COLLECT','RECORD_CHEQUE','CUSTOMER_RETURN','ARRIVE']);
+const pilotPYG=c=>c.config.pilotProfile==='PYG_CREDIT_CASH_V1';
 const pilotBRL=c=>c.config.pilotProfile==='BRL_CREDIT_CASH_V1';
 const deliveredMinor=line=>BigInt(line.amount.minor)*BigInt(line.delivered-(line.customerReturned||0))/BigInt(line.quantity);
 function nativeTripCredit(sale){
@@ -84,7 +85,8 @@ export function buildTrips({db,ctx,authorize,finalize,now}) {
      const order=(await getEntity('vendas',stop.orderId)).data().data;
      const loaded=new Map();
      for(const line of stop.lines)loaded.set(line.orderLineId,(loaded.get(line.orderLineId)||0)+line.quantity);
-     if(pilotBRL(c)||order.itens.some((item,i)=>(loaded.get(String(i))||0)!==Number(item.qtd))){
+     if(pilotPYG(c)&&order.moedaDocumento!=='PYG')error('PILOT_PAYMENT_DISABLED');
+     if(pilotBRL(c)||pilotPYG(c)||order.itens.some((item,i)=>(loaded.get(String(i))||0)!==Number(item.qtd))){
       stop.commercialPending=true;
       stop.expectedCollectionCents=0;
       if(order.tipoDocumento==='venda'&&order.financeCreditV2&&order.moedaDocumento==='BRL'&&stop.lines.every(line=>line.amount.currency==='BRL')){
@@ -108,6 +110,7 @@ export function buildTrips({db,ctx,authorize,finalize,now}) {
     if(type==='START'){if(trip.state!=='PLANNED')error('INVALID_TRANSITION');const v=await tx.get(ref(c,'distribution_vehicles',trip.vehicleId));if(!v.data()?.active)error('INVALID_ASSIGNMENT');for(const key of [`vehicle-${trip.vehicleId}`,`driver-${trip.driverId}`]){const lockRef=ref(c,'distribution_trip_locks',key),lock=await tx.get(lockRef);if(lock.data()?.tripId&&lock.data().tripId!==trip.id)error('ASSIGNMENT_BUSY');writes.push([lockRef,{tripId:trip.id}]);}trip.state='IN_TRANSIT';trip.startedAt=now();}
     if(['DELIVER','INCIDENT','COLLECT','RECORD_CHEQUE','CUSTOMER_RETURN'].includes(type)&&trip.state!=='IN_TRANSIT')error('TRIP_LOCKED');
     if(type==='RECORD_CHEQUE'){
+     if(pilotPYG(c))error('PILOT_PYG_CREDIT_UNAVAILABLE');
      if(pilotBRL(c))error('PILOT_CHEQUE_DISABLED');
      const stop=trip.stops.find(s=>s.id===p.stopId);
      if(!stop||!['TOTAL','PARTIAL'].includes(stop.state))error('INVALID_DELIVERY');
@@ -149,6 +152,7 @@ export function buildTrips({db,ctx,authorize,finalize,now}) {
      line.goodReturning=(line.goodReturning||0)+(p.condition==='GOOD'?p.quantity:0);line.damagedReturning=(line.damagedReturning||0)+(p.condition==='DAMAGED'?p.quantity:0);line.customerReturned=(line.customerReturned||0)+p.quantity;line.returning+=p.quantity;line.condition=line.goodReturning&&line.damagedReturning?'MIXED':p.condition;text(p.note,1000);
     }
     if(type==='COLLECT'){
+     if(pilotPYG(c))error('PILOT_PYG_CREDIT_UNAVAILABLE');
      const stop=trip.stops.find(s=>s.id===p.stopId);if(!stop||!['TOTAL','PARTIAL'].includes(stop.state)||trip.receipts.length>=60)error('INVALID_DELIVERY');
      if(stop.commercialPending&&!stop.nativeSplitCredit)error('COMMERCIAL_POST_REQUIRED');
      if(pilotBRL(c)&&(!stop.nativeSplitCredit||p.currency!=='BRL'||p.method!=='dinheiro_brl'))error('PILOT_PAYMENT_DISABLED');
@@ -199,6 +203,7 @@ export function buildTrips({db,ctx,authorize,finalize,now}) {
      trip.physicalClosure={operatorId:actor.operatorId,at:now(),revision:trip.revision+1,deliveredByCurrency};
     }
     if(type==='BEGIN_CLOSE'){
+     if(pilotPYG(c))error('PILOT_PYG_CREDIT_UNAVAILABLE');
      if(trip.state!=='RETURNED'||trip.stops.some(s=>s.lines.some(l=>l.returning&&!l.returnChecked)))error('RETURNS_PENDING');
      const cash=await getEntity('sessoesCaixa',p.cashSessionId);if(cash.data().data.status!=='aberta'||String(cash.data().data.operadorId)!==actor.operatorId)error('CASH_SESSION_CLOSED');
      const expected=custodyTotals(trip.receipts),counted={},differences={};for(const currency of Object.keys(CURRENCIES)){counted[currency]=nativeMinor(p.counted?.[currency]??'0',currency);differences[currency]=counted[currency]-(expected[currency]||0);}
@@ -206,6 +211,7 @@ export function buildTrips({db,ctx,authorize,finalize,now}) {
      trip.state='SETTLING';trip.settlement={expected,counted,differences,note:p.note||'',cashSessionId:p.cashSessionId,operatorId:actor.operatorId,startedAt:now()};
     }
     if(type==='REFUND'){
+     if(pilotPYG(c))error('PILOT_PYG_CREDIT_UNAVAILABLE');
      if(pilotBRL(c))error('PILOT_REFUND_DISABLED');
      if(trip.stops.some(stop=>stop.nativeSplitCredit&&stop.lines.some(line=>line.id===p.lineId)))error('CREDIT_PRIOR_RETURN_REVIEW_REQUIRED');
      if(!['SETTLING','CLOSED'].includes(trip.state))error('INVALID_TRANSITION');const line=trip.stops.flatMap(s=>s.lines).find(l=>l.id===p.lineId);if(!line?.returnChecked||line.refunded>=line.returning)error('RETURN_LOCKED');
@@ -230,6 +236,7 @@ export function buildTrips({db,ctx,authorize,finalize,now}) {
      ledger.push(criarLancamentoFinanceiro({id:`DEV-${operationId}`,lojaId:uid,tipo:'devolucao',origem:'historico_vendas',referenciaId:operationId,valor:amount/100,moeda:'BRL',formaPagamento:p.method,operadorId:actor.operatorId,operadorNome:actor.name,createdAt:new Date(now()).toISOString(),afetaCaixaFisico:physical,afetaResultado:true,direcao:'saida',clienteId:o.clienteId,clienteNome:o.clienteNome,saldoClienteAntes:p.method==='credito_fiado'?balance/100:null,saldoClienteDepois:p.method==='credito_fiado'?(balance-amount)/100:null,detalhes:{vendaId:o.id,tripId:trip.id,moedaOrigem:currency,valorOriginal:original,taxaCambioAplicada:1/o.taxasCambio[currency],bankReference:p.bankReference||null}}));
     }
     if(type==='CLOSE'){
+     if(pilotPYG(c))error('PILOT_PYG_CREDIT_UNAVAILABLE');
      if(trip.cheques?.length)error('SETTLEMENT_PENDING');
      if(trip.stops.some(stop=>stop.commercialPending&&(!stop.nativeSplitCredit||!trip.postedOrders[stop.orderId])))error('COMMERCIAL_POST_REQUIRED');
      if(trip.state!=='SETTLING'||trip.receipts.some(r=>!r.voided&&!r.posted)||trip.stops.some(s=>s.lines.some(l=>l.returning>l.refunded)))error('SETTLEMENT_PENDING');
@@ -266,6 +273,7 @@ export function buildTrips({db,ctx,authorize,finalize,now}) {
   id(input.tripId);id(input.orderId);
   const plan=await db.runTransaction(async tx=>{
    const c=await ctx(tx,uid),actor=await authorize(tx,uid,token,c,'finance');
+   if(pilotPYG(c))error('PILOT_PYG_CREDIT_UNAVAILABLE');
    const tr=await tx.get(ref(c,'distribution_trips',input.tripId)),t=tr.data();
    if(!t||t.generation!==c.generation||t.state!=='SETTLING'||t.settlement.operatorId!==actor.operatorId||!t.stops.some(s=>s.orderId===input.orderId))error('TRIP_LOCKED');
    const stop=t.stops.find(s=>s.orderId===input.orderId);
@@ -284,6 +292,7 @@ export function buildTrips({db,ctx,authorize,finalize,now}) {
   if(plan.pending)await finalize(uid,{...plan.finalizeInput,pin:input.pin});
   return db.runTransaction(async tx=>{
    const c=await ctx(tx,uid),actor=await authorize(tx,uid,token,c,'finance');
+   if(pilotPYG(c))error('PILOT_PYG_CREDIT_UNAVAILABLE');
    const tripRef=ref(c,'distribution_trips',input.tripId),tr=await tx.get(tripRef),t=tr.data();
    if(!t||t.generation!==c.generation||plan.generation!==c.generation||t.state!=='SETTLING'||t.settlement.operatorId!==actor.operatorId)error('TRIP_LOCKED');
    if(t.postedOrders[input.orderId])return {tripId:t.id,revision:t.revision,state:t.state,replayed:true};
@@ -357,7 +366,7 @@ export function buildTrips({db,ctx,authorize,finalize,now}) {
    }
    if(input.type==='detail'||input.type==='proof'||input.type==='events'||input.type==='document'){
     const tr=await tx.get(ref(c,'distribution_trips',input.tripId)),t=tr.data();if(!t||t.generation!==c.generation)error('TRIP_NOT_FOUND');if(isDriver&&t.driverId!==actor.operatorId)error('FORBIDDEN');
-    if(input.type==='detail')return {trip:isDriver?{...t,settlement:t.settlement?{expected:t.settlement.expected,differences:t.settlement.differences}:undefined,stops:t.stops.map(s=>({...s,lines:s.lines.map(({snapshot,...l})=>l)}))}:t,pilotBRL:pilotBRL(c),paymentMethods:(c.config.driverPaymentMethods||[]).filter(method=>!pilotBRL(c)||(method.id==='dinheiro_brl'&&method.currency==='BRL')),photosAllowed:!!c.config.driverPhotos};
+    if(input.type==='detail')return {trip:isDriver?{...t,settlement:t.settlement?{expected:t.settlement.expected,differences:t.settlement.differences}:undefined,stops:t.stops.map(s=>({...s,lines:s.lines.map(({snapshot,...l})=>l)}))}:t,pilotBRL:pilotBRL(c),pilotPYG:pilotPYG(c),paymentMethods:(c.config.driverPaymentMethods||[]).filter(method=>!pilotBRL(c)||(method.id==='dinheiro_brl'&&method.currency==='BRL')),photosAllowed:!!c.config.driverPhotos};
     if(input.type==='document'){
      const event=(await tx.get(ref(c,'distribution_trip_events',input.eventId))).data();
      if(!event?.document||event.tripId!==t.id||event.generation!==c.generation)error('PROOF_NOT_FOUND');
