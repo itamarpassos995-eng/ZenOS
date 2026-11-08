@@ -4,8 +4,55 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {distributionPermission} from '../../src/distribution/security.js';
-import {setupTrip,planned,route,trip,db,service,PIN,signature} from './trip-fixture.mjs';
+import {setupTrip,planned,dispatched,route,trip,db,service,PIN,signature} from './trip-fixture.mjs';
 const operator=(id,permissoes={})=>({id,patente:'vendedor',permissoes});
+test('two trips post one BRL credit receipt across native installments and preserve the original sale',async()=>{
+ const f=await setupTrip({orders:1,stock:10});
+ const saleRef=db.doc(`${f.base}/vendas/O001`);
+ const sale=(await saleRef.get()).data().data;
+ const payments=[{formaId:'crediario',moedaOrigem:'BRL',valorOriginal:1000,valorConvertidoBRL:1000}];
+ await saleRef.update({data:{...sale,tipoDocumento:'venda',estado:'concluida',moedaDocumento:'BRL',
+  totalOriginal:1000,totalBRL:1000,pagamentos:payments,
+  itens:[{...sale.itens[0],precoPraticadoBRL:200,totalBRL:1000,movimentoEstoqueVenda:{total:5,galpao:5,vitrine:0}}],
+  financeCreditV2:{schema:1,receivableId:'REC-O001',originalBRL:1000,
+   installments:[{id:'P1',amountBRL:200},{id:'P2',amountBRL:800}]},creditAllocationsV2:[]}});
+ await db.doc(`${f.base}/clientes/C1`).update({'data.saldoDevedorBRL':1000});
+ const ledger=db.collection(`${f.root}/financeiro_livro`);
+ await ledger.doc('VENDA-O001-FIADO').set({tipo:'venda_fiada',clienteId:'C1',valor:1000,
+  _v2:{generation:f.base.split('/').at(-1)},financeLink:{financeEventType:'OBLIGATION',saleId:'O001',receivableId:'REC-O001'}});
+ await route(f,'manager','SAVE_VEHICLE','V1',0,{plate:'HML-2026',name:'Veículo sintético'});
+ await route(f,'manager','SAVE_ROUTE','R1',0,{name:'Rota sintética'});
+ await dispatched(f,'L1','O001',3);
+ await dispatched(f,'L2','O001',2);
+ for(const [tripId,loadId,quantity,amount] of [['T1','L1',3,250],['T2','L2',2,0]]){
+  await route(f,'manager','CREATE_TRIP',tripId,0,{loadIds:[loadId],driverId:'driver',vehicleId:'V1',routeId:'R1'});
+  await route(f,'driver','START',tripId,1);
+  await route(f,'driver','DELIVER',tripId,2,{stopId:'O001',quantities:[quantity],outcome:'TOTAL',receiver:'Sintético',identification:'TEST',signature});
+  let revision=3;
+  if(amount){
+   await assert.rejects(route(f,'driver','COLLECT',tripId,revision,{stopId:'O001',method:'dinheiro_brl',currency:'BRL',amount:'600.01'}),{code:'AMOUNT_EXCEEDS_DUE'});
+   await route(f,'driver','COLLECT',tripId,revision++,{stopId:'O001',method:'dinheiro_brl',currency:'BRL',amount:String(amount)});
+  }
+  await route(f,'driver','ARRIVE',tripId,revision++);
+  await route(f,'manager','CLOSE_PHYSICAL',tripId,revision++);
+  assert.deepEqual((await trip(f,tripId)).trip.physicalClosure.deliveredByCurrency,{BRL:String(quantity*20000)});
+  await route(f,'manager','BEGIN_CLOSE',tripId,revision++,{cashSessionId:'CASH1',counted:{BRL:String(amount)}});
+  const post=()=>service.routePost(f.uid,f.manager.sessionToken,{tripId,orderId:'O001'});
+  const results=await Promise.all([post(),post()]);
+  assert.equal(results.filter(result=>result.replayed).length,1);
+  await route(f,'manager','CLOSE',tripId,revision+1);
+ }
+ const saved=(await saleRef.get()).data().data;
+ assert.equal(saved.totalOriginal,1000);
+ assert.deepEqual(saved.creditAllocationsV2[0].allocations.map(row=>row.amountBRL),[200,50]);
+ assert.equal(saved.creditAllocationsV2.length,1);
+ assert.equal((await db.doc(`${f.base}/clientes/C1`).get()).data().data.saldoDevedorBRL,750);
+ assert.equal((await db.doc(`${f.base}/produtos/P1`).get()).data().data.estoque,10);
+ assert.equal((await db.collection(`${f.base}/movimentosCaixa`).get()).size,1);
+ const entries=(await ledger.get()).docs.map(doc=>doc.data());
+ assert.equal(entries.length,2);
+ assert.equal(entries.find(entry=>entry.tipo==='recebimento_fiado').financeLink.currencyEvidence.tripId,'T1');
+});
 test('G6 explicit grants use existing operator vocabulary, finance needs PDV',()=>{
  const matrix=[
   {id:'admin',permissions:{},allowed:['admin','stock','trip','tripView','driver','manage','returns','finance','fiscalReview','pdv']},
