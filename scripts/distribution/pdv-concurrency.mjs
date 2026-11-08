@@ -49,7 +49,7 @@ try{
  check(!tamper.cloudOk,'Rules reject reservation theft by a client writer');
  const tamperOrder=await persistV1BusinessOperationSafe({db:g.db,userId:g.uid,changes:[{field:'historicoVendas',baseValue:reservedState.historicoVendas,value:reservedState.historicoVendas.map(o=>o.id==='O001'?{...o,_distribution:{stockManaged:false}}:o)}],operationKey:'tamper-commercial-ownership'});
  check(!tamperOrder.cloudOk,'Rules reject client commercial ownership bypass');
- async function ship(loadId,quantity){await command(g,'START_PICK',loadId,2);await command(g,'CHECK',loadId,3,{quantities:[quantity]});await command(g,'APPROVE',loadId,4);await command(g,'MANIFEST',loadId,5,{vehicle:'TEST',driver:'TEST',route:'TEST'});await command(g,'DISPATCH',loadId,6);}
+ async function ship(loadId,quantity){await command(g,'START_PICK',loadId,2);await command(g,'CHECK',loadId,3,{quantities:[quantity]});await command(g,'APPROVE',loadId,4);await command(g,'CONFIRM_LOADING',loadId,5,{quantities:[quantity]});await command(g,'MANIFEST',loadId,6,{vehicle:'TEST',driver:'TEST',route:'TEST'});await command(g,'DISPATCH',loadId,7);}
  await ship('L1',2);
  // This calls the actual PDV writer; its logistics guard routes to the trusted finalization backend.
  const state=(await getOperationalSnapshot(g.db,g.uid)).data(),source=state.historicoVendas.find(o=>o.id==='O001');
@@ -68,8 +68,8 @@ try{
  check(native.esperado.PYG===199950&&native.esperado.BRL===0,'Cash reconciliation preserves native PYG without mixing currencies');
  const replay=await persistV1BusinessOperationSafe({db:g.db,userId:g.uid,changes:[],guards:[{type:'distribution_finalize',payload}]});check(replay.cloudOk&&replay.alreadyCommitted,'Reconnect/duplicate returns the confirmed sale');
  }finally{globalThis.fetch=nativeFetch;}
- const h=await setup(5);await create(h);await command(h,'RESERVE','L1',1);await command(h,'START_PICK','L1',2);await command(h,'CHECK','L1',3,{quantities:[5]});await command(h,'APPROVE','L1',4);await command(h,'MANIFEST','L1',5,{vehicle:'TEST',driver:'TEST',route:'TEST'});
- const departure=await Promise.allSettled([sell(h,1,'pdv:CONCURRENT-SALE'),command(h,'DISPATCH','L1',6)]);
+ const h=await setup(5);await create(h);await command(h,'RESERVE','L1',1);await command(h,'START_PICK','L1',2);await command(h,'CHECK','L1',3,{quantities:[5]});await command(h,'APPROVE','L1',4);await command(h,'CONFIRM_LOADING','L1',5,{quantities:[5]});await command(h,'MANIFEST','L1',6,{vehicle:'TEST',driver:'TEST',route:'TEST'});
+ const departure=await Promise.allSettled([sell(h,1,'pdv:CONCURRENT-SALE'),command(h,'DISPATCH','L1',7)]);
  check(departure[1].status==='fulfilled'&&(departure[0].status==='rejected'||!departure[0].value.cloudOk),'Dispatch and real POS writer cannot consume the same reservation');
  check((await adminDb.doc(`${h.base}/produtos/P1`).get()).data().data.estoque===0,'Concurrent dispatch leaves exact stock zero');
  check((await adminDb.doc(`${h.base}/vendas/O001`).get()).exists,'Pending source order is retained after shipment');

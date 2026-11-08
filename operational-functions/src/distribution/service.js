@@ -216,8 +216,8 @@ export function distributionService(db,{now=()=>Date.now()}={}) {
      writes.push([db.doc(`${c.root}/distribution_manifests/${documentId}`),document]);
     }
     if(input.type==='DISPATCH') {
-     if(load.partialApproval&&!load.truckLoading)error('LOADING_CONFIRMATION_REQUIRED');
      if(load.state!=='APPROVED'||load.reservationState!=='RESERVED')error('INVALID_TRANSITION');
+     if(!load.truckLoading)error('LOADING_CONFIRMATION_REQUIRED');
      load=transitionLoad(load,'DISPATCHED');
      for(const line of load.lines) {
       const order=orderCache.get(line.orderId);

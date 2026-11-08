@@ -164,6 +164,14 @@ export function buildTrips({db,ctx,authorize,finalize,now}) {
    if(!entityResult){trip.revision++;trip.updatedAt=now();if(Buffer.byteLength(JSON.stringify(trip))>700000)error('REQUEST_TOO_LARGE');writes.push([tripRef,trip]);result={tripId:trip.id,revision:trip.revision,state:trip.state};}
    for(const e of ledger)if((await tx.get(db.doc(`${c.root}/financeiro_livro/${e.id}`))).exists)error('FINANCIAL_COLLISION');
    const event={schema:1,id:operationId,tenantId:uid,tripId,type,operatorId:actor.operatorId,serverAt:now(),clientAt:input.clientAt||null,generation:c.generation,revision:result.revision,payload:{...p,...(p.signature?{signature:JSON.stringify(p.signature)}:{})}};
+   if(['START','ARRIVE','CHECK_RETURN','CLOSE'].includes(type)){
+    event.document={issuer:c.config.issuer?.name??'',driverId:trip.driverId,driverName:trip.driverName,
+     vehiclePlate:trip.vehiclePlate,routeName:trip.routeName,state:trip.state,
+     stops:trip.stops.map(stop=>({orderId:stop.orderId,customerName:stop.customerName,destination:stop.destination,state:stop.state,
+      lines:stop.lines.map(line=>({id:line.id,description:line.description,sku:line.sku,unit:line.unit,
+       loaded:line.quantity,delivered:line.delivered-(line.customerReturned||0),returning:line.returning,
+       damaged:line.damagedReturning||0,reintegrated:line.reintegrated,quarantined:line.quarantined}))}))};
+   }
    for(const [r,data]of writes)tx.set(r,data);
    for(const e of ledger)tx.create(db.doc(`${c.root}/financeiro_livro/${e.id}`),{...e,_v2:{generation:c.generation,commandId:operationId,sequence:seq}});
    for(const e of stockEvents)tx.create(db.doc(`${c.root}/estoque_auditoria/${String(e.produtoAuditKey).replaceAll('/','_')}/movimentos/${e.id}`),{...e,_v2:{generation:c.generation,commandId:operationId,sequence:seq}});
@@ -244,11 +252,17 @@ export function buildTrips({db,ctx,authorize,finalize,now}) {
     const docs=s=>s.docs.slice(0,30),next={};for(const [key,result]of Object.entries({drivers,vehicles,routes,operators}))if(result.size>30)next[key]=docs(result).at(-1).id;
     return {next,operators:docs(operators).filter(d=>!d.data().deleted).map(d=>({id:d.data().data.id,name:d.data().data.nome,version:d.data().version,permissions:{distributionDriver:!!d.data().data.permissoes?.distributionDriver,distributionManage:!!d.data().data.permissoes?.distributionManage,distributionReturns:!!d.data().data.permissoes?.distributionReturns,distributionFinance:!!d.data().data.permissoes?.distributionFinance,distributionFiscalReview:!!d.data().data.permissoes?.distributionFiscalReview}})),drivers:docs(drivers).filter(d=>!d.data().deleted).map(d=>({id:d.data().data.id,name:d.data().data.nome})),vehicles:docs(vehicles).map(d=>d.data()),routes:docs(routes).map(d=>d.data()),photosAllowed:!!c.config.driverPhotos,paymentMethods:c.config.driverPaymentMethods||[]};
    }
-   if(input.type==='detail'||input.type==='proof'||input.type==='events'){
+   if(input.type==='detail'||input.type==='proof'||input.type==='events'||input.type==='document'){
     const tr=await tx.get(ref(c,'distribution_trips',input.tripId)),t=tr.data();if(!t||t.generation!==c.generation)error('TRIP_NOT_FOUND');if(isDriver&&t.driverId!==actor.operatorId)error('FORBIDDEN');
     if(input.type==='detail')return {trip:isDriver?{...t,settlement:t.settlement?{expected:t.settlement.expected,differences:t.settlement.differences}:undefined,stops:t.stops.map(s=>({...s,lines:s.lines.map(({snapshot,...l})=>l)}))}:t,paymentMethods:c.config.driverPaymentMethods||[],photosAllowed:!!c.config.driverPhotos};
+    if(input.type==='document'){
+     const event=(await tx.get(ref(c,'distribution_trip_events',input.eventId))).data();
+     if(!event?.document||event.tripId!==t.id||event.generation!==c.generation)error('PROOF_NOT_FOUND');
+     if(isDriver&&event.document.driverId!==actor.operatorId)error('FORBIDDEN');
+     return {document:event.document,tripId:t.id,type:event.type,revision:event.revision,at:event.serverAt,operatorId:event.operatorId};
+    }
     if(input.type==='proof'){const s=await tx.get(ref(c,'distribution_trip_events',input.eventId));if(!s.exists||s.data().tripId!==t.id||s.data().type!=='DELIVER')error('PROOF_NOT_FOUND');return {event:s.data(),trip:{id:t.id,driverName:t.driverName,vehiclePlate:t.vehiclePlate},stop:t.stops.find(s=>s.proofId===input.eventId),issuer:c.config.issuer};}
-    let q=db.collection(`${c.root}/distribution_trip_events`).where('tripId','==',t.id).orderBy('serverAt').orderBy('__name__');if(input.cursor){units(input.cursor.at);q=q.startAfter(input.cursor.at,ref(c,'distribution_trip_events',input.cursor.id));}const result=await tx.get(q.limit(21));return {items:result.docs.slice(0,20).map(d=>{const e=d.data();return {id:e.id,type:e.type,serverAt:e.serverAt,operatorId:e.operatorId,revision:e.revision};}),next:result.size>20?{id:result.docs[19].id,at:result.docs[19].data().serverAt}:null};
+    let q=db.collection(`${c.root}/distribution_trip_events`).where('tripId','==',t.id).orderBy('serverAt').orderBy('__name__');if(input.cursor){units(input.cursor.at);q=q.startAfter(input.cursor.at,ref(c,'distribution_trip_events',input.cursor.id));}const result=await tx.get(q.limit(21));return {items:result.docs.slice(0,20).map(d=>{const e=d.data();return {id:e.id,type:e.type,serverAt:e.serverAt,operatorId:e.operatorId,revision:e.revision,hasDocument:!!e.document};}),next:result.size>20?{id:result.docs[19].id,at:result.docs[19].data().serverAt}:null};
    }
    if(input.type!=='trips')error('INVALID_QUERY');
    const from=Number(input.from),to=Number(input.to);if(!Number.isSafeInteger(from)||!Number.isSafeInteger(to)||to<=from||to-from>370*86400000)error('INVALID_PERIOD');const limit=input.limit??12;units(limit,1);if(limit>30)error('INVALID_PAGE');

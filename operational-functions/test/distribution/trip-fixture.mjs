@@ -17,7 +17,7 @@ export const route=(f,actor,type,tripId,expectedRevision,payload={},key=randomUU
 export const trip=(f,id='T1',actor='manager')=>service.routeQuery(f.uid,f[actor].sessionToken,{type:'detail',view:actor==='manager'?'manage':'driver',tripId:id});
 export async function dispatched(f,lid,orderId='O001',quantity=5){
  const c=(type,revision,payload={})=>service.command(f.uid,f.manager.sessionToken,{type,key:randomUUID(),loadId:lid,expectedRevision:revision,payload});
- await c('CREATE',0,{selections:[{orderId,lineIndex:0,quantity}]});for(const [type,revision,payload]of [['RESERVE',1,{}],['START_PICK',2,{}],['CHECK',3,{quantities:[quantity]}],['APPROVE',4,{}],['MANIFEST',5,{vehicle:'HML-2026',driver:'Carlos (sintético)',route:'Centro'}],['DISPATCH',6,{}]])await c(type,revision,payload);
+ await c('CREATE',0,{selections:[{orderId,lineIndex:0,quantity}]});for(const [type,revision,payload]of [['RESERVE',1,{}],['START_PICK',2,{}],['CHECK',3,{quantities:[quantity]}],['APPROVE',4,{}],['CONFIRM_LOADING',5,{quantities:[quantity]}],['MANIFEST',6,{vehicle:'HML-2026',driver:'Carlos (sintético)',route:'Centro'}],['DISPATCH',7,{}]])await c(type,revision,payload);
 }
 export async function planned(f,ids=['O001','O002'],tripId='T1'){
  await route(f,'manager','SAVE_VEHICLE','V1',0,{plate:'HML-2026',name:'Furgão de homologação'});await route(f,'manager','SAVE_ROUTE','R1',0,{name:'Centro / Vila Operária',notes:'Roteiro sintético'});

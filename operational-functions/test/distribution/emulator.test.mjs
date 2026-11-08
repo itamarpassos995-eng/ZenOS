@@ -10,7 +10,7 @@ const service=distributionService(db);
 async function setup(options){const f=await seed('distribution-'+randomUUID().slice(0,8),options);const s=await service.login(f.uid,{operatorId:'admin',pin:PIN});return {...f,s};}
 const cmd=(f,type,loadId,revision,payload={},key=randomUUID())=>service.command(f.uid,f.s.sessionToken,{type,loadId,expectedRevision:revision,payload,key});
 async function create(f,loadId,orderId='O001',quantity=5){return cmd(f,'CREATE',loadId,0,{selections:[{orderId,lineIndex:0,quantity}]});}
-async function ready(f,loadId){await create(f,loadId);for(const [type,rev,payload]of [['RESERVE',1,{}],['START_PICK',2,{}],['CHECK',3,{quantities:[5]}],['APPROVE',4,{}],['MANIFEST',5,{vehicle:'TEST-123',driver:'Motorista sintético',route:'Rota teste'}]])await cmd(f,type,loadId,rev,payload);}
+async function ready(f,loadId){await create(f,loadId);for(const [type,rev,payload]of [['RESERVE',1,{}],['START_PICK',2,{}],['CHECK',3,{quantities:[5]}],['APPROVE',4,{}],['CONFIRM_LOADING',5,{quantities:[5]}],['MANIFEST',6,{vehicle:'TEST-123',driver:'Motorista sintético',route:'Rota teste'}]])await cmd(f,type,loadId,rev,payload);}
 const detail=(f,loadId)=>service.query(f.uid,f.s.sessionToken,{type:'detail',loadId});
 test('partial dispatch releases the unshipped balance for a second load without duplicating stock',async()=>{
  const fixture=await setupTrip({stock:10,orders:1});
@@ -71,10 +71,11 @@ test('records a shortage, blocks dispatch and freezes the successful recheck in 
  assert.equal((await product.get()).data().data.estoque,10);
  await cmd(f,'CHECK','SHORT',4,{quantities:[5]});
  await cmd(f,'APPROVE','SHORT',5);
- await cmd(f,'MANIFEST','SHORT',6,{vehicle:'TEST',driver:'Sintético',route:'Teste'});
+ await cmd(f,'CONFIRM_LOADING','SHORT',6,{quantities:[5]});
+ await cmd(f,'MANIFEST','SHORT',7,{vehicle:'TEST',driver:'Sintético',route:'Teste'});
  const {load:approved}=await detail(f,'SHORT');
  assert.equal(approved.manifestVersions[0].loadingCheck.lines[0].checked,5);
- await cmd(f,'DISPATCH','SHORT',7);
+ await cmd(f,'DISPATCH','SHORT',8);
  assert.equal((await product.get()).data().data.estoque,5);
  const audit=(await db.collection(`${f.root}/distribution_audit`).where('loadId','==','SHORT').get()).docs.map(doc=>doc.data());
  assert.ok(audit.some(event=>event.loadingCheck?.reason===payload.reason));
@@ -140,33 +141,37 @@ test('end to end: picking mismatch blocks dispatch; confirmed document is mandat
  const f=await setup();await create(f,'L1');await cmd(f,'RESERVE','L1',1);await cmd(f,'START_PICK','L1',2);
  await assert.rejects(cmd(f,'CHECK','L1',3,{quantities:[4]}),{code:'CHECK_MISMATCH'});
  await cmd(f,'CHECK','L1',3,{quantities:[5]});await cmd(f,'APPROVE','L1',4);
- await assert.rejects(cmd(f,'DISPATCH','L1',5),{code:'CURRENT_MANIFEST_REQUIRED'});
+ await assert.rejects(cmd(f,'DISPATCH','L1',5),{code:'LOADING_CONFIRMATION_REQUIRED'});
+ await cmd(f,'MANIFEST','L1',5,{vehicle:'TEST',driver:'Sintético',route:'Teste'});
+ await assert.rejects(cmd(f,'DISPATCH','L1',6),{code:'LOADING_CONFIRMATION_REQUIRED'});
+ await cmd(f,'CONFIRM_LOADING','L1',6,{quantities:[5]});
+ await assert.rejects(cmd(f,'DISPATCH','L1',7),{code:'CURRENT_MANIFEST_REQUIRED'});
  assert.equal((await db.doc(`${f.base}/produtos/P1`).get()).data().data.estoque,100);
 });
 test('concurrent dispatch posts physical stock once and never writes financial ledger',async()=>{
  const f=await setup();await ready(f,'L1');const key=randomUUID();
- await Promise.all([cmd(f,'DISPATCH','L1',6,{},key),cmd(f,'DISPATCH','L1',6,{},key)]);
+ await Promise.all([cmd(f,'DISPATCH','L1',7,{},key),cmd(f,'DISPATCH','L1',7,{},key)]);
  const p=(await db.doc(`${f.base}/produtos/P1`).get()).data().data;assert.equal(p.estoque,95);assert.equal(p.estoqueGalpao,95);assert.equal(p.estoqueReservadoDistribuicao,0);
  assert.equal((await db.collection(`${f.root}/financeiro_livro`).get()).size,0);
- await assert.rejects(cmd(f,'CANCEL','L1',7),{code:'LOAD_LOCKED'});
+ await assert.rejects(cmd(f,'CANCEL','L1',8),{code:'LOAD_LOCKED'});
 });
 test('fulfilled PDV sale does not reserve or deduct stock again',async()=>{
  const f=await setup();await db.doc(`${f.base}/vendas/O001`).update({'data.tipoDocumento':'venda','data.estado':'concluida','data.itens':[ {id:'P1',sku:'SINT-001',qtd:5,totalBRL:150,movimentoEstoqueVenda:{total:5,vitrine:0,galpao:5}} ]});
- await ready(f,'L1');await cmd(f,'DISPATCH','L1',6);
+ await ready(f,'L1');await cmd(f,'DISPATCH','L1',7);
  const p=(await db.doc(`${f.base}/produtos/P1`).get()).data().data;assert.equal(p.estoque,100);assert.equal(p.estoqueReservadoDistribuicao,0);
 });
 test('historical manifests remain unchanged after catalog/customer/currency changes and header revision',async()=>{
  const f=await setup();await ready(f,'L1');const first=(await service.query(f.uid,f.s.sessionToken,{type:'manifest',loadId:'L1',version:1})).document;
  await db.doc(`${f.base}/produtos/P1`).update({'data.nome':'ALTERADO','data.valoresMonetarios':{moeda:'USD'}});
  await db.doc(`${f.base}/clientes/C1`).update({'data.nome':'ALTERADO'});
- await cmd(f,'MANIFEST','L1',6,{vehicle:'NOVO',driver:'Outro motorista',route:'Rota B'});
+ await cmd(f,'MANIFEST','L1',7,{vehicle:'NOVO',driver:'Outro motorista',route:'Rota B'});
  const historic=(await service.query(f.uid,f.s.sessionToken,{type:'manifest',loadId:'L1',version:1})).document;
  assert.deepEqual(historic,first);assert.equal((await detail(f,'L1')).load.manifestVersions.length,2);
 });
 test('V2 operation stream has contiguous sequence, envelopes, revisions and no V1 writes',async()=>{
- const f=await setup();await ready(f,'L1');await cmd(f,'DISPATCH','L1',6);
+ const f=await setup();await ready(f,'L1');await cmd(f,'DISPATCH','L1',7);
  const receipts=(await db.collection(`${f.base}/operations`).orderBy('sequence').get()).docs.map(d=>d.data());
- assert.deepEqual(receipts.map(r=>r.sequence),[1,2,3,4,5,6,7]);
+ assert.deepEqual(receipts.map(r=>r.sequence),[1,2,3,4,5,6,7,8]);
  const patches=receipts.flatMap(r=>r.patches),last=patches.filter(p=>p.field==='produtos').at(-1);
  assert.equal(last.data.estoque,95);assert.equal(last.routeId,'P1');assert.equal(last.legacyField,'produtos');
  assert.equal((await db.doc(f.base).get()).data().fieldRevisions.produtos,2);
@@ -216,7 +221,7 @@ test('server logout revokes token immediately',async()=>{
 });
 
 test('commercial credit settlement is atomic, retains seller/cost snapshot and posts debt once',async()=>{
- const f=await setup();await db.doc(`${f.base}/clientes/C1`).update({'data.saldoDevedorBRL':0,'data.limiteCreditoBRL':500});await ready(f,'L1');await cmd(f,'DISPATCH','L1',6);
+ const f=await setup();await db.doc(`${f.base}/clientes/C1`).update({'data.saldoDevedorBRL':0,'data.limiteCreditoBRL':500});await ready(f,'L1');await cmd(f,'DISPATCH','L1',7);
  const order=(await db.doc(`${f.base}/vendas/O001`).get()).data().data;
  const input={orderId:'O001',operatorId:'admin',pin:PIN,sessionId:'CASH1',customerId:'C1',cart:order.itens.map(i=>({id:String(i.id),sku:i.sku,qtd:Number(i.qtd),precoPraticadoBRL:Number(i.precoPraticadoBRL)})),payments:[{formaId:'crediario',moedaOrigem:'BRL',valorOriginal:150,valorConvertidoBRL:150}]};
  const a=await service.finalize(f.uid,input),b=await service.finalize(f.uid,input);
@@ -226,12 +231,12 @@ test('commercial credit settlement is atomic, retains seller/cost snapshot and p
  assert.equal((await db.doc(`${f.base}/produtos/P1`).get()).data().data.estoque,95);
 });
 test('commercial mixed-currency cash change preserves native drawer amounts',async()=>{
- const f=await setup();await ready(f,'L1');await cmd(f,'DISPATCH','L1',6);const order=(await db.doc(`${f.base}/vendas/O001`).get()).data().data;
+ const f=await setup();await ready(f,'L1');await cmd(f,'DISPATCH','L1',7);const order=(await db.doc(`${f.base}/vendas/O001`).get()).data().data;
  const input={orderId:'O001',operatorId:'admin',pin:PIN,sessionId:'CASH1',customerId:'C1',changeCurrency:'PYG',cart:order.itens.map(i=>({id:String(i.id),sku:i.sku,qtd:Number(i.qtd),precoPraticadoBRL:Number(i.precoPraticadoBRL)})),payments:[{formaId:'dinheiro_brl',moedaOrigem:'BRL',valorOriginal:200,valorConvertidoBRL:200}]};
  const result=await service.finalize(f.uid,input);assert.equal(result.sale.trocoBRL,50);assert.equal(result.sale.trocoOriginal,66650);assert.equal(result.sale.moedaTrocoInfo,'PYG');assert.equal(result.receipt.financialEntries[0].valor,150);
 });
 test('commercial settlement rejects forged FX, wrong cash session and changed source cart without posting',async()=>{
- const f=await setup();await ready(f,'L1');await cmd(f,'DISPATCH','L1',6);const order=(await db.doc(`${f.base}/vendas/O001`).get()).data().data;
+ const f=await setup();await ready(f,'L1');await cmd(f,'DISPATCH','L1',7);const order=(await db.doc(`${f.base}/vendas/O001`).get()).data().data;
  const input={orderId:'O001',operatorId:'admin',pin:PIN,sessionId:'CASH1',customerId:'C1',cart:order.itens.map(i=>({id:String(i.id),sku:i.sku,qtd:Number(i.qtd),precoPraticadoBRL:Number(i.precoPraticadoBRL)})),payments:[{formaId:'cartao_credito_usd',moedaOrigem:'USD',valorOriginal:30,valorConvertidoBRL:150}]};
  await assert.rejects(service.finalize(f.uid,{...input,cart:[{...input.cart[0],qtd:1}]}),{code:'ORDER_SNAPSHOT_CHANGED'});
  await assert.rejects(service.finalize(f.uid,{...input,payments:[{...input.payments[0],valorConvertidoBRL:100}]}),{code:'PAYMENT_RATE_CHANGED'});

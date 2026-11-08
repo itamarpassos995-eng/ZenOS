@@ -113,4 +113,15 @@ test('V2 trip custody posts once after rejecting a sales operator and an unassig
  const settling=(await trip(f)).trip;
  await route(f,'manager','CLOSE','T1',settling.revision);
  assert.equal((await trip(f)).trip.state,'CLOSED');
+ const history=await service.routeQuery(f.uid,f.manager.sessionToken,{type:'events',tripId:'T1'});
+ const departure=history.items.find(event=>event.type==='START');
+ const read={type:'document',tripId:'T1',eventId:departure.id,view:'driver'};
+ assert.equal(departure.hasDocument,true);
+ const startDocument=await service.routeQuery(f.uid,f.driver.sessionToken,read);
+ assert.equal(startDocument.document.stops[0].lines[0].delivered,0);
+ await assert.rejects(service.routeQuery(f.uid,f.other.sessionToken,read),{code:'FORBIDDEN'});
+ const arrival=history.items.find(event=>event.type==='ARRIVE');
+ const returnDocument=await service.routeQuery(f.uid,f.manager.sessionToken,{...read,view:'manage',eventId:arrival.id});
+ assert.equal(returnDocument.document.stops[0].lines[0].delivered,5);
+ assert.ok(returnDocument.revision>startDocument.revision);
 });
