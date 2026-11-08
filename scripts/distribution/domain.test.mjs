@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createLoad,replaceLoadLines,transitionLoad,issueManifest,historicalManifest,money,totalsByCurrency,validateQuantities,transition} from '../../src/core/distribution/domain.js';
 import {executeLoadCommand} from '../../src/core/distribution/commands.js';
-import {summarizeManifest} from '../../src/core/distribution/domain.js';
+import {manifestForCustomer,summarizeManifest} from '../../src/core/distribution/domain.js';
 import {manifestPdf} from '../../src/core/distribution/pdf.js';
 const amount = (currency='PYG',minor='39990')=>({currency,minor,precision:currency==='PYG'?0:2,kind:'sale',source:'order-test'});
 const line = overrides=>({id:'l1',tenantId:'demo',orderId:'order1',orderLineId:'ol1',productId:'p1',sku:'SKU1',description:'Produto sintético',unit:'UN',customerId:'c1',customerName:'Cliente sintético',destination:'Destino teste',sellerId:'seller1',quantity:2,amount:amount(),...overrides});
@@ -21,6 +21,10 @@ test('issued manifest reconciles three clients, separates product dimensions and
  const document=historicalManifest(issueManifest(load,header),1);
  const summary=summarizeManifest(document);
  assert.deepEqual(summary.products.map(row=>row.quantity),[45,35]);
+ const customer=manifestForCustomer(document,summary.customers[0].key);
+ assert.deepEqual(customer.lines.map(row=>row.quantity),[10,20]);
+ assert.deepEqual(customer.totalsByCurrency,{PYG:'79980'});
+ assert.equal(customer.version,document.version);
  assert.deepEqual(summary.customers.map(group=>group.lines.map(row=>row.quantity)),quantities);
  const row=lines[0];
  const distinct=[row,...['sku','unit','packaging','variant','lot','warehouseId','productId'].map(

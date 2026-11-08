@@ -19,6 +19,8 @@ try {
  await button('Reservar estoque').click();await button('Iniciar separação').click();
  await page.getByLabel('Quantidades conferidas 1',{exact:true}).fill('5');await page.getByLabel('Quantidades conferidas 2',{exact:true}).fill('5');
  await button('Confirmar conferência').click();await button('Aprovar carga').click();
+ for(const input of await page.getByLabel(/^Quantidade colocada no caminhão /).all())await input.fill(await input.getAttribute('max'));
+ await button('Confirmar carregamento físico').click();
  await page.getByLabel('Veículo / placa',{exact:true}).fill('HML-2026');await page.getByLabel('Motorista',{exact:true}).fill('Carlos · homologação');await page.getByLabel('Rota',{exact:true}).fill('Centro / Vila Operária');await button('Emitir romaneio').click();
  await page.getByRole('button',{name:/Versão 1 ·/}).waitFor();await page.getByRole('button',{name:/Versão 1 ·/}).click();
  await page.getByTestId('manifest-preview').waitFor();assert.match(await page.getByTestId('manifest-preview').innerText(),/PYG 399.900/);

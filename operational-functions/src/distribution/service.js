@@ -17,7 +17,7 @@ function minor(value,precision) {
  const fraction=(m[2]||'').padEnd(precision+1,'0');
  return BigInt(m[1])*10n**BigInt(precision)+BigInt(fraction.slice(0,precision)||0)+(Number(fraction[precision]||0)>=5?1n:0n);
 }
-const actions = new Set(['CREATE','RESERVE','START_PICK','CHECK','APPROVE','MANIFEST','DISPATCH','CANCEL']);
+const actions = new Set(['CREATE','RESERVE','START_PICK','CHECK','APPROVE','CONFIRM_LOADING','MANIFEST','DISPATCH','CANCEL']);
 export function distributionService(db,{now=()=>Date.now()}={}) {
  requireEmulators();
  const day=(at,timezone)=>new Intl.DateTimeFormat('sv-SE',{timeZone:timezone||'America/Asuncion',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(at));
@@ -76,7 +76,7 @@ export function distributionService(db,{now=()=>Date.now()}={}) {
    if(prior.exists){if(prior.data().generation!==c.generation)error('V2_ROUTE_CHANGED');if(prior.data().fingerprint!==fingerprint||prior.data().operatorId!==actor.operatorId)error('IDEMPOTENCY_CONFLICT');return {...prior.data().result,replayed:true};}
    const headRef=db.doc(c.base),sequence=integer(c.head.sequence)+1,operationId=hash(`distribution:${input.key}`);
    const writes=[],patches=[],orderWrites=new Map(),productWrites=new Map(),audit=[];
-   let loadingCheck,partialApproval;
+   let loadingCheck,partialApproval,truckLoading;
    const orderCache=new Map(),productCache=new Map();
    const readOrder=async orderId=>{
     if(!orderCache.has(orderId)){
@@ -200,7 +200,14 @@ export function distributionService(db,{now=()=>Date.now()}={}) {
      load=transitionLoad(load,'APPROVED');
      }
     }
+    if(input.type==='CONFIRM_LOADING') {
+     if(load.state!=='APPROVED'||!load.loadingCheck||!Array.isArray(p.quantities)||p.quantities.length!==load.lines.length||p.quantities.some((quantity,i)=>quantity!==load.lines[i].quantity))error('CHECK_MISMATCH');
+     truckLoading={operatorId:actor.operatorId,at:now(),revision:load.revision+1,
+      lines:load.lines.map((line,i)=>({lineId:line.id,quantity:p.quantities[i]}))};
+     load={...load,revision:truckLoading.revision,truckLoading};
+    }
     if(input.type==='MANIFEST') {
+     if(load.partialApproval&&!load.truckLoading)error('LOADING_CONFIRMATION_REQUIRED');
      const issuer=c.config.issuer;
      const documentId=hash(`${uid}:${input.key}`).slice(0,24);
      for(const k of ['vehicle','driver','route'])if(typeof p[k]!=='string'||!p[k].trim()||p[k].length>100)error('MANIFEST_HEADER_REQUIRED');
@@ -209,6 +216,7 @@ export function distributionService(db,{now=()=>Date.now()}={}) {
      writes.push([db.doc(`${c.root}/distribution_manifests/${documentId}`),document]);
     }
     if(input.type==='DISPATCH') {
+     if(load.partialApproval&&!load.truckLoading)error('LOADING_CONFIRMATION_REQUIRED');
      if(load.state!=='APPROVED'||load.reservationState!=='RESERVED')error('INVALID_TRANSITION');
      load=transitionLoad(load,'DISPATCHED');
      for(const line of load.lines) {
@@ -270,7 +278,7 @@ export function distributionService(db,{now=()=>Date.now()}={}) {
    tx.create(db.doc(`${c.base}/operations/${operationId}`),receipt);
    tx.update(headRef,{sequence,fieldRevisions:revisions,lastReceipt:operationId});
    tx.create(db.doc(`${c.root}/distribution_outbox/${operationId}`),{id:operationId,type:input.type==='DISPATCH'?'distribution.shipment.dispatched.v1':'distribution.load.changed.v1',version:1,tenantId:uid,entityId:load.id,revision:load.revision,correlationId:input.key,occurredAt:new Date(now()).toISOString(),state:'LOCAL_ONLY',payload:{loadId:load.id,state:load.state}});
-   tx.create(db.doc(`${c.root}/distribution_audit/${operationId}`),{operatorId:actor.operatorId,type:input.type,loadId:load.id,sequence,at:now(),stockMovements:audit,...(loadingCheck?{loadingCheck}:{}),...(partialApproval?{partialApproval}:{})});
+   tx.create(db.doc(`${c.root}/distribution_audit/${operationId}`),{operatorId:actor.operatorId,type:input.type,loadId:load.id,sequence,at:now(),stockMovements:audit,...(loadingCheck?{loadingCheck}:{}),...(partialApproval?{partialApproval}:{}),...(truckLoading?{truckLoading}:{})});
    return result;
   },{maxAttempts:15});
  }

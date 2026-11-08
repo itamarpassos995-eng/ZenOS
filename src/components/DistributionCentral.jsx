@@ -6,7 +6,7 @@ import {useUiLanguage} from '../core/useUiLanguage.js';
 import {distributionPeriod} from '../core/distribution/period.js';
 import {createDistributionClient} from '../core/distribution/client.js';
 import {distributionText,distributionMoney} from '../core/distribution/i18n.js';
-import {summarizeManifest} from '../core/distribution/domain.js';
+import {manifestForCustomer,summarizeManifest} from '../core/distribution/domain.js';
 import './DistributionCentral.css';
 import distributionPrintCss from './DistributionCentral.css?inline';
 const DistributionTrips=React.lazy(()=>import('./DistributionTrips.jsx'));
@@ -22,7 +22,7 @@ export default function DistributionCentral({operatorId:initialOperatorId='admin
  const [tab,setTab]=useState('loads'),[period,setPeriod]=useState('hoje'),[from,setFrom]=useState(''),[to,setTo]=useState(''),[range,setRange]=useState(()=>distributionPeriod('hoje'));
  const [page,setPage]=useState(0),[cursors,setCursors]=useState([null]),[rows,setRows]=useState([]),[next,setNext]=useState(null),[counts,setCounts]=useState({}),[loading,setLoading]=useState(false),[reload,setReload]=useState(0);
  const [selection,setSelection]=useState({}),[detail,setDetail]=useState(null),[document,setDocument]=useState(null),[copy,setCopy]=useState(false),[confirm,setConfirm]=useState(null);
- const [vehicle,setVehicle]=useState(''),[driver,setDriver]=useState(''),[route,setRoute]=useState(''),[checked,setChecked]=useState({}),[checkReason,setCheckReason]=useState('');
+ const [vehicle,setVehicle]=useState(''),[driver,setDriver]=useState(''),[route,setRoute]=useState(''),[checked,setChecked]=useState({}),[checkReason,setCheckReason]=useState(''),[truck,setTruck]=useState({}),[customerDocument,setCustomerDocument]=useState('');
  const epoch=useRef(0),dialogRef=useRef(null),previousFocus=useRef(null);
  useEffect(()=>onAuthStateChanged(auth,u=>{setUser(u);setSession(null);setDetail(null);setRows([]);setSelection({});}),[]);
  useEffect(()=>()=>client?.clear(),[client]);
@@ -64,7 +64,7 @@ export default function DistributionCentral({operatorId:initialOperatorId='admin
   if(!user){setPassword('');setUser(account);setNotice('secure');return;}
   const result=await client.login(operatorId,pin,scope);setSession(result);setTab(result.scope==='trip'||result.scope==='driver'?'trips':'loads');setRange(distributionPeriod('hoje',Date.now(),result.timeZone));setPin('');setPassword('');setNotice('');
  }catch(e){fail(e);}finally{setBusy(false);}}
- async function openLoad(loadId){setBusy(true);setError('');try{const result=await client.query({type:'detail',loadId},{refresh:true});setDetail(result.load);setChecked({});setCheckReason('');setDocument(null);setConfirm(null);setVehicle(result.load.manifestVersions.at(-1)?.vehicle||'');setDriver(result.load.manifestVersions.at(-1)?.driver||'');setRoute(result.load.manifestVersions.at(-1)?.route||'');}catch(e){fail(e);}finally{setBusy(false);}}
+ async function openLoad(loadId){setBusy(true);setError('');try{const result=await client.query({type:'detail',loadId},{refresh:true});setDetail(result.load);setChecked({});setCheckReason('');setTruck({});setDocument(null);setConfirm(null);setVehicle(result.load.manifestVersions.at(-1)?.vehicle||'');setDriver(result.load.manifestVersions.at(-1)?.driver||'');setRoute(result.load.manifestVersions.at(-1)?.route||'');}catch(e){fail(e);}finally{setBusy(false);}}
  async function operate(type,payload={}){if(!detail||busy)return;setBusy(true);setError('');setNotice('');try{
   await client.command(type,detail.id,detail.revision,payload);const result=await client.query({type:'detail',loadId:detail.id},{refresh:true});setDetail(result.load);setNotice('saved');setConfirm(null);setReload(n=>n+1);
  }catch(e){fail(e);}finally{setBusy(false);}}
@@ -76,8 +76,8 @@ export default function DistributionCentral({operatorId:initialOperatorId='admin
   const result=await client.command('CREATE',createAttempt.current.loadId,0,{selections});setSelection({});createAttempt.current=null;setNotice('saved');setTab('loads');resetPages();setReload(n=>n+1);await openLoad(result.loadId);
  }catch(e){fail(e);}finally{setBusy(false);}}
  const createAttempt=useRef(null);
- async function showVersion(version){setBusy(true);setError('');try{const result=await client.query({type:'manifest',loadId:detail.id,version});setDocument(result.document);setCopy(true);}catch(e){fail(e);}finally{setBusy(false);}}
- async function download(){setBusy(true);setError('');try{const {manifestPdf}=await import('../core/distribution/pdf.js');const pdf=await manifestPdf(document,{language,copy});const url=URL.createObjectURL(pdf.blob),a=window.document.createElement('a');a.href=url;a.download=pdf.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);}catch(e){fail(e);}finally{setBusy(false);}}
+ async function showVersion(version){setBusy(true);setError('');try{const result=await client.query({type:'manifest',loadId:detail.id,version});setCustomerDocument('');setDocument(result.document);setCopy(true);}catch(e){fail(e);}finally{setBusy(false);}}
+ async function download(){setBusy(true);setError('');try{const {manifestPdf}=await import('../core/distribution/pdf.js');const pdf=await manifestPdf(customerDocument?manifestForCustomer(document,customerDocument):document,{language,copy});const url=URL.createObjectURL(pdf.blob),a=window.document.createElement('a');a.href=url;a.download=pdf.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);}catch(e){fail(e);}finally{setBusy(false);}}
  const date=value=>new Date(value).toLocaleString(language==='es'?'es-PY':'pt-BR');
  if(!ZENOS_RUNTIME.isHomologacao)return <p>{t('safety')}</p>;
  return <section className="dist" data-testid="distribution-central">
@@ -101,6 +101,8 @@ export default function DistributionCentral({operatorId:initialOperatorId='admin
    {error&&<p role="alert" className="dist-alert">{t(error)}</p>}{notice&&<p role="status" className="dist-success">{t(notice)}</p>}
    <div className="dist-stepper">{['DRAFT','PLANNED','LOADING','LOADED','APPROVED','DISPATCHED'].map(s=><span key={s} aria-current={s===detail.state?'step':undefined}>{t(s)}</span>)}</div>
    <div className="dist-table-wrap"><table><thead><tr><th>{t('product')}</th><th>{t('customer')}</th><th>{t('quantity')}</th><th>{t('amount')}</th>{detail.state==='LOADING'&&<th>{t('checked')}</th>}</tr></thead><tbody>{detail.lines.map((l,i)=><tr key={l.id}><td><strong>{l.description}</strong><small>{l.sku} · {l.orderId}</small></td><td>{l.customerName}<small>{l.destination}</small></td><td>{l.quantity} {l.unit}</td><td>{distributionMoney(l.amount)}</td>{detail.state==='LOADING'&&<td><input aria-label={`${t('checked')} ${i+1}`} type="number" min="0" max={l.quantity} step="1" value={checked[i]??''} onChange={e=>setChecked(s=>({...s,[i]:e.target.value}))}/></td>}</tr>)}</tbody></table></div>
+   {detail.state==='APPROVED'&&detail.loadingCheck&&!detail.truckLoading&&<div className="dist-fields"><h3>{t('truckLoading')}</h3>{detail.lines.map(l=><label key={l.id}>{l.description} · {l.customerName} · {l.quantity} {l.unit}<input aria-label={`${t('truckLoading')} ${l.orderId} ${l.orderLineId}`} type="number" min="0" max={l.quantity} step="1" value={truck[l.id]??''} onChange={e=>setTruck(values=>({...values,[l.id]:e.target.value}))}/></label>)}<button disabled={busy||detail.lines.some(l=>!truck[l.id]?.trim()||Number(truck[l.id])!==l.quantity)} onClick={()=>operate('CONFIRM_LOADING',{quantities:detail.lines.map(l=>Number(truck[l.id]))})}>{t('confirmLoading')}</button></div>}
+   {detail.truckLoading&&<p>{t('truckLoading')} · {detail.truckLoading.operatorId} · {date(detail.truckLoading.at)}</p>}
    {detail.state==='APPROVED'&&<div className="dist-fields">{[['vehicle',vehicle,setVehicle],['driver',driver,setDriver],['route',route,setRoute]].map(([key,value,set])=><label key={key}>{t(key)}<input maxLength="100" value={value} onChange={e=>set(e.target.value)}/></label>)}</div>}
    <div className="dist-actionbar">
     {detail.state==='DRAFT'&&<button className="primary" disabled={busy} onClick={()=>operate('RESERVE')}>{t('reserve')}</button>}
@@ -108,13 +110,13 @@ export default function DistributionCentral({operatorId:initialOperatorId='admin
     {detail.state==='LOADING'&&<><label>{t('shortageReason')} <input maxLength={300} value={checkReason} onChange={e=>setCheckReason(e.target.value)}/></label><button className="primary" disabled={busy||detail.lines.some((l,i)=>!checked[i]?.trim()||!Number.isSafeInteger(Number(checked[i]))||Number(checked[i])<0||Number(checked[i])>l.quantity||(Number(checked[i])<l.quantity&&!checkReason.trim()))} onClick={()=>operate('CHECK',{quantities:detail.lines.map((_,i)=>Number(checked[i])),reason:checkReason})}>{t('check')}</button></>}
     {detail.state==='LOADING'&&detail.pickingState==='SHORTAGE'&&detail.loadingCheck.lines.some(row=>row.checked>0)&&<button disabled={busy} onClick={()=>operate('APPROVE',{partial:true})}>{t('approvePartial')}</button>}
     {detail.state==='LOADED'&&<button className="primary" disabled={busy} onClick={()=>operate('APPROVE')}>{t('approve')}</button>}
-    {detail.state==='APPROVED'&&<><button className="primary" disabled={busy||![vehicle,driver,route].every(s=>s.trim())} onClick={()=>operate('MANIFEST',{vehicle,driver,route})}>{t('manifest')}</button><button disabled={busy||!detail.manifestVersions.length} onClick={()=>setConfirm('DISPATCH')}>{t('dispatch')}</button></>}
+    {detail.state==='APPROVED'&&<><button className="primary" disabled={busy||(detail.loadingCheck&&!detail.truckLoading)||![vehicle,driver,route].every(s=>s.trim())} onClick={()=>operate('MANIFEST',{vehicle,driver,route})}>{t('manifest')}</button><button disabled={busy||(detail.loadingCheck&&!detail.truckLoading)||detail.manifestVersions.at(-1)?.loadRevision!==detail.revision} onClick={()=>setConfirm('DISPATCH')}>{t('dispatch')}</button></>}
     {['DRAFT','PLANNED','LOADING'].includes(detail.state)&&<button className="danger" disabled={busy} onClick={()=>setConfirm('CANCEL')}>{t('cancel')}</button>}
    </div>
    {confirm&&<div className="dist-confirm"><h3>{t(confirm==='CANCEL'?'confirmCancel':'confirmDispatch')}</h3><p>{t(confirm==='CANCEL'?'cancelHelp':'dispatchHelp')}</p><button className="primary" disabled={busy} onClick={()=>operate(confirm)}>{t('confirm')}</button><button disabled={busy} onClick={()=>setConfirm(null)}>{t('close')}</button></div>}
    {detail.loadingCheck&&<div className="dist-history"><h3>{t('checked')} · {detail.loadingCheck.operatorId}</h3><p>{detail.loadingCheck.reason}</p>{detail.loadingCheck.lines.map(row=><p key={row.lineId}>{(detail.lines.find(line=>line.id===row.lineId)||detail.partialApproval?.lines.find(line=>line.lineId===row.lineId))?.description} · {row.checked} / {row.authorized} · {t('shortage')}: {row.authorized-row.checked}</p>)}</div>}
    {!!detail.manifestVersions.length&&<div className="dist-history"><h3>{t('versions')}</h3>{detail.manifestVersions.map(m=><button disabled={busy} key={m.version} onClick={()=>showVersion(m.version)}>{t('version')} {m.version} · {date(m.issuedAt)} · {t('preview')}</button>)}</div>}
-   {document&&<><div className="dist-actionbar"><button disabled={busy} onClick={download}>{t('pdf')}</button><button disabled={busy} onClick={async()=>{try{const {printManifest}=await import('../core/distribution/print.js');await printManifest(window.document.querySelector('[data-testid=manifest-preview]'),distributionPrintCss);}catch(e){fail(e);}}}>{t('print')}</button></div><ManifestView document={document} t={t} copy={copy}/></>}
+   {document&&<><div className="dist-actionbar"><label>{t('customer')} <select value={customerDocument} onChange={e=>setCustomerDocument(e.target.value)}><option value="">{t('loadSummary')}</option>{summarizeManifest(document).customers.map(group=><option key={group.key} value={group.key}>{group.name} · {group.city||t('cityUnknown')}</option>)}</select></label><button disabled={busy} onClick={download}>{t('pdf')}</button><button disabled={busy} onClick={async()=>{try{const {printManifest}=await import('../core/distribution/print.js');await printManifest(window.document.querySelector('[data-testid=manifest-preview]'),distributionPrintCss);}catch(e){fail(e);}}}>{t('print')}</button></div><ManifestView document={customerDocument?manifestForCustomer(document,customerDocument):document} t={t} copy={copy}/></>}
    {busy&&<p role="status">{t('loading')}</p>}
   </div></div>}
  </section>;

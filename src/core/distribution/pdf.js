@@ -36,6 +36,11 @@ export async function manifestPdf(document,{language='pt',copy=false,imageLoader
   }
   add(document.partialApproval.reason,9);
  }
+ if(document.truckLoading){
+  add(`${t('truckLoading')} | ${document.truckLoading.operatorId}`,11,true);
+  const recorded=new Map(document.truckLoading.lines.map(row=>[row.lineId,row.quantity]));
+  for(const row of document.lines)add(`${row.orderId} | ${row.sku} | ${recorded.get(row.id)} ${row.unit}`,9);
+ }
  add(t('byCustomer'),13,true);
  for(const group of customers){
   reserve(140);

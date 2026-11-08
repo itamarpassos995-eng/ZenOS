@@ -29,6 +29,8 @@ describe('Central with real HTTP API, Auth token and Firestore Emulator',()=>{
   await user.type(await screen.findByLabelText('Quantidades conferidas 1'),'5');await user.type(screen.getByLabelText('Quantidades conferidas 2'),'5');
   await user.click(button('Confirmar conferência'));await user.click(await screen.findByRole('button',{name:'Aprovar carga',exact:true}));
   await user.type(await screen.findByLabelText('Veículo / placa'),'HML-2026');await user.type(screen.getByLabelText('Motorista'),'Carlos · teste');await user.type(screen.getByLabelText('Rota'),'Centro / Vila Operária');
+  for(const input of screen.getAllByLabelText(/^Quantidade colocada no caminhão /))await user.type(input,input.max);
+  await user.click(button('Confirmar carregamento físico'));
   await user.click(button('Emitir romaneio'));await user.click(await screen.findByRole('button',{name:/Versão 1 ·/}));
   const preview=await screen.findByTestId('manifest-preview');expect(preview.textContent).toContain('PYG 399.900');await writeFile('tmp/distribution/manifest-preview.html',preview.outerHTML);expect(button('Baixar PDF A4')).toBeTruthy();expect(button('Imprimir A4')).toBeTruthy();
   await user.clear(screen.getByLabelText('Rota'));await user.type(screen.getByLabelText('Rota'),'Rota revisada');await user.click(button('Emitir romaneio'));await screen.findByRole('button',{name:/Versão 2 ·/});
@@ -40,7 +42,7 @@ describe('Central with real HTTP API, Auth token and Firestore Emulator',()=>{
   await user.click(button('Este mes'));await waitFor(()=>expect(screen.queryByRole('status',{name:'Verificando en el servidor…'})).toBeNull());
   await user.click(button('Cerrar sesión'));await screen.findByRole('button',{name:'Acceder a distribución',exact:true});
   const commandTypes=h.requests.filter(r=>r.url.endsWith('/command')).map(r=>r.body.type);
-  expect(commandTypes).toEqual(['CREATE','RESERVE','START_PICK','CHECK','APPROVE','MANIFEST','MANIFEST','DISPATCH']);
+  expect(commandTypes).toEqual(['CREATE','RESERVE','START_PICK','CHECK','APPROVE','CONFIRM_LOADING','MANIFEST','MANIFEST','DISPATCH']);
   expect(h.requests.some(r=>r.url.endsWith('/logout'))).toBe(true);
  });
  it('does not issue logistics queries before verified operator login and shows rejected PIN without success',async()=>{

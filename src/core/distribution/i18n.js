@@ -1,5 +1,8 @@
 // All interface copy is selected through the central ZenOS language context.
 const messages={
+ truckLoading:['Quantidade colocada no caminhão','Cantidad cargada en el camión'],
+ confirmLoading:['Confirmar carregamento físico','Confirmar carga física'],
+ LOADING_CONFIRMATION_REQUIRED:['Confirme o carregamento físico antes de prosseguir.','Confirme la carga física antes de continuar.'],
  approvePartial:['Autorizar expedição parcial','Autorizar despacho parcial'],
  pendingLoad:['Saldo pendente de expedição','Saldo pendiente de despacho'],
  shortageReason:['Motivo da falta, se houver','Motivo del faltante, si corresponde'],

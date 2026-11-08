@@ -24,11 +24,16 @@ test('partial dispatch releases the unshipped balance for a second load without 
  const approval=randomUUID();
  await cmd(f,'APPROVE','PART',4,{partial:true},approval);
  assert.equal((await cmd(f,'APPROVE','PART',4,{partial:true},approval)).replayed,true);
- await cmd(f,'MANIFEST','PART',5,{vehicle:'TEST',driver:'Sintético',route:'Teste'});
+ const manifest={vehicle:'TEST',driver:'Sintético',route:'Teste'};
+ await assert.rejects(cmd(f,'MANIFEST','PART',5,manifest),{code:'LOADING_CONFIRMATION_REQUIRED'});
+ await assert.rejects(cmd(f,'CONFIRM_LOADING','PART',5,{quantities:[1]}),{code:'CHECK_MISMATCH'});
+ await cmd(f,'CONFIRM_LOADING','PART',5,{quantities:[2]});
+ await cmd(f,'MANIFEST','PART',6,manifest);
  const {load}=await detail(f,'PART');
  assert.equal(load.manifestVersions[0].lines[0].quantity,2);
  assert.equal(load.manifestVersions[0].partialApproval.lines[0].authorized,5);
- await cmd(f,'DISPATCH','PART',6);
+ assert.equal(load.manifestVersions[0].truckLoading.lines[0].quantity,2);
+ await cmd(f,'DISPATCH','PART',7);
  await assert.rejects(create(f,'OVER','O001',4),{code:'ORDER_OVERALLOCATED'});
  await create(f,'NEXT','O001',3);
  const product=(await db.doc(`${f.base}/produtos/P1`).get()).data().data;
