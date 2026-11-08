@@ -65,6 +65,8 @@
 <h3>Conferência simulada</h3>
 <label>Papel Sirius conferido de 45 pacotes <input id="demoChecked" type="number" min="0" max="45" step="1" value="42"></label>
 <p id="demoShortage" aria-live="polite"></p>
+<button id="demoApprovePartial" type="button">Simular autorização parcial</button>
+<p id="demoPartialResult" aria-live="polite"></p>
 <h3>Separação por cliente e cidade</h3><ul id="demoCustomers"></ul>
 </section>
 <section id="finance" class="content hide">
@@ -164,7 +166,17 @@ function showShortage(){
   : count===45?'Conferência completa. Carga apta para aprovação na simulação.'
    : `Faltam ${45-count} pacotes. A expedição continua bloqueada até nova conferência.`;
 }
-checked.addEventListener('input',showShortage);
+const partial=document.getElementById('demoApprovePartial');
+const partialResult=document.getElementById('demoPartialResult');
+checked.addEventListener('input',()=>{
+ partialResult.textContent='';
+ partial.disabled=!Number.isInteger(checked.valueAsNumber)||checked.valueAsNumber<1||checked.valueAsNumber>=45;
+ showShortage();
+});
+partial.addEventListener('click',()=>{
+ const count=checked.valueAsNumber;
+ partialResult.textContent=`Simulação: ${count} pacotes expedidos e ${45-count} pendentes. A cobrança da parada permanece bloqueada.`;
+});
 showShortage();
 </script>
 </body></html>

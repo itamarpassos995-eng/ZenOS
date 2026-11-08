@@ -52,6 +52,16 @@ export function buildTrips({db,ctx,authorize,finalize,now}) {
      stop.lines.push({...line,id:`${l.id}:${line.id}`,loadId:l.id,snapshot:{costBRL:obterCustoSnapshotItem(item),lot:item.lote??null,lots:item.lotes??null,originalItemId:String(item.id)},delivered:0,returning:0,returnChecked:false,reintegrated:0,quarantined:0,refunded:0});
     }
     if(stops.size>30||[...stops.values()].reduce((a,s)=>a+s.lines.length,0)>80)error('REQUEST_TOO_LARGE');
+    for(const stop of stops.values()){
+     const order=(await getEntity('vendas',stop.orderId)).data().data;
+     if(order.tipoDocumento!=='pre_pedido')continue;
+     const loaded=new Map();
+     for(const line of stop.lines)loaded.set(line.orderLineId,(loaded.get(line.orderLineId)||0)+line.quantity);
+     if(order.itens.some((item,i)=>(loaded.get(String(i))||0)!==Number(item.qtd))){
+      stop.commercialPending=true;
+      stop.expectedCollectionCents=0;
+     }
+    }
     trip={schema:1,id:tripId,tenantId:uid,generation:c.generation,createdAt:now(),createdBy:actor.operatorId,revision:0,state:'PLANNED',driverId:p.driverId,driverName:driver.data().data.nome,vehicleId:p.vehicleId,vehiclePlate:vehicle.data().plate,routeId:p.routeId,routeName:route.data().name,stops:[...stops.values()],loadIds:p.loadIds,receipts:[],incidents:[],postedOrders:{}};
     for(const l of loads)writes.push([l.ref,{...l.data(),tripId}]);
    }else{
@@ -86,6 +96,7 @@ export function buildTrips({db,ctx,authorize,finalize,now}) {
     }
     if(type==='COLLECT'){
      const stop=trip.stops.find(s=>s.id===p.stopId);if(!stop||!['TOTAL','PARTIAL'].includes(stop.state)||trip.receipts.length>=60)error('INVALID_DELIVERY');
+     if(stop.commercialPending)error('COMMERCIAL_POST_REQUIRED');
      if(!/^(dinheiro_(brl|pyg|usd|eur)|cartao_(credito|debito)(_(brl|pyg|usd|eur))?|pix|transferencia)$/.test(p.method||'')||(p.method==='pix'&&p.currency!=='BRL'))error('PAYMENT_METHOD_DISABLED');const suffix=p.method.match(/_(brl|pyg|usd|eur)$/)?.[1];if(suffix&&suffix.toUpperCase()!==p.currency)error('PAYMENT_METHOD_DISABLED');
      const methods=c.config.driverPaymentMethods||[];if(!methods.some(m=>m.id===p.method&&m.currency===p.currency))error('PAYMENT_METHOD_DISABLED');
      const minor=nativeMinor(p.amount,p.currency);if(minor<=0)error('INVALID_PAYMENT');const order=await getEntity('vendas',stop.orderId),o=order.data().data;
@@ -143,6 +154,7 @@ export function buildTrips({db,ctx,authorize,finalize,now}) {
      ledger.push(criarLancamentoFinanceiro({id:`DEV-${operationId}`,lojaId:uid,tipo:'devolucao',origem:'historico_vendas',referenciaId:operationId,valor:amount/100,moeda:'BRL',formaPagamento:p.method,operadorId:actor.operatorId,operadorNome:actor.name,createdAt:new Date(now()).toISOString(),afetaCaixaFisico:physical,afetaResultado:true,direcao:'saida',clienteId:o.clienteId,clienteNome:o.clienteNome,saldoClienteAntes:p.method==='credito_fiado'?balance/100:null,saldoClienteDepois:p.method==='credito_fiado'?(balance-amount)/100:null,detalhes:{vendaId:o.id,tripId:trip.id,moedaOrigem:currency,valorOriginal:original,taxaCambioAplicada:1/o.taxasCambio[currency],bankReference:p.bankReference||null}}));
     }
     if(type==='CLOSE'){
+     if(trip.stops.some(stop=>stop.commercialPending))error('COMMERCIAL_POST_REQUIRED');
      if(trip.state!=='SETTLING'||trip.receipts.some(r=>!r.voided&&!r.posted)||trip.stops.some(s=>s.lines.some(l=>l.returning>l.refunded)))error('SETTLEMENT_PENDING');
      for(const stop of trip.stops){const order=await getEntity('vendas',stop.orderId);if(!['venda'].includes(order.data().data.tipoDocumento))error('COMMERCIAL_POST_REQUIRED');}
      trip.state='CLOSED';trip.closedAt=now();trip.closedBy=actor.operatorId;
@@ -171,6 +183,7 @@ export function buildTrips({db,ctx,authorize,finalize,now}) {
    const c=await ctx(tx,uid),actor=await authorize(tx,uid,token,c,'finance');
    const tr=await tx.get(ref(c,'distribution_trips',input.tripId)),t=tr.data();
    if(!t||t.generation!==c.generation||t.state!=='SETTLING'||t.settlement.operatorId!==actor.operatorId||!t.stops.some(s=>s.orderId===input.orderId))error('TRIP_LOCKED');
+   if(t.stops.find(s=>s.orderId===input.orderId).commercialPending)error('COMMERCIAL_POST_REQUIRED');
    const pr=ref(c,'distribution_post_plans',`${input.tripId}-${input.orderId}`),previous=await tx.get(pr);
    if(previous.exists)return previous.data();
    const os=await tx.get(db.doc(`${c.base}/vendas/${id(input.orderId)}`)),o=os.data()?.data;if(!o||os.data().deleted)error('ORDER_NOT_FOUND');

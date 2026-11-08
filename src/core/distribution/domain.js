@@ -64,7 +64,7 @@ export function issueManifest(load,{documentId,number,issuedAt,issuer,vehicle,dr
  requireValue([documentId,number,issuedAt,vehicle,driver,route,verificationCode].every(text) && Number.isFinite(Date.parse(issuedAt)), 'MANIFEST_HEADER_REQUIRED');
  requireValue(issuer && ['name','taxId'].every(k=>text(issuer[k])), 'ISSUER_REQUIRED');
  requireValue(!load.manifestVersions.some(m=>m.documentId === documentId), 'DUPLICATE_DOCUMENT');
- const document = freeze({schemaVersion:1,documentId,number,version:load.manifestVersions.length+1,tenantId:load.tenantId,loadId:load.id,loadRevision:load.revision+1,issuedAt,timeZone,issuer:clone(issuer),warehouseId:load.warehouseId,vehicle,driver,route,verificationCode,lines:clone(load.lines),...(load.loadingCheck?{loadingCheck:clone(load.loadingCheck)}:{}),totalsByCurrency:totalsByCurrency(load.lines.map(l=>l.amount))});
+ const document = freeze({schemaVersion:1,documentId,number,version:load.manifestVersions.length+1,tenantId:load.tenantId,loadId:load.id,loadRevision:load.revision+1,issuedAt,timeZone,issuer:clone(issuer),warehouseId:load.warehouseId,vehicle,driver,route,verificationCode,lines:clone(load.lines),...(load.loadingCheck?{loadingCheck:clone(load.loadingCheck)}:{}),...(load.partialApproval?{partialApproval:clone(load.partialApproval)}:{}),totalsByCurrency:totalsByCurrency(load.lines.map(l=>l.amount))});
  return freeze({...clone(load),revision:load.revision+1,manifestVersions:[...clone(load.manifestVersions),document]});
 }
 export function historicalManifest(load,version) {

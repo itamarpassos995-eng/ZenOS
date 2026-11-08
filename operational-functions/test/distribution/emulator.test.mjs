@@ -4,6 +4,7 @@ import {randomUUID} from 'node:crypto';
 import {db,seed,PIN,PASSWORD} from './fixture.mjs';
 import {distributionService} from '../../src/distribution/service.js';
 import {hash} from '../../src/distribution/security.js';
+import {setupTrip,route,signature} from './trip-fixture.mjs';
 import {baixarEstoqueProduto,preverBaixaEstoqueProduto,transferirEstoqueEntreLocais} from '../../..//src/core/inventory.js';
 const service=distributionService(db);
 async function setup(options){const f=await seed('distribution-'+randomUUID().slice(0,8),options);const s=await service.login(f.uid,{operatorId:'admin',pin:PIN});return {...f,s};}
@@ -11,6 +12,40 @@ const cmd=(f,type,loadId,revision,payload={},key=randomUUID())=>service.command(
 async function create(f,loadId,orderId='O001',quantity=5){return cmd(f,'CREATE',loadId,0,{selections:[{orderId,lineIndex:0,quantity}]});}
 async function ready(f,loadId){await create(f,loadId);for(const [type,rev,payload]of [['RESERVE',1,{}],['START_PICK',2,{}],['CHECK',3,{quantities:[5]}],['APPROVE',4,{}],['MANIFEST',5,{vehicle:'TEST-123',driver:'Motorista sintético',route:'Rota teste'}]])await cmd(f,type,loadId,rev,payload);}
 const detail=(f,loadId)=>service.query(f.uid,f.s.sessionToken,{type:'detail',loadId});
+test('partial dispatch releases the unshipped balance for a second load without duplicating stock',async()=>{
+ const fixture=await setupTrip({stock:10,orders:1});
+ const f={...fixture,s:fixture.manager};
+ await create(f,'PART');
+ await cmd(f,'RESERVE','PART',1);
+ await cmd(f,'START_PICK','PART',2);
+ await cmd(f,'CHECK','PART',3,{quantities:[2],reason:'Três unidades indisponíveis'});
+ const stock=await service.login(f.uid,{operatorId:'stock',pin:PIN});
+ await assert.rejects(cmd({...f,s:stock},'APPROVE','PART',4,{partial:true}),{code:'FORBIDDEN'});
+ const approval=randomUUID();
+ await cmd(f,'APPROVE','PART',4,{partial:true},approval);
+ assert.equal((await cmd(f,'APPROVE','PART',4,{partial:true},approval)).replayed,true);
+ await cmd(f,'MANIFEST','PART',5,{vehicle:'TEST',driver:'Sintético',route:'Teste'});
+ const {load}=await detail(f,'PART');
+ assert.equal(load.manifestVersions[0].lines[0].quantity,2);
+ assert.equal(load.manifestVersions[0].partialApproval.lines[0].authorized,5);
+ await cmd(f,'DISPATCH','PART',6);
+ await assert.rejects(create(f,'OVER','O001',4),{code:'ORDER_OVERALLOCATED'});
+ await create(f,'NEXT','O001',3);
+ const product=(await db.doc(`${f.base}/produtos/P1`).get()).data().data;
+ assert.equal(product.estoque,8);
+ assert.equal(product.estoqueReservadoDistribuicao,0);
+ const next=(await detail(f,'NEXT')).load.lines[0];
+ assert.equal(BigInt(next.amount.minor)+BigInt(load.lines[0].amount.minor),199950n);
+ await route(f,'manager','SAVE_VEHICLE','V1',0,{plate:'HML-2026',name:'Veículo sintético'});
+ await route(f,'manager','SAVE_ROUTE','R1',0,{name:'Rota sintética'});
+ await route(f,'manager','CREATE_TRIP','T1',0,{loadIds:['PART'],driverId:'driver',vehicleId:'V1',routeId:'R1'});
+ await route(f,'driver','START','T1',1);
+ await route(f,'driver','DELIVER','T1',2,{stopId:'O001',quantities:[2],outcome:'TOTAL',receiver:'Sintético',identification:'TEST',signature});
+ await assert.rejects(route(f,'driver','COLLECT','T1',3,{stopId:'O001',method:'dinheiro_pyg',currency:'PYG',amount:'199950'}),{code:'COMMERCIAL_POST_REQUIRED'});
+ const result=await service.routeQuery(f.uid,f.manager.sessionToken,{type:'detail',tripId:'T1'});
+ assert.equal(result.trip.stops[0].commercialPending,true);
+ assert.equal(result.trip.receipts.length,0);
+});
 test('records a shortage, blocks dispatch and freezes the successful recheck in the manifest',async()=>{
  const f=await setup({stock:10});
  await create(f,'SHORT');

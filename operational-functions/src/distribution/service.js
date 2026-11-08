@@ -70,12 +70,13 @@ export function distributionService(db,{now=()=>Date.now()}={}) {
   const fingerprint=hash(canonical(input));
   return db.runTransaction(async tx=>{
    const c=await ctx(tx,uid),actor=await authorize(tx,uid,sessionToken,c);
+   if(input.type==='APPROVE'&&input.payload?.partial===true)await authorize(tx,uid,sessionToken,c,'manage');
    const loadRef=db.doc(`${c.root}/distribution_loads/${id(input.loadId)}`),receiptRef=db.doc(`${c.root}/distribution_receipts/${hash(input.key)}`);
    const [loadSnap,prior]=await Promise.all([tx.get(loadRef),tx.get(receiptRef)]);
    if(prior.exists){if(prior.data().generation!==c.generation)error('V2_ROUTE_CHANGED');if(prior.data().fingerprint!==fingerprint||prior.data().operatorId!==actor.operatorId)error('IDEMPOTENCY_CONFLICT');return {...prior.data().result,replayed:true};}
    const headRef=db.doc(c.base),sequence=integer(c.head.sequence)+1,operationId=hash(`distribution:${input.key}`);
    const writes=[],patches=[],orderWrites=new Map(),productWrites=new Map(),audit=[];
-   let loadingCheck;
+   let loadingCheck,partialApproval;
    const orderCache=new Map(),productCache=new Map();
    const readOrder=async orderId=>{
     if(!orderCache.has(orderId)){
@@ -162,8 +163,42 @@ export function distributionService(db,{now=()=>Date.now()}={}) {
       : {...transitionLoad(load,'LOADED'),pickingState:'COMPLETED',checkedBy:actor.operatorId,checkedAt:loadingCheck.at,loadingCheck};
     }
     if(input.type==='APPROVE') {
+     if(p.partial===true){
+      const check=load.loadingCheck;
+      if(load.state!=='LOADING'||load.pickingState!=='SHORTAGE'||check?.revision!==load.revision||load.reservationState!=='RESERVED')error('CHECK_REQUIRED');
+      if(!check.lines.some(row=>row.checked>0))error('EMPTY_LOAD');
+      const lines=[];
+      for(const [i,line] of load.lines.entries()){
+       const checked=check.lines[i];
+       if(checked.lineId!==line.id)error('CHECK_MISMATCH');
+       const pending=line.quantity-checked.checked;
+       const order=orderCache.get(line.orderId);
+       if(pending&&order.data.tipoDocumento!=='pre_pedido')error('ORDER_NOT_ELIGIBLE');
+       const retained=BigInt(line.amount.minor)*BigInt(checked.checked)/BigInt(line.quantity);
+       if(pending){
+        const product=productCache.get(line.productId);
+        const reserved=integer(product.data.estoqueReservadoDistribuicao||0);
+        if(reserved<pending)error('STOCK_RECONCILIATION_REQUIRED');
+        product.data.estoqueReservadoDistribuicao=reserved-pending;
+        productWrites.set(line.productId,product);
+        const allocation=order.data._distribution;
+        allocation.allocated[line.orderLineId]=integer(allocation.allocated[line.orderLineId]-pending);
+        const remainingMinor=BigInt(allocation.allocatedMinor[line.orderLineId])-BigInt(line.amount.minor)+retained;
+        if(remainingMinor<0n)error('MONEY_ALLOCATION_CONFLICT');
+        allocation.allocatedMinor[line.orderLineId]=String(remainingMinor);
+        allocation.stockManaged=Object.values(allocation.allocated).some(quantity=>quantity>0);
+        orderWrites.set(line.orderId,order);
+       }
+       if(checked.checked)lines.push({...line,quantity:checked.checked,amount:{...line.amount,minor:String(retained)}});
+      }
+      partialApproval={operatorId:actor.operatorId,at:now(),revision:load.revision+1,reason:check.reason,
+       lines:load.lines.map((line,i)=>({lineId:line.id,orderId:line.orderId,orderLineId:line.orderLineId,
+        description:line.description,unit:line.unit,authorized:line.quantity,approved:check.lines[i].checked}))};
+      load={...load,lines,state:'APPROVED',revision:load.revision+1,pickingState:'COMPLETED',partialApproval};
+     }else{
      if(load.pickingState!=='COMPLETED')error('CHECK_REQUIRED');
      load=transitionLoad(load,'APPROVED');
+     }
     }
     if(input.type==='MANIFEST') {
      const issuer=c.config.issuer;
@@ -235,7 +270,7 @@ export function distributionService(db,{now=()=>Date.now()}={}) {
    tx.create(db.doc(`${c.base}/operations/${operationId}`),receipt);
    tx.update(headRef,{sequence,fieldRevisions:revisions,lastReceipt:operationId});
    tx.create(db.doc(`${c.root}/distribution_outbox/${operationId}`),{id:operationId,type:input.type==='DISPATCH'?'distribution.shipment.dispatched.v1':'distribution.load.changed.v1',version:1,tenantId:uid,entityId:load.id,revision:load.revision,correlationId:input.key,occurredAt:new Date(now()).toISOString(),state:'LOCAL_ONLY',payload:{loadId:load.id,state:load.state}});
-   tx.create(db.doc(`${c.root}/distribution_audit/${operationId}`),{operatorId:actor.operatorId,type:input.type,loadId:load.id,sequence,at:now(),stockMovements:audit,...(loadingCheck?{loadingCheck}:{})});
+   tx.create(db.doc(`${c.root}/distribution_audit/${operationId}`),{operatorId:actor.operatorId,type:input.type,loadId:load.id,sequence,at:now(),stockMovements:audit,...(loadingCheck?{loadingCheck}:{}),...(partialApproval?{partialApproval}:{})});
    return result;
   },{maxAttempts:15});
  }

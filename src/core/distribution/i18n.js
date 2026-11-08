@@ -1,5 +1,7 @@
 // All interface copy is selected through the central ZenOS language context.
 const messages={
+ approvePartial:['Autorizar expedição parcial','Autorizar despacho parcial'],
+ pendingLoad:['Saldo pendente de expedição','Saldo pendiente de despacho'],
  shortageReason:['Motivo da falta, se houver','Motivo del faltante, si corresponde'],
  shortage:['Falta','Faltante'],
  loadSummary:['Resumo geral de carregamento','Resumen general de carga'],

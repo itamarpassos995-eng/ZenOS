@@ -29,6 +29,13 @@ export async function manifestPdf(document,{language='pt',copy=false,imageLoader
   const details=[row.variant,row.packaging,row.lot,row.warehouseId].filter(Boolean);
   if(details.length)add(details.join(' | '),9);
  }
+ if(document.partialApproval){
+  add(t('pendingLoad'),13,true);
+  for(const row of document.partialApproval.lines.filter(row=>row.authorized>row.approved)){
+   add(`${row.orderId} | ${row.description} | ${row.authorized-row.approved} ${row.unit}`,10);
+  }
+  add(document.partialApproval.reason,9);
+ }
  add(t('byCustomer'),13,true);
  for(const group of customers){
   reserve(140);
