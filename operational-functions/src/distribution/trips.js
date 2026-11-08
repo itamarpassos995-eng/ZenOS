@@ -7,9 +7,9 @@ const stable=v=>JSON.stringify(v,(_,x)=>x&&typeof x==='object'&&!Array.isArray(x
 const text=(v,max=200,required=true)=>{if(typeof v!=='string'||v.length>max||(required&&!v.trim()))error('INVALID_TEXT');return v.trim();};
 const cents=v=>{const n=Math.round(Number(v)*100);if(!Number.isSafeInteger(n)||n<0)error('INVALID_PAYMENT');return n;};
 const management=new Set(['SAVE_VEHICLE','SAVE_ROUTE','CREATE_TRIP','REORDER','ASSIGN','VOID_RECEIPT','SET_DRIVER_ACCESS']);
-const warehouse=new Set(['CHECK_RETURN']);
+const warehouse=new Set(['CHECK_RETURN','CLOSE_PHYSICAL','HANDOVER_CHEQUE']);
 const finance=new Set(['BEGIN_CLOSE','CLOSE','REFUND']);
-const driverActions=new Set(['START','DELIVER','INCIDENT','COLLECT','CUSTOMER_RETURN','ARRIVE']);
+const driverActions=new Set(['START','DELIVER','INCIDENT','COLLECT','RECORD_CHEQUE','CUSTOMER_RETURN','ARRIVE']);
 export function buildTrips({db,ctx,authorize,finalize,now}) {
  const ref=(c,collection,key)=>db.doc(`${c.root}/${collection}/${id(key)}`);
  async function actorFor(tx,uid,token,c,scope){return authorize(tx,uid,token,c,scope);}
@@ -75,7 +75,29 @@ export function buildTrips({db,ctx,authorize,finalize,now}) {
      if(trip.state!=='PLANNED'||!Array.isArray(p.stopIds)||p.stopIds.length!==trip.stops.length||new Set(p.stopIds).size!==trip.stops.length||p.stopIds.some(k=>!trip.stops.some(s=>s.id===k)))error('INVALID_ROUTE');trip.stops=p.stopIds.map(k=>trip.stops.find(s=>s.id===k));
     }
     if(type==='START'){if(trip.state!=='PLANNED')error('INVALID_TRANSITION');const v=await tx.get(ref(c,'distribution_vehicles',trip.vehicleId));if(!v.data()?.active)error('INVALID_ASSIGNMENT');for(const key of [`vehicle-${trip.vehicleId}`,`driver-${trip.driverId}`]){const lockRef=ref(c,'distribution_trip_locks',key),lock=await tx.get(lockRef);if(lock.data()?.tripId&&lock.data().tripId!==trip.id)error('ASSIGNMENT_BUSY');writes.push([lockRef,{tripId:trip.id}]);}trip.state='IN_TRANSIT';trip.startedAt=now();}
-    if(['DELIVER','INCIDENT','COLLECT','CUSTOMER_RETURN'].includes(type)&&trip.state!=='IN_TRANSIT')error('TRIP_LOCKED');
+    if(['DELIVER','INCIDENT','COLLECT','RECORD_CHEQUE','CUSTOMER_RETURN'].includes(type)&&trip.state!=='IN_TRANSIT')error('TRIP_LOCKED');
+    if(type==='RECORD_CHEQUE'){
+     const stop=trip.stops.find(s=>s.id===p.stopId);
+     if(!stop||!['TOTAL','PARTIAL'].includes(stop.state))error('INVALID_DELIVERY');
+     if(!['BRL','PYG'].includes(p.currency))error('PAYMENT_METHOD_DISABLED');
+     const amount=nativeMinor(p.amount,p.currency);
+     if(amount<=0)error('INVALID_PAYMENT');
+     const bank=text(p.bank,80),reference=text(p.reference,40);
+     if(!/^[A-Za-z0-9-]+$/.test(reference)||!/^\d{4}-\d{2}-\d{2}$/.test(p.presentationDate||'')||
+      !Number.isFinite(Date.parse(p.presentationDate))||new Date(p.presentationDate).toISOString().slice(0,10)!==p.presentationDate)error('INVALID_PAYMENT');
+     const cheques=trip.cheques??=[];
+     if(cheques.length>=60)error('REQUEST_TOO_LARGE');
+     const fingerprint=hash(JSON.stringify([bank.toUpperCase(),reference.toUpperCase()]));
+     if(cheques.some(cheque=>cheque.fingerprint===fingerprint))error('FINANCIAL_COLLISION');
+     cheques.push({id:operationId,orderId:stop.orderId,customerId:stop.customerId,bank,referenceLast4:reference.slice(-4),
+      fingerprint,currency:p.currency,minor:amount,presentationDate:p.presentationDate,receivedAt:now(),receivedBy:actor.operatorId,status:'DRIVER_CUSTODY'});
+    }
+    if(type==='HANDOVER_CHEQUE'){
+     if(!['RETURNED','SETTLING'].includes(trip.state))error('TRIP_LOCKED');
+     const cheque=trip.cheques?.find(item=>item.id===p.chequeId);
+     if(cheque?.status!=='DRIVER_CUSTODY')error('RECEIPT_LOCKED');
+     cheque.status='DEPOT_CUSTODY';cheque.handedOverAt=now();cheque.handedOverTo=actor.operatorId;
+    }
     if(type==='DELIVER'){
      const stop=trip.stops.find(s=>s.id===p.stopId);if(!stop||stop.state!=='PENDING')error('STOP_LOCKED');
      if(!['TOTAL','PARTIAL','REFUSED','FAILED'].includes(p.outcome)||!Array.isArray(p.quantities)||p.quantities.length!==stop.lines.length)error('INVALID_DELIVERY');
@@ -124,6 +146,19 @@ export function buildTrips({db,ctx,authorize,finalize,now}) {
       stockEvents.push(criarEventoEstoque({id:`RET-${operationId}`,produto:v,tipo:'distribuicao_retorno_conferido',origem:'entrega',destino:'deposito',quantidade:reintegrate,saldoAntes:before,saldoDepois:v,operador:{id:actor.operatorId,nome:actor.name},referenciaId:trip.id,createdAt:new Date(now()).toISOString(),detalhes:{pedidoId:line.orderId,linhaId:line.orderLineId,proofId:trip.stops.find(s=>s.lines.some(l=>l.id===line.id)).proofId,snapshot:line.snapshot}}));
      }line.quarantined=line.returning-reintegrate;
     }
+    if(type==='CLOSE_PHYSICAL'){
+     if(trip.state!=='RETURNED'||trip.physicalClosure)error('INVALID_TRANSITION');
+     const deliveredByCurrency={};
+     for(const stop of trip.stops)for(const line of stop.lines){
+      const delivered=line.delivered-(line.customerReturned||0);
+      if(delivered<0||delivered+line.returning!==line.quantity||
+       (line.returning>0&&(!line.returnChecked||line.reintegrated+line.quarantined!==line.returning)))error('RETURNS_PENDING');
+      const {currency,minor}=line.amount;
+      const deliveredMinor=BigInt(minor)*BigInt(delivered)/BigInt(line.quantity);
+      deliveredByCurrency[currency]=String(BigInt(deliveredByCurrency[currency]||'0')+deliveredMinor);
+     }
+     trip.physicalClosure={operatorId:actor.operatorId,at:now(),revision:trip.revision+1,deliveredByCurrency};
+    }
     if(type==='BEGIN_CLOSE'){
      if(trip.state!=='RETURNED'||trip.stops.some(s=>s.lines.some(l=>l.returning&&!l.returnChecked)))error('RETURNS_PENDING');
      const cash=await getEntity('sessoesCaixa',p.cashSessionId);if(cash.data().data.status!=='aberta'||String(cash.data().data.operadorId)!==actor.operatorId)error('CASH_SESSION_CLOSED');
@@ -154,6 +189,7 @@ export function buildTrips({db,ctx,authorize,finalize,now}) {
      ledger.push(criarLancamentoFinanceiro({id:`DEV-${operationId}`,lojaId:uid,tipo:'devolucao',origem:'historico_vendas',referenciaId:operationId,valor:amount/100,moeda:'BRL',formaPagamento:p.method,operadorId:actor.operatorId,operadorNome:actor.name,createdAt:new Date(now()).toISOString(),afetaCaixaFisico:physical,afetaResultado:true,direcao:'saida',clienteId:o.clienteId,clienteNome:o.clienteNome,saldoClienteAntes:p.method==='credito_fiado'?balance/100:null,saldoClienteDepois:p.method==='credito_fiado'?(balance-amount)/100:null,detalhes:{vendaId:o.id,tripId:trip.id,moedaOrigem:currency,valorOriginal:original,taxaCambioAplicada:1/o.taxasCambio[currency],bankReference:p.bankReference||null}}));
     }
     if(type==='CLOSE'){
+     if(trip.cheques?.length)error('SETTLEMENT_PENDING');
      if(trip.stops.some(stop=>stop.commercialPending))error('COMMERCIAL_POST_REQUIRED');
      if(trip.state!=='SETTLING'||trip.receipts.some(r=>!r.voided&&!r.posted)||trip.stops.some(s=>s.lines.some(l=>l.returning>l.refunded)))error('SETTLEMENT_PENDING');
      for(const stop of trip.stops){const order=await getEntity('vendas',stop.orderId);if(!['venda'].includes(order.data().data.tipoDocumento))error('COMMERCIAL_POST_REQUIRED');}
@@ -163,10 +199,10 @@ export function buildTrips({db,ctx,authorize,finalize,now}) {
    let result=entityResult;
    if(!entityResult){trip.revision++;trip.updatedAt=now();if(Buffer.byteLength(JSON.stringify(trip))>700000)error('REQUEST_TOO_LARGE');writes.push([tripRef,trip]);result={tripId:trip.id,revision:trip.revision,state:trip.state};}
    for(const e of ledger)if((await tx.get(db.doc(`${c.root}/financeiro_livro/${e.id}`))).exists)error('FINANCIAL_COLLISION');
-   const event={schema:1,id:operationId,tenantId:uid,tripId,type,operatorId:actor.operatorId,serverAt:now(),clientAt:input.clientAt||null,generation:c.generation,revision:result.revision,payload:{...p,...(p.signature?{signature:JSON.stringify(p.signature)}:{})}};
-   if(['START','ARRIVE','CHECK_RETURN','CLOSE'].includes(type)){
+   const event={schema:1,id:operationId,tenantId:uid,tripId,type,operatorId:actor.operatorId,serverAt:now(),clientAt:input.clientAt||null,generation:c.generation,revision:result.revision,payload:type==='RECORD_CHEQUE'?{chequeId:operationId}:{...p,...(p.signature?{signature:JSON.stringify(p.signature)}:{})}};
+   if(['START','ARRIVE','CHECK_RETURN','CLOSE_PHYSICAL','CLOSE'].includes(type)){
     event.document={issuer:c.config.issuer?.name??'',driverId:trip.driverId,driverName:trip.driverName,
-     vehiclePlate:trip.vehiclePlate,routeName:trip.routeName,state:trip.state,
+     vehiclePlate:trip.vehiclePlate,routeName:trip.routeName,state:trip.state,physicalClosure:trip.physicalClosure??null,
      stops:trip.stops.map(stop=>({orderId:stop.orderId,customerName:stop.customerName,destination:stop.destination,state:stop.state,
       lines:stop.lines.map(line=>({id:line.id,description:line.description,sku:line.sku,unit:line.unit,
        loaded:line.quantity,delivered:line.delivered-(line.customerReturned||0),returning:line.returning,

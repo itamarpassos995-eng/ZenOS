@@ -9,6 +9,7 @@ on:
       - 'operational-functions/test/distribution/b4-operator-matrix.test.mjs'
       - 'scripts/distribution/domain.test.mjs'
       - 'operational-functions/test/distribution/emulator.test.mjs'
+      - 'operational-functions/test/distribution/b4-concurrency-negative.test.mjs'
   workflow_dispatch:
 permissions:
   contents: read
