@@ -64,7 +64,7 @@ export function issueManifest(load,{documentId,number,issuedAt,issuer,vehicle,dr
  requireValue([documentId,number,issuedAt,vehicle,driver,route,verificationCode].every(text) && Number.isFinite(Date.parse(issuedAt)), 'MANIFEST_HEADER_REQUIRED');
  requireValue(issuer && ['name','taxId'].every(k=>text(issuer[k])), 'ISSUER_REQUIRED');
  requireValue(!load.manifestVersions.some(m=>m.documentId === documentId), 'DUPLICATE_DOCUMENT');
- const document = freeze({schemaVersion:1,documentId,number,version:load.manifestVersions.length+1,tenantId:load.tenantId,loadId:load.id,loadRevision:load.revision+1,issuedAt,timeZone,issuer:clone(issuer),warehouseId:load.warehouseId,vehicle,driver,route,verificationCode,lines:clone(load.lines),totalsByCurrency:totalsByCurrency(load.lines.map(l=>l.amount))});
+ const document = freeze({schemaVersion:1,documentId,number,version:load.manifestVersions.length+1,tenantId:load.tenantId,loadId:load.id,loadRevision:load.revision+1,issuedAt,timeZone,issuer:clone(issuer),warehouseId:load.warehouseId,vehicle,driver,route,verificationCode,lines:clone(load.lines),...(load.loadingCheck?{loadingCheck:clone(load.loadingCheck)}:{}),totalsByCurrency:totalsByCurrency(load.lines.map(l=>l.amount))});
  return freeze({...clone(load),revision:load.revision+1,manifestVersions:[...clone(load.manifestVersions),document]});
 }
 export function historicalManifest(load,version) {
@@ -77,6 +77,7 @@ export function historicalManifest(load,version) {
 // order line in other loads are outside this document.
 export function summarizeManifest(document) {
  const products = new Map(), customers = new Map(), seen = new Set();
+ const checked = document.loadingCheck && new Map(document.loadingCheck.lines.map(row=>[row.lineId,row.checked]));
  for (const row of document.lines) {
   if (seen.has(row.id)) fail('DUPLICATE_LINE');
   seen.add(row.id);
@@ -88,6 +89,7 @@ export function summarizeManifest(document) {
   const productKey = JSON.stringify(dimensions);
   const item = products.get(productKey) ?? {...dimensions,key:productKey,description:row.description,quantity:0};
   item.quantity += row.quantity;
+  if (checked?.has(row.id)) item.checked = (item.checked??0)+checked.get(row.id);
   products.set(productKey,item);
   const key = JSON.stringify([row.city??'',row.customerId,row.destination]);
   const customer = customers.get(key) ?? {key,city:row.city??'',name:row.customerName,lines:[]};

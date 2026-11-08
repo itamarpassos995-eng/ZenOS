@@ -1,5 +1,7 @@
 // All interface copy is selected through the central ZenOS language context.
 const messages={
+ shortageReason:['Motivo da falta, se houver','Motivo del faltante, si corresponde'],
+ shortage:['Falta','Faltante'],
  loadSummary:['Resumo geral de carregamento','Resumen general de carga'],
  byCustomer:['Separação por cliente e cidade','Separación por cliente y ciudad'],
  cityUnknown:['Cidade não informada','Ciudad sin informar'],

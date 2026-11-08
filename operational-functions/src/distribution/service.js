@@ -75,6 +75,7 @@ export function distributionService(db,{now=()=>Date.now()}={}) {
    if(prior.exists){if(prior.data().generation!==c.generation)error('V2_ROUTE_CHANGED');if(prior.data().fingerprint!==fingerprint||prior.data().operatorId!==actor.operatorId)error('IDEMPOTENCY_CONFLICT');return {...prior.data().result,replayed:true};}
    const headRef=db.doc(c.base),sequence=integer(c.head.sequence)+1,operationId=hash(`distribution:${input.key}`);
    const writes=[],patches=[],orderWrites=new Map(),productWrites=new Map(),audit=[];
+   let loadingCheck;
    const orderCache=new Map(),productCache=new Map();
    const readOrder=async orderId=>{
     if(!orderCache.has(orderId)){
@@ -150,8 +151,15 @@ export function distributionService(db,{now=()=>Date.now()}={}) {
     }
     if(input.type==='START_PICK')load={...transitionLoad(load,'LOADING'),pickingState:'IN_PROGRESS'};
     if(input.type==='CHECK') {
-     if(load.state!=='LOADING'||!Array.isArray(p.quantities)||p.quantities.length!==load.lines.length||p.quantities.some((n,i)=>n!==load.lines[i].quantity))error('CHECK_MISMATCH');
-     load={...transitionLoad(load,'LOADED'),pickingState:'COMPLETED',checkedBy:actor.operatorId,checkedAt:now()};
+     if(load.state!=='LOADING'||!Array.isArray(p.quantities)||p.quantities.length!==load.lines.length||p.quantities.some((n,i)=>!Number.isSafeInteger(n)||n<0||n>load.lines[i].quantity))error('CHECK_MISMATCH');
+     const lines=load.lines.map((line,i)=>({lineId:line.id,authorized:line.quantity,checked:p.quantities[i]}));
+     const shortage=lines.some(line=>line.checked<line.authorized);
+     const reason=typeof p.reason==='string'?p.reason.trim():'';
+     if((shortage&&!reason)||reason.length>300)error('CHECK_MISMATCH');
+     loadingCheck={lines,reason,operatorId:actor.operatorId,at:now(),revision:load.revision+1};
+     load=shortage
+      ? {...load,revision:load.revision+1,pickingState:'SHORTAGE',loadingCheck}
+      : {...transitionLoad(load,'LOADED'),pickingState:'COMPLETED',checkedBy:actor.operatorId,checkedAt:loadingCheck.at,loadingCheck};
     }
     if(input.type==='APPROVE') {
      if(load.pickingState!=='COMPLETED')error('CHECK_REQUIRED');
@@ -227,7 +235,7 @@ export function distributionService(db,{now=()=>Date.now()}={}) {
    tx.create(db.doc(`${c.base}/operations/${operationId}`),receipt);
    tx.update(headRef,{sequence,fieldRevisions:revisions,lastReceipt:operationId});
    tx.create(db.doc(`${c.root}/distribution_outbox/${operationId}`),{id:operationId,type:input.type==='DISPATCH'?'distribution.shipment.dispatched.v1':'distribution.load.changed.v1',version:1,tenantId:uid,entityId:load.id,revision:load.revision,correlationId:input.key,occurredAt:new Date(now()).toISOString(),state:'LOCAL_ONLY',payload:{loadId:load.id,state:load.state}});
-   tx.create(db.doc(`${c.root}/distribution_audit/${operationId}`),{operatorId:actor.operatorId,type:input.type,loadId:load.id,sequence,at:now(),stockMovements:audit});
+   tx.create(db.doc(`${c.root}/distribution_audit/${operationId}`),{operatorId:actor.operatorId,type:input.type,loadId:load.id,sequence,at:now(),stockMovements:audit,...(loadingCheck?{loadingCheck}:{})});
    return result;
   },{maxAttempts:15});
  }

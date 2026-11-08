@@ -62,6 +62,9 @@
 <p>Simulação visual · documento não fiscal</p>
 <button id="printLoad">Imprimir / salvar PDF</button>
 <h3>Resumo geral</h3><ul id="demoProducts"></ul>
+<h3>Conferência simulada</h3>
+<label>Papel Sirius conferido de 45 pacotes <input id="demoChecked" type="number" min="0" max="45" step="1" value="42"></label>
+<p id="demoShortage" aria-live="polite"></p>
 <h3>Separação por cliente e cidade</h3><ul id="demoCustomers"></ul>
 </section>
 <section id="finance" class="content hide">
@@ -153,5 +156,15 @@ function list(id,items){
 list('demoProducts',summary.products.map(row=>`${row.description}: ${row.quantity} ${row.unit}`));
 list('demoCustomers',summary.customers.map(group=>`${group.city} · ${group.name} — ${group.lines.map(row=>`${row.description}: ${row.quantity} ${row.unit}`).join(' · ')}`));
 document.getElementById('printLoad').addEventListener('click',()=>window.print());
+const checked=document.getElementById('demoChecked');
+function showShortage(){
+ const count=checked.valueAsNumber;
+ document.getElementById('demoShortage').textContent=!Number.isInteger(count)||count<0||count>45
+  ? 'Informe uma quantidade entre 0 e 45.'
+  : count===45?'Conferência completa. Carga apta para aprovação na simulação.'
+   : `Faltam ${45-count} pacotes. A expedição continua bloqueada até nova conferência.`;
+}
+checked.addEventListener('input',showShortage);
+showShortage();
 </script>
 </body></html>

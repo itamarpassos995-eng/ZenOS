@@ -11,6 +11,34 @@ const cmd=(f,type,loadId,revision,payload={},key=randomUUID())=>service.command(
 async function create(f,loadId,orderId='O001',quantity=5){return cmd(f,'CREATE',loadId,0,{selections:[{orderId,lineIndex:0,quantity}]});}
 async function ready(f,loadId){await create(f,loadId);for(const [type,rev,payload]of [['RESERVE',1,{}],['START_PICK',2,{}],['CHECK',3,{quantities:[5]}],['APPROVE',4,{}],['MANIFEST',5,{vehicle:'TEST-123',driver:'Motorista sintético',route:'Rota teste'}]])await cmd(f,type,loadId,rev,payload);}
 const detail=(f,loadId)=>service.query(f.uid,f.s.sessionToken,{type:'detail',loadId});
+test('records a shortage, blocks dispatch and freezes the successful recheck in the manifest',async()=>{
+ const f=await setup({stock:10});
+ await create(f,'SHORT');
+ await cmd(f,'RESERVE','SHORT',1);
+ await cmd(f,'START_PICK','SHORT',2);
+ const payload={quantities:[4],reason:'Uma unidade não localizada'};
+ const key=randomUUID();
+ const check=await cmd(f,'CHECK','SHORT',3,payload,key);
+ assert.equal(check.state,'LOADING');
+ assert.equal((await cmd(f,'CHECK','SHORT',3,payload,key)).replayed,true);
+ const {load}=await detail(f,'SHORT');
+ assert.equal(load.loadingCheck.lines[0].checked,4);
+ assert.equal(load.loadingCheck.operatorId,'admin');
+ assert.equal(load.loadingCheck.reason,payload.reason);
+ await assert.rejects(cmd(f,'APPROVE','SHORT',4),{code:'CHECK_REQUIRED'});
+ await assert.rejects(cmd(f,'DISPATCH','SHORT',4),{code:'INVALID_TRANSITION'});
+ const product=db.doc(`${f.base}/produtos/P1`);
+ assert.equal((await product.get()).data().data.estoque,10);
+ await cmd(f,'CHECK','SHORT',4,{quantities:[5]});
+ await cmd(f,'APPROVE','SHORT',5);
+ await cmd(f,'MANIFEST','SHORT',6,{vehicle:'TEST',driver:'Sintético',route:'Teste'});
+ const {load:approved}=await detail(f,'SHORT');
+ assert.equal(approved.manifestVersions[0].loadingCheck.lines[0].checked,5);
+ await cmd(f,'DISPATCH','SHORT',7);
+ assert.equal((await product.get()).data().data.estoque,5);
+ const audit=(await db.collection(`${f.root}/distribution_audit`).where('loadId','==','SHORT').get()).docs.map(doc=>doc.data());
+ assert.ok(audit.some(event=>event.loadingCheck?.reason===payload.reason));
+});
 test('PIN server verification rejects incorrect/legacy credentials and seller without inventory access',async()=>{
  const f=await setup();
  await assert.rejects(service.login(f.uid,{operatorId:'admin',pin:'wrong'}),{code:'INVALID_CREDENTIAL'});

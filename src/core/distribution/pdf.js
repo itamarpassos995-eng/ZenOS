@@ -25,6 +25,7 @@ export async function manifestPdf(document,{language='pt',copy=false,imageLoader
  add(t('loadSummary'),13,true);
  for(const row of products){
   add(`${row.sku} | ${row.description} | ${t('authorizedQuantity')}: ${row.quantity} ${row.unit}`,10,true);
+  if(row.checked!==undefined)add(`${t('checked')}: ${row.checked} ${row.unit} | ${t('shortage')}: ${row.quantity-row.checked}`,9);
   const details=[row.variant,row.packaging,row.lot,row.warehouseId].filter(Boolean);
   if(details.length)add(details.join(' | '),9);
  }
