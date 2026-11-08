@@ -48,7 +48,7 @@ export function replaceLoadLines(load, lines) {
   requireValue(Number.isSafeInteger(line.quantity) && line.quantity > 0, 'INVALID_QUANTITY');
   // Quantity is in the product's declared base unit. Fractional packaging awaits an explicit conversion contract.
   const amount = money(line.amount);
-  return {...Object.fromEntries(['id','orderId','orderLineId','productId','sku','description','unit','customerId','customerName','destination','sellerId'].map(k=>[k,line[k]])),tenantId:load.tenantId,quantity:line.quantity,amount};
+  return {...Object.fromEntries(['id','orderId','orderLineId','productId','sku','description','unit','customerId','customerName','destination','sellerId'].map(k=>[k,line[k]])),...Object.fromEntries(['city','variant','packaging','lot'].filter(k=>text(line[k])).map(k=>[k,line[k]])),tenantId:load.tenantId,quantity:line.quantity,amount};
  });
  return freeze({...clone(load),lines:clean,revision:load.revision+1});
 }
@@ -71,4 +71,28 @@ export function historicalManifest(load,version) {
  const document = load.manifestVersions.find(m=>m.version === version);
  requireValue(document, 'MANIFEST_NOT_FOUND');
  return freeze(clone(document));
+}
+
+// Project one immutable manifest version. Distinct allocations of the same
+// order line in other loads are outside this document.
+export function summarizeManifest(document) {
+ const products = new Map(), customers = new Map(), seen = new Set();
+ for (const row of document.lines) {
+  if (seen.has(row.id)) fail('DUPLICATE_LINE');
+  seen.add(row.id);
+  const dimensions = {
+   productId:row.productId, sku:row.sku, unit:row.unit,
+   variant:row.variant??'', packaging:row.packaging??'', lot:row.lot??'',
+   warehouseId:row.warehouseId??document.warehouseId
+  };
+  const productKey = JSON.stringify(dimensions);
+  const item = products.get(productKey) ?? {...dimensions,key:productKey,description:row.description,quantity:0};
+  item.quantity += row.quantity;
+  products.set(productKey,item);
+  const key = JSON.stringify([row.city??'',row.customerId,row.destination]);
+  const customer = customers.get(key) ?? {key,city:row.city??'',name:row.customerName,lines:[]};
+  customer.lines.push(row);
+  customers.set(key,customer);
+ }
+ return {products:[...products.values()],customers:[...customers.values()]};
 }

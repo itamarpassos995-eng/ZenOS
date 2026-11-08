@@ -1,3 +1,4 @@
+import {summarizeManifest} from './domain.js';
 import embeddedFonts from './pdfFonts.js';
 import {buildLocalPdf,localPdfImage} from '../zenReceiptPdf.js';
 import {distributionText,distributionMoney} from './i18n.js';
@@ -20,13 +21,25 @@ export async function manifestPdf(document,{language='pt',copy=false,imageLoader
  add(`${t('date')}: ${new Date(document.issuedAt).toLocaleString(language==='es'?'es-PY':'pt-BR',{timeZone:document.timeZone||'UTC'})}`,9);add(`${t('warehouse')}: ${document.warehouseId}`,9);
  add(`${t('vehicle')}: ${document.vehicle}   |   ${t('driver')}: ${document.driver}`,9);
  add(`${t('route')}: ${document.route}`,9);y-=5;line();y-=20;
- for(const row of document.lines){
+ const {products,customers}=summarizeManifest(document);
+ add(t('loadSummary'),13,true);
+ for(const row of products){
+  add(`${row.sku} | ${row.description} | ${t('authorizedQuantity')}: ${row.quantity} ${row.unit}`,10,true);
+  const details=[row.variant,row.packaging,row.lot,row.warehouseId].filter(Boolean);
+  if(details.length)add(details.join(' | '),9);
+ }
+ add(t('byCustomer'),13,true);
+ for(const group of customers){
+  reserve(140);
+  add(`${group.city||t('cityUnknown')} | ${group.name}`,11,true);
+  for(const row of group.lines){
   reserve(120);
   add(`${t('order')} ${row.orderId}  |  ${t('seller')}: ${row.sellerId}`,9,true);
   add(`${row.customerName} - ${row.destination}`,10);
   add(`${row.sku}  |  ${row.description}`,10,true);
   add(`${t('quantity')}: ${row.quantity} ${row.unit}     ${t('amount')}: ${distributionMoney(row.amount)}`,10);
   y-=6;line();y-=18;
+  }
  }
  reserve(150);add(`${t('items')}: ${document.lines.length}`,10,true);add(t('total'),10,true);
  for(const [currency,minor] of Object.entries(document.totalsByCurrency))add(distributionMoney({currency,minor,precision:currency==='PYG'?0:2}),10);

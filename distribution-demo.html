@@ -13,6 +13,7 @@
 <aside class="sidebar">
 <div class="brand"><img src="/logo-zenos.png" alt="ZenOS" style="display:block;max-width:172px;width:100%;height:45px;object-fit:contain;object-position:left center"></div>
 <button class="nav active" data-view="operation"><span>▦</span> Operação completa</button>
+<button class="nav" data-view="load-summary">Romaneio consolidado</button>
 <button class="nav" data-view="finance"><span>◈</span> Entrega C — simulador</button>
 <button class="nav" data-view="audit"><span>▤</span> Histórico e documentos</button>
 <div class="sidefoot">DISTRIBUIÇÃO & LOGÍSTICA<br>Ambiente exclusivamente ilustrativo.<br>Sem Firebase e sem efeitos reais.</div>
@@ -55,6 +56,13 @@
 <div class="order"><span>Compensação executada</span><b>₲ 0</b></div>
 <p class="safe">O registro de devolução não reduz automaticamente a dívida. Qualquer compensação real depende da autorização específica do backend.</p>
 </div>
+</section>
+<section id="load-summary" class="content hide">
+<h2>Romaneio consolidado · carga sintética</h2>
+<p>Simulação visual · documento não fiscal</p>
+<button id="printLoad">Imprimir / salvar PDF</button>
+<h3>Resumo geral</h3><ul id="demoProducts"></ul>
+<h3>Separação por cliente e cidade</h3><ul id="demoCustomers"></ul>
 </section>
 <section id="finance" class="content hide">
 <div class="panel">
@@ -117,7 +125,7 @@ function render(){
  $("progress").innerHTML=steps.map(function(x,i){return "<span class=\"dot "+(i<stage?"done":i===stage?"current":"")+"\"></span>";}).join("");
  $("auditLog").innerHTML=steps.slice(0,stage+1).map(function(x,i){return "<p><b>"+String(i+1).padStart(2,"0")+" — "+x[0]+"</b><small>"+x[1]+" · Evento somente visual</small></p>";}).join("");
 }
-function view(name){document.querySelectorAll("[data-view]").forEach(function(b){b.classList.toggle("active",b.dataset.view===name)});["operation","finance","audit"].forEach(function(v){$(v).classList.toggle("hide",v!==name)});}
+function view(name){document.querySelectorAll("[data-view]").forEach(function(b){b.classList.toggle("active",b.dataset.view===name)});["operation","load-summary","finance","audit"].forEach(function(v){$(v).classList.toggle("hide",v!==name)});}
 document.querySelectorAll("[data-view]").forEach(function(b){b.addEventListener("click",function(){view(b.dataset.view)})});
 $("next").addEventListener("click",function(){if(stage<9){stage++;render()}});
 function reset(){stage=0;$("preview").value="none";updateC();view("operation");render()}
@@ -128,5 +136,22 @@ $("preview").addEventListener("change",updateC);
 $("language").addEventListener("click",function(){lang=lang==="pt"?"es":"pt";$("language").textContent=lang==="pt"?"ES":"PT";$("title").textContent=lang==="pt"?"Central de Distribuição":"Central de Distribución";$("lead").textContent=lang==="pt"?"Acompanhe uma venda fictícia desde o PDV até o romaneio, entrega, recebimento, devolução e conciliação. Navegue pelas etapas e confira documentos internos.":"Sigue una venta ficticia desde el punto de venta hasta la hoja de ruta, entrega, cobro, devolución y conciliación. Explora las etapas y los documentos internos.";});
 render();updateC();
 })();
+</script>
+<script type="module">
+import {summarizeManifest} from './src/core/distribution/domain.js';
+const customers=[['Cliente A','Pedro Juan Caballero',10,20],['Cliente B','Ponta Porã',20,10],['Cliente C','Dourados',15,5]];
+const products=[['SIR-PCT','Papel higiênico Sirius','pacotes'],['LC-CX','Leite condensado','caixas']];
+const lines=customers.flatMap(([customerName,city,...quantities])=>products.map(([sku,description,unit],i)=>({
+ id:customerName+sku,customerId:customerName,customerName,city,productId:sku,sku,description,unit,quantity:quantities[i]
+})));
+const summary=summarizeManifest({warehouseId:'DEP-DEMO',lines});
+function list(id,items){
+ document.getElementById(id).replaceChildren(...items.map(text=>{
+  const item=document.createElement('li');item.textContent=text;return item;
+ }));
+}
+list('demoProducts',summary.products.map(row=>`${row.description}: ${row.quantity} ${row.unit}`));
+list('demoCustomers',summary.customers.map(group=>`${group.city} · ${group.name} — ${group.lines.map(row=>`${row.description}: ${row.quantity} ${row.unit}`).join(' · ')}`));
+document.getElementById('printLoad').addEventListener('click',()=>window.print());
 </script>
 </body></html>

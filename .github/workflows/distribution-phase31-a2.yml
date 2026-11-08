@@ -7,6 +7,7 @@ on:
       - 'scripts/distribution/phase31-c-gates.test.mjs'
       - 'scripts/distribution/phase31-b4-native-returns-v2-emulator.mjs'
       - 'operational-functions/test/distribution/b4-operator-matrix.test.mjs'
+      - 'scripts/distribution/domain.test.mjs'
   workflow_dispatch:
 permissions:
   contents: read

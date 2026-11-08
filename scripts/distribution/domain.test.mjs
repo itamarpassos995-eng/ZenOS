@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createLoad,replaceLoadLines,transitionLoad,issueManifest,historicalManifest,money,totalsByCurrency,validateQuantities,transition} from '../../src/core/distribution/domain.js';
 import {executeLoadCommand} from '../../src/core/distribution/commands.js';
+import {summarizeManifest} from '../../src/core/distribution/domain.js';
+import {manifestPdf} from '../../src/core/distribution/pdf.js';
 const amount = (currency='PYG',minor='39990')=>({currency,minor,precision:currency==='PYG'?0:2,kind:'sale',source:'order-test'});
 const line = overrides=>({id:'l1',tenantId:'demo',orderId:'order1',orderLineId:'ol1',productId:'p1',sku:'SKU1',description:'Produto sintético',unit:'UN',customerId:'c1',customerName:'Cliente sintético',destination:'Destino teste',sellerId:'seller1',quantity:2,amount:amount(),...overrides});
 const draft=()=>createLoad({id:'load1',tenantId:'demo',warehouseId:'w1',policyVersion:'policy1'});
@@ -9,6 +11,28 @@ const filled=()=>replaceLoadLines(draft(),[line()]);
 const approved=()=>['PLANNED','LOADING','LOADED','APPROVED'].reduce(transitionLoad,filled());
 const header = {documentId:'m1',number:'TEST-001',issuedAt:'2026-11-06T12:00:00Z',issuer:{name:'Empresa sintética',taxId:'TEST'},vehicle:'TEST',driver:'Motorista teste',route:'Teste',verificationCode:'authenticated-only'};
 const rejectsCode=(fn,code)=>assert.throws(fn,e=>e.code===code);
+test('issued manifest reconciles three clients, separates product dimensions and exports A4',async()=>{
+ const quantities=[[10,20],[20,10],[15,5]];
+ const lines=quantities.flatMap(([paper,milk],i)=>[
+  line({id:`paper-${i}`,customerId:`c${i}`,city:`city-${i}`,quantity:paper,packaging:'pack'}),
+  line({id:`milk-${i}`,customerId:`c${i}`,city:`city-${i}`,quantity:milk,productId:'milk',sku:'MILK',unit:'CX'})
+ ]);
+ const load=['PLANNED','LOADING','LOADED','APPROVED'].reduce(transitionLoad,replaceLoadLines(draft(),lines));
+ const document=historicalManifest(issueManifest(load,header),1);
+ const summary=summarizeManifest(document);
+ assert.deepEqual(summary.products.map(row=>row.quantity),[45,35]);
+ assert.deepEqual(summary.customers.map(group=>group.lines.map(row=>row.quantity)),quantities);
+ const row=lines[0];
+ const distinct=[row,...['sku','unit','packaging','variant','lot','warehouseId','productId'].map(
+  (field,i)=>({...row,id:`variant-${i}`,[field]:'other'})
+ )];
+ assert.equal(summarizeManifest({...document,lines:distinct}).products.length,8);
+ rejectsCode(()=>summarizeManifest({...document,lines:[row,row]}),'DUPLICATE_LINE');
+ for(const language of ['pt','es']){
+  const pdf=await manifestPdf(document,{language});
+  assert.equal(Buffer.from(pdf.bytes.slice(0,8)).toString(),'%PDF-1.4');
+ }
+});
 test('money preserves PYG and independent BRL cost; exact integers above Number range',()=>{
  assert.deepEqual(totalsByCurrency([amount(),amount('BRL','1234'),amount('PYG','9007199254740993')]),{PYG:'9007199254780983',BRL:'1234'});
  for(const bad of [amount('PYG','1.1'),amount('XYZ'),{...amount(),precision:2},{...amount(),minor:10}]) rejectsCode(()=>money(bad),'INVALID_'+(bad.currency==='XYZ'||bad.precision===2?'CURRENCY_PRECISION':'MINOR_AMOUNT'));
