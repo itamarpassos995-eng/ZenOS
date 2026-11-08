@@ -12,6 +12,14 @@ const cmd=(f,type,loadId,revision,payload={},key=randomUUID())=>service.command(
 async function create(f,loadId,orderId='O001',quantity=5){return cmd(f,'CREATE',loadId,0,{selections:[{orderId,lineIndex:0,quantity}]});}
 async function ready(f,loadId){await create(f,loadId);for(const [type,rev,payload]of [['RESERVE',1,{}],['START_PICK',2,{}],['CHECK',3,{quantities:[5]}],['APPROVE',4,{}],['CONFIRM_LOADING',5,{quantities:[5]}],['MANIFEST',6,{vehicle:'TEST-123',driver:'Motorista sintético',route:'Rota teste'}]])await cmd(f,type,loadId,rev,payload);}
 const detail=(f,loadId)=>service.query(f.uid,f.s.sessionToken,{type:'detail',loadId});
+test('PYG load creation rejects fractional commercial totals without allocating stock or order quantity',async()=>{
+ const f=await setup({orders:1});
+ const order=db.doc(`${f.base}/vendas/O001`);
+ await order.update({'data.totalOriginal':199950.25});
+ await assert.rejects(create(f,'PYG-FRACTION'),{code:'INVALID_CURRENCY_PRECISION'});
+ assert.equal((await order.get()).data().data._distribution,undefined);
+ assert.equal((await db.doc(`${f.root}/distribution_loads/PYG-FRACTION`).get()).exists,false);
+});
 test('partial dispatch releases the unshipped balance for a second load without duplicating stock',async()=>{
  const fixture=await setupTrip({stock:10,orders:1});
  const f={...fixture,s:fixture.manager};

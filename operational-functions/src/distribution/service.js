@@ -14,6 +14,7 @@ const integer=(v,min=0)=>{if(!Number.isSafeInteger(v)||v<min)error('INVALID_QUAN
 // Converts persisted decimal to minor units without binary arithmetic. No current/default FX.
 function minor(value,precision) {
  const m=String(value).match(/^(\d+)(?:\.(\d+))?$/);if(!m)error('MONEY_SOURCE_REQUIRED');
+ if(precision===0&&/[1-9]/.test(m[2]||''))error('INVALID_CURRENCY_PRECISION');
  const fraction=(m[2]||'').padEnd(precision+1,'0');
  return BigInt(m[1])*10n**BigInt(precision)+BigInt(fraction.slice(0,precision)||0)+(Number(fraction[precision]||0)>=5?1n:0n);
 }
