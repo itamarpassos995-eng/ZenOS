@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ZenOS | Distribuição & Logística — Demo</title>
+<meta name="robots" content="noindex,nofollow">
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#e9f4f6;background:#09151d;font-synthesis:none}*{box-sizing:border-box}body{margin:0}button{font:inherit;cursor:pointer}button:focus-visible,a:focus-visible{outline:3px solid #6de2d6;outline-offset:3px}.layout{min-height:100vh;display:grid;grid-template-columns:238px 1fr}.sidebar{background:#0d222b;border-right:1px solid #28404a;padding:27px 16px;display:flex;flex-direction:column}.brand{display:flex;align-items:center;gap:12px;padding:8px 10px 29px;font-size:22px;font-weight:800;letter-spacing:-.9px}.mark{display:grid;place-items:center;width:41px;height:41px;background:#0c7d7b;border:2px solid #4fe1d7;border-radius:13px;color:white;font-size:27px}.brand b{color:#55dfd0}.sidebar small{color:#849faa}.nav{width:100%;border:0;border-radius:12px;display:flex;align-items:center;gap:12px;padding:13px;text-align:left;background:transparent;color:#a4bec7;margin-bottom:5px}.nav.active{background:#183d45;color:#7af1db;font-weight:700}.nav span{font-size:20px}.sidefoot{margin-top:auto;border-top:1px solid #27434b;padding:20px 8px 6px;color:#a5bdc3;font-size:12px;line-height:1.7}.main{min-width:0;padding:28px clamp(18px,3vw,54px) 60px;max-width:1640px;width:100%;margin:auto}.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:26px}.eyebrow{letter-spacing:1.5px;text-transform:uppercase;font-size:11px;color:#76afaf;font-weight:800}.toplinks{display:flex;align-items:center;gap:8px}.pill{border:1px solid #47716d;color:#75f1db;background:#123430;border-radius:30px;padding:8px 12px;font-size:11px;font-weight:750}.ghost{background:#162932;border:1px solid #35515d;color:#e0f2f4;padding:10px 14px;border-radius:10px}.main h1{font-size:clamp(26px,3.3vw,39px);letter-spacing:-1.25px;margin:6px 0 10px}.lead{color:#9cb4be;max-width:890px;font-size:14px;line-height:1.6;margin:0 0 27px}.warning{color:#ffdba7;border:1px solid #705634;background:#3c2b1f;padding:12px 16px;border-radius:12px;font-size:12px;line-height:1.5;margin-bottom:24px}.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px;margin-bottom:23px}.metric,.panel{background:#10252f;border:1px solid #29434e;border-radius:16px}.metric{padding:18px 19px}.metric small{font-size:12px;color:#9fb5bc}.metric strong{font-size:25px;display:block;letter-spacing:-.8px;margin-top:10px}.metric em{display:block;color:#72d6c6;font-size:11px;font-style:normal;margin-top:7px}.content{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(300px,.9fr);gap:17px}.panel{padding:22px;min-width:0}.sectiontitle{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:17px}.sectiontitle h2{font-size:17px;margin:0}.sectiontitle small{font-size:11px;color:#8fb0b7}.progress{display:flex;gap:5px;flex-wrap:wrap;margin:16px 0 21px}.dot{flex:1;min-width:20px;height:6px;border-radius:10px;background:#29444e}.dot.done{background:#41c3b3}.dot.current{background:#f5bf68}.timeline{list-style:none;padding:0;margin:0}.timeline li{display:flex;gap:13px;align-items:start;padding:11px 0;border-bottom:1px solid #213b45}.circle{flex:0 0 25px;width:25px;height:25px;border:1px solid #41616a;border-radius:50%;display:grid;place-items:center;color:#8aafb5;font-weight:800;font-size:11px}.circle.done{background:#174d45;color:#7bf4d9;border-color:#288575}.circle.current{background:#644525;color:#f6c47c;border-color:#987045}.timeline b{font-size:13px}.timeline p{margin:3px 0 0;font-size:11px;color:#8ea8b2;line-height:1.5}.rowbtn{display:flex;flex-wrap:wrap;gap:9px;margin-top:21px}.primary{border:none;border-radius:10px;padding:12px 17px;background:#61decc;color:#073b3b;font-size:13px;font-weight:800}.primary:disabled{opacity:.45;cursor:not-allowed}.secondary{background:#193740;border:1px solid #4d7279;border-radius:10px;padding:12px 15px;color:#c9e7e6;font-size:13px}.minihead{font-size:12px;color:#93b2ba;text-transform:uppercase;letter-spacing:.8px;font-weight:750;margin:0 0 16px}.order{display:flex;justify-content:space-between;gap:8px;margin-bottom:13px;font-size:13px}.order span{color:#91afb7}.order b{font-size:13px;text-align:right}.divider{border:0;border-top:1px solid #28434c;margin:18px 0}.chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.chip{padding:5px 9px;border-radius:30px;background:#194740;color:#80ebd0;font-size:11px}.chip.pending{background:#503720;color:#ffc77d}.table{width:100%;border-collapse:collapse;font-size:12px}.table th{color:#9eb7bf;font-weight:600;text-align:left;padding:10px 6px;border-bottom:1px solid #36505a}.table td{padding:12px 6px;border-bottom:1px solid #253c48}.right{text-align:right!important}.audit{margin-top:17px;display:grid;gap:9px}.audit p{border-left:2px solid #3c817c;padding:2px 0 2px 11px;margin:0;font-size:12px;color:#b9d1d4;line-height:1.5}.audit small{display:block;color:#799da9;margin-top:3px}.cbox{border:1px dashed #877044;background:#302719;border-radius:12px;padding:17px;margin:18px 0}.cbox h3{color:#ffe0a4;margin:0 0 6px;font-size:15px}.cbox p{font-size:12px;line-height:1.65;color:#d0ba97;margin:0}.safe{font-size:12px;color:#8cb6b6;line-height:1.7}.empty{padding:22px 10px;text-align:center;color:#9bb3ba;border:1px dashed #35515b;border-radius:12px}.footer{margin-top:27px;font-size:12px;color:#7c9ca5;line-height:1.6}a{color:#83e8d6}.hide{display:none!important}@media(max-width:1150px){.layout{grid-template-columns:80px 1fr}.sidebar{padding:23px 10px}.brand{font-size:0;justify-content:center;padding:3px 0 30px}.nav{justify-content:center;font-size:0}.nav span{font-size:22px}.sidefoot{font-size:0}.content{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,1fr)}}@media(max-width:650px){.layout{display:block}.sidebar{height:auto;flex-direction:row;align-items:center;padding:8px 15px;gap:10px}.brand{padding:0;margin-right:auto}.mark{height:35px;width:35px;font-size:23px}.nav{width:auto;padding:9px;margin:0}.sidefoot{display:none}.main{padding:19px 14px 36px}.top{flex-wrap:wrap}.toplinks{margin-left:auto}.metrics{gap:8px}.metric{padding:13px}.metric strong{font-size:19px}.panel{padding:15px}.pill{font-size:10px}.rowbtn button{flex:1}}@media print{body{background:#fff;color:#14272d}.sidebar,.toplinks,.rowbtn,.warning{display:none}.layout{display:block}.panel,.metric{background:white;color:#132b34;border:1px solid #ddd}.lead,.metric small,.order span,.timeline p,.footer{color:#455}.main{padding:8px}.content{display:block}.content>div{margin-bottom:12px}.metrics{display:flex}.metric{flex:1}}
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+<div class="brand"><span class="mark">Z</span><span>Zen<b>OS</b></span></div>
+<button class="nav active" data-view="operation"><span>▦</span> Operação completa</button>
+<button class="nav" data-view="finance"><span>◈</span> Entrega C — simulador</button>
+<button class="nav" data-view="audit"><span>▤</span> Histórico e documentos</button>
+<div class="sidefoot">DISTRIBUIÇÃO & LOGÍSTICA<br>Ambiente exclusivamente ilustrativo.<br>Sem Firebase e sem efeitos reais.</div>
+</aside>
+<main class="main">
+<div class="top"><div class="eyebrow">Zenos / Distribuição / Homologação visual</div><div class="toplinks"><span class="pill">● DEMO SINTÉTICA</span><button class="ghost" id="language">ES</button></div></div>
+<h1 id="title">Central de Distribuição</h1>
+<p class="lead" id="lead">Acompanhe uma venda fictícia desde o PDV até o romaneio, entrega, recebimento, devolução e conciliação. Navegue pelas etapas e confira documentos internos.</p>
+<div class="warning" id="warning">DEMONSTRAÇÃO SEM BACKEND: os eventos são simulados no navegador. Não representam uma entrega executada, autorização fiscal, liquidação bancária ou liberação da Entrega C.</div>
+<div class="metrics">
+<div class="metric"><small>Pedido sintético</small><strong>#VEN-2026-1042</strong><em>Mercado Horizonte (TESTE)</em></div>
+<div class="metric"><small>Valor original</small><strong>₲ 199.950</strong><em>5 latas × ₲ 39.990</em></div>
+<div class="metric"><small>Recebido (simulado)</small><strong id="paidMetric">₲ 0</strong><em>Moeda original: PYG</em></div>
+<div class="metric"><small>Etapa operacional</small><strong id="stepMetric">01 / 10</strong><em id="stageName">Venda no PDV</em></div>
+</div>
+<section id="operation" class="content">
+<div class="panel">
+<div class="sectiontitle"><h2>Jornada da operação</h2><small id="stepTag">Etapa 1 de 10</small></div>
+<div class="progress" id="progress"></div>
+<ol class="timeline" id="timeline"></ol>
+<div class="rowbtn"><button id="next" class="primary">Avançar etapa demonstrativa →</button><button id="reset" class="secondary">Reiniciar</button><button id="print" class="secondary">Imprimir resumo</button></div>
+</div>
+<div class="panel">
+<div class="sectiontitle"><h2>Detalhes do romaneio</h2><span class="pill">SINTÉTICO</span></div>
+<div class="minihead">Expedição e cliente</div>
+<div class="order"><span>Romaneio</span><b>#ROM-2026-042</b></div>
+<div class="order"><span>Cliente</span><b>Mercado Horizonte</b></div>
+<div class="order"><span>Motorista</span><b>Carlos (fictício)</b></div>
+<div class="order"><span>Veículo</span><b>HML-2026</b></div>
+<div class="order"><span>País de emissão</span><b>Paraguai (simulação)</b></div>
+<hr class="divider">
+<div class="minihead">Itens / movimentação de estoque</div>
+<table class="table"><thead><tr><th>Produto</th><th class="right">Qtd.</th><th class="right">Status</th></tr></thead><tbody><tr><td>Tinta acrílica 18L</td><td class="right">5 UN</td><td class="right" id="stockState">Pendente</td></tr></tbody></table>
+<div class="chips"><span id="deliveryChip" class="chip pending">Entrega não confirmada</span><span id="returnChip" class="chip pending">Devolução não registrada</span></div>
+<hr class="divider">
+<div class="minihead">Conciliação exibida</div>
+<div class="order"><span>Recebimento fictício</span><b id="collected">₲ 0</b></div>
+<div class="order"><span>Saldo antes de compensar</span><b id="due">₲ 199.950</b></div>
+<div class="order"><span>Devolução interna</span><b id="returned">₲ 0</b></div>
+<div class="order"><span>Compensação executada</span><b>₲ 0</b></div>
+<p class="safe">O registro de devolução não reduz automaticamente a dívida. Qualquer compensação real depende da autorização específica do backend.</p>
+</div>
+</section>
+<section id="finance" class="content hide">
+<div class="panel">
+<div class="sectiontitle"><h2>Entrega C — prévia de compensações</h2><span class="pill">NÃO OPERACIONAL</span></div>
+<p class="lead">Simule o efeito contábil proposto de uma devolução sobre uma parcela. Esta interface não emite comandos, não grava saldos e não habilita a Entrega C.</p>
+<div class="cbox"><h3>Execução bloqueada por gates B.4</h3><p>PREPARATION_OF_C_ALLOWED=false · EXECUTION_OF_C_ALLOWED=false. Para operar de verdade, serão exigidos origem comprovada, saldo atual, autorização financeira do operador, transação idempotente e confirmação fiscal/externa quando aplicável.</p></div>
+<div class="order"><span>Venda original</span><b>₲ 199.950</b></div>
+<div class="order"><span>Recebimento da jornada</span><b>₲ 79.980</b></div>
+<div class="order"><span>Saldo após recebimento</span><b>₲ 119.970</b></div>
+<div class="order"><span>Uma unidade devolvida internamente</span><b>₲ 39.990</b></div>
+<hr class="divider">
+<label for="preview" class="minihead">Simular decisão financeira (sem gravar)</label>
+<select id="preview" class="ghost" style="width:100%;max-width:370px"><option value="none">Sem compensação autorizada</option><option value="partial">Hipótese: compensação de ₲ 39.990</option></select>
+<div class="order" style="margin-top:18px"><span>Saldo hipotético após decisão</span><b id="hypothetical">₲ 119.970</b></div>
+<div class="chips"><span class="chip pending">Estorno bancário: não verificado</span><span class="chip pending">Autorização fiscal: não verificada</span></div>
+<div class="rowbtn"><button class="secondary" id="printC">Imprimir simulação</button></div>
+</div>
+<div class="panel"><h2 style="font-size:17px;margin-top:0">O que falta para executar C</h2><ol class="timeline"><li><span class="circle">1</span><div><b>Identidade e permissões financeiras</b><p>Autorização no limite de confiança, inclusive operador delegado e revogação.</p></div></li><li><span class="circle">2</span><div><b>Concorrência entre módulos</b><p>PDV × recebimento × devolução × caixa, com revisão e reversão segura.</p></div></li><li><span class="circle">3</span><div><b>Histórico, câmbio e evidência externa</b><p>Fiado legado, origem, valor original e confirmação efetiva quando necessária.</p></div></li><li><span class="circle">4</span><div><b>Gate de liberação</b><p>G1–G10 verificados antes da preparação executável de C.</p></div></li></ol></div>
+</section>
+<section id="audit" class="content hide">
+<div class="panel"><div class="sectiontitle"><h2>Eventos ilustrativos</h2><span class="pill">SEM PERSISTÊNCIA</span></div><div class="audit" id="auditLog"></div><div class="rowbtn"><button class="secondary" id="printAudit">Imprimir documento interno</button><button class="secondary" id="resetAudit">Reiniciar demonstração</button></div></div>
+<div class="panel"><h2 style="font-size:17px;margin-top:0">Documentos internos</h2><p class="lead">Resumo sintético de romaneio e conciliação disponível para impressão. Não corresponde a uma NF-e, Nota de Crédito Eletrônica ou Nota de Remisión autorizada.</p><div class="chips"><span class="chip">Romaneio ilustrativo</span><span class="chip">Histórico ilustrativo</span><span class="chip pending">Fiscal não emitido</span></div><hr class="divider"><div class="minihead">Origem dos valores</div><div class="order"><span>Moeda do pedido</span><b>PYG</b></div><div class="order"><span>Cotação atual utilizada</span><b>Nenhuma</b></div><div class="order"><span>Dados de clientes reais</span><b>Não utilizados</b></div></div>
+</section>
+<div class="footer">ZenOS Distribuição & Logística · Prévia visual independente para avaliação de UX. Todas as identidades, eventos, valores e documentos desta demonstração são fictícios. Não existe conexão com Firebase, banco, adquirente, DNIT ou SEFAZ nesta página.</div>
+</main></div>
+<script>
+(function(){
+"use strict";
+var stage=0,lang="pt";
+var steps=[
+["Venda no PDV","Pedido a prazo criado com origem e moeda PYG preservadas."],
+["Separação de estoque","5 unidades reservadas sem baixa duplicada."],
+["Romaneio gerado","ROM-2026-042 vinculado à venda sintética."],
+["Expedição","Veículo e motorista fictícios atribuídos."],
+["Entrega confirmada","4 unidades entregues; 1 unidade retornará ao depósito."],
+["Recebimento parcial","₲ 79.980 recebidos; saldo original em aberto ₲ 119.970."],
+["Devolução interna","1 unidade, ₲ 39.990, registrada sem compensação automática."],
+["Conferência de retorno","Mercadoria boa reintegrada uma vez ao estoque."],
+["Conciliação","Venda, parcela, recebimento, devolução e caixa vinculados para consulta."],
+["Encerramento","Romaneio encerrado; efeitos fiscais e bancários não confirmados."]
+];
+var $=function(id){return document.getElementById(id)};
+var fmt=function(n){return "₲ "+n.toLocaleString("es-PY")};
+function render(){
+ $("stepMetric").textContent=String(stage+1).padStart(2,"0")+" / 10";
+ $("stageName").textContent=steps[stage][0];
+ $("stepTag").textContent="Etapa "+(stage+1)+" de 10";
+ $("paidMetric").textContent=fmt(stage>=5?79980:0);
+ $("collected").textContent=fmt(stage>=5?79980:0);
+ $("due").textContent=fmt(stage>=5?119970:199950);
+ $("returned").textContent=fmt(stage>=6?39990:0);
+ $("stockState").textContent=stage>=7?"1 unidade reintegrada":stage>=1?"5 unidades reservadas":"Pendente";
+ $("deliveryChip").textContent=stage>=4?"4 UN entregues":"Entrega não confirmada";
+ $("deliveryChip").className="chip "+(stage>=4?"":"pending");
+ $("returnChip").textContent=stage>=6?"1 UN devolvida":"Devolução não registrada";
+ $("returnChip").className="chip "+(stage>=6?"":"pending");
+ $("next").disabled=stage===steps.length-1;
+ $("next").textContent=stage===steps.length-1?"Jornada concluída":"Avançar etapa demonstrativa →";
+ $("timeline").innerHTML=steps.map(function(x,i){return "<li><span class=\"circle "+(i<stage?"done":i===stage?"current":"")+"\">"+(i<stage?"✓":i+1)+"</span><div><b>"+x[0]+"</b><p>"+x[1]+"</p></div></li>";}).join("");
+ $("progress").innerHTML=steps.map(function(x,i){return "<span class=\"dot "+(i<stage?"done":i===stage?"current":"")+"\"></span>";}).join("");
+ $("auditLog").innerHTML=steps.slice(0,stage+1).map(function(x,i){return "<p><b>"+String(i+1).padStart(2,"0")+" — "+x[0]+"</b><small>"+x[1]+" · Evento somente visual</small></p>";}).join("");
+}
+function view(name){document.querySelectorAll("[data-view]").forEach(function(b){b.classList.toggle("active",b.dataset.view===name)});["operation","finance","audit"].forEach(function(v){$(v).classList.toggle("hide",v!==name)});}
+document.querySelectorAll("[data-view]").forEach(function(b){b.addEventListener("click",function(){view(b.dataset.view)})});
+$("next").addEventListener("click",function(){if(stage<9){stage++;render()}});
+function reset(){stage=0;$("preview").value="none";updateC();view("operation");render()}
+$("reset").addEventListener("click",reset);$("resetAudit").addEventListener("click",reset);
+["print","printC","printAudit"].forEach(function(id){$(id).addEventListener("click",function(){window.print()})});
+function updateC(){$("hypothetical").textContent=fmt($("preview").value==="partial"?79980:119970)}
+$("preview").addEventListener("change",updateC);
+$("language").addEventListener("click",function(){lang=lang==="pt"?"es":"pt";$("language").textContent=lang==="pt"?"ES":"PT";$("title").textContent=lang==="pt"?"Central de Distribuição":"Central de Distribución";$("lead").textContent=lang==="pt"?"Acompanhe uma venda fictícia desde o PDV até o romaneio, entrega, recebimento, devolução e conciliação. Navegue pelas etapas e confira documentos internos.":"Sigue una venta ficticia desde el punto de venta hasta la hoja de ruta, entrega, cobro, devolución y conciliación. Explora las etapas y los documentos internos.";});
+render();updateC();
+})();
+</script>
+</body></html>
