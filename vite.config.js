@@ -63,6 +63,7 @@ export default defineConfig(({ mode }) => ({
       input: {
         main: resolve(process.cwd(), 'index.html'),
         commerceHomologacao: resolve(process.cwd(), 'commerce-homologacao.html'),
+        distributionDemo: resolve(process.cwd(), 'distribution-demo.html'),
       },
     },
   },
