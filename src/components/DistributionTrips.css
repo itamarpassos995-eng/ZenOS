@@ -3,3 +3,9 @@
 
 .dist .trip-proof th{white-space:normal;letter-spacing:0;font-size:9px}.trip-proof th:first-child{width:50%}.trip-proof th:nth-child(2),.trip-proof th:nth-child(3){width:25%}
 .trip-title>div{min-width:0;max-width:100%}.trip-title .dist-eyebrow{display:block;overflow-wrap:anywhere}.trip-proof p,.trip-proof footer{overflow-wrap:anywhere;white-space:normal}
+
+@media (max-width:650px){
+ .dist .trip-stop .dist-actionbar button,.dist .trip-form button{min-height:44px}
+ .dist .trip-form input,.dist .trip-form select,.dist .trip-form textarea{min-width:0;max-width:100%;font-size:16px}
+ .trip-stop .dist-actionbar{flex-wrap:wrap}
+}

@@ -6,6 +6,67 @@ import {randomUUID} from 'node:crypto';
 import {distributionPermission} from '../../src/distribution/security.js';
 import {setupTrip,planned,dispatched,route,trip,db,service,PIN,signature} from './trip-fixture.mjs';
 const operator=(id,permissoes={})=>({id,patente:'vendedor',permissoes});
+test('BRL pilot carries three customers through one manifest, custody and physical closure',async()=>{
+ const f=await setupTrip({orders:3,stock:30});
+ await db.doc(`${f.root}/distribution_config/module`).update({pilotProfile:'BRL_CREDIT_CASH_V1'});
+ const clientRef=db.doc(`${f.base}/clientes/C1`);
+ const client=(await clientRef.get()).data();
+ for(const [i,city] of ['Ponta Porã','Dourados','Campo Grande'].entries()){
+  const customerId=`C${i+1}`,orderId=`O00${i+1}`;
+  await db.doc(`${f.base}/clientes/${customerId}`).set({...client,data:{...client.data,id:customerId,nome:`Cliente ${i+1}`,cidade:city,saldoDevedorBRL:i?0:150}});
+  const ref=db.doc(`${f.base}/vendas/${orderId}`);
+  const order=(await ref.get()).data().data;
+  await ref.update({data:{...order,clienteId:customerId,clienteNome:`Cliente ${i+1}`,moedaDocumento:'BRL',totalOriginal:150,
+   ...(i?{}:{tipoDocumento:'venda',estado:'concluida',
+    itens:[{...order.itens[0],movimentoEstoqueVenda:{total:5,galpao:5,vitrine:0}}],
+    pagamentos:[{formaId:'crediario',moedaOrigem:'BRL',valorOriginal:150,valorConvertidoBRL:150}],
+    financeCreditV2:{schema:1,receivableId:'REC-O001',originalBRL:150,installments:[{id:'P1',amountBRL:150}]},creditAllocationsV2:[]})}});
+ }
+ const ledger=db.collection(`${f.root}/financeiro_livro`);
+ await ledger.doc('VENDA-O001-FIADO').set({tipo:'venda_fiada',clienteId:'C1',valor:150,_v2:{generation:f.base.split('/').at(-1)},
+  financeLink:{financeEventType:'OBLIGATION',saleId:'O001',receivableId:'REC-O001'}});
+ const load=(type,revision,payload={})=>service.command(f.uid,f.manager.sessionToken,{type,loadId:'PILOT',expectedRevision:revision,payload,key:randomUUID()});
+ await load('CREATE',0,{selections:['O001','O002','O003'].map(orderId=>({orderId,lineIndex:0,quantity:5}))});
+ await load('RESERVE',1);await load('START_PICK',2);await load('CHECK',3,{quantities:[5,5,5]});await load('APPROVE',4);
+ await load('CONFIRM_LOADING',5,{quantities:[5,5,5]});await load('MANIFEST',6,{vehicle:'PILOT',driver:'Sintético',route:'BRL'});
+ const {document}=await service.query(f.uid,f.manager.sessionToken,{type:'manifest',loadId:'PILOT',version:1});
+ await load('DISPATCH',7);
+ await route(f,'manager','SAVE_VEHICLE','V1',0,{plate:'PILOT',name:'Veículo sintético'});
+ await route(f,'manager','SAVE_ROUTE','R1',0,{name:'Rota sintética'});
+ await route(f,'manager','CREATE_TRIP','T1',0,{loadIds:['PILOT'],driverId:'driver',vehicleId:'V1',routeId:'R1'});
+ await route(f,'driver','START','T1',1);
+ for(const [i,quantity,condition,outcome] of [[0,5,'GOOD','TOTAL'],[1,3,'GOOD','PARTIAL'],[2,0,'DAMAGED','REFUSED']]){
+  await route(f,'driver','DELIVER','T1',i+2,{stopId:`O00${i+1}`,quantities:[quantity],outcome,condition,
+   receiver:'Sintético',identification:'TEST',signature,note:'Resultado sintético'});
+ }
+ const cash={stopId:'O001',method:'dinheiro_brl',currency:'BRL',amount:'50'};
+ await assert.rejects(route(f,'driver','COLLECT','T1',5,{...cash,method:'dinheiro_pyg',currency:'PYG'}),{code:'PILOT_PAYMENT_DISABLED'});
+ await assert.rejects(route(f,'driver','RECORD_CHEQUE','T1',5,{stopId:'O001'}),{code:'PILOT_CHEQUE_DISABLED'});
+ await route(f,'driver','COLLECT','T1',5,cash);
+ await route(f,'driver','ARRIVE','T1',6);
+ const returned=(await trip(f)).trip;
+ assert.deepEqual(returned.stops.map(stop=>stop.lines[0].id),document.lines.map(line=>`PILOT:${line.id}`));
+ assert.deepEqual(returned.stops.map(stop=>stop.customerId),['C1','C2','C3']);
+ await route(f,'manager','CHECK_RETURN','T1',7,{lineId:returned.stops[1].lines[0].id,quantity:2,disposition:'REINTEGRATE'});
+ await route(f,'manager','CHECK_RETURN','T1',8,{lineId:returned.stops[2].lines[0].id,quantity:5,disposition:'QUARANTINE'});
+ await route(f,'manager','CLOSE_PHYSICAL','T1',9);
+ await route(f,'manager','BEGIN_CLOSE','T1',10,{cashSessionId:'CASH1',counted:{BRL:'50'}});
+ const post=()=>service.routePost(f.uid,f.manager.sessionToken,{tripId:'T1',orderId:'O001'});
+ assert.equal((await Promise.all([post(),post()])).filter(result=>result.replayed).length,1);
+ const final=(await trip(f)).trip;
+ assert.equal(final.state,'SETTLING');
+ assert.equal(final.physicalClosure.deliveredByCurrency.BRL,'24000');
+ assert.equal(final.stops[2].lines[0].quarantined,5);
+ assert.equal(final.postedOrders.O001.remainingCreditCents,10000);
+ assert.equal(final.postedOrders.O002,undefined);
+ assert.equal((await clientRef.get()).data().data.saldoDevedorBRL,100);
+ assert.equal((await ledger.get()).size,2);
+ assert.equal((await db.doc(`${f.base}/produtos/P1`).get()).data().data.estoque,22);
+ const other=await setupTrip({orders:1});
+ await assert.rejects(service.routeQuery(other.uid,f.driver.sessionToken,{type:'detail',view:'driver',tripId:'T1'}),{code:'SESSION_EXPIRED'});
+ const history=await service.routeQuery(f.uid,f.manager.sessionToken,{type:'events',tripId:'T1'});
+ assert.ok(history.items.some(event=>event.type==='CLOSE_PHYSICAL'&&event.hasDocument));
+});
 test('two trips post one BRL credit receipt across native installments and preserve the original sale',async()=>{
  const f=await setupTrip({orders:1,stock:10});
  const saleRef=db.doc(`${f.base}/vendas/O001`);

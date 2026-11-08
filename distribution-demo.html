@@ -46,7 +46,7 @@
 <div class="order"><span>País de emissão</span><b>Paraguai (simulação)</b></div>
 <hr class="divider">
 <div class="minihead">Itens / movimentação de estoque</div>
-<table class="table"><thead><tr><th>Produto</th><th class="right">Qtd.</th><th class="right">Status</th></tr></thead><tbody><tr><td>Tinta acrílica 18L</td><td class="right">5 UN</td><td class="right" id="stockState">Pendente</td></tr></tbody></table>
+<table class="table"><thead><tr><th>Produto</th><th class="right">Qtd.</th><th class="right">Status</th></tr></thead><tbody><tr><td id="demoSourceProduct">Tinta acrílica 18L</td><td id="demoSourceQuantity" class="right">5 UN</td><td class="right" id="stockState">Pendente</td></tr></tbody></table>
 <div class="chips"><span id="deliveryChip" class="chip pending">Entrega não confirmada</span><span id="returnChip" class="chip pending">Devolução não registrada</span></div>
 <hr class="divider">
 <div class="minihead">Conciliação exibida</div>
@@ -63,11 +63,11 @@
 <button id="printLoad">Imprimir / salvar PDF</button>
 <h3>Resumo geral</h3><ul id="demoProducts"></ul>
 <h3>Conferência simulada</h3>
-<label>Papel Sirius conferido de 45 pacotes <input id="demoChecked" type="number" min="0" max="45" step="1" value="42"></label>
+<label>Quantidade conferida <input id="demoChecked" type="number" min="0" max="5" step="1" value="4"></label>
 <p id="demoShortage" aria-live="polite"></p>
 <button id="demoApprovePartial" type="button">Simular autorização parcial</button>
 <p id="demoPartialResult" aria-live="polite"></p>
-<label>Quantidade colocada no caminhão <input id="demoTruck" type="number" min="0" max="45" step="1"></label>
+<label>Quantidade colocada no caminhão <input id="demoTruck" type="number" min="0" max="5" step="1"></label>
 <button id="demoConfirmTruck" type="button">Simular confirmação física</button>
 <p id="demoTruckResult" aria-live="polite"></p>
 <h3>Acerto entre duas viagens · simulação</h3>
@@ -149,8 +149,10 @@ render();updateC();
 </script>
 <script type="module">
 import {summarizeManifest} from './src/core/distribution/domain.js';
-const customers=[['Cliente A','Pedro Juan Caballero',10,20],['Cliente B','Ponta Porã',20,10],['Cliente C','Dourados',15,5]];
-const products=[['SIR-PCT','Papel higiênico Sirius','pacotes'],['LC-CX','Leite condensado','caixas']];
+const [quantityText,unit]=document.getElementById('demoSourceQuantity').textContent.trim().split(/\s+/);
+const capacity=Number(quantityText);
+const customers=[['Mercado Boa Colheita','Pedro Juan Caballero',capacity]];
+const products=[['SINT-001',document.getElementById('demoSourceProduct').textContent,unit]];
 const lines=customers.flatMap(([customerName,city,...quantities])=>products.map(([sku,description,unit],i)=>({
  id:customerName+sku,customerId:customerName,customerName,city,productId:sku,sku,description,unit,quantity:quantities[i]
 })));
@@ -166,27 +168,27 @@ document.getElementById('printLoad').addEventListener('click',()=>window.print()
 const checked=document.getElementById('demoChecked');
 function showShortage(){
  const count=checked.valueAsNumber;
- document.getElementById('demoShortage').textContent=!Number.isInteger(count)||count<0||count>45
-  ? 'Informe uma quantidade entre 0 e 45.'
-  : count===45?'Conferência completa. Carga apta para aprovação na simulação.'
-   : `Faltam ${45-count} pacotes. A expedição continua bloqueada até nova conferência.`;
+ document.getElementById('demoShortage').textContent=!Number.isInteger(count)||count<0||count>capacity
+  ? `Informe uma quantidade entre 0 e ${capacity}.`
+  : count===capacity?'Conferência completa. Carga apta para aprovação na simulação.'
+   : `Faltam ${capacity-count} unidades. A expedição continua bloqueada até nova conferência.`;
 }
 const partial=document.getElementById('demoApprovePartial');
 const partialResult=document.getElementById('demoPartialResult');
 checked.addEventListener('input',()=>{
  partialResult.textContent='';
- partial.disabled=!Number.isInteger(checked.valueAsNumber)||checked.valueAsNumber<1||checked.valueAsNumber>=45;
+ partial.disabled=!Number.isInteger(checked.valueAsNumber)||checked.valueAsNumber<1||checked.valueAsNumber>=capacity;
  showShortage();
 });
 partial.addEventListener('click',()=>{
  const count=checked.valueAsNumber;
- partialResult.textContent=`Simulação: ${count} pacotes expedidos e ${45-count} pendentes. A cobrança da parada permanece bloqueada.`;
+ partialResult.textContent=`Simulação: ${count} unidades expedidas e ${capacity-count} pendentes. A cobrança da parada permanece bloqueada.`;
 });
 showShortage();
 document.getElementById('demoConfirmTruck').addEventListener('click',()=>{
  const quantity=document.getElementById('demoTruck').valueAsNumber;
  document.getElementById('demoTruckResult').textContent=partialResult.textContent&&quantity===checked.valueAsNumber
-  ? `Simulação: ${quantity} pacotes confirmados no caminhão.`
+  ? `Simulação: ${quantity} unidades confirmadas no caminhão.`
   : 'Simulação: autorize a carga parcial e informe exatamente a quantidade aprovada.';
 });
 </script>
