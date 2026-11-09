@@ -37,8 +37,12 @@ export default async function handler(req,res){
  }
  let app,db;
  try{
-  try{await jwtVerify(oidc,keys,{issuer,audience:`https://vercel.com/${team}`,subject,algorithms:['RS256']});}
+  let claims;
+  try{({payload:claims}=await jwtVerify(oidc,keys,{issuer,audience:`https://vercel.com/${team}`,algorithms:['RS256']}));}
   catch{res.statusCode=403;res.end(JSON.stringify({error:'STAGING_OIDC_REJECTED'}));return;}
+  if(claims.sub!==subject){
+   res.statusCode=403;res.end(JSON.stringify({error:'STAGING_SUBJECT_REJECTED',...(health?{subject:claims.sub}:{})}));return;
+  }
   const identity=new IdentityPoolClient({
    audience:STAGING_WIF_AUDIENCE,
    subject_token_type:'urn:ietf:params:oauth:token-type:jwt',
@@ -56,7 +60,13 @@ export default async function handler(req,res){
   db=new Firestore({projectId,preferRest:true,auth:new GoogleAuth({authClient:identity,projectId})});
   if(health){
    try{await identity.getAccessToken();}
-   catch{res.statusCode=503;res.end(JSON.stringify({subject,error:'STAGING_FEDERATION_UNAVAILABLE'}));return;}
+   catch(error){
+    const upstream=String(error.response?.config?.url||'');
+    const step=upstream.startsWith('https://iamcredentials.googleapis.com/')?'iamcredentials':
+     upstream.startsWith('https://sts.googleapis.com/')?'sts':'unknown';
+    const reason=error.response?.data?.error?.details?.find(detail=>detail.reason==='SERVICE_DISABLED')?.reason;
+    res.statusCode=503;res.end(JSON.stringify({subject,error:'STAGING_FEDERATION_UNAVAILABLE',step,reason}));return;
+   }
    try{await db.doc('distribution_staging_health/connectivity').get();}
    catch{res.statusCode=503;res.end(JSON.stringify({subject,error:'STAGING_FIRESTORE_UNAVAILABLE'}));return;}
    res.end(JSON.stringify({subject,projectId,firestore:'reachable'}));return;

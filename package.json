@@ -70,5 +70,10 @@
     "tailwindcss": "^3.4.4",
     "vite": "^5.3.1",
     "vitest": "^2.1.9"
+  },
+  "overrides": {
+    "jwks-rsa": {
+      "jose": "5.10.0"
+    }
   }
 }
