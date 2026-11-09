@@ -16,6 +16,7 @@ import { atualizarProdutoUnico, localizarIndiceProdutoUnico, skuJaExiste, gerarI
 import { formatarEquivalenciaBRL, moedasAtivasRecibo } from '../core/receiptCurrency';
 import { validarCredencialGerencial } from '../core/accessControl';
 import { calcularCmvVenda } from '../core/salesFinancials';
+import {pygCreditSnapshot} from '../core/distribution/trips.js';
 import {pdvCreditLink,pdvImmediatePaymentLink} from '../core/distribution/phase31NativeFinanceLinks.js';
 import { validarComposicaoPagamento } from '../core/paymentValidation';
 import { interpretarValorMonetario } from '../core/cashMoneyInput';
@@ -1053,6 +1054,12 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       }
       const cmvVendaBRL = tipoFinalizacao === 'venda' ? calcularCmvVenda({ itens: itensDocumento }) : null;
 
+      const totalOriginal=converterDeBRL(totalFinalBRL,moeda);
+      const nativeCredit=pygCreditSnapshot({
+        currency:moeda,totalOriginal,totalCentsBRL:Math.round(totalFinalBRL*100),
+        creditCentsBRL:Math.round(valorFiadoOperacao*100),rate:taxasCambio.PYG
+      });
+
       const novaVenda = {
         id: vendaId,
         createdAt: instanteVenda.toISOString(),
@@ -1067,7 +1074,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
         sessaoId: tipoFinalizacao === 'venda' ? sessaoAtiva?.id || null : null,
         itens: itensDocumento,
         moedaDocumento:moeda,
-        totalOriginal:converterDeBRL(totalFinalBRL,moeda),
+        totalOriginal,
 
         totalBRL: totalFinalBRL,
         ...(tipoFinalizacao==='venda'&&valorFiadoOperacao>0?{
@@ -1076,10 +1083,12 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
           financeCreditV2:{
             schema:1,receivableId:`REC-${vendaId}`,
             originalBRL:Number(valorFiadoOperacao.toFixed(2)),
+            ...(nativeCredit?{nativeAmount:nativeCredit}:{}),
             installments:[{
               id:`INST-${vendaId}-AGGREGATE`,
               amountBRL:Number(valorFiadoOperacao.toFixed(2)),
-              kind:'AGGREGATE_NO_SCHEDULE',dueAt:null
+              kind:'AGGREGATE_NO_SCHEDULE',dueAt:null,
+              ...(nativeCredit?{nativeAmount:nativeCredit}:{})
             }]
           },
           creditAllocationsV2:[]
