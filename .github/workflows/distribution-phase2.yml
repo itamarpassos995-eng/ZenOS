@@ -1,6 +1,14 @@
 name: Distribution phase 2 homologation
 on:
   workflow_dispatch:
+  push:
+    branches: [feat/distribution-logistics-foundation]
+    paths:
+      - operational-functions/src/distribution/trips.js
+      - operational-functions/test/distribution/pyg-cash-emulator.test.mjs
+      - scripts/distribution/homologate.mjs
+      - src/components/DistributionTrips.jsx
+      - .github/workflows/distribution-phase2.yml
   pull_request:
     paths:
       - 'src/**/distribution/**'
