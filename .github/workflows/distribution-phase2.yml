@@ -9,6 +9,7 @@ on:
       - operational-functions/src/distribution/trips.js
       - operational-functions/test/distribution/pyg-cash-emulator.test.mjs
       - scripts/distribution/homologate.mjs
+      - scripts/distribution/central.ui.test.jsx
       - src/components/DistributionTrips.jsx
       - .github/workflows/distribution-phase2.yml
   pull_request:
