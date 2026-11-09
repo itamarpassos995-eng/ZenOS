@@ -11,6 +11,7 @@ on:
       - scripts/distribution/homologate.mjs
       - scripts/distribution/central.ui.test.jsx
       - src/components/DistributionTrips.jsx
+      - src/components/DistributionCentral.jsx
       - .github/workflows/distribution-phase2.yml
   pull_request:
     paths:

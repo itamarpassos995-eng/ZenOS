@@ -63,7 +63,7 @@ export default function DistributionCentral({operatorId:initialOperatorId='admin
   // is returned as state after one render. Server operator login is then explicit.
   if(!user){setPassword('');setUser(account);setNotice('secure');return;}
   const result=await client.login(operatorId,pin,scope);setSession(result);setTab(result.scope==='trip'||result.scope==='driver'?'trips':'loads');setRange(distributionPeriod('hoje',Date.now(),result.timeZone));setPin('');setPassword('');setNotice('');
- }catch(e){fail(e);}finally{setBusy(false);}}
+ }catch(e){if(user)fail(e);else setError(t(codeOf(e))===t('error')?'AUTH_SIGN_IN_FAILED':codeOf(e));}finally{setBusy(false);}}
  async function openLoad(loadId){setBusy(true);setError('');try{const result=await client.query({type:'detail',loadId},{refresh:true});setDetail(result.load);setChecked({});setCheckReason('');setTruck({});setDocument(null);setConfirm(null);setVehicle(result.load.manifestVersions.at(-1)?.vehicle||'');setDriver(result.load.manifestVersions.at(-1)?.driver||'');setRoute(result.load.manifestVersions.at(-1)?.route||'');}catch(e){fail(e);}finally{setBusy(false);}}
  async function operate(type,payload={}){if(!detail||busy)return;setBusy(true);setError('');setNotice('');try{
   await client.command(type,detail.id,detail.revision,payload);const result=await client.query({type:'detail',loadId:detail.id},{refresh:true});setDetail(result.load);setNotice('saved');setConfirm(null);setReload(n=>n+1);
