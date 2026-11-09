@@ -49,10 +49,16 @@ export async function provisionStagingPygCashFixture(db,uid){
   const headRef=db.doc(base),configRef=db.doc(`${root}/distribution_config/module`);
   const marker=db.doc(`${root}/distribution_staging_health/pyg-cash-fixture-v1`);
   const [head,config,prior]=await tx.getAll(headRef,configRef,marker);
-  if(prior.exists)return;
+  const clientId='PYG-CASH-CLIENT';
+  if(prior.exists){
+   const clientRef=db.doc(base+'/clientes/'+clientId),client=await tx.get(clientRef);
+   if(prior.data()?.synthetic!==true||client.data()?.data?.id!==clientId)error('STAGING_FIXTURE_CONFIGURATION_REQUIRED');
+   if(!client.data().data.endereco)tx.update(clientRef,{'data.endereco':'Asunción'});
+   return;
+  }
   if(head.data()?.state!=='ready'||config.data()?.pilotProfile!=='PYG_CREDIT_CASH_V1'||config.data().nativePygCashEnabled)
    error('STAGING_FIXTURE_CONFIGURATION_REQUIRED');
-  const orderId='PYG-CASH-V1',clientId='PYG-CASH-CLIENT',productId='PYG-CASH-PRODUCT';
+  const orderId='PYG-CASH-V1',productId='PYG-CASH-PRODUCT';
   const nativeAmount={currency:'PYG',amountMinor:1000000,historicalRate:'1250'};
   const counts={...head.data().fieldCounts},manifest={...head.data().fieldManifest};
   const createEntity=(collection,data,field)=>{
@@ -61,7 +67,7 @@ export async function provisionStagingPygCashFixture(db,uid){
    counts[field]=index+1;
    manifest[field]={...manifest[field],count:index+1};
   };
-  createEntity('clientes',{id:clientId,nome:'Cliente sintético · PYG',cidade:'Asunción',saldoDevedorBRL:800},'clientes');
+  createEntity('clientes',{id:clientId,nome:'Cliente sintético · PYG',cidade:'Asunción',endereco:'Asunción',saldoDevedorBRL:800},'clientes');
   createEntity('produtos',{id:productId,sku:productId,nome:'Producto sintético · PYG',unidadeMedida:'UN',
    estoque:10,estoqueGalpao:10,estoqueVitrine:0,estoqueReservadoDistribuicao:0},'produtos');
   createEntity('vendas',{id:orderId,tipoDocumento:'venda',estado:'concluida',createdAt:new Date().toISOString(),
