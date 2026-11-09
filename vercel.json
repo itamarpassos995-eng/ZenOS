@@ -1,6 +1,16 @@
 {
   "rewrites": [
     {
+      "source": "/",
+      "has": [{"type": "host", "value": "^zenos-distribution-staging(?:-[a-z0-9-]+)?\\.vercel\\.app$"}],
+      "destination": "/distribution-homologacao.html"
+    },
+    {
+      "source": "/__distribution/:operation",
+      "has": [{"type": "host", "value": "^zenos-distribution-staging(?:-[a-z0-9-]+)?\\.vercel\\.app$"}],
+      "destination": "/api/distribution-staging?operation=:operation"
+    },
+    {
       "source": "/loja/previa",
       "destination": "/index.html"
     },
