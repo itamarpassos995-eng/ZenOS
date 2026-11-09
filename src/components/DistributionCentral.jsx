@@ -1,5 +1,5 @@
 import React,{useCallback,useEffect,useMemo,useRef,useState} from 'react';
-import {signInWithEmailAndPassword,onAuthStateChanged} from 'firebase/auth';
+import {signInWithEmailAndPassword,onAuthStateChanged,sendPasswordResetEmail} from 'firebase/auth';
 import {auth,ZENOS_RUNTIME} from '../firebase.js';
 import {zenosStorage} from '../core/storage.js';
 import {useUiLanguage} from '../core/useUiLanguage.js';
@@ -18,6 +18,8 @@ export default function DistributionCentral({operatorId:initialOperatorId='admin
  const [user,setUser]=useState(auth.currentUser),[session,setSession]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [scope,setScope]=useState('stock');
  const [email,setEmail]=useState(''),[password,setPassword]=useState(''),[operatorId,setOperatorId]=useState(initialOperatorId),[pin,setPin]=useState('');
+ const ownerSetup=ZENOS_RUNTIME.isStaging&&new URLSearchParams(window.location.search).has('ativar');
+ const [settingOwnerPin,setSettingOwnerPin]=useState(ownerSetup);
  const client=useMemo(()=>user?createDistributionClient(user):null,[user]);
  const [tab,setTab]=useState('loads'),[period,setPeriod]=useState('hoje'),[from,setFrom]=useState(''),[to,setTo]=useState(''),[range,setRange]=useState(()=>distributionPeriod('hoje'));
  const [page,setPage]=useState(0),[cursors,setCursors]=useState([null]),[rows,setRows]=useState([]),[next,setNext]=useState(null),[counts,setCounts]=useState({}),[loading,setLoading]=useState(false),[reload,setReload]=useState(0);
@@ -57,11 +59,23 @@ export default function DistributionCentral({operatorId:initialOperatorId='admin
  },[!!detail,busy]);
  const resetPages=()=>{setPage(0);setCursors([null]);setSelection({});setRows([]);};
  function choosePeriod(value){setPeriod(value);if(value==='personalizado')return;setRange(distributionPeriod(value,Date.now(),session?.timeZone));resetPages();}
+ async function resetOwnerPassword(){
+  setBusy(true);setError('');setNotice('');
+  try{await sendPasswordResetEmail(auth,email.trim());setNotice('ownerResetSent');}
+  catch{setError('ownerResetFailed');}finally{setBusy(false);}
+ }
  async function login(e){e.preventDefault();setBusy(true);setError('');try{
   const account=user||((await signInWithEmailAndPassword(auth,email,password)).user);
   // Authentication callback can change user during email login; the local client
   // is returned as state after one render. Server operator login is then explicit.
   if(!user){setPassword('');setUser(account);setNotice('secure');return;}
+  if(settingOwnerPin){
+   const response=await fetch('/__distribution/owner-pin',{method:'POST',headers:{'Content-Type':'application/json',
+    Authorization:'Bearer '+await account.getIdToken(true)},body:JSON.stringify({pin}),cache:'no-store'});
+   const result=await response.json();
+   if(!response.ok&&result.error!=='OWNER_PIN_ALREADY_SET'){setError(result.error==='INVALID_PIN'?'ownerInvalidPin':'ownerVerification');return;}
+   setOperatorId('admin');setPin('');setSettingOwnerPin(false);setNotice(response.ok?'ownerPinSaved':'ownerPinAlreadySet');return;
+  }
   const result=await client.login(operatorId,pin,scope);setSession(result);setTab(result.scope==='trip'||result.scope==='driver'?'trips':'loads');setRange(distributionPeriod('hoje',Date.now(),result.timeZone));setPin('');setPassword('');setNotice('');
  }catch(e){if(user)fail(e);else setError(t(codeOf(e))===t('error')?'AUTH_SIGN_IN_FAILED':codeOf(e));}finally{setBusy(false);}}
  async function openLoad(loadId){setBusy(true);setError('');try{const result=await client.query({type:'detail',loadId},{refresh:true});setDetail(result.load);setChecked({});setCheckReason('');setTruck({});setDocument(null);setConfirm(null);setVehicle(result.load.manifestVersions.at(-1)?.vehicle||'');setDriver(result.load.manifestVersions.at(-1)?.driver||'');setRoute(result.load.manifestVersions.at(-1)?.route||'');}catch(e){fail(e);}finally{setBusy(false);}}
@@ -85,7 +99,7 @@ export default function DistributionCentral({operatorId:initialOperatorId='admin
   {(!session||session.scope!=='driver')&&<div className="dist-hero"><div><span className="dist-eyebrow">ZENOS · LOGÍSTICA</span><h1>{t('title')}</h1><p>{t('subtitle')}</p></div>{session&&<span className="dist-operator">{session.operatorName}</span>}</div>}
   {error&&<div className="dist-alert" role="alert">{t(error)} <button disabled={busy} onClick={()=>{setReload(n=>n+1);if(detail)openLoad(detail.id);}}>{t('retry')}</button></div>}
   {notice&&<div className="dist-success" role="status">{t(notice)}</div>}
-  {!session?<form className="dist-login dist-card" onSubmit={login}><span className="dist-eyebrow">{t('secure')}</span><h2>{t('login')}</h2><p>{t('loginHelp')}</p>{!user&&<><label>{t('email')}<input type="email" required autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)}/></label><label>{t('password')}<input type="password" required autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)}/></label></>}{user&&<><label>{language==='es'?'Modo de acceso':'Modo de acesso'}<select aria-label={language==='es'?'Modo de acceso':'Modo de acesso'} value={scope} onChange={e=>setScope(e.target.value)}><option value='stock'>{language==='es'?'Depósito y cargas':'Depósito e cargas'}</option><option value='trip'>{language==='es'?'Gestión de viajes':'Gestão de viagens'}</option><option value='driver'>{language==='es'?'Mi ruta · conductor':'Minha rota · motorista'}</option></select></label><label>{t('operator')}<input required value={operatorId} onChange={e=>setOperatorId(e.target.value)} autoComplete="off"/></label><label>{t('pin')}<input type="password" required inputMode="numeric" autoComplete="off" value={pin} onChange={e=>setPin(e.target.value)}/></label></>}<button className="primary" disabled={busy}>{busy?t('loading'):t('login')}</button></form>:<>
+  {!session?<form className="dist-login dist-card" onSubmit={login}><span className="dist-eyebrow">{t('secure')}</span><h2>{t('login')}</h2><p>{t('loginHelp')}</p>{!user&&<><label>{t('email')}<input type="email" required autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)}/></label><label>{t('password')}<input type="password" required autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)}/></label></>}{user&&<><label>{language==='es'?'Modo de acceso':'Modo de acesso'}<select aria-label={language==='es'?'Modo de acceso':'Modo de acesso'} value={scope} onChange={e=>setScope(e.target.value)}><option value='stock'>{language==='es'?'Depósito y cargas':'Depósito e cargas'}</option><option value='trip'>{language==='es'?'Gestión de viajes':'Gestão de viagens'}</option><option value='driver'>{language==='es'?'Mi ruta · conductor':'Minha rota · motorista'}</option></select></label><label>{t('operator')}<input required value={operatorId} onChange={e=>setOperatorId(e.target.value)} autoComplete="off"/></label><label>{t(settingOwnerPin?'ownerNewPin':'pin')}<input type="password" required inputMode="numeric" pattern={settingOwnerPin?'[0-9]{8,12}':undefined} autoComplete="off" value={pin} onChange={e=>setPin(e.target.value)}/></label></>}<button className="primary" disabled={busy}>{busy?t('loading'):t(settingOwnerPin&&user?'ownerSavePin':'login')}</button>{ownerSetup&&!user&&<button type="button" disabled={busy||!email.trim()} onClick={resetOwnerPassword}>{t('ownerReset')}</button>}</form>:<>
    <div className="dist-toolbar"><div className="dist-segments" role="group" aria-label={t('date')}>{[['hoje','today'],['mes','month'],['anterior','previous'],['personalizado','custom']].map(([value,key])=><button key={value} aria-pressed={period===value} onClick={()=>choosePeriod(value)}>{t(key)}</button>)}</div>{!['trips','occurrences'].includes(tab)&&session.scope==='stock'&&<button disabled={busy||loading} onClick={()=>{client.invalidate();setReload(n=>n+1);}}>{t('refresh')}</button>}</div>
    {period==='personalizado'&&<form className="dist-custom" onSubmit={e=>{e.preventDefault();let value;try{value=distributionPeriod('personalizado',Date.now(),session?.timeZone,from,to);}catch{setError('periodInvalid');return;}if(!value||Date.parse(value.fim)-Date.parse(value.inicio)>366*86400000){setError('periodInvalid');return;}setRange(value);resetPages();}}><label>{t('from')}<input type="date" required value={from} onChange={e=>setFrom(e.target.value)}/></label><label>{t('to')}<input type="date" required value={to} onChange={e=>setTo(e.target.value)}/></label><button>{t('apply')}</button></form>}
    {session.scope!=='driver'&&<div className='dist-segments' role='group' aria-label={language==='es'?'Área logística':'Área logística'}>{session.scope==='stock'&&<button aria-pressed={tab==='loads'||tab==='orders'} onClick={()=>{setTab('loads');resetPages();}}>{language==='es'?'Depósito y cargas':'Depósito e cargas'}</button>}{session.capabilities?.some(c=>['manage','returns','finance','driver','admin','fiscalReview'].includes(c))&&<button aria-pressed={tab==='trips'||session.scope!=='stock'} onClick={()=>{setTab('trips');resetPages();}}>{language==='es'?'Viajes y entregas':'Viagens e entregas'}</button>}{session.capabilities?.some(c=>['returns','manage','admin','fiscalReview'].includes(c))&&<button aria-pressed={tab==='occurrences'} onClick={()=>{setTab('occurrences');resetPages();}}>{language==='es'?'Incidencias y devoluciones':'Ocorrências e devoluções'}</button>}</div>}

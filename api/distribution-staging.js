@@ -6,7 +6,7 @@ import {GoogleAuth,IdentityPoolClient} from 'google-auth-library';
 import {createRemoteJWKSet,jwtVerify} from 'jose';
 import {createDistributionHandler} from '../operational-functions/src/distribution/httpHandler.js';
 import {distributionService} from '../operational-functions/src/distribution/service.js';
-import {provisionStagingFixture,provisionStagingPygCashFixture} from '../operational-functions/src/distribution/stagingFixture.js';
+import {enrollStagingOwnerPin,provisionStagingFixture,provisionStagingPygCashFixture} from '../operational-functions/src/distribution/stagingFixture.js';
 
 const projectId='zenos-distribution-staging';
 const team='itamarpassos995-4355';
@@ -74,6 +74,23 @@ export default async function handler(req,res){
   }
   req.url=`/${operation}`;
   const auth=getAuth(app);
+  if(operation==='owner-pin'){
+   const expectedEmail=process.env.STAGING_OWNER_EMAIL?.trim().toLowerCase();
+   const user=await auth.verifyIdToken(req.headers.authorization.slice(7),true).catch(()=>null);
+   const age=Math.floor(Date.now()/1000)-(user?.auth_time??0);
+   if(!expectedEmail||!user||user.uid!==process.env.STAGING_FIXTURE_UID||user.email_verified!==true||
+     user.email?.toLowerCase()!==expectedEmail||user.firebase?.sign_in_provider!=='password'||age<0||age>300){
+    res.statusCode=403;res.end(JSON.stringify({error:'OWNER_VERIFICATION_REQUIRED'}));return;
+   }
+   const pin=req.body?.pin;
+   try{await enrollStagingOwnerPin(db,user.uid,pin);}
+   catch(e){
+    if(!['INVALID_PIN','OWNER_PIN_ALREADY_SET','FORBIDDEN'].includes(e.code))throw e;
+    res.statusCode=e.code==='OWNER_PIN_ALREADY_SET'?409:400;
+    res.end(JSON.stringify({error:e.code}));return;
+   }
+   res.end(JSON.stringify({ok:true}));return;
+  }
   if(operation==='bootstrap'||operation==='bootstrap-pyg-cash'){
    const allowedUid=process.env.STAGING_FIXTURE_UID;
    if(!allowedUid){res.statusCode=404;res.end();return;}

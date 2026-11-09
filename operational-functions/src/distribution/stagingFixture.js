@@ -87,3 +87,22 @@ export async function provisionStagingPygCashFixture(db,uid){
   tx.create(marker,{orderId,synthetic:true});
  });
 }
+
+export async function enrollStagingOwnerPin(db,uid,pin){
+ if(db.projectId!=='zenos-distribution-staging'||typeof pin!=='string'||!/^\d{8,12}$/.test(pin))error('INVALID_PIN');
+ const root=`lojas/${id(uid)}`;
+ return db.runTransaction(async tx=>{
+  const tenant=await tx.get(db.doc(root));
+  const control=(await tx.get(db.doc(root+'/dados/storage_control'))).data();
+  if(tenant.data()?.synthetic!==true||control?.mode!=='v2')error('FORBIDDEN');
+  const marker=db.doc(root+'/distribution_staging_health/owner-pin-v1');
+  const admin=db.doc(root+'/v2_generations/'+id(control.generation)+'/operadores/admin');
+  const [previous,operator]=await tx.getAll(marker,admin);
+  if(previous.exists)error('OWNER_PIN_ALREADY_SET');
+  if(operator.data()?.data?.id!=='admin'||operator.data()?.deleted)error('FORBIDDEN');
+  const pinSalt=randomBytes(16).toString('hex');
+  const pinHash=pbkdf2Sync(pin,Buffer.from(pinSalt,'hex'),120000,32,'sha256').toString('hex');
+  tx.update(admin,{'data.pinSalt':pinSalt,'data.pinHash':pinHash,'data.pinVersion':2,'data.pinTrocaObrigatoria':false,'data.senha':null});
+  tx.create(marker,{uid,at:Date.now()});
+ });
+}
