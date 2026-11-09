@@ -4,6 +4,8 @@ on:
   push:
     branches: [feat/distribution-logistics-foundation]
     paths:
+      - api/distribution-staging.js
+      - operational-functions/src/distribution/stagingFixture.js
       - operational-functions/src/distribution/trips.js
       - operational-functions/test/distribution/pyg-cash-emulator.test.mjs
       - scripts/distribution/homologate.mjs

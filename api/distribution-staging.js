@@ -6,7 +6,7 @@ import {GoogleAuth,IdentityPoolClient} from 'google-auth-library';
 import {createRemoteJWKSet,jwtVerify} from 'jose';
 import {createDistributionHandler} from '../operational-functions/src/distribution/httpHandler.js';
 import {distributionService} from '../operational-functions/src/distribution/service.js';
-import {provisionStagingFixture} from '../operational-functions/src/distribution/stagingFixture.js';
+import {provisionStagingFixture,provisionStagingPygCashFixture} from '../operational-functions/src/distribution/stagingFixture.js';
 
 const projectId='zenos-distribution-staging';
 const team='itamarpassos995-4355';
@@ -74,14 +74,15 @@ export default async function handler(req,res){
   }
   req.url=`/${operation}`;
   const auth=getAuth(app);
-  if(operation==='bootstrap'){
+  if(operation==='bootstrap'||operation==='bootstrap-pyg-cash'){
    const allowedUid=process.env.STAGING_FIXTURE_UID;
    if(!allowedUid){res.statusCode=404;res.end();return;}
    const user=await auth.verifyIdToken(req.headers.authorization.slice(7),true).catch(()=>null);
    if(!user||user.uid!==allowedUid||user.firebase?.sign_in_provider!=='password'){
     res.statusCode=403;res.end(JSON.stringify({error:'FORBIDDEN'}));return;
    }
-   await provisionStagingFixture(db,user.uid,{pin:process.env.STAGING_FIXTURE_ADMIN_PIN,
+   if(operation==='bootstrap-pyg-cash')await provisionStagingPygCashFixture(db,user.uid);
+   else await provisionStagingFixture(db,user.uid,{pin:process.env.STAGING_FIXTURE_ADMIN_PIN,
     driverPin:process.env.STAGING_FIXTURE_DRIVER_PIN,commit:process.env.VERCEL_GIT_COMMIT_SHA});
    res.end(JSON.stringify({ok:true,projectId}));return;
   }

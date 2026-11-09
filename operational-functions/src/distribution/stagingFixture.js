@@ -37,3 +37,47 @@ export async function provisionStagingFixture(db,uid,{pin,driverPin,commit}){
   write(tx,`${root}/distribution_config/module`,{enabled:true,pilotProfile:'PYG_CREDIT_CASH_V1',timezone:'America/Asuncion',issuer:{name:'Distribuidora Paraguaya · Prueba',taxId:'SINTÉTICO · SIN VALOR FISCAL'}});
  });
 }
+
+export async function provisionStagingPygCashFixture(db,uid){
+ if(db.projectId!=='zenos-distribution-staging')error('STAGING_FIXTURE_CONFIGURATION_REQUIRED');
+ const root=`lojas/${id(uid)}`;
+ return db.runTransaction(async tx=>{
+  const tenant=await tx.get(db.doc(root));
+  const control=(await tx.get(db.doc(`${root}/dados/storage_control`))).data();
+  if(tenant.data()?.synthetic!==true||control?.mode!=='v2')error('STAGING_FIXTURE_CONFIGURATION_REQUIRED');
+  const base=`${root}/v2_generations/${id(control.generation)}`;
+  const headRef=db.doc(base),configRef=db.doc(`${root}/distribution_config/module`);
+  const marker=db.doc(`${root}/distribution_staging_health/pyg-cash-fixture-v1`);
+  const [head,config,prior]=await tx.getAll(headRef,configRef,marker);
+  if(prior.exists)return;
+  if(head.data()?.state!=='ready'||config.data()?.pilotProfile!=='PYG_CREDIT_CASH_V1'||config.data().nativePygCashEnabled)
+   error('STAGING_FIXTURE_CONFIGURATION_REQUIRED');
+  const orderId='PYG-CASH-V1',clientId='PYG-CASH-CLIENT',productId='PYG-CASH-PRODUCT';
+  const nativeAmount={currency:'PYG',amountMinor:1000000,historicalRate:'1250'};
+  const counts={...head.data().fieldCounts},manifest={...head.data().fieldManifest};
+  const createEntity=(collection,data,field)=>{
+   const index=counts[field]||0;
+   tx.create(db.doc(`${base}/${collection}/${data.id}`),{data,legacyField:field,legacyIndex:index,version:head.data().sequence,deleted:false});
+   counts[field]=index+1;
+   manifest[field]={...manifest[field],count:index+1};
+  };
+  createEntity('clientes',{id:clientId,nome:'Cliente sintético · PYG',cidade:'Asunción',saldoDevedorBRL:800},'clientes');
+  createEntity('produtos',{id:productId,sku:productId,nome:'Producto sintético · PYG',unidadeMedida:'UN',
+   estoque:10,estoqueGalpao:10,estoqueVitrine:0,estoqueReservadoDistribuicao:0},'produtos');
+  createEntity('vendas',{id:orderId,tipoDocumento:'venda',estado:'concluida',createdAt:new Date().toISOString(),
+   clienteId:clientId,clienteNome:'Cliente sintético · PYG',vendedorId:'admin',moedaDocumento:'PYG',
+   taxasCambio:{BRL:1,PYG:1250},totalOriginal:1000000,totalBRL:800,
+   itens:[{id:productId,sku:productId,nome:'Producto sintético · PYG',qtd:5,precoPraticadoBRL:160,totalBRL:800,
+    custoNaVendaBRL:12,movimentoEstoqueVenda:{total:5,galpao:5,vitrine:0}}],
+   pagamentos:[{formaId:'crediario',moedaOrigem:'BRL',valorOriginal:800,valorConvertidoBRL:800}],
+   financeCreditV2:{schema:1,receivableId:`REC-${orderId}`,originalBRL:800,nativeAmount,
+    installments:[{id:'PYG-CASH-INSTALLMENT',amountBRL:800,nativeAmount}]},creditAllocationsV2:[]},'historicoVendas');
+  createEntity('sessoesCaixa',{id:'PYG-CASH-SESSION',operadorId:'admin',status:'aberta'},'sessoesCaixa');
+  tx.create(db.doc(`${root}/financeiro_livro/VENDA-${orderId}-FIADO`),{
+   tipo:'venda_fiada',clienteId:clientId,valor:800,moeda:'BRL',_v2:{generation:control.generation},
+   financeLink:{financeEventType:'OBLIGATION',saleId:orderId,receivableId:`REC-${orderId}`}});
+  tx.update(headRef,{fieldCounts:counts,fieldManifest:manifest});
+  tx.update(configRef,{nativePygCashEnabled:true,driverPaymentMethods:[{id:'dinheiro_pyg',currency:'PYG'}]});
+  tx.create(marker,{orderId,synthetic:true});
+ });
+}
