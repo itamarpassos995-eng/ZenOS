@@ -144,8 +144,8 @@ export default function DistributionOccurrences({client,session,range,language})
        <input type="file" accept="image/png,image/jpeg,application/pdf" disabled={busy}
         onChange={e=>{setEvidenceFile(e.target.files?.[0]||null);pendingEvidence.current=null;}}/>
       </label><label>{t.select}<select value={evidenceKind} onChange={e=>{setEvidenceKind(e.target.value);pendingEvidence.current=null;}}>
-       <option value="PHOTO">Foto</option><option value="SIGNATURE">Assinatura / Firma</option>
-       <option value="DOCUMENT">Documento / Documento</option></select></label>
+       <option value="PHOTO">Foto</option><option value="SIGNATURE">{language==='es'?'Firma':'Assinatura'}</option>
+       <option value="DOCUMENT">Documento</option></select></label>
       <button disabled={busy||!evidenceFile} onClick={uploadEvidence}>{t.addEvidence}</button>
      </div>}
      <p>{t.sizeLimit}</p>
