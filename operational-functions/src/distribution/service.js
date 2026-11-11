@@ -19,7 +19,7 @@ function minor(value,precision) {
  return BigInt(m[1])*10n**BigInt(precision)+BigInt(fraction.slice(0,precision)||0)+(Number(fraction[precision]||0)>=5?1n:0n);
 }
 const actions = new Set(['CREATE','RESERVE','START_PICK','CHECK','APPROVE','CONFIRM_LOADING','MANIFEST','DISPATCH','CANCEL']);
-export function distributionService(db,{now=()=>Date.now(),staging=false,emulatorPygCompensation=false}={}) {
+export function distributionService(db,{now=()=>Date.now(),staging=false,emulatorPygCompensationUid=null}={}) {
  if(staging){
   if(db.projectId!=='zenos-distribution-staging'||process.env.FIRESTORE_EMULATOR_HOST||process.env.FIREBASE_AUTH_EMULATOR_HOST)error('STAGING_PROJECT_REQUIRED');
  }else requireEmulators();
@@ -329,7 +329,7 @@ export function distributionService(db,{now=()=>Date.now(),staging=false,emulato
  }
  async function logout(uid,sessionToken){return db.runTransaction(async tx=>{const c=await ctx(tx,uid);await authorize(tx,uid,sessionToken,c,'any');tx.delete(db.doc(`${c.root}/distribution_sessions/${hash(sessionToken)}`));return {ok:true};});}
  const finalize=buildSettlement({db,ctx,authorize,login,now});
- const trips=buildTrips({db,ctx,authorize,finalize,now,emulatorPygCompensation:!staging&&emulatorPygCompensation===true});
+ const trips=buildTrips({db,ctx,authorize,finalize,now,deliveryCGrantScope:staging?{projectId:db.projectId,uid:process.env.STAGING_ACCEPTANCE_UID}:emulatorPygCompensationUid?{projectId:db.projectId,uid:emulatorPygCompensationUid}:null});
  const occurrences=buildOccurrences({db,ctx,authorize,now});
  const evidence=staging?{}:buildOccurrenceEvidence({db,ctx,authorize,now});
  const commercial=buildCommercialAdjustments({db,ctx,authorize,now});

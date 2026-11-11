@@ -1,6 +1,6 @@
 import {evaluatePreparationOfC} from '../../../src/core/distribution/phase31CGates.js';
 import {error,hash,id} from './security.js';
-import {units,nativeMinor,originalValue,paymentCents,custodyTotals,deliveryQuantities,validateSignature,CURRENCIES} from '../../../src/core/distribution/trips.js';
+import {hasPendingTripReturnFinance,units,nativeMinor,originalValue,paymentCents,custodyTotals,deliveryQuantities,validateSignature,CURRENCIES} from '../../../src/core/distribution/trips.js';
 import {criarEventoEstoque} from '../../../src/core/stockAuditCore.js';
 import {criarLancamentoFinanceiro} from '../../../src/core/financialLedgerCore.js';
 import {creditObligationForSale,prepareVerifiedCreditAllocations} from '../../../src/core/distribution/phase31CreditAllocation.js';
@@ -77,6 +77,91 @@ function pygCredit(sale){
  }
  return {remaining:source.amountMinor-paid-compensated,paid,postedCents,rate:source.historicalRate,owed,balances};
 }
+export function reconcilePygTripJournal({sale,journal,tenantId,generation,complete=true,adjustment}){
+ const credit=pygCredit(sale),receivableId=sale.financeCreditV2.receivableId;
+ if(!complete)error('SOURCE_PAGINATION_INCOMPLETE');
+ const entries=new Map();
+ for(const entry of journal){
+  if(entries.has(entry.id)||(entry.lojaId!==tenantId&&!(entry.lojaId==null&&entry.id==='VENDA-'+sale.id+'-FIADO'))||entry.clienteId!==sale.clienteId||
+   entry._v2?.generation!==generation||entry.financeLink?.saleId!==sale.id||
+   entry.financeLink.receivableId!==receivableId)error('CREDIT_SOURCE_UNVERIFIED');
+  entries.set(entry.id,entry);
+ }
+ const obligationId='VENDA-'+sale.id+'-FIADO',obligation=entries.get(obligationId);
+ if(obligation?.financeLink.financeEventType!=='OBLIGATION'||cents(obligation.valor)!==credit.owed)
+  error('CREDIT_SOURCE_UNVERIFIED');
+ const recognized=new Set([obligationId]);
+ const reversals=new Map();
+ for(const entry of entries.values()){
+  const link=entry.financeLink;
+  if(link.financeEventType!=='REVERSAL')continue;
+  const origin=entries.get(link.reversalOf);
+  if(!origin||link.sourceEventId!==origin.id||reversals.has(origin.id)||
+   origin.financeLink.installmentId!==link.installmentId||origin.financeLink.valorOriginal!==link.valorOriginal||
+   cents(origin.valor)!==cents(entry.valor)||origin.afetaCaixaFisico!==entry.afetaCaixaFisico||
+   entry._v2.sequence<=origin._v2.sequence)error('CREDIT_SOURCE_UNVERIFIED');
+  reversals.set(origin.id,entry);
+ }
+ for(const receipt of sale.creditAllocationsV2||[]){
+  const entry=entries.get(receipt.receiptId),link=entry?.financeLink;
+  if(link?.financeEventType!=='RECEIPT'||link.sourceEventId!==obligationId||link.moedaOrigem!=='PYG'||
+   stable(link.allocations)!==stable(receipt.allocations)||!entry.afetaCaixaFisico||
+   link.valorOriginal!==receipt.allocations.reduce((sum,row)=>sum+row.amountPYG,0)||
+   cents(entry.valor)!==receipt.allocations.reduce((sum,row)=>sum+cents(row.amountBRL),0))
+   error('CREDIT_SOURCE_UNVERIFIED');
+  recognized.add(entry.id);
+  const marker=sale._distribution?.pygReceiptReversals?.[entry.id];
+  const reversal=reversals.get(entry.id);
+  if(Boolean(marker)!==Boolean(reversal)||(marker&&(
+   reversal._v2.commandId!==marker.operationId||stable(reversal.detalhes?.allocations)!==stable(receipt.allocations)||
+   reversal.detalhes?.movementId!==marker.movementId)))error('CREDIT_SOURCE_UNVERIFIED');
+  if(reversal)recognized.add(reversal.id);
+ }
+ const active=sale._distribution?.activePygCompensation;
+ const allocations=new Map(active?.allocations?.map(row=>[row.installmentId,row])||[]);
+ const claims=new Set();
+ for(const entry of entries.values()){
+  const link=entry.financeLink;
+  if(link.financeEventType!=='COMPENSATION')continue;
+  const reversal=reversals.get(entry.id);
+  if(entry.afetaCaixaFisico||link.moedaOrigem!=='PYG'||!credit.balances.has(link.installmentId)||
+   !Number.isSafeInteger(link.valorOriginal)||link.valorOriginal<=0||
+   !entry.detalhes?.returnCheckEventId||claims.has(link.sourceEventId)||
+   link.sourceEventId!==hash(entry.detalhes.returnCheckEventId+':'+link.installmentId)||
+   entry.detalhes.historicalRate!==credit.rate)error('CREDIT_SOURCE_UNVERIFIED');
+  claims.add(link.sourceEventId);
+  if(reversal){
+   if(reversal.afetaCaixaFisico||reversal.detalhes?.sourceDigest!==entry.detalhes.sourceDigest)error('CREDIT_SOURCE_UNVERIFIED');
+   recognized.add(reversal.id);
+  }else{
+   const row=allocations.get(link.installmentId);
+   if(!row||entry._v2.commandId!==active.operationId||row.amountMinor!==link.valorOriginal||
+    row.amountBRLCents!==cents(entry.valor)||entry.detalhes.sourceDigest!==active.contract.sourceDigest)
+    error('CREDIT_SOURCE_UNVERIFIED');
+   allocations.delete(link.installmentId);
+  }
+  recognized.add(entry.id);
+ }
+ if(allocations.size||recognized.size!==entries.size)error('CREDIT_SOURCE_UNVERIFIED');
+ const money=minor=>({currency:'PYG',precision:0,minor:String(minor)});
+ const installments=sale.financeCreditV2.installments.map(row=>{
+  const balance=credit.balances.get(row.id);
+  return {id:row.id,receivableId,dueAt:row.dueAt??null,original:money(balance.original),received:money(balance.paid),
+   compensated:money(balance.compensated||0),outstanding:money(balance.original-balance.paid-(balance.compensated||0)),
+   state:balance.original===balance.paid+(balance.compensated||0)?'CLOSED':balance.paid||balance.compensated?'PARTIALLY_PAID':'OPEN',
+   outstandingBRLCents:cents(row.amountBRL)-balance.postedCents-(balance.compensatedCents||0)};
+ });
+ const payments=[...entries.values()].filter(entry=>entry.id!==obligationId).map(entry=>({
+  id:entry.id,kind:entry.financeLink.financeEventType,installmentId:entry.financeLink.installmentId,
+  currency:'PYG',amount:String(entry.financeLink.valorOriginal),bookedBRLCents:cents(entry.valor),
+  sourceEventId:entry.financeLink.sourceEventId,affectsCash:entry.afetaCaixaFisico,
+  allocations:entry.financeLink.allocations||entry.detalhes?.allocations||[]
+ }));
+ return {schema:2,state:'RECONCILED',issues:[],installments,payments,saleTotal:money(sale.totalOriginal),
+  verifiedReceived:money(credit.paid),verifiedOpen:money(credit.remaining),unconfirmedReceipts:money(0),
+  outstandingBRLCents:installments.reduce((sum,row)=>sum+row.outstandingBRLCents,0),
+  previousCompensations:money(sale.totalOriginal-credit.paid-credit.remaining),adjustmentAmount:money(adjustment.value.minor),financialExecution:'BLOCKED_B2'};
+}
 // Abate o fim do cronograma e de cada parcela, preservando a faixa já paga.
 export function planPygReturnCompensation({sale,credit,returnedValue,source,operatorId}){
  const eligibleMinor=Math.min(returnedValue,credit.remaining);
@@ -148,7 +233,7 @@ function tripCreditAllocation(sale,receiptId,amount){
  if(remaining)error('CREDIT_LIMIT');
  return prepareVerifiedCreditAllocations({sales:[sale],clientId:sale.clienteId,receiptId,receivedBRL:amount/100,allocations});
 }
-export function buildTrips({db,ctx,authorize,finalize,now,emulatorPygCompensation=false}) {
+export function buildTrips({db,ctx,authorize,finalize,now,deliveryCGrantScope=null}) {
  const ref=(c,collection,key)=>db.doc(`${c.root}/${collection}/${id(key)}`);
  async function verifyCreditLedger(tx,c,sale){
     const obligation=(await tx.get(db.doc(`${c.root}/financeiro_livro/VENDA-${sale.id}-FIADO`))).data();
@@ -210,6 +295,7 @@ export function buildTrips({db,ctx,authorize,finalize,now,emulatorPygCompensatio
         deliveryEventId:stop.proofId,orderLineId:line.orderLineId,lineId:line.id,quantity,returnIds,returnCheckEventId:line.returnCheckEventId}});
      }
     }
+    if(line.pygCompensation?.active)compensationContract=null;
     const preview={currency:'PYG',executable:false,orderId:sale.id,proofId:stop.proofId,
      quantity,returnedValue,original:sale.totalOriginal,received:credit.paid,
      outstanding:credit.remaining,maximum,projectedMinimum:credit.remaining-maximum,
@@ -227,8 +313,15 @@ export function buildTrips({db,ctx,authorize,finalize,now,emulatorPygCompensatio
   const fingerprint=hash(stable(input));
   return db.runTransaction(async tx=>{
    const c=await ctx(tx,uid),actor=await actorFor(tx,uid,token,c,management.has(type)?'manage':warehouse.has(type)?'returns':finance.has(type)?'finance':'driver');
-   if(compensationCommands.has(type)&&!emulatorPygCompensation&&!evaluatePreparationOfC().EXECUTION_OF_C_ALLOWED)
-    error('DELIVERY_C_EXECUTION_BLOCKED');
+   if(compensationCommands.has(type)&&!evaluatePreparationOfC().EXECUTION_OF_C_ALLOWED){
+    if(deliveryCGrantScope?.uid!==uid||!pygCash(c))error('DELIVERY_C_EXECUTION_BLOCKED');
+    const [grantDoc,tenantDoc]=await Promise.all([tx.get(ref(c,'distribution_config','delivery_c_grant')),tx.get(db.doc(c.root))]);
+    const grant=grantDoc.data();
+    if(tenantDoc.data()?.synthetic!==true||grant?.enabled!==true||grant.projectId!==deliveryCGrantScope.projectId||grant.uid!==uid||
+     grant.generation!==c.generation||grant.operatorId!==actor.operatorId||
+     !Number.isSafeInteger(grant.expiresAt)||grant.expiresAt<=now()||
+     !Array.isArray(grant.commands)||!grant.commands.includes(type))error('DELIVERY_C_EXECUTION_BLOCKED');
+   }
    const operationId=hash(`trip:${key}`),receiptRef=ref(c,'distribution_trip_receipts',operationId),tripRef=ref(c,'distribution_trips',tripId);
    const [prior,snap]=await Promise.all([tx.get(receiptRef),tx.get(tripRef)]);
    if(prior.exists){if(prior.data().generation!==c.generation)error('V2_ROUTE_CHANGED');if(prior.data().fingerprint!==fingerprint||prior.data().operatorId!==actor.operatorId)error('IDEMPOTENCY_CONFLICT');return {...prior.data().result,replayed:true};}
@@ -310,10 +403,10 @@ export function buildTrips({db,ctx,authorize,finalize,now,emulatorPygCompensatio
     const {preview,order,sale,line}=await readPygReturn(tx,c,uid,trip,p,actor.operatorId);
     const active=sale._distribution?.activePygCompensation;
     const applying=type==='COMPENSATE_PYG_RETURN';
+    if(applying&&(active||line.pygCompensation?.active))error('COMPENSATION_ALREADY_APPLIED');
     const contract=applying?preview.compensationContract:active?.contract;
     if(!contract)error(applying?'RETURN_SOURCE_UNVERIFIED':'COMPENSATION_NOT_ACTIVE');
     if(applying){
-     if(active||line.pygCompensation?.active)error('COMPENSATION_ALREADY_APPLIED');
      if(contract.sourceDigest!==p.sourceDigest)error('REVISION_CONFLICT');
      if(!contract.eligibleMinor||!contract.amountBRLCents)error('CREDIT_LIMIT');
     }else if(!active||active.operationId!==p.compensationId||line.pygCompensation?.operationId!==p.compensationId){
@@ -597,9 +690,7 @@ export function buildTrips({db,ctx,authorize,finalize,now,emulatorPygCompensatio
      if(trip.cheques?.length||Object.keys(trip.receiptReversals||{}).length)error('SETTLEMENT_PENDING');
      if(trip.stops.some(stop=>stop.commercialPending&&(!stop.nativeSplitCredit||!trip.postedOrders[stop.orderId])))error('COMMERCIAL_POST_REQUIRED');
      if(trip.state!=='SETTLING'||trip.receipts.some(r=>!r.voided&&!r.posted))error('SETTLEMENT_PENDING');
-     if(trip.stops.some(stop=>stop.lines.some(line=>line.returning>line.refunded&&
-      !(pygCash(c)&&line.pygCompensation?.active&&line.returnChecked&&line.returning===line.customerReturned&&
-        line.pygCompensation.restitutionPendingMinor===0))))
+     if(hasPendingTripReturnFinance(trip,pygCash(c)))
       error(pygCash(c)?'PYG_RETURN_FINANCE_PENDING':'SETTLEMENT_PENDING');
      for(const stop of trip.stops){const order=await getEntity('vendas',stop.orderId);if(!['venda'].includes(order.data().data.tipoDocumento))error('COMMERCIAL_POST_REQUIRED');}
      trip.state='CLOSED';trip.closedAt=now();trip.closedBy=actor.operatorId;
@@ -615,9 +706,11 @@ export function buildTrips({db,ctx,authorize,finalize,now,emulatorPygCompensatio
     event.document={issuer:c.config.issuer?.name??'',driverId:trip.driverId,driverName:trip.driverName,
      vehiclePlate:trip.vehiclePlate,routeName:trip.routeName,state:trip.state,physicalClosure:trip.physicalClosure??null,
      stops:trip.stops.map(stop=>({orderId:stop.orderId,customerName:stop.customerName,destination:stop.destination,state:stop.state,
+      ...(type==='CLOSE'&&pygCash(c)?{remainingCreditPYG:trip.postedOrders[stop.orderId]?.remainingCreditPYG??null}:{}),
       lines:stop.lines.map(line=>({id:line.id,description:line.description,sku:line.sku,unit:line.unit,
        loaded:line.quantity,delivered:line.delivered-(line.customerReturned||0),returning:line.returning,
-       damaged:line.damagedReturning||0,reintegrated:line.reintegrated,quarantined:line.quarantined}))}))};
+       damaged:line.damagedReturning||0,reintegrated:line.reintegrated,quarantined:line.quarantined,
+       ...(type==='CLOSE'&&line.pygCompensation?.active?{compensatedPYG:line.pygCompensation.eligibleMinor,compensationId:line.pygCompensation.operationId}:{})}))}))};
    }
    for(const [r,data]of writes)tx.set(r,data);
    for(const e of ledger)tx.create(db.doc(`${c.root}/financeiro_livro/${e.id}`),{...e,_v2:{generation:c.generation,commandId:operationId,sequence:seq}});

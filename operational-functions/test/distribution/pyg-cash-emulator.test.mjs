@@ -3,7 +3,7 @@ import {planPygReturnCompensation} from '../../src/distribution/trips.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
-import {setupTrip,dispatched,route,trip,db,service,signature} from './trip-fixture.mjs';
+import {setupTrip,dispatched,route,trip,db,service,signature,PIN} from './trip-fixture.mjs';
 
 test('two PYG trips reconcile one native cash receipt and preserve the original debt',async()=>{
  const f=await setupTrip({orders:1,stock:10});
@@ -147,10 +147,14 @@ test('PYG pilot carries three customers through one manifest, custody and physic
  assert.ok(history.items.some(event=>event.type==='CLOSE_PHYSICAL'&&event.hasDocument));
 });
 
-test('three native PYG installments allocate two receipts across trips without duplicate cash',async()=>{
+for(const closeAfterCompensation of [false,true])test(closeAfterCompensation?'Closes the second PYG trip after recorded compensation':'Reconciles PYG compensation and reversals without duplicate cash',async()=>{
  const f=await setupTrip({orders:1,stock:10});
- const engine=distributionService(db,{emulatorPygCompensation:true});
+ const engine=distributionService(db,{emulatorPygCompensationUid:f.uid});
  await db.doc(`${f.root}/distribution_config/module`).update({pilotProfile:'PYG_CREDIT_CASH_V1',nativePygCashEnabled:true});
+ const grantRef=db.doc(f.root+'/distribution_config/delivery_c_grant');
+ const grant={enabled:true,projectId:db.projectId,uid:f.uid,generation:f.base.split('/').at(-1),operatorId:'admin',
+  commands:['COMPENSATE_PYG_RETURN','REVERSE_PYG_COMPENSATION','REVERSE_PYG_RECEIPT'],expiresAt:Date.now()+300000};
+ await grantRef.set(grant);
  const saleRef=db.doc(`${f.base}/vendas/O001`);
  const sale=(await saleRef.get()).data().data;
  const nativeAmount={currency:'PYG',amountMinor:1000000,historicalRate:'1250'};
@@ -261,6 +265,15 @@ test('three native PYG installments allocate two receipts across trips without d
  const execute=(input,actor=f.manager)=>engine.routeCommand(f.uid,actor.sessionToken,input);
  await assert.rejects(service.routeCommand(f.uid,f.manager.sessionToken,command),{code:'DELIVERY_C_EXECUTION_BLOCKED'});
  await assert.rejects(execute(command,f.driver),{code:'FORBIDDEN'});
+ await grantRef.update({projectId:'foreign-project'});
+ await assert.rejects(execute(command),{code:'DELIVERY_C_EXECUTION_BLOCKED'});
+ await grantRef.update({projectId:grant.projectId,expiresAt:Date.now()-1});
+ await assert.rejects(execute(command),{code:'DELIVERY_C_EXECUTION_BLOCKED'});
+ await grantRef.update({expiresAt:grant.expiresAt,generation:'old'});
+ await assert.rejects(execute(command),{code:'DELIVERY_C_EXECUTION_BLOCKED'});
+ await grantRef.update({generation:grant.generation,commands:['REVERSE_PYG_COMPENSATION']});
+ await assert.rejects(execute(command),{code:'DELIVERY_C_EXECUTION_BLOCKED'});
+ await grantRef.update({commands:grant.commands});
  const other=await setupTrip({orders:1});
  await assert.rejects(engine.routeCommand(other.uid,f.manager.sessionToken,command),{code:'SESSION_EXPIRED'});
  await assert.rejects(execute({...command,expectedRevision:settled.revision-1}),{code:'REVISION_CONFLICT'});
@@ -275,6 +288,37 @@ test('three native PYG installments allocate two receipts across trips without d
  const compensationId=applied.stops[0].lines[0].pygCompensation.operationId;
  const applyEvent=(await db.doc(f.root+'/distribution_trip_events/'+compensationId).get()).data();
  assert.equal(applyEvent.financialContract.eligibleMinor,200000);
+ const adjustmentId='PYG-RETURN-RECON';
+ await db.doc(f.root+'/distribution_adjustments/'+adjustmentId).set({id:adjustmentId,tenantId:f.uid,generation:grant.generation,
+  saleId:'O001',customerId:'C1',revision:0,value:{currency:'PYG',minor:'200000'}});
+ const reconcile=async(expected,brl)=>{
+  await service.reconciliationCommand(f.uid,f.manager.sessionToken,{adjustmentId,key:randomUUID(),expectedRevision:0});
+  const session=await service.login(f.uid,{operatorId:'admin',pin:PIN,scope:'trip'});
+  const result=await service.reconciliationQuery(f.uid,session.sessionToken,{type:'detail',adjustmentId});
+  assert.equal(result.reconciliation.state,'RECONCILED');
+  assert.equal(result.reconciliation.verifiedOpen.minor,String(expected));
+  assert.equal(result.reconciliation.outstandingBRLCents,brl);
+  return result.reconciliation;
+ };
+ const reconciled=await reconcile(350000,28000);
+ assert.equal(reconciled.verifiedReceived.minor,'450000');
+ assert.equal(reconciled.installments[2].compensated.minor,'200000');
+ assert.equal(reconciled.payments.find(event=>event.kind==='COMPENSATION').affectsCash,false);
+ if(closeAfterCompensation){
+  await grantRef.update({enabled:false});
+  await assert.rejects(execute(command),{code:'DELIVERY_C_EXECUTION_BLOCKED'});
+  await route(f,'manager','CLOSE','T2',applied.revision);
+  assert.equal((await trip(f,'T2')).trip.state,'CLOSED');
+  const history=await service.routeQuery(f.uid,f.manager.sessionToken,{type:'events',tripId:'T2'});
+  const closure=history.items.find(event=>event.type==='CLOSE');
+  assert.equal(closure.hasDocument,true);
+  const document=await service.routeQuery(f.uid,f.manager.sessionToken,{type:'document',tripId:'T2',eventId:closure.id});
+  assert.equal(document.document.state,'CLOSED');
+  assert.equal(document.document.stops[0].remainingCreditPYG,350000);
+  assert.equal(document.document.stops[0].lines[0].compensatedPYG,200000);
+  assert.equal((await reconcile(350000,28000)).previousCompensations.minor,'200000');
+  return;
+ }
  await assert.rejects(execute({...command,key:randomUUID(),expectedRevision:applied.revision}),{code:'COMPENSATION_ALREADY_APPLIED'});
  const reverse={type:'REVERSE_PYG_COMPENSATION',tripId:'T2',expectedRevision:applied.revision,key:randomUUID(),
   payload:{stopId:'O001',lineId:returned.id,compensationId,reason:'Reversión sintética'}};
@@ -285,6 +329,7 @@ test('three native PYG installments allocate two receipts across trips without d
  assert.equal(restored.installmentBalances[0].remaining,550000);
  assert.equal(restored.installmentBalances[0].installments[2].remaining,400000);
  assert.equal(restored.installmentBalances[0].received,450000);
+ assert.equal((await reconcile(550000,44000)).previousCompensations.minor,'0');
  await assert.rejects(execute({...reverse,key:randomUUID(),expectedRevision:restored.revision}),{code:'COMPENSATION_NOT_ACTIVE'});
  await assert.rejects(execute({...command,key:randomUUID(),expectedRevision:restored.revision,payload:{...command.payload,sourceDigest:(await preview()).compensationContract.sourceDigest}}),{code:'COMPENSATION_ALREADY_APPLIED'});
  const financialEvents=(await ledger.get()).docs.map(doc=>doc.data()).filter(entry=>['compensacao_devolucao','reversao_compensacao'].includes(entry.tipo));
@@ -309,6 +354,7 @@ test('three native PYG installments allocate two receipts across trips without d
  const corrected=(await trip(f,'T2')).trip;
  assert.equal(corrected.installmentBalances[0].remaining,750000);
  assert.equal(corrected.installmentBalances[0].received,250000);
+ assert.equal((await reconcile(750000,60000)).verifiedReceived.minor,'250000');
  assert.equal((await client.get()).data().data.saldoDevedorBRL,600);
  assert.equal((await saleRef.get()).data().data.creditAllocationsV2.length,2);
  assert.equal(corrected.receipts.find(receipt=>receipt.id===postedReceipt.id).posted,true);

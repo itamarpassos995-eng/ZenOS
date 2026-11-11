@@ -18,3 +18,9 @@ export function pygCreditSnapshot({currency, totalOriginal, totalCentsBRL, credi
 export function custodyTotals(receipts){const totals={};for(const r of receipts||[])if(!r.voided){totals[r.currency]=(totals[r.currency]||0)+r.minor;units(totals[r.currency]);}return totals;}
 export function deliveryQuantities(line,delivered,condition){units(delivered);if(delivered>line.quantity||!['GOOD','DAMAGED'].includes(condition))tripError('INVALID_DELIVERY');return {delivered,returning:line.quantity-delivered,condition};}
 export function validateSignature(strokes){if(!Array.isArray(strokes)||!strokes.length||strokes.length>20||strokes.reduce((n,s)=>n+(Array.isArray(s)?s.length:10000),0)>600)tripError('SIGNATURE_REQUIRED');for(const stroke of strokes){if(!Array.isArray(stroke)||stroke.length<2)tripError('SIGNATURE_REQUIRED');for(const p of stroke)if(!Array.isArray(p)||p.length!==2||p.some(n=>!Number.isFinite(n)||n<0||n>1))tripError('SIGNATURE_REQUIRED');}return strokes;}
+
+export function hasPendingTripReturnFinance(trip, nativePygCashEnabled){
+ return trip.stops.some(stop=>stop.lines.some(line=>line.returning>line.refunded&&
+  !(nativePygCashEnabled&&line.pygCompensation?.active&&line.returnChecked&&line.returning===line.customerReturned&&
+    line.pygCompensation.restitutionPendingMinor===0)));
+}
