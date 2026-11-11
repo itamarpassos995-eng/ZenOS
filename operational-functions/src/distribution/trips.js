@@ -9,7 +9,7 @@ const text=(v,max=200,required=true)=>{if(typeof v!=='string'||v.length>max||(re
 const cents=v=>{const n=Math.round(Number(v)*100);if(!Number.isSafeInteger(n)||n<0)error('INVALID_PAYMENT');return n;};
 const management=new Set(['SAVE_VEHICLE','SAVE_ROUTE','CREATE_TRIP','REORDER','ASSIGN','VOID_RECEIPT','SET_DRIVER_ACCESS']);
 const warehouse=new Set(['CHECK_RETURN','CLOSE_PHYSICAL','HANDOVER_CHEQUE']);
-const finance=new Set(['BEGIN_CLOSE','CLOSE','REFUND']);
+const finance=new Set(['BEGIN_CLOSE','CLOSE','REFUND','SET_PYG_INSTALLMENTS']);
 const driverActions=new Set(['START','DELIVER','INCIDENT','COLLECT','RECORD_CHEQUE','CUSTOMER_RETURN','ARRIVE']);
 const pilotPYG=c=>c.config.pilotProfile==='PYG_CREDIT_CASH_V1';
 const pygCash=c=>pilotPYG(c)&&c.config.nativePygCashEnabled===true;
@@ -18,32 +18,70 @@ const deliveredMinor=line=>BigInt(line.amount.minor)*BigInt(line.delivered-(line
 function pygCredit(sale){
  const {owed,installments}=creditObligationForSale(sale);
  const source=sale.financeCreditV2.nativeAmount;
- const installment=installments[0];
  if(sale.tipoDocumento!=='venda'||sale.moedaDocumento!=='PYG'||owed!==cents(sale.totalBRL)||
-  !['concluida','parcial'].includes(sale.estado)||installments.length!==1||
+  !['concluida','parcial'].includes(sale.estado)||
   source?.currency!=='PYG'||!Number.isSafeInteger(source.amountMinor)||source.amountMinor<=0||
   source.amountMinor!==sale.totalOriginal||source.historicalRate!==String(sale.taxasCambio?.PYG)||
-  installment.nativeAmount?.currency!=='PYG'||installment.nativeAmount.amountMinor!==source.amountMinor||
-  installment.nativeAmount.historicalRate!==source.historicalRate||
   paymentCents(source.amountMinor,'PYG',source.historicalRate)!==owed||
   (sale._distribution?.creditRefundedCents||0)||
   (sale._distribution?.driverDebtPaidCents||0)!==(sale._distribution?.nativeTripPaidCents||0))
   error('CREDIT_SOURCE_UNVERIFIED');
- let paid=0,postedCents=0;
- for(const receipt of sale.creditAllocationsV2||[]){
-  const [row]=receipt.allocations||[];
-  if(receipt.allocations?.length!==1||row.installmentId!==installment.id||
-   row.historicalRate!==source.historicalRate||!Number.isSafeInteger(row.amountPYG)||row.amountPYG<=0)error('CREDIT_SOURCE_UNVERIFIED');
-  paid=units(paid+row.amountPYG);postedCents+=cents(row.amountBRL);
+ let issued=0,paid=0,postedCents=0;
+ const balances=new Map();
+ for(const installment of installments){
+  const native=installment.nativeAmount;
+  if(native?.currency!=='PYG'||!Number.isSafeInteger(native.amountMinor)||native.amountMinor<=0||
+   native.historicalRate!==source.historicalRate||
+   (installments.length>1&&(!/^\d{4}-\d{2}-\d{2}$/.test(installment.dueAt||'')||!Number.isFinite(Date.parse(installment.dueAt)))))
+   error('CREDIT_SOURCE_UNVERIFIED');
+  const next=units(issued+native.amountMinor);
+  if(paymentCents(next,'PYG',source.historicalRate)-paymentCents(issued,'PYG',source.historicalRate)!==cents(installment.amountBRL))
+   error('CREDIT_SOURCE_UNVERIFIED');
+  balances.set(installment.id,{start:issued,original:native.amountMinor,paid:0,postedCents:0});
+  issued=next;
  }
- if(paid>source.amountMinor||paymentCents(paid,'PYG',source.historicalRate)!==postedCents||
-  postedCents!==(sale._distribution?.nativeTripPaidCents||0))error('CREDIT_SOURCE_UNVERIFIED');
- return {remaining:source.amountMinor-paid,paid,postedCents,rate:source.historicalRate,owed};
+ if(issued!==source.amountMinor)error('CREDIT_SOURCE_UNVERIFIED');
+ const receiptIds=new Set();
+ for(const receipt of sale.creditAllocationsV2||[]){
+  if(typeof receipt.receiptId!=='string'||receiptIds.has(receipt.receiptId)||!Array.isArray(receipt.allocations)||!receipt.allocations.length)error('CREDIT_SOURCE_UNVERIFIED');
+  receiptIds.add(receipt.receiptId);
+  const seen=new Set();
+  for(const row of receipt.allocations){
+   const balance=balances.get(row.installmentId);
+   if(!balance||seen.has(row.installmentId)||row.saleId!==sale.id||
+    row.historicalRate!==source.historicalRate||!Number.isSafeInteger(row.amountPYG)||row.amountPYG<=0)error('CREDIT_SOURCE_UNVERIFIED');
+   seen.add(row.installmentId);
+   const next=units(balance.paid+row.amountPYG);
+   const converted=paymentCents(balance.start+next,'PYG',source.historicalRate)-paymentCents(balance.start+balance.paid,'PYG',source.historicalRate);
+   if(next>balance.original||converted!==cents(row.amountBRL))error('CREDIT_SOURCE_UNVERIFIED');
+   balance.paid=next;balance.postedCents+=converted;
+   paid=units(paid+row.amountPYG);postedCents=units(postedCents+converted);
+  }
+ }
+ if(postedCents!==(sale._distribution?.nativeTripPaidCents||0))error('CREDIT_SOURCE_UNVERIFIED');
+ return {remaining:source.amountMinor-paid,paid,postedCents,rate:source.historicalRate,owed,balances};
+}
+function pygAllocation(sale,receiptId,minor){
+ const credit=pygCredit(sale);
+ if((sale.creditAllocationsV2||[]).some(receipt=>receipt.receiptId===receiptId))error('CREDIT_ALLOCATION_REPLAY_CONFLICT');
+ let remaining=units(minor,1),amount=0;
+ const allocations=[];
+ for(const [installmentId,balance] of credit.balances){
+  const portion=Math.min(remaining,balance.original-balance.paid);
+  if(!portion)continue;
+  const converted=paymentCents(balance.start+balance.paid+portion,'PYG',credit.rate)-paymentCents(balance.start+balance.paid,'PYG',credit.rate);
+  allocations.push({saleId:sale.id,installmentId,amountPYG:portion,amountBRL:converted/100,amountBRLCents:String(converted),historicalRate:credit.rate});
+  remaining-=portion;amount+=converted;
+  if(!remaining)break;
+ }
+ if(remaining)error('AMOUNT_EXCEEDS_DUE');
+ if(!amount)error('INVALID_PAYMENT');
+ return {allocations,amount,patches:[{nextSale:{...sale,creditAllocationsV2:[...(sale.creditAllocationsV2||[]),{receiptId,recordedAtState:'REGISTERED_UNVERIFIED',allocations}]}}]};
 }
 function nativeTripCredit(sale){
  if(sale.moedaDocumento==='PYG'){
   const credit=pygCredit(sale);
-  return new Map([[sale.financeCreditV2.installments[0].id,credit.owed-credit.postedCents]]);
+  return new Map(sale.financeCreditV2.installments.map(installment=>[installment.id,cents(installment.amountBRL)-credit.balances.get(installment.id).postedCents]));
  }
  const {owed,installments}=creditObligationForSale(sale);
  if(sale.tipoDocumento!=='venda'||sale.moedaDocumento!=='BRL'||owed!==cents(sale.totalBRL)||
@@ -94,7 +132,33 @@ export function buildTrips({db,ctx,authorize,finalize,now}) {
    const patch=(s,field,data)=>{revisions[field]=(c.head.fieldRevisions[field]||0)+1;const envelope={...s.data(),data,version:seq,commandId:operationId};patches.push({field,routeId:s.id,...envelope});writes.push([s.ref,envelope]);};
    const getEntity=async(collection,key)=>{const s=await tx.get(db.doc(`${c.base}/${collection}/${id(key)}`));if(!s.exists||s.data().deleted)error('SOURCE_NOT_FOUND');return s;};
    let entityResult;
-   if(type==='SET_DRIVER_ACCESS'){
+   if(type==='SET_PYG_INSTALLMENTS'){
+    if(!pygCash(c))error('PILOT_PYG_CREDIT_UNAVAILABLE');
+    const source=await getEntity('vendas',tripId),sale=structuredClone(source.data().data);
+    if(source.data().version!==expectedRevision)error('REVISION_CONFLICT');
+    const credit=pygCredit(sale);
+    await verifyCreditLedger(tx,c,sale);
+    const held=await tx.get(ref(c,'distribution_collection_holds',sale.id));
+    if(credit.paid||(held.data()?.reservedPYG||0)||sale.financeCreditV2.installments.length!==1||
+     sale.financeCreditV2.installments[0].kind!=='AGGREGATE_NO_SCHEDULE')error('CREDIT_SCHEDULE_LOCKED');
+    if(!Array.isArray(p.installments)||p.installments.length<2||p.installments.length>80)error('INVALID_INSTALLMENTS');
+    const seen=new Set();let total=0;
+    const installments=p.installments.map(row=>{
+     if(typeof row.id!=='string'||!/^[A-Za-z0-9._:-]{1,120}$/.test(row.id)||seen.has(row.id))error('INVALID_INSTALLMENTS');
+     seen.add(row.id);
+     const before=total;total=units(total+units(row.amountPYG,1));
+     const amountBRL=(paymentCents(total,'PYG',credit.rate)-paymentCents(before,'PYG',credit.rate))/100;
+     if(amountBRL<=0)error('INVALID_INSTALLMENTS');
+     return {id:row.id,saleId:sale.id,receivableId:sale.financeCreditV2.receivableId,dueAt:row.dueAt,
+      amountBRL,nativeAmount:{currency:'PYG',amountMinor:row.amountPYG,historicalRate:credit.rate}};
+    });
+    if(total!==sale.totalOriginal)error('CREDIT_INSTALLMENT_SUM_MISMATCH');
+    sale.financeCreditV2={...sale.financeCreditV2,installments,
+     scheduleHistory:[...(sale.financeCreditV2.scheduleHistory||[]),{operationId,operatorId:actor.operatorId,at:now(),previous:sale.financeCreditV2.installments}]};
+    pygCredit(sale);
+    patch(source,'historicoVendas',sale);
+    entityResult={id:tripId,revision:seq};
+   }else if(type==='SET_DRIVER_ACCESS'){
     if(actor.operatorId!=='admin'&&actor.permissions.admin!==true)error('FORBIDDEN');const target=await getEntity('operadores',tripId);if(target.data().version!==expectedRevision)error('REVISION_CONFLICT');if(tripId==='admin'||target.data().data.permissoes?.admin)error('PROTECTED_OPERATOR');
     const allowed=['distributionDriver','distributionManage','distributionReturns','distributionFinance','distributionFiscalReview'];if(!p.permissions||Object.keys(p.permissions).some(k=>!allowed.includes(k)||typeof p.permissions[k]!=='boolean'))error('INVALID_COMMAND');patch(target,'vendedores',{...target.data().data,permissoes:{...target.data().data.permissoes,...p.permissions}});entityResult={id:tripId,revision:expectedRevision+1};
    }else if(type==='SAVE_VEHICLE'||type==='SAVE_ROUTE'){
@@ -365,15 +429,16 @@ export function buildTrips({db,ctx,authorize,finalize,now}) {
     const credit=pygCredit(o);
     receivedPYG=postingReceipts.reduce((sum,r)=>sum+r.minor,0);
     if(receivedPYG>credit.remaining)error('AMOUNT_EXCEEDS_DUE');
-    let paid=credit.paid;
+    let preview=structuredClone(o);
+    received=0;
     for(const receipt of postingReceipts){
      if(String(receipt.rate)!==credit.rate)error('PAYMENT_RATE_CHANGED');
-     const next=paid+receipt.minor;
-     receipt.postedCentsBRL=paymentCents(next,'PYG',credit.rate)-paymentCents(paid,'PYG',credit.rate);
-     if(!receipt.postedCentsBRL)error('INVALID_PAYMENT');
-     paid=next;
+     const allocation=pygAllocation(preview,'PREVIEW-'+receipt.id,receipt.minor);
+     receipt.postedCentsBRL=allocation.amount;
+     preview=allocation.patches[0].nextSale;
+     preview._distribution={...preview._distribution,driverDebtPaidCents:(preview._distribution?.driverDebtPaidCents||0)+allocation.amount,nativeTripPaidCents:(preview._distribution?.nativeTripPaidCents||0)+allocation.amount};
+     received+=allocation.amount;
     }
-    received=paymentCents(paid,'PYG',credit.rate)-credit.postedCents;
    }
    const accountingCents=r=>r.postedCentsBRL??r.centsBRL;
    t.cashMovementsAdded=0;
@@ -388,11 +453,8 @@ export function buildTrips({db,ctx,authorize,finalize,now}) {
      for(const r of t.receipts.filter(receipt=>plan.receiptIds.includes(receipt.id))){
       if(!r.method.startsWith('dinheiro_'))error('PAYMENT_METHOD_DISABLED');
       const receiptId=`REC-${operationId}-${r.id.slice(0,12)}`;
-      const allocation=tripCreditAllocation(o,receiptId,accountingCents(r));
-      if(pygCash(c)){
-       allocation.allocations[0].amountPYG=r.minor;
-       allocation.allocations[0].historicalRate=String(r.rate);
-      }
+      const allocation=pygCash(c)?pygAllocation(o,receiptId,r.minor):tripCreditAllocation(o,receiptId,accountingCents(r));
+
       o.creditAllocationsV2=allocation.patches[0].nextSale.creditAllocationsV2;
       if(pygCash(c))o._distribution={...o._distribution,driverDebtPaidCents:(o._distribution?.driverDebtPaidCents||0)+accountingCents(r),nativeTripPaidCents:(o._distribution?.nativeTripPaidCents||0)+accountingCents(r)};
       receiptLinks.set(r.id,{financeLinkVersion:2,financeEventType:'RECEIPT',saleId:o.id,paymentId:receiptId,
@@ -435,6 +497,22 @@ export function buildTrips({db,ctx,authorize,finalize,now}) {
    }
    if(input.type==='detail'||input.type==='proof'||input.type==='events'||input.type==='document'){
     const tr=await tx.get(ref(c,'distribution_trips',input.tripId)),t=tr.data();if(!t||t.generation!==c.generation)error('TRIP_NOT_FOUND');if(isDriver&&t.driverId!==actor.operatorId)error('FORBIDDEN');
+    if(input.type==='detail'&&pygCash(c)){
+     const sources=await Promise.all(t.stops.map(stop=>tx.get(db.doc(c.base+'/vendas/'+id(stop.orderId)))));
+     t.installmentBalances=t.stops.map((stop,index)=>{
+      const sale=sources[index].data()?.data;
+      try{
+       const credit=pygCredit(sale);
+       return {orderId:stop.orderId,currency:'PYG',sourceRevision:sources[index].data().version,canSchedule:credit.paid===0&&sale.financeCreditV2.installments.length===1&&sale.financeCreditV2.installments[0].kind==='AGGREGATE_NO_SCHEDULE',received:credit.paid,remaining:credit.remaining,
+        installments:sale.financeCreditV2.installments.map(installment=>{
+         const balance=credit.balances.get(installment.id);
+         return {id:installment.id,dueAt:installment.dueAt,original:balance.original,received:balance.paid,
+          remaining:balance.original-balance.paid,status:balance.paid===balance.original?'PAID':balance.paid?'PARTIAL':'OPEN',
+          originalBRLCents:cents(installment.amountBRL),remainingBRLCents:cents(installment.amountBRL)-balance.postedCents};
+        })};
+      }catch{return {orderId:stop.orderId,currency:'PYG',blocked:true};}
+     });
+    }
     if(input.type==='detail')return {trip:isDriver?{...t,settlement:t.settlement?{expected:t.settlement.expected,differences:t.settlement.differences}:undefined,stops:t.stops.map(s=>({...s,lines:s.lines.map(({snapshot,...l})=>l)}))}:t,pilotBRL:pilotBRL(c),pilotPYG:pilotPYG(c),nativePygCashEnabled:pygCash(c),paymentMethods:(c.config.driverPaymentMethods||[]).filter(method=>pilotPYG(c)?pygCash(c)&&method.id==='dinheiro_pyg'&&method.currency==='PYG':!pilotBRL(c)||(method.id==='dinheiro_brl'&&method.currency==='BRL')),photosAllowed:!!c.config.driverPhotos};
     if(input.type==='document'){
      const event=(await tx.get(ref(c,'distribution_trip_events',input.eventId))).data();

@@ -127,3 +127,73 @@ test('PYG pilot carries three customers through one manifest, custody and physic
  const history=await service.routeQuery(f.uid,f.manager.sessionToken,{type:'events',tripId:'T1'});
  assert.ok(history.items.some(event=>event.type==='CLOSE_PHYSICAL'&&event.hasDocument));
 });
+
+test('three native PYG installments allocate two receipts across trips without duplicate cash',async()=>{
+ const f=await setupTrip({orders:1,stock:10});
+ await db.doc(`${f.root}/distribution_config/module`).update({pilotProfile:'PYG_CREDIT_CASH_V1',nativePygCashEnabled:true});
+ const saleRef=db.doc(`${f.base}/vendas/O001`);
+ const sale=(await saleRef.get()).data().data;
+ const nativeAmount={currency:'PYG',amountMinor:1000000,historicalRate:'1250'};
+ await saleRef.update({data:{...sale,tipoDocumento:'venda',estado:'concluida',moedaDocumento:'PYG',
+  taxasCambio:{BRL:1,PYG:1250},totalOriginal:1000000,totalBRL:800,
+  pagamentos:[{formaId:'crediario',moedaOrigem:'BRL',valorOriginal:800,valorConvertidoBRL:800}],
+  itens:[{...sale.itens[0],precoPraticadoBRL:160,totalBRL:800,movimentoEstoqueVenda:{total:5,galpao:5,vitrine:0}}],
+  financeCreditV2:{schema:1,receivableId:'REC-O001',originalBRL:800,nativeAmount,
+   installments:[{id:'AGGREGATE',amountBRL:800,kind:'AGGREGATE_NO_SCHEDULE',dueAt:null,nativeAmount}]},creditAllocationsV2:[]}});
+ const client=db.doc(`${f.base}/clientes/C1`);
+ await client.update({'data.saldoDevedorBRL':800});
+ const ledger=db.collection(`${f.root}/financeiro_livro`);
+ await ledger.doc('VENDA-O001-FIADO').set({tipo:'venda_fiada',clienteId:'C1',valor:800,
+  _v2:{generation:f.base.split('/').at(-1)},financeLink:{financeEventType:'OBLIGATION',saleId:'O001',receivableId:'REC-O001'}});
+ const schedule={installments:[{id:'A',amountPYG:300000,dueAt:'2026-12-01'},{id:'B',amountPYG:300000,dueAt:'2027-01-01'},{id:'C',amountPYG:400000,dueAt:'2027-02-01'}]};
+ const sourceVersion=(await saleRef.get()).data().version;
+ await assert.rejects(route(f,'driver','SET_PYG_INSTALLMENTS','O001',sourceVersion,schedule),{code:'FORBIDDEN'});
+ await assert.rejects(route(f,'manager','SET_PYG_INSTALLMENTS','O001',sourceVersion,{installments:schedule.installments.slice(0,2)}),{code:'CREDIT_INSTALLMENT_SUM_MISMATCH'});
+ const scheduleKey=randomUUID();
+ await route(f,'manager','SET_PYG_INSTALLMENTS','O001',sourceVersion,schedule,scheduleKey);
+ assert.equal((await route(f,'manager','SET_PYG_INSTALLMENTS','O001',sourceVersion,schedule,scheduleKey)).replayed,true);
+ await route(f,'manager','SAVE_VEHICLE','V1',0,{plate:'HML-2026',name:'Vehículo sintético'});
+ await route(f,'manager','SAVE_ROUTE','R1',0,{name:'Ruta sintética'});
+ await dispatched(f,'L1','O001',3);
+ await dispatched(f,'L2','O001',2);
+ for(const [tripId,loadId,quantity,amount] of [['T1','L1',3,250000],['T2','L2',2,200000]]){
+  await route(f,'manager','CREATE_TRIP',tripId,0,{loadIds:[loadId],driverId:'driver',vehicleId:'V1',routeId:'R1'});
+  await route(f,'driver','START',tripId,1);
+  await route(f,'driver','DELIVER',tripId,2,{stopId:'O001',quantities:[quantity],outcome:'TOTAL',receiver:'Sintético',identification:'TEST',signature});
+  let revision=3;
+  if(amount){
+   const payment={stopId:'O001',method:'dinheiro_pyg',currency:'PYG'};
+   await assert.rejects(route(f,'driver','COLLECT',tripId,revision,{...payment,amount:'600001'}),{code:'AMOUNT_EXCEEDS_DUE'});
+   await assert.rejects(route(f,'driver','COLLECT',tripId,revision,{...payment,amount:'250000.1'}),{code:'INVALID_PAYMENT'});
+   const collect=()=>route(f,'driver','COLLECT',tripId,revision,{...payment,amount:String(amount)});
+   const attempts=await Promise.allSettled([collect(),collect()]);
+   assert.equal(attempts.filter(result=>result.status==='fulfilled').length,1);
+   assert.equal(attempts.find(result=>result.status==='rejected').reason.code,'REVISION_CONFLICT');
+   revision++;
+  }
+  await route(f,'driver','ARRIVE',tripId,revision++);
+  await route(f,'manager','CLOSE_PHYSICAL',tripId,revision++);
+  assert.deepEqual((await trip(f,tripId)).trip.physicalClosure.deliveredByCurrency,{PYG:String(quantity*200000)});
+  await route(f,'manager','BEGIN_CLOSE',tripId,revision++,{cashSessionId:'CASH1',counted:{PYG:String(amount)}});
+  await assert.rejects(service.routePost(f.uid,f.driver.sessionToken,{tripId,orderId:'O001'}),{code:'FORBIDDEN'});
+  const post=()=>service.routePost(f.uid,f.manager.sessionToken,{tripId,orderId:'O001'});
+  const results=await Promise.all([post(),post()]);
+  assert.equal(results.filter(result=>result.replayed).length,1);
+  const persisted=(await trip(f,tripId)).trip;
+  assert.equal(persisted.postedOrders.O001.receivedPYG,amount);
+  assert.equal(persisted.postedOrders.O001.remainingCreditPYG,tripId==='T1'?750000:550000);
+  await route(f,'manager','CLOSE',tripId,revision+1);
+ }
+ const saved=(await saleRef.get()).data().data;
+ assert.equal(saved.creditAllocationsV2.length,2);
+ assert.equal(saved.creditAllocationsV2[0].allocations[0].amountPYG,250000);
+ assert.equal((await client.get()).data().data.saldoDevedorBRL,440);
+ const cash=(await db.collection(`${f.base}/movimentosCaixa`).get()).docs;
+ assert.equal(cash.length,2);
+ assert.equal(cash.reduce((total,doc)=>total+doc.data().data.detalhesMoedasNativas.PYG,0),450000);
+ assert.deepEqual(saved.creditAllocationsV2[1].allocations.map(row=>[row.installmentId,row.amountPYG]),[['A',50000],['B',150000]]);
+ const entries=(await ledger.get()).docs.map(doc=>doc.data());
+ assert.equal(entries.length,3);
+ assert.equal(entries.find(entry=>entry.tipo==='recebimento_fiado').financeLink.valorOriginal,250000);
+ assert.equal((await db.doc(`${f.base}/produtos/P1`).get()).data().data.estoque,10);
+});
