@@ -69,7 +69,7 @@ export default defineConfig(({ mode }) => {
   server: { proxy: mode === 'homologacao' ? { '/__distribution': { target: 'http://127.0.0.1:8787', rewrite: path => path.replace(/^\/__distribution/, '') } } : {} },
   build: {
     rollupOptions: {
-      input: staging ? {distribution:resolve(process.cwd(),'distribution-homologacao.html')} : {
+      input: staging ? {distribution:resolve(process.cwd(),'distribution-homologacao.html'),pdvDistribution:resolve(process.cwd(),'pdv-distribution-homologacao.html')} : {
         main: resolve(process.cwd(), 'index.html'),
         commerceHomologacao: resolve(process.cwd(), 'commerce-homologacao.html'),
         distributionDemo: resolve(process.cwd(), 'distribution-demo.html'),

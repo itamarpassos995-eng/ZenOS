@@ -1,3 +1,4 @@
+import {buildStagingPreorders} from './stagingPreorders.js';
 import {buildTrips} from './trips.js';
 import {buildOccurrences} from './occurrenceService.js';
 import {buildOccurrenceEvidence} from './evidenceService.js';
@@ -351,5 +352,6 @@ export function distributionService(db,{now=()=>Date.now(),staging=false,emulato
  const evidence=staging?{}:buildOccurrenceEvidence({db,ctx,authorize,now});
  const commercial=buildCommercialAdjustments({db,ctx,authorize,now});
  const reconciliations=buildFinancialReconciliation({db,ctx,authorize,now});
- return {login,command,query,logout,finalize,verifyDeliveryCAcceptance,...trips,...occurrences,...evidence,...commercial,...reconciliations};
+ const stagingPreorder=buildStagingPreorders({db,ctx,authorize,now});
+ return {login,command,query,logout,finalize,verifyDeliveryCAcceptance,stagingPreorder,...trips,...occurrences,...evidence,...commercial,...reconciliations};
 }

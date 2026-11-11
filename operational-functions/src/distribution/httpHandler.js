@@ -5,7 +5,8 @@ export function createDistributionHandler({auth:authClient,service,attachments=t
  try {
   const path=req.url;
   if(!attachments&&path?.startsWith('/occurrence-evidence-')){res.writeHead(404);res.end('{}');return;}
-  if(req.method!=='POST'||!['/session','/command','/query','/logout','/finalize','/route-command','/route-query','/route-post','/occurrence-command','/occurrence-query','/occurrence-evidence-upload','/occurrence-evidence-read','/occurrence-evidence-invalidate','/adjustment-command','/adjustment-query','/reconciliation-command','/reconciliation-query'].includes(path)){res.writeHead(404);res.end('{}');return;}
+  if(path==='/staging-preorder'&&!staging){res.writeHead(404);res.end('{}');return;}
+  if(req.method!=='POST'||!['/staging-preorder','/session','/command','/query','/logout','/finalize','/route-command','/route-query','/route-post','/occurrence-command','/occurrence-query','/occurrence-evidence-upload','/occurrence-evidence-read','/occurrence-evidence-invalidate','/adjustment-command','/adjustment-query','/reconciliation-command','/reconciliation-query'].includes(path)){res.writeHead(404);res.end('{}');return;}
   // Served through the Vite same-origin proxy; no permissive CORS or cookie auth.
   const bearer=req.headers.authorization?.match(/^Bearer (.+)$/)?.[1];
   if(!bearer)throw Object.assign(new Error('UNAUTHENTICATED'),{code:'UNAUTHENTICATED'});
@@ -17,6 +18,10 @@ export function createDistributionHandler({auth:authClient,service,attachments=t
   const input=JSON.parse(raw||'{}');
   if(staging&&path==='/route-query'&&input.type==='delivery-c-acceptance'){
    const result=await service.verifyDeliveryCAcceptance(auth,String(req.headers['x-operator-session']||''));
+   res.end(JSON.stringify(result));return;
+  }
+  if(path==='/staging-preorder'){
+   const result=await service.stagingPreorder(auth.uid,String(req.headers['x-operator-session']||''),input);
    res.end(JSON.stringify(result));return;
   }
   const result=path.startsWith('/reconciliation-')?await service[path==='/reconciliation-command'?'reconciliationCommand':'reconciliationQuery'](auth.uid,String(req.headers['x-operator-session']||''),input):path.startsWith('/adjustment-')?await service[path==='/adjustment-command'?'adjustmentCommand':'adjustmentQuery'](auth.uid,String(req.headers['x-operator-session']||''),input):path.startsWith('/occurrence-')?await service[{'/occurrence-command':'occurrenceCommand','/occurrence-query':'occurrenceQuery','/occurrence-evidence-upload':'occurrenceEvidenceUpload','/occurrence-evidence-read':'occurrenceEvidenceRead','/occurrence-evidence-invalidate':'occurrenceEvidenceInvalidate'}[path]](auth.uid,String(req.headers['x-operator-session']||''),input):path==='/session'?await service.login(auth.uid,input):path==='/finalize'?await service.finalize(auth.uid,input):path.startsWith('/route-')?await service[{'/route-command':'routeCommand','/route-query':'routeQuery','/route-post':'routePost'}[path]](auth.uid,String(req.headers['x-operator-session']||''),input):await service[path==='/command'?'command':path==='/logout'?'logout':'query'](auth.uid,String(req.headers['x-operator-session']||''),input);

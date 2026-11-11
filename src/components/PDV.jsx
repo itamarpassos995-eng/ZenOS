@@ -25,7 +25,7 @@ import { getOperationalSnapshot } from '../core/operationalRepository';
 import { autoriaDoDocumento, autoriaDoOperador, resolverAutoriaVenda } from '../core/salesAttribution';
 import { indexarProdutosPDV, indexarClientesPDV, buscarProdutosPDV, buscarClientesPDV } from '../core/pdvSearch';
 
-export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizados,
+export default function PDV({ preOrderOnly = false, abrirFilaOnlineToken = 0, onPedidosOnlineAtualizados,
   pedidoPrivadoSolicitado, onPedidoPrivadoRecebido, perfilLoja, taxasCambio = {}, registrarFinanceiro, commitOperacaoCritica, commitVendaCritica, recarregarDadosPDV, vouchers = [], setVouchers, userId, produtos, setProdutos, clientes, setClientes, moeda:moedaAtual, fmt:fmtAtual, t, tx, converterDeBRL:converterDeBRLAtual, converterParaBRL:converterParaBRLAtual, historicoVendas, setHistoricoVendas, patenteUsuario, idioma, regrasDesconto, vendedores = [], operadorAtivo, sessaoAtiva }) {
   const [rascunhoInicial] = useState(() => lerRascunhoPDV(userId, operadorAtivo?.id));
   const [logisticsSource,setLogisticsSource]=useState(rascunhoInicial?.logisticsSource||null);
@@ -107,7 +107,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   // Enquanto o índice não estiver provisionado, há fallback seguro para
   // páginas limitadas por ID, sem esconder pedidos antigos ou baixar toda a coleção.
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || preOrderOnly) return;
     let ativo = true;
     let cancelar = () => {};
     setPedidosRecentes([]);
@@ -145,7 +145,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     };
     iniciar('recentes');
     return () => { ativo = false; cancelar(); };
-  }, [userId]);
+  }, [userId, preOrderOnly]);
 
   const carregarMaisPedidosOnline = async () => {
     if (!userId || !cursorPedidos || !maisPedidosDisponiveis || carregandoMaisPedidos) return;
@@ -464,6 +464,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   }, [clientes, produtos, clienteSelecionadoPDV, moeda]);
 
   const abrirCadastroClientePDV = () => {
+    if (preOrderOnly) return;
     setFormClientePDV(normalizarCliente({ nome: nomeClienteVulso, pais: moeda === 'PYG' ? 'PY' : 'BR', tipoDocumento: moeda === 'PYG' ? 'RUC' : 'CPF' }));
     setModalClientePDVAberto(true);
   };
@@ -490,12 +491,14 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   };
 
   const abrirCadastroProdutoPDV = () => {
+    if (preOrderOnly) return;
     setProdutoEmEdicaoPDV(null);
     setFormProdutoPDV(normalizarProduto({ id: gerarIdSeguro('PROD-BALCAO'), ativo: true, sku: gerarSkuProdutoBalcao('BALCAO'), usoUnicoEncomendado: false, classificacaoUso: 'estoque', estoque: 0, estoqueVitrine: 0, estoqueGalpao: 0 }));
     setModalProdutoPDVAberto(true);
   };
 
   const abrirEdicaoProdutoPDV = (prod) => {
+    if (preOrderOnly) return;
     setProdutoEmEdicaoPDV(prod);
     setFormProdutoPDV({
       ...normalizarProduto(prod), ...produtoParaFormularioMonetario(prod,moeda,converterDeBRL), estoque: (prod.estoque || 0).toString(),
@@ -790,6 +793,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   };
 
   const abrirFechamento = () => {
+    if (preOrderOnly) return;
     if (!sessaoAtiva) {
       return mostrarZen('warning', tx("Caixa fechado","Caja cerrada"), tx('Abra primeiro o turno de caixa na Home para liquidar vendas. Pré-pedidos e orçamentos continuam disponíveis.', 'Abra primero el turno de caja.', 'Open the cash shift first.'));
     }
@@ -880,7 +884,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   };
 
   const concluirTransacao = async (tipoFinalizacao) => {
-    if (operacaoEmAndamentoRef.current) return;
+    if (operacaoEmAndamentoRef.current || (preOrderOnly && tipoFinalizacao!=='pre_pedido')) return;
     if (tipoFinalizacao === 'venda' && (!podeFinalizarVenda || !sessaoAtiva)) return;
     operacaoEmAndamentoRef.current = true;
     setProcessandoTransacao(true);
@@ -1346,7 +1350,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       if (typeof setHistoricoVendas === 'function') {
         setHistoricoVendas(valoresConfirmados.historicoVendas || historicoProposto);
       }
-      if (prePedidoEmAbertoId && userId) {
+      if (!preOrderOnly && prePedidoEmAbertoId && userId) {
         try {
           const docRef = doc(db, 'lojas', String(userId), 'pedidos_online', String(prePedidoEmAbertoId));
           await updateDoc(docRef, {
@@ -1797,14 +1801,14 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            <button disabled={processandoTransacao} onClick={() => { if(itensVenda.length===0) return; concluirTransacao('orcamento'); }} style={{ flex: 1, minWidth: '90px', padding: '12px', background: 'transparent', border: '1px solid #475569', color: '#94a3b8', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', fontSize: '12px' }}>
+            <button disabled={preOrderOnly || processandoTransacao} onClick={() => { if(itensVenda.length===0) return; concluirTransacao('orcamento'); }} style={{ flex: 1, minWidth: '90px', padding: '12px', background: 'transparent', border: '1px solid #475569', color: '#94a3b8', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', fontSize: '12px' }}>
               {tx("🖨️ Orçamento","🖨️ Presupuesto")}
             </button>
             <button disabled={processandoTransacao} onClick={() => { if(itensVenda.length===0) return; concluirTransacao('pre_pedido'); }} style={{ flex: 1, minWidth: '90px', padding: '12px', background: '#021e15', border: '1px solid #10b981', color: '#34d399', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', fontSize: '12px' }}>
               {tx("📝 Pré-Pedido","📝 Prepedido")}
             </button>
             <button
-              onClick={() => setModalResgateAberto(true)}
+              disabled={preOrderOnly} onClick={() => setModalResgateAberto(true)}
               style={{
                 position: 'relative',
                 flex: 1,
@@ -1847,7 +1851,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
             </button>
           </div>
 
-          <button onClick={abrirFechamento} style={{ background: vendaBloqueadaPorMargem ? '#334155' : 'linear-gradient(135deg, #4f46e5, #4338ca)', border: '1px solid #6366f1', color: '#fff', padding: '18px', borderRadius: '14px', fontSize: '15px', fontWeight: 900, cursor: vendaBloqueadaPorMargem ? 'not-allowed' : 'pointer', textAlign: 'center', boxShadow: '0 4px 15px rgba(79, 70, 229, 0.3)', width: '100%', boxSizing: 'border-box' }}>
+          <button disabled={preOrderOnly} onClick={abrirFechamento} style={{ background: vendaBloqueadaPorMargem ? '#334155' : 'linear-gradient(135deg, #4f46e5, #4338ca)', border: '1px solid #6366f1', color: '#fff', padding: '18px', borderRadius: '14px', fontSize: '15px', fontWeight: 900, cursor: vendaBloqueadaPorMargem ? 'not-allowed' : 'pointer', textAlign: 'center', boxShadow: '0 4px 15px rgba(79, 70, 229, 0.3)', width: '100%', boxSizing: 'border-box' }}>
             {tx("[F10] Receber no Caixa","[F10] Cobrar en caja")} {vendaBloqueadaPorMargem ? '🔒' : ''}
           </button>
         </div>

@@ -87,3 +87,19 @@ test('Delivery C verification is read-only and requires the matching recent fina
   if(original===undefined)delete process.env.STAGING_ACCEPTANCE_UID;else process.env.STAGING_ACCEPTANCE_UID=original;
  }
 });
+test('PDV pre-order endpoint is Preview-only and derives the tenant from Firebase Auth',async()=>{
+ const auth={verifyIdToken:async token=>{
+  if(token!=='staging-token')throw Object.assign(Error(),{code:'auth/argument-error'});
+  return {uid:'synthetic',firebase:{sign_in_provider:'password'}};
+ }};
+ const calls=[];
+ const service={stagingPreorder:async (...args)=>{calls.push(args);return {ok:true};}};
+ const req={method:'POST',url:'/staging-preorder',headers:{authorization:'Bearer staging-token','x-operator-session':'pdv-session'},body:{type:'catalog',uid:'untrusted'}};
+ const ordinary=response();await createDistributionHandler({auth,service})(req,ordinary);
+ assert.equal(ordinary.statusCode,404);
+ const preview=createDistributionHandler({auth,service,staging:true});
+ const invalid=response();await preview({...req,headers:{authorization:'Bearer foreign-token'}},invalid);
+ assert.equal(JSON.parse(invalid.body).error,'UNAUTHENTICATED');
+ const valid=response();await preview(req,valid);
+ assert.deepEqual(calls,[['synthetic','pdv-session',req.body]]);
+});

@@ -32,6 +32,7 @@ export function createDistributionClient(user,{fetcher=fetch,now=()=>Date.now()}
   async adjustmentCommand(type,id,occurrenceId,expectedRevision,payload={},key=null){const identity='adj:'+JSON.stringify({type,id,occurrenceId,expectedRevision,payload});if(!pending.has(identity))pending.set(identity,key||crypto.randomUUID());const result=await post('adjustment-command',{type,id,occurrenceId,expectedRevision,payload,key:pending.get(identity)});pending.delete(identity);cache.clear();return result;},
   async reconciliationCommand(adjustmentId,expectedRevision,key=null){const identity='reconcile:'+adjustmentId+':'+expectedRevision;if(!pending.has(identity))pending.set(identity,key||crypto.randomUUID());const result=await post('reconciliation-command',{adjustmentId,expectedRevision,key:pending.get(identity)});pending.delete(identity);cache.clear();return result;},
   async reconciliationQuery(adjustmentId,type='detail',revision=null){return post('reconciliation-query',{adjustmentId,type,...(type==='history'?{revision}:{})});},
+  async stagingPreorder(input){return post('staging-preorder',input);},
   invalidate(){cache.clear()},
   async logout(){await post('logout',{});session=null;cache.clear();pending.clear();},
   clear(){session=null;cache.clear();pending.clear();},
