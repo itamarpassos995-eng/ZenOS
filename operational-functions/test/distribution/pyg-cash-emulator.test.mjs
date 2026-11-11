@@ -1,3 +1,4 @@
+import {distributionService} from '../../src/distribution/service.js';
 import {planPygReturnCompensation} from '../../src/distribution/trips.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -148,6 +149,7 @@ test('PYG pilot carries three customers through one manifest, custody and physic
 
 test('three native PYG installments allocate two receipts across trips without duplicate cash',async()=>{
  const f=await setupTrip({orders:1,stock:10});
+ const engine=distributionService(db,{emulatorPygCompensation:true});
  await db.doc(`${f.root}/distribution_config/module`).update({pilotProfile:'PYG_CREDIT_CASH_V1',nativePygCashEnabled:true});
  const saleRef=db.doc(`${f.base}/vendas/O001`);
  const sale=(await saleRef.get()).data().data;
@@ -201,8 +203,19 @@ test('three native PYG installments allocate two receipts across trips without d
   await route(f,'manager','BEGIN_CLOSE',tripId,revision++,{cashSessionId:'CASH1',counted:{PYG:String(amount)}});
   await assert.rejects(service.routePost(f.uid,f.driver.sessionToken,{tripId,orderId:'O001'}),{code:'FORBIDDEN'});
   const post=()=>service.routePost(f.uid,f.manager.sessionToken,{tripId,orderId:'O001'});
+  if(tripId==='T2'){
+   const beforePost=(await trip(f,tripId)).trip;
+   const offer=await service.routeQuery(f.uid,f.manager.sessionToken,{type:'pyg-return-preview',tripId,stopId:'O001',lineId});
+   const race=await Promise.allSettled([post(),engine.routeCommand(f.uid,f.manager.sessionToken,{
+    type:'COMPENSATE_PYG_RETURN',tripId,expectedRevision:beforePost.revision,key:randomUUID(),
+    payload:{stopId:'O001',lineId,sourceDigest:offer.compensationContract.sourceDigest,reason:'Concurrencia sintética'}
+   })]);
+   assert.equal(race[0].status,'fulfilled');
+   assert.equal(race[1].status,'rejected');
+   assert.ok(['REVISION_CONFLICT','COMPENSATION_HAS_PENDING_RECEIPTS'].includes(race[1].reason.code));
+  }
   const results=await Promise.all([post(),post()]);
-  assert.equal(results.filter(result=>result.replayed).length,1);
+  assert.equal(results.filter(result=>result.replayed).length,tripId==='T2'?2:1);
   const persisted=(await trip(f,tripId)).trip;
   assert.equal(persisted.postedOrders.O001.receivedPYG,amount);
   assert.equal(persisted.postedOrders.O001.remainingCreditPYG,tripId==='T1'?750000:550000);
@@ -243,10 +256,75 @@ test('three native PYG installments allocate two receipts across trips without d
  assert.deepEqual(contract.allocations,[{installmentId:'C',paidMinor:0,amountMinor:200000,amountBRLCents:16000}]);
  assert.equal(contract.restitutionPendingMinor,0);
  assert.equal(first.postedMinor,0);
- await assert.rejects(route(f,'manager','VOID_RECEIPT','T2',settled.revision,{receiptId:settled.receipts.find(r=>r.posted).id,note:'Estorno de prueba'}),{code:'TRIP_LOCKED'});
+ const command={type:'COMPENSATE_PYG_RETURN',tripId:'T2',expectedRevision:settled.revision,
+  key:randomUUID(),payload:{stopId:'O001',lineId:returned.id,sourceDigest:contract.sourceDigest,reason:'Compensación sintética'}};
+ const execute=(input,actor=f.manager)=>engine.routeCommand(f.uid,actor.sessionToken,input);
+ await assert.rejects(service.routeCommand(f.uid,f.manager.sessionToken,command),{code:'DELIVERY_C_EXECUTION_BLOCKED'});
+ await assert.rejects(execute(command,f.driver),{code:'FORBIDDEN'});
+ const other=await setupTrip({orders:1});
+ await assert.rejects(engine.routeCommand(other.uid,f.manager.sessionToken,command),{code:'SESSION_EXPIRED'});
+ await assert.rejects(execute({...command,expectedRevision:settled.revision-1}),{code:'REVISION_CONFLICT'});
+ await assert.rejects(execute({...command,payload:{...command.payload,sourceDigest:'stale'}}),{code:'REVISION_CONFLICT'});
+ const applications=await Promise.all([execute(command),execute(command)]);
+ assert.equal(applications.filter(x=>x.replayed).length,1);
+ const applied=(await trip(f,'T2')).trip;
+ assert.equal(applied.installmentBalances[0].remaining,350000);
+ assert.equal(applied.installmentBalances[0].installments[2].remaining,200000);
+ assert.equal(applied.installmentBalances[0].received,450000);
+ assert.equal((await client.get()).data().data.saldoDevedorBRL,280);
+ const compensationId=applied.stops[0].lines[0].pygCompensation.operationId;
+ const applyEvent=(await db.doc(f.root+'/distribution_trip_events/'+compensationId).get()).data();
+ assert.equal(applyEvent.financialContract.eligibleMinor,200000);
+ await assert.rejects(execute({...command,key:randomUUID(),expectedRevision:applied.revision}),{code:'COMPENSATION_ALREADY_APPLIED'});
+ const reverse={type:'REVERSE_PYG_COMPENSATION',tripId:'T2',expectedRevision:applied.revision,key:randomUUID(),
+  payload:{stopId:'O001',lineId:returned.id,compensationId,reason:'Reversión sintética'}};
+ await assert.rejects(execute(reverse,f.driver),{code:'FORBIDDEN'});
+ const reversals=await Promise.all([execute(reverse),execute(reverse)]);
+ assert.equal(reversals.filter(x=>x.replayed).length,1);
+ const restored=(await trip(f,'T2')).trip;
+ assert.equal(restored.installmentBalances[0].remaining,550000);
+ assert.equal(restored.installmentBalances[0].installments[2].remaining,400000);
+ assert.equal(restored.installmentBalances[0].received,450000);
+ await assert.rejects(execute({...reverse,key:randomUUID(),expectedRevision:restored.revision}),{code:'COMPENSATION_NOT_ACTIVE'});
+ await assert.rejects(execute({...command,key:randomUUID(),expectedRevision:restored.revision,payload:{...command.payload,sourceDigest:(await preview()).compensationContract.sourceDigest}}),{code:'COMPENSATION_ALREADY_APPLIED'});
+ const financialEvents=(await ledger.get()).docs.map(doc=>doc.data()).filter(entry=>['compensacao_devolucao','reversao_compensacao'].includes(entry.tipo));
+ assert.equal(financialEvents.length,2);
+ assert.ok(financialEvents.every(entry=>entry.valor===160&&!entry.afetaCaixaFisico&&entry.financeLink.valorOriginal===200000));
+ assert.equal(financialEvents.find(entry=>entry.tipo==='reversao_compensacao').financeLink.reversalOf,financialEvents.find(entry=>entry.tipo==='compensacao_devolucao').id);
+
+ await assert.rejects(route(f,'manager','VOID_RECEIPT','T2',restored.revision,{receiptId:settled.receipts.find(r=>r.posted).id,note:'Estorno de prueba'}),{code:'TRIP_LOCKED'});
  assert.equal((await client.get()).data().data.saldoDevedorBRL,440);
- assert.equal((await ledger.get()).size,3);
+ assert.equal((await ledger.get()).size,5);
  assert.equal((await db.collection(`${f.base}/movimentosCaixa`).get()).size,2);
+ const postedReceipt=restored.receipts.find(receipt=>receipt.posted);
+ const voidCommand={type:'REVERSE_PYG_RECEIPT',tripId:'T2',expectedRevision:restored.revision,key:randomUUID(),
+  payload:{receiptId:postedReceipt.id,saleRevision:(await saleRef.get()).data().version,reason:'Devolución de efectivo sintético'}};
+ const cashSession=db.doc(f.base+'/sessoesCaixa/CASH1');
+ await cashSession.update({'data.status':'fechada'});
+ await assert.rejects(execute(voidCommand),{code:'CASH_SESSION_CLOSED'});
+ assert.equal((await ledger.get()).size,5);
+ await cashSession.update({'data.status':'aberta'});
+ const cashReversals=await Promise.all([execute(voidCommand),execute(voidCommand)]);
+ assert.equal(cashReversals.filter(x=>x.replayed).length,1);
+ const corrected=(await trip(f,'T2')).trip;
+ assert.equal(corrected.installmentBalances[0].remaining,750000);
+ assert.equal(corrected.installmentBalances[0].received,250000);
+ assert.equal((await client.get()).data().data.saldoDevedorBRL,600);
+ assert.equal((await saleRef.get()).data().data.creditAllocationsV2.length,2);
+ assert.equal(corrected.receipts.find(receipt=>receipt.id===postedReceipt.id).posted,true);
+ const movements=(await db.collection(f.base+'/movimentosCaixa').get()).docs.map(doc=>doc.data().data);
+ assert.equal(movements.length,3);
+ const refund=movements.find(movement=>movement.direcao==='saida');
+ assert.equal(refund.detalhesMoedasNativas.PYG,200000);
+ assert.equal(refund.valorBRL,160);
+ assert.ok(movements.some(movement=>movement.id===refund.reversaoDe&&movement.direcao==='entrada'));
+ const journal=(await ledger.get()).docs.map(doc=>doc.data());
+ const receiptReversal=journal.find(entry=>entry.tipo==='estorno_recebimento_fiado');
+ assert.ok(journal.some(entry=>entry.id===receiptReversal.financeLink.reversalOf&&entry.tipo==='recebimento_fiado'));
+ assert.equal(receiptReversal.detalhes.reversalMovementId,refund.id);
+ await assert.rejects(execute({...voidCommand,key:randomUUID(),expectedRevision:corrected.revision}),{code:'RECEIPT_ALREADY_REVERSED'});
+ await assert.rejects(route(f,'manager','CLOSE','T2',corrected.revision),{code:'SETTLEMENT_PENDING'});
+
 
 });
 
