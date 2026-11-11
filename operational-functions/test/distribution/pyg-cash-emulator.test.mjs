@@ -165,6 +165,9 @@ test('three native PYG installments allocate two receipts across trips without d
    const payment={stopId:'O001',method:'dinheiro_pyg',currency:'PYG'};
    await assert.rejects(route(f,'driver','COLLECT',tripId,revision,{...payment,amount:'600001'}),{code:'AMOUNT_EXCEEDS_DUE'});
    await assert.rejects(route(f,'driver','COLLECT',tripId,revision,{...payment,amount:'250000.1'}),{code:'INVALID_PAYMENT'});
+   await route(f,'driver','COLLECT',tripId,revision++,{...payment,amount:'1250'});
+   const heldReceipt=(await trip(f,tripId)).trip.receipts.at(-1);
+   await route(f,'manager','VOID_RECEIPT',tripId,revision++,{receiptId:heldReceipt.id,note:'Cobro de prueba anulado antes del acierto'});
    const collect=()=>route(f,'driver','COLLECT',tripId,revision,{...payment,amount:String(amount)});
    const attempts=await Promise.allSettled([collect(),collect()]);
    assert.equal(attempts.filter(result=>result.status==='fulfilled').length,1);
@@ -184,6 +187,7 @@ test('three native PYG installments allocate two receipts across trips without d
   assert.equal(persisted.postedOrders.O001.remainingCreditPYG,tripId==='T1'?750000:550000);
   await route(f,'manager','CLOSE',tripId,revision+1);
  }
+ await assert.rejects(route(f,'manager','REFUND','T2',(await trip(f,'T2')).trip.revision,{method:'credito_fiado'}),{code:'PILOT_PYG_CREDIT_UNAVAILABLE'});
  const saved=(await saleRef.get()).data().data;
  assert.equal(saved.creditAllocationsV2.length,2);
  assert.equal(saved.creditAllocationsV2[0].allocations[0].amountPYG,250000);
