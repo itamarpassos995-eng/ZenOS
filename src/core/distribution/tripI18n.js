@@ -1,4 +1,8 @@
 const words={
+ pygReturnFinancePending:['O retorno ainda tem pendência financeira. O encerramento da viagem aguarda a regularização.','La devolución aún tiene una operación financiera pendiente. El cierre del viaje espera su regularización.'],
+ pygReturnEligible:['Valor elegível comprovado','Importe elegible comprobado'],
+ pygReturnEligibilityUnverified:['Atribuição às parcelas pendente','Asignación a las cuotas pendiente'],
+ pygReturnPosted:['Valor contabilizado','Importe contabilizado'],
  pygReturnPreview:['Consultar retorno PYG','Consultar devolución PYG'],
  pygReturnPhysicalValue:['Valor do retorno conferido','Importe de la devolución verificada'],
  pygReturnOpen:['Saldo atual em aberto','Saldo pendiente actual'],

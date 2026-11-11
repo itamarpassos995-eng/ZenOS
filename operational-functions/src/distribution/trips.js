@@ -127,7 +127,7 @@ export function buildTrips({db,ctx,authorize,finalize,now}) {
    const operationId=hash(`trip:${key}`),receiptRef=ref(c,'distribution_trip_receipts',operationId),tripRef=ref(c,'distribution_trips',tripId);
    const [prior,snap]=await Promise.all([tx.get(receiptRef),tx.get(tripRef)]);
    if(prior.exists){if(prior.data().generation!==c.generation)error('V2_ROUTE_CHANGED');if(prior.data().fingerprint!==fingerprint||prior.data().operatorId!==actor.operatorId)error('IDEMPOTENCY_CONFLICT');return {...prior.data().result,replayed:true};}
-   let trip=snap.data(),writes=[],patches=[],stockEvents=[],ledger=[];
+   let trip=snap.data(),writes=[],patches=[],stockEvents=[],ledger=[],returnEvidence;
    const seq=c.head.sequence+1,revisions={...c.head.fieldRevisions};
    const patch=(s,field,data)=>{revisions[field]=(c.head.fieldRevisions[field]||0)+1;const envelope={...s.data(),data,version:seq,commandId:operationId};patches.push({field,routeId:s.id,...envelope});writes.push([s.ref,envelope]);};
    const getEntity=async(collection,key)=>{const s=await tx.get(db.doc(`${c.base}/${collection}/${id(key)}`));if(!s.exists||s.data().deleted)error('SOURCE_NOT_FOUND');return s;};
@@ -253,6 +253,13 @@ export function buildTrips({db,ctx,authorize,finalize,now}) {
     if(type==='CUSTOMER_RETURN'){
      const stop=trip.stops.find(s=>s.id===p.stopId),line=stop?.lines.find(l=>l.id===p.lineId);if(!line||!['TOTAL','PARTIAL'].includes(stop.state))error('INVALID_DELIVERY');
      units(p.quantity,1);if(p.quantity>line.delivered-(line.customerReturned||0))error('RETURN_EXCEEDED');if(!['GOOD','DAMAGED'].includes(p.condition))error('INVALID_DELIVERY');
+     if(pygCash(c)&&line.amount?.currency==='PYG'){
+      const before=deliveredMinor(line);
+      const after=BigInt(line.amount.minor)*BigInt(line.delivered-(line.customerReturned||0)-p.quantity)/BigInt(line.quantity);
+      returnEvidence={deliveryEventId:stop.proofId,orderId:stop.orderId,orderLineId:line.orderLineId,
+       lineId:line.id,quantity:p.quantity,currency:'PYG',amountMinor:String(before-after),condition:p.condition};
+      line.customerReturnEventIds=[...(line.customerReturnEventIds||[]),operationId];
+     }
      line.goodReturning=(line.goodReturning||0)+(p.condition==='GOOD'?p.quantity:0);line.damagedReturning=(line.damagedReturning||0)+(p.condition==='DAMAGED'?p.quantity:0);line.customerReturned=(line.customerReturned||0)+p.quantity;line.returning+=p.quantity;line.condition=line.goodReturning&&line.damagedReturning?'MIXED':p.condition;text(p.note,1000);
     }
     if(type==='COLLECT'){
@@ -299,6 +306,14 @@ export function buildTrips({db,ctx,authorize,finalize,now}) {
       if(!Number.isFinite(v.estoque)||!Number.isFinite(v.estoqueGalpao))error('STOCK_RECONCILIATION_REQUIRED');const before={...v};v.estoque+=reintegrate;v.estoqueGalpao+=reintegrate;units(v.estoque);units(v.estoqueGalpao);patch(product,'produtos',v);line.reintegrated=reintegrate;
       stockEvents.push(criarEventoEstoque({id:`RET-${operationId}`,produto:v,tipo:'distribuicao_retorno_conferido',origem:'entrega',destino:'deposito',quantidade:reintegrate,saldoAntes:before,saldoDepois:v,operador:{id:actor.operatorId,nome:actor.name},referenciaId:trip.id,createdAt:new Date(now()).toISOString(),detalhes:{pedidoId:line.orderId,linhaId:line.orderLineId,proofId:trip.stops.find(s=>s.lines.some(l=>l.id===line.id)).proofId,snapshot:line.snapshot}}));
      }line.quarantined=line.returning-reintegrate;
+     if(pygCash(c)&&line.customerReturned&&line.amount?.currency==='PYG'){
+      const stop=trip.stops.find(item=>item.lines.includes(line));
+      line.returnCheckEventId=operationId;
+      returnEvidence={deliveryEventId:stop.proofId,orderId:stop.orderId,orderLineId:line.orderLineId,
+       lineId:line.id,customerReturnEventIds:line.customerReturnEventIds||[],
+       customerReturned:line.customerReturned,totalChecked:line.returning,
+       reintegrated:line.reintegrated,quarantined:line.quarantined};
+     }
     }
     if(type==='CLOSE_PHYSICAL'){
      if(trip.state!=='RETURNED'||trip.physicalClosure)error('INVALID_TRANSITION');
@@ -350,7 +365,9 @@ export function buildTrips({db,ctx,authorize,finalize,now}) {
      if(pilotPYG(c)&&!pygCash(c))error('PILOT_PYG_CREDIT_UNAVAILABLE');
      if(trip.cheques?.length)error('SETTLEMENT_PENDING');
      if(trip.stops.some(stop=>stop.commercialPending&&(!stop.nativeSplitCredit||!trip.postedOrders[stop.orderId])))error('COMMERCIAL_POST_REQUIRED');
-     if(trip.state!=='SETTLING'||trip.receipts.some(r=>!r.voided&&!r.posted)||trip.stops.some(s=>s.lines.some(l=>l.returning>l.refunded)))error('SETTLEMENT_PENDING');
+     if(trip.state!=='SETTLING'||trip.receipts.some(r=>!r.voided&&!r.posted))error('SETTLEMENT_PENDING');
+     if(trip.stops.some(stop=>stop.lines.some(line=>line.returning>line.refunded)))
+      error(pygCash(c)?'PYG_RETURN_FINANCE_PENDING':'SETTLEMENT_PENDING');
      for(const stop of trip.stops){const order=await getEntity('vendas',stop.orderId);if(!['venda'].includes(order.data().data.tipoDocumento))error('COMMERCIAL_POST_REQUIRED');}
      trip.state='CLOSED';trip.closedAt=now();trip.closedBy=actor.operatorId;
     }
@@ -359,6 +376,7 @@ export function buildTrips({db,ctx,authorize,finalize,now}) {
    if(!entityResult){trip.revision++;trip.updatedAt=now();if(Buffer.byteLength(JSON.stringify(trip))>700000)error('REQUEST_TOO_LARGE');writes.push([tripRef,trip]);result={tripId:trip.id,revision:trip.revision,state:trip.state};}
    for(const e of ledger)if((await tx.get(db.doc(`${c.root}/financeiro_livro/${e.id}`))).exists)error('FINANCIAL_COLLISION');
    const event={schema:1,id:operationId,tenantId:uid,tripId,type,operatorId:actor.operatorId,serverAt:now(),clientAt:input.clientAt||null,generation:c.generation,revision:result.revision,payload:type==='RECORD_CHEQUE'?{chequeId:operationId}:{...p,...(p.signature?{signature:JSON.stringify(p.signature)}:{})}};
+   if(returnEvidence)event.returnEvidence=returnEvidence;
    if(['START','ARRIVE','CHECK_RETURN','CLOSE_PHYSICAL','CLOSE'].includes(type)){
     event.document={issuer:c.config.issuer?.name??'',driverId:trip.driverId,driverName:trip.driverName,
      vehiclePlate:trip.vehiclePlate,routeName:trip.routeName,state:trip.state,physicalClosure:trip.physicalClosure??null,
@@ -520,7 +538,9 @@ export function buildTrips({db,ctx,authorize,finalize,now}) {
     return {currency:'PYG',executable:false,orderId:sale.id,proofId:stop.proofId,
      quantity,returnedValue,original:sale.totalOriginal,received:credit.paid,
      outstanding:credit.remaining,maximum,projectedMinimum:credit.remaining-maximum,
-     minimumRefundReview:pending,checkedBy:line.checkedBy,checkedAt:line.checkedAt};
+     minimumRefundReview:pending,checkedBy:line.checkedBy,checkedAt:line.checkedAt,
+     customerReturnEventIds:line.customerReturnEventIds||[],returnCheckEventId:line.returnCheckEventId||null,
+     eligibleMinor:null,postedMinor:0};
    }
    if(input.type==='catalog'){
     if(isDriver)error('FORBIDDEN');
