@@ -32,7 +32,7 @@ function pygCredit(sale){
   const native=installment.nativeAmount;
   if(native?.currency!=='PYG'||!Number.isSafeInteger(native.amountMinor)||native.amountMinor<=0||
    native.historicalRate!==source.historicalRate||
-   (installments.length>1&&(!/^\d{4}-\d{2}-\d{2}$/.test(installment.dueAt||'')||!Number.isFinite(Date.parse(installment.dueAt)))))
+   (installments.length>1&&(!/^\d{4}-\d{2}-\d{2}$/.test(installment.dueAt||'')||!Number.isFinite(Date.parse(installment.dueAt))||new Date(installment.dueAt).toISOString().slice(0,10)!==installment.dueAt||installment.saleId!==sale.id||installment.receivableId!==sale.financeCreditV2.receivableId)))
    error('CREDIT_SOURCE_UNVERIFIED');
   const next=units(issued+native.amountMinor);
   if(paymentCents(next,'PYG',source.historicalRate)-paymentCents(issued,'PYG',source.historicalRate)!==cents(installment.amountBRL))
