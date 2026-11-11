@@ -5,6 +5,7 @@ import { validarCadastroSolicitacao, FiscalSolicitacaoError } from './fiscalSoli
 import { createHash } from 'node:crypto';
 import { validarConfiguracaoFiscal, avaliarConfiguracaoFiscal } from './fiscalAtivacaoCore.js';
 import { obterTokenFocus, validarEmpresaFocus } from './fiscalFocusOnboarding.js';
+import { provedorEfetivo } from './fiscalProviderCatalog.js';
 import { registrarInteresseFiscal } from './fiscalInteresseCore.js';
 import { validarCredenciaisFiscais, metadataCredenciais } from './fiscalCredenciaisCore.js';
 import { lerCredenciais, guardarCredenciais, removerCredenciais } from './fiscalCredenciaisVault.js';
@@ -16,8 +17,8 @@ const validar = (data,configuracao=false) => {
     throw error;
   }
 };
-const hashConfiguracao=({pais,cadastro,tiposDocumento=[]})=>createHash('sha256').update(JSON.stringify({pais,cadastro,tiposDocumento})).digest('hex');
-const respostaCadastro=d=>({status:d.status||'em_analise',cadastro:d.cadastro||null,pais:d.pais||null,habilitado:d.habilitado===true,createdAt:d.createdAt||null,tiposDocumento:d.tiposDocumento||[],credenciais:d.credenciais||null,ativacao:avaliarConfiguracaoFiscal(d)});
+const hashConfiguracao=({pais,cadastro,tiposDocumento=[],integracao})=>createHash('sha256').update(JSON.stringify({pais,cadastro,tiposDocumento,...(integracao?{integracao}:{})})).digest('hex');
+const respostaCadastro=d=>({versaoConfiguracao:2,integracao:d.integracao||null,status:d.status||'em_analise',cadastro:d.cadastro||null,pais:d.pais||null,habilitado:d.habilitado===true,createdAt:d.createdAt||null,tiposDocumento:d.tiposDocumento||[],credenciais:d.credenciais||null,ativacao:avaliarConfiguracaoFiscal(d)});
 export const fiscalSolicitacaoCliente = onCall({region:'southamerica-east1',timeoutSeconds:60,memory:'256MiB'}, async request => {
   if (!request.auth?.uid) throw new HttpsError('unauthenticated','Faça login no ZenOS.');
   const action = request.data?.action;
@@ -27,7 +28,7 @@ export const fiscalSolicitacaoCliente = onCall({region:'southamerica-east1',time
   const ref = db.doc(`lojas/${lojaId}/fiscal_configuracao/solicitacao`);
   if(action==='salvarCredenciais'){
     const snap=await ref.get();const atual=snap.data();
-    if(!atual||atual.pais!=='BR'||atual.habilitado===true||!avaliarConfiguracaoFiscal(atual).cadastroCompleto)throw new HttpsError('failed-precondition','Complete e salve o cadastro brasileiro antes de enviar as credenciais.');
+    if(!atual||atual.pais!=='BR'||provedorEfetivo(atual)!=='focus'||atual.habilitado===true||!avaliarConfiguracaoFiscal(atual).cadastroCompleto)throw new HttpsError('failed-precondition','Complete e salve o cadastro brasileiro antes de enviar as credenciais.');
     if(Date.now()-Date.parse(atual.credenciais?.recebidoEm||'')<30000)throw new HttpsError('resource-exhausted','Aguarde 30 segundos antes de substituir as credenciais.');
     let dados;try{dados=validarCredenciaisFiscais(request.data?.credenciais,atual.tiposDocumento);}catch{throw new HttpsError('invalid-argument','Confirme a autorização e revise ID/CSC ou certificado A1 e senha.');}
     const hash=hashConfiguracao(atual);let versao;
@@ -60,7 +61,7 @@ export const fiscalSolicitacaoCliente = onCall({region:'southamerica-east1',time
   }
   if (action==='consultar') {
     const snap=await ref.get();
-    if(!snap.exists)return {status:'nao_solicitado',cadastro:null,pais:null,habilitado:false};
+    if(!snap.exists)return {versaoConfiguracao:2,status:'nao_solicitado',cadastro:null,pais:null,habilitado:false};
     const d=snap.data();
     return respostaCadastro(d);
   }
@@ -68,7 +69,7 @@ export const fiscalSolicitacaoCliente = onCall({region:'southamerica-east1',time
     const snap=await ref.get();
     if(!snap.exists)throw new HttpsError('failed-precondition','Salve a configuração da empresa antes de verificar.');
     const atual=snap.data();
-    if(atual.pais!=='BR')throw new HttpsError('failed-precondition','A integração brasileira não se aplica ao país desta empresa.');
+    if(atual.pais!=='BR'||provedorEfetivo(atual)!=='focus')throw new HttpsError('failed-precondition','A integração brasileira não se aplica ao país desta empresa.');
     if(atual.habilitado===true)throw new HttpsError('failed-precondition','A empresa já possui ativação. Alterações exigem revisão.');
     const avaliacao=avaliarConfiguracaoFiscal(atual);
     if(!avaliacao.cadastroCompleto)return respostaCadastro(atual);
@@ -94,13 +95,14 @@ export const fiscalSolicitacaoCliente = onCall({region:'southamerica-east1',time
     const atual=snap.exists?snap.data():null;
     const editaveis=configuracao?[null,'nao_solicitado','solicitado','em_analise','rejeitado','aguardando_credenciamento','configuracao_pendente']:[null,'nao_solicitado','solicitado','em_analise','rejeitado'];
     if(atual?.habilitado===true || !editaveis.includes(atual?.status??null)) throw new HttpsError('failed-precondition','Módulo já aprovado. Alterações exigem análise.');
+    if(configuracao&&atual?.status==='configuracao_pendente'&&hashConfiguracao(atual)===hashConfiguracao(dados))return respostaCadastro(atual);
     const createdAt=atual?.createdAt||new Date().toISOString();
     const agora=new Date().toISOString();
     const historico=Array.isArray(atual?.historico)?atual.historico.slice(-29):[];
     historico.push({tipo:configuracao?'configuracao_salva':atual?'cadastro_atualizado':'solicitacao_criada',por:request.auth.uid,em:agora});
     const novo={pais,cadastro,status:configuracao?'configuracao_pendente':'em_analise',habilitado:false,createdAt,updatedAt:agora,solicitadoPor:request.auth.uid,historico};
     if(atual?.interesse)novo.interesse=atual.interesse;
-    if(configuracao)Object.assign(novo,{tiposDocumento:dados.tiposDocumento,fluxo:'autoatendimento',aceiteConfiguracao:{versao:1,por:request.auth.uid,em:agora},configuracaoHash:hashConfiguracao(dados),validacaoProvedor:null,compartilhamentoFocus:null});
+    if(configuracao)Object.assign(novo,{integracao:dados.integracao||null,tiposDocumento:dados.tiposDocumento,fluxo:'autoatendimento',aceiteConfiguracao:{versao:1,por:request.auth.uid,em:agora},configuracaoHash:hashConfiguracao(dados),validacaoProvedor:null,compartilhamentoFocus:null});
     tx.set(ref,novo);
     return configuracao?respostaCadastro(novo):{status:novo.status,habilitado:false,pais,createdAt};
   });

@@ -69,6 +69,17 @@ try{
  const segredo=await getDoc(doc(db,'lojas',lojaId,'fiscal_configuracao','solicitacao'));
  assert.ok(!JSON.stringify(segredo.data()).includes(credenciais.homologacao.csc));
  await assert.rejects(()=>chamar({...configuracao,pais:'PY',tiposDocumento:['nfce'],cadastro:{razonSocial:'Test',ruc:'12345678',email:'teste@example.com'}}));
+ const escolhaPY={action:'configurar',lojaId,pais:'PY',cadastro:{razonSocial:'Empresa PY teste',ruc:'80012345',email:'teste@example.invalid'},tiposDocumento:['factura_electronica','nota_credito_electronica','nota_debito_electronica','nota_remision_electronica'],integracao:{modalidade:'propria',provedor:'sifende'},aceiteConfiguracao:true};
+ await assert.rejects(()=>chamar({...escolhaPY,integracao:{modalidade:'propria',provedor:'focus'}}));
+ const py=await chamar(escolhaPY);
+ assert.equal(py.data.versaoConfiguracao,2);assert.equal(py.data.integracao.provedor,'sifende');
+ assert.equal(py.data.tiposDocumento.length,4);assert.equal(py.data.ativacao.emissaoHabilitada,false);
+ const antesRepetir=(await getDoc(doc(db,'lojas',lojaId,'fiscal_configuracao','solicitacao'))).data();
+ await chamar(escolhaPY);
+ assert.deepEqual((await getDoc(doc(db,'lojas',lojaId,'fiscal_configuracao','solicitacao'))).data(),antesRepetir);
+ const pyConsulta=await chamar({action:'consultar',lojaId});
+ assert.deepEqual(pyConsulta.data.integracao,{versao:1,modalidade:'propria',provedor:'sifende'});
+ await assert.rejects(()=>chamar({action:'validarConfiguracao',lojaId,aceiteCompartilhamentoFocus:true}));
  const comercial=await getDoc(referencia);
  assert.deepEqual(comercial.data(),{historicoVendas:[{id:'V1',total:100}],marcador:'NAO_MEXER'});
  console.log('Onboarding fiscal emulator: solicitação, configuração, verificação, consentimento, isolamento e dados comerciais OK');

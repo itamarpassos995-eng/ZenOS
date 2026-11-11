@@ -17,7 +17,7 @@ export const fiscalAdministracao = onCall({region:'southamerica-east1',timeoutSe
    const snap=await db.collectionGroup('fiscal_configuracao').limit(250).get();
    const itens=snap.docs.filter(d=>d.id==='solicitacao').map(doc=>{
      const d=doc.data();
-     return {lojaId:doc.ref.parent.parent?.id||null,pais:d.pais||null,
+     return {lojaId:doc.ref.parent.parent?.id||null,pais:d.pais||null,integracao:d.integracao||null,
        razaoSocial:d.pais==='PY'?d.cadastro?.razonSocial||'':d.cadastro?.razaoSocial||'',
        status:d.status||'em_analise',email:d.cadastro?.email||'',telefone:d.cadastro?.telefone||'',
        createdAt:d.createdAt||null,tiposDocumento:d.tiposDocumento||[],cadastroCompleto:avaliarConfiguracaoFiscal(d).cadastroCompleto,
