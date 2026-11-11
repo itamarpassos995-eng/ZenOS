@@ -77,7 +77,7 @@ export async function provisionStagingPygCashFixture(db,uid){
     custoNaVendaBRL:12,movimentoEstoqueVenda:{total:5,galpao:5,vitrine:0}}],
    pagamentos:[{formaId:'crediario',moedaOrigem:'BRL',valorOriginal:800,valorConvertidoBRL:800}],
    financeCreditV2:{schema:1,receivableId:`REC-${orderId}`,originalBRL:800,nativeAmount,
-    installments:[{id:'PYG-CASH-INSTALLMENT',amountBRL:800,nativeAmount}]},creditAllocationsV2:[]},'historicoVendas');
+    installments:[{id:'PYG-CASH-INSTALLMENT',amountBRL:800,kind:'AGGREGATE_NO_SCHEDULE',dueAt:null,nativeAmount}]},creditAllocationsV2:[]},'historicoVendas');
   createEntity('sessoesCaixa',{id:'PYG-CASH-SESSION',operadorId:'admin',status:'aberta'},'sessoesCaixa');
   tx.create(db.doc(`${root}/financeiro_livro/VENDA-${orderId}-FIADO`),{
    tipo:'venda_fiada',clienteId:clientId,valor:800,moeda:'BRL',_v2:{generation:control.generation},

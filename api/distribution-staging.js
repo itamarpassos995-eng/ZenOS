@@ -93,9 +93,10 @@ export default async function handler(req,res){
   }
   if(operation==='bootstrap'||operation==='bootstrap-pyg-cash'){
    const allowedUid=process.env.STAGING_FIXTURE_UID;
-   if(!allowedUid){res.statusCode=404;res.end();return;}
+   const acceptanceUid=process.env.STAGING_ACCEPTANCE_UID;
+   if(!allowedUid&&!acceptanceUid){res.statusCode=404;res.end();return;}
    const user=await auth.verifyIdToken(req.headers.authorization.slice(7),true).catch(()=>null);
-   if(!user||user.uid!==allowedUid||user.firebase?.sign_in_provider!=='password'){
+   if(!user||![allowedUid,acceptanceUid].filter(Boolean).includes(user.uid)||user.firebase?.sign_in_provider!=='password'){
     res.statusCode=403;res.end(JSON.stringify({error:'FORBIDDEN'}));return;
    }
    if(operation==='bootstrap-pyg-cash')await provisionStagingPygCashFixture(db,user.uid);
