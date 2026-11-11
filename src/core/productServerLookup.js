@@ -19,14 +19,14 @@ export async function localizarProdutoExistenteServidor({db,userId,produto}){
   const owners=new Set(indexSnaps.filter(s=>s.exists()&&s.data()?.ativo!==false).map(s=>String(s.data()?.produtoId||'')).filter(Boolean));
   const indexed=catalog.filter(p=>p&&owners.has(String(p.id)));
   if(indexed.length===1)return {status:'found',produto:indexed[0],catalog,source:'index'};
-  if(indexed.length>1)return {status:'conflict',reason:'multiple_index_owners'};
+  if(indexed.length>1)return {status:'conflict',reason:'multiple_index_owners',ownerIds:[...owners].sort(),indexKeys:keys};
   // Sem SKU: pesquisa por nome exato normalizado, sem adivinhar qual pneu é.
   const name=normalized(produto.nome);
   const nameMatches=catalog.filter(p=>p&&normalized(p.nome)===name);
   if(nameMatches.length===1 && !owners.size)
    return {status:'found',produto:nameMatches[0],catalog,source:'exact_name'};
-  if(nameMatches.length>1)return {status:'conflict',reason:'ambiguous_name'};
-  if(owners.size)return {status:'orphan_index',reason:'index_without_catalog_record'};
+  if(nameMatches.length>1)return {status:'conflict',reason:'ambiguous_name',ownerIds:[...owners].sort(),indexKeys:keys};
+  if(owners.size)return {status:'orphan_index',reason:'index_without_catalog_record',ownerIds:[...owners].sort(),indexKeys:keys};
   return {status:'not_found',reason:'no_matching_record'};
  }catch(error){return {status:'unknown',reason:'server_unavailable',code:String(error?.code||'unknown')};}
 }
