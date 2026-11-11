@@ -1,0 +1,39 @@
+name: Commerce Production Boundary CI
+on:
+  pull_request:
+    paths:
+      - 'functions/src/commerceProductionPolicyCore.js'
+      - 'functions/src/commerceOperationalRead.js'
+      - 'functions/test/commerceProductionPolicy.test.mjs'
+      - 'functions/test/commerceOperationalRead.test.mjs'
+      - 'scripts/commerce-production-boundary-audit.mjs'
+      - '.github/workflows/commerce-production-boundary-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  safe-boundary:
+    name: No V1/V2 regression and fail-closed license
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Functions dependencies without changing repo lockfiles
+        run: npm install --prefix functions --ignore-scripts --package-lock=false --no-audit --no-fund
+      - name: Read-only protected file baseline
+        run: |
+          git fetch --no-tags origin main
+          node scripts/commerce-production-boundary-audit.mjs
+      - name: Production policy + V1/V2 read adapter unit tests
+        run: node --test functions/test/commerceProductionPolicy.test.mjs functions/test/commerceOperationalRead.test.mjs
+      - name: Syntax validations
+        run: |
+          node --check functions/src/commerceProductionPolicyCore.js
+          node --check functions/src/commerceOperationalRead.js
+          node --check scripts/commerce-production-boundary-audit.mjs
