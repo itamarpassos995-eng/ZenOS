@@ -39,6 +39,10 @@ describe('Central with real HTTP API, Auth token and Firestore Emulator',()=>{
   await waitFor(()=>expect(button('Expedir carga').disabled).toBe(false));await user.click(button('Expedir carga'));await user.click(button('Confirmar'));
   await waitFor(()=>expect(within(screen.getByRole('dialog')).queryByRole('button',{name:'Expedir carga',exact:true})).toBeNull());
   await user.click(within(screen.getByRole('dialog')).getByRole('button',{name:'Fechar',exact:true}));
+  await user.click(button('Pedidos do PDV'));
+  expect((await screen.findByLabelText('Selecionar pedido O001')).disabled).toBe(true);
+  expect(screen.getAllByText('Sem saldo para nova carga')).toHaveLength(2);
+  expect(screen.getByRole('button',{name:/Criar carga selecionada/}).disabled).toBe(true);
   await user.selectOptions(screen.getByRole('combobox',{name:'Idioma'}),'es');expect(screen.getByRole('heading',{name:'Central de Distribución'})).toBeTruthy();
   await user.click(button('Este mes'));await waitFor(()=>expect(screen.queryByRole('status',{name:'Verificando en el servidor…'})).toBeNull());
   await user.click(button('Cerrar sesión'));await screen.findByRole('button',{name:'Acceder a distribución',exact:true});
