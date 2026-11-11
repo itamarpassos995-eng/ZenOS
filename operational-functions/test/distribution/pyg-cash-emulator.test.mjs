@@ -200,4 +200,25 @@ test('three native PYG installments allocate two receipts across trips without d
  assert.equal(entries.length,3);
  assert.equal(entries.find(entry=>entry.tipo==='recebimento_fiado').financeLink.valorOriginal,250000);
  assert.equal((await db.doc(`${f.base}/produtos/P1`).get()).data().data.estoque,10);
+ // The current trip commands cannot record a customer return after closure.
+ // Inject the checked physical snapshot to test the read-only projection against the real delivery.
+ const closed=(await trip(f,'T2')).trip;
+ const returned=closed.stops[0].lines[0];
+ const input={type:'pyg-return-preview',tripId:'T2',stopId:'O001',lineId:returned.id};
+ const preview=()=>service.routeQuery(f.uid,f.manager.sessionToken,input);
+ await assert.rejects(preview(),{code:'RETURN_SOURCE_UNVERIFIED'});
+ await assert.rejects(service.routeQuery(f.uid,f.driver.sessionToken,{...input,view:'driver'}),{code:'FORBIDDEN'});
+ Object.assign(returned,{customerReturned:1,returning:1,reintegrated:1,returnChecked:true,checkedBy:'admin',checkedAt:Date.now()});
+ await db.doc(`${f.root}/distribution_trips/T2`).update({stops:closed.stops});
+ const [first,repeated]=await Promise.all([preview(),preview()]);
+ assert.deepEqual(first,repeated);
+ assert.equal(first.executable,false);
+ assert.equal(first.returnedValue,200000);
+ assert.equal(first.outstanding,550000);
+ assert.equal(first.maximum,200000);
+ assert.equal(first.projectedMinimum,350000);
+ assert.equal((await client.get()).data().data.saldoDevedorBRL,440);
+ assert.equal((await ledger.get()).size,3);
+ assert.equal((await db.collection(`${f.base}/movimentosCaixa`).get()).size,2);
+
 });

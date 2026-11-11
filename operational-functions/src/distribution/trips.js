@@ -488,6 +488,40 @@ export function buildTrips({db,ctx,authorize,finalize,now}) {
  async function routeQuery(uid,token,input){
   return db.runTransaction(async tx=>{
    const c=await ctx(tx,uid),isDriver=input.view==='driver',actor=await authorize(tx,uid,token,c,isDriver?'driver':'tripView');
+   if(input.type==='pyg-return-preview'){
+    if(isDriver||!pygCash(c))error('FORBIDDEN');
+    await authorize(tx,uid,token,c,'finance');
+    const trip=(await tx.get(ref(c,'distribution_trips',input.tripId))).data();
+    if(!trip||trip.generation!==c.generation||trip.tenantId!==uid)error('TRIP_NOT_FOUND');
+    const stop=trip.stops.find(item=>item.id===input.stopId);
+    const line=stop?.lines.find(item=>item.id===input.lineId);
+    if(!line?.returnChecked||!line.customerReturned||!stop.proofId||
+     line.amount?.currency!=='PYG'||line.refunded||!['TOTAL','PARTIAL'].includes(stop.state))
+     error('RETURN_SOURCE_UNVERIFIED');
+    const [proof,order]=await Promise.all([
+     tx.get(ref(c,'distribution_trip_events',stop.proofId)),
+     tx.get(db.doc(c.base+'/vendas/'+id(stop.orderId)))
+    ]);
+    const event=proof.data(),sale=order.data()?.data;
+    const lineIndex=stop.lines.indexOf(line);
+    if(event?.type!=='DELIVER'||event.generation!==c.generation||event.tripId!==trip.id||
+     event.payload?.stopId!==stop.id||event.payload?.quantities?.[lineIndex]!==line.delivered||
+     !sale||order.data().deleted||sale.id!==stop.orderId||sale.clienteId!==stop.customerId)
+     error('RETURN_SOURCE_UNVERIFIED');
+    const credit=pygCredit(sale);
+    await verifyCreditLedger(tx,c,sale);
+    const quantity=units(line.customerReturned,1);
+    if(quantity>line.delivered||line.delivered>line.quantity||line.returning!==line.reintegrated+line.quarantined)
+     error('RETURN_SOURCE_UNVERIFIED');
+    const deliveredValue=BigInt(line.amount.minor)*BigInt(line.delivered)/BigInt(line.quantity);
+    const returnedValue=units(Number(deliveredValue-deliveredMinor(line)));
+    const maximum=trip.physicalClosure?Math.min(returnedValue,credit.remaining):0;
+    const pending=Math.max(0,returnedValue-credit.remaining);
+    return {currency:'PYG',executable:false,orderId:sale.id,proofId:stop.proofId,
+     quantity,returnedValue,original:sale.totalOriginal,received:credit.paid,
+     outstanding:credit.remaining,maximum,projectedMinimum:credit.remaining-maximum,
+     minimumRefundReview:pending,checkedBy:line.checkedBy,checkedAt:line.checkedAt};
+   }
    if(input.type==='catalog'){
     if(isDriver)error('FORBIDDEN');
     const page=async(collection,key,filter=null)=>{let q=db.collection(collection).orderBy('__name__');if(filter)q=q.where(filter,'==',true);if(input.after?.[key])q=q.startAfter(db.doc(`${collection}/${id(input.after[key])}`));return tx.get(q.limit(31));};
