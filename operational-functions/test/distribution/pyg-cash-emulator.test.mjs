@@ -1,3 +1,4 @@
+import {planPygReturnCompensation} from '../../src/distribution/trips.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
@@ -247,4 +248,20 @@ test('three native PYG installments allocate two receipts across trips without d
  assert.equal((await ledger.get()).size,3);
  assert.equal((await db.collection(`${f.base}/movimentosCaixa`).get()).size,2);
 
+});
+
+test('PYG compensation contract caps the proposed offset and preserves historical cent rounding',()=>{
+ const sale={id:'O001',financeCreditV2:{receivableId:'REC-O001'}};
+ const source={tenantId:'test',generation:'v2',tripId:'T2',lineId:'L1',returnCheckEventId:'CHECK',saleRevision:7};
+ const credit={rate:'1333',remaining:100,balances:new Map([['A',{start:0,original:1000,paid:900}]])};
+ const plan=planPygReturnCompensation({sale,credit,source,returnedValue:200,operatorId:'admin'});
+ assert.equal(plan.eligibleMinor,100);
+ assert.equal(plan.restitutionPendingMinor,100);
+ assert.equal(plan.amountBRLCents,7);
+ assert.equal(plan.outstandingAfter,0);
+ const changed=planPygReturnCompensation({sale,credit:{...credit,remaining:50,balances:new Map([['A',{start:0,original:1000,paid:950}]])},source:{...source,saleRevision:8},returnedValue:200,operatorId:'other'});
+ assert.equal(changed.idempotencyKey,plan.idempotencyKey);
+ assert.notEqual(changed.sourceDigest,plan.sourceDigest);
+ assert.equal(changed.eligibleMinor,50);
+ assert.equal(changed.restitutionPendingMinor,150);
 });

@@ -62,7 +62,7 @@ function pygCredit(sale){
  return {remaining:source.amountMinor-paid,paid,postedCents,rate:source.historicalRate,owed,balances};
 }
 // Abate o fim do cronograma e de cada parcela, preservando a faixa já paga.
-function planPygReturnCompensation({sale,credit,returnedValue,source,operatorId}){
+export function planPygReturnCompensation({sale,credit,returnedValue,source,operatorId}){
  const eligibleMinor=Math.min(returnedValue,credit.remaining);
  let remaining=eligibleMinor,brlCents=0;
  const allocations=[];
