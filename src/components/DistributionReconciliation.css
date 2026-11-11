@@ -1,1 +1,23 @@
-.dist-reconciliation{display:grid;gap:12px;padding:16px;border:1px solid #426077;border-radius:13px;background:#101f30;color:#eaf4fb}.dist-reconciliation h4{margin:0}.dist-reconciliation p{margin:3px 0;color:#c9dbe7}.dist-reconciliation-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.dist-reconciliation-state{background:#233e53;padding:10px 14px;border-radius:9px}.dist-reconciliation-values{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:10px}.dist-reconciliation-values article{display:grid;gap:6px;padding:12px;border:1px solid #36576a;border-radius:10px}.dist-reconciliation-values small{color:#b6ccd6}.dist-reconciliation-values strong{font-size:15px}.dist-reconciliation-issues{border:1px solid #95723c;padding:12px;border-radius:10px;overflow-wrap:anywhere}.dist-reconciliation-issues li{font-size:12px}.dist-reconciliation details{overflow-wrap:anywhere}.dist-reconciliation details button{margin:4px;padding:7px 10px;border:1px solid #526b7c;border-radius:7px;background:#173346;color:#e7f7fe}.dist-reconciliation button:focus-visible{outline:3px solid #7adac9;outline-offset:2px}@media(max-width:640px){.dist-reconciliation{padding:11px}.dist-reconciliation-values{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.dist-reconciliation{display:grid;gap:12px;padding:16px;border:1px solid var(--dist-border);border-radius:13px;background:var(--dist-surface);color:var(--dist-text)}
+.dist-reconciliation h4{margin:0}
+.dist-reconciliation p{margin:3px 0;color:var(--dist-text)}
+.dist-reconciliation-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.dist-reconciliation-state{background:var(--dist-subtle);padding:10px 14px;border-radius:9px}
+.dist-reconciliation-values{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:10px}
+.dist-reconciliation-values article{display:grid;gap:6px;padding:12px;border:1px solid var(--dist-border);border-radius:10px}
+.dist-reconciliation-values small{color:var(--dist-muted)}
+.dist-reconciliation-values strong{font-size:15px}
+.dist-reconciliation-issues{border:1px solid var(--dist-warning-border);padding:12px;border-radius:10px;overflow-wrap:anywhere}
+.dist-reconciliation-issues li{font-size:12px}
+.dist-reconciliation details{overflow-wrap:anywhere}
+.dist-reconciliation details button{margin:4px;padding:7px 10px;border:1px solid var(--dist-border);border-radius:7px;background:var(--dist-surface);color:var(--dist-text)}
+.dist-reconciliation button:focus-visible{outline:2px solid var(--dist-focus);outline-offset:2px}
+@media(max-width:640px){.dist-reconciliation{padding:11px}
+.dist-reconciliation-values{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media screen {
+  .dist .dist-reconciliation-values { font-variant-numeric: tabular-nums; }
+  .dist .dist-reconciliation-values article { min-width: 0; overflow-wrap: anywhere; background: var(--dist-bg); }
+  .dist .dist-reconciliation-state { color: var(--dist-info-text); background: var(--dist-info-surface); }
+  .dist .dist-reconciliation-issues { background: var(--dist-warning-surface); color: var(--dist-warning-text); }
+  .dist .dist-reconciliation details summary { min-height: 44px; padding-block: 10px; cursor: pointer; }
+}
