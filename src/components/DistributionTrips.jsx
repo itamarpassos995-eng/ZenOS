@@ -107,6 +107,12 @@ export default function DistributionTrips({client,session,user,language,range}){
     <p>{t('pygReturnProjectedMinimum')} · {tripMoney('PYG',returnPreview.projectedMinimum)}</p>
     {returnPreview.minimumRefundReview>0&&<p>{t('pygReturnReview')} · {tripMoney('PYG',returnPreview.minimumRefundReview)}</p>}
     <p>{t('pygReturnEligible')} · {returnPreview.eligibleMinor===null?t('pygReturnEligibilityUnverified'):tripMoney('PYG',returnPreview.eligibleMinor)}</p>
+    {returnPreview.compensationContract&&<>
+     <p>{t('pygReturnSchedulePolicy')}</p>
+     {returnPreview.compensationContract.allocations.map(row=><p key={row.installmentId}>
+      {row.installmentId} · {tripMoney('PYG',row.amountMinor)} · {tripMoney('BRL',row.amountBRLCents)}
+     </p>)}
+    </>}
     <p>{t('pygReturnPosted')} · {tripMoney('PYG',returnPreview.postedMinor)}</p>
     <p>{t('pygReturnBlocked')}</p>
     <button onClick={()=>setReturnPreview(null)}>{t('close')}</button>

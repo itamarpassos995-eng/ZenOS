@@ -61,6 +61,30 @@ function pygCredit(sale){
  if(postedCents!==(sale._distribution?.nativeTripPaidCents||0))error('CREDIT_SOURCE_UNVERIFIED');
  return {remaining:source.amountMinor-paid,paid,postedCents,rate:source.historicalRate,owed,balances};
 }
+// Abate o fim do cronograma e de cada parcela, preservando a faixa já paga.
+function planPygReturnCompensation({sale,credit,returnedValue,source,operatorId}){
+ const eligibleMinor=Math.min(returnedValue,credit.remaining);
+ let remaining=eligibleMinor,brlCents=0;
+ const allocations=[];
+ for(const [installmentId,balance] of [...credit.balances].reverse()){
+  const amountMinor=Math.min(remaining,balance.original-balance.paid);
+  if(!amountMinor)continue;
+  const end=balance.start+balance.original;
+  const amountBRLCents=paymentCents(end,'PYG',credit.rate)-paymentCents(end-amountMinor,'PYG',credit.rate);
+  allocations.push({installmentId,paidMinor:balance.paid,amountMinor,amountBRLCents});
+  remaining-=amountMinor;
+  brlCents+=amountBRLCents;
+  if(!remaining)break;
+ }
+ if(remaining)error('CREDIT_SOURCE_UNVERIFIED');
+ const contract={schema:'PygReturnCompensationV2',policy:'REVERSE_INSTALLMENT_SCHEDULE',currency:'PYG',
+  saleId:sale.id,receivableId:sale.financeCreditV2.receivableId,historicalRate:credit.rate,
+  ...source,operatorId,recognizedMinor:returnedValue,eligibleMinor,amountBRLCents:brlCents,
+  outstandingBefore:credit.remaining,outstandingAfter:credit.remaining-eligibleMinor,
+  restitutionPendingMinor:returnedValue-eligibleMinor,allocations,executable:false};
+ const idempotencyKey=hash(stable([source.tenantId,source.generation,sale.id,source.tripId,source.lineId,source.returnCheckEventId]));
+ return {...contract,idempotencyKey,sourceDigest:hash(stable(contract))};
+}
 function pygAllocation(sale,receiptId,minor){
  const credit=pygCredit(sale);
  if((sale.creditAllocationsV2||[]).some(receipt=>receipt.receiptId===receiptId))error('CREDIT_ALLOCATION_REPLAY_CONFLICT');
@@ -508,7 +532,7 @@ export function buildTrips({db,ctx,authorize,finalize,now}) {
    const c=await ctx(tx,uid),isDriver=input.view==='driver',actor=await authorize(tx,uid,token,c,isDriver?'driver':'tripView');
    if(input.type==='pyg-return-preview'){
     if(isDriver||!pygCash(c))error('FORBIDDEN');
-    await authorize(tx,uid,token,c,'finance');
+    const financeActor=await authorize(tx,uid,token,c,'finance');
     const trip=(await tx.get(ref(c,'distribution_trips',input.tripId))).data();
     if(!trip||trip.generation!==c.generation||trip.tenantId!==uid)error('TRIP_NOT_FOUND');
     const stop=trip.stops.find(item=>item.id===input.stopId);
@@ -535,12 +559,41 @@ export function buildTrips({db,ctx,authorize,finalize,now}) {
     const returnedValue=units(Number(deliveredValue-deliveredMinor(line)));
     const maximum=trip.physicalClosure?Math.min(returnedValue,credit.remaining):0;
     const pending=Math.max(0,returnedValue-credit.remaining);
+    let compensationContract=null;
+    const returnIds=line.customerReturnEventIds||[];
+    if(trip.physicalClosure&&line.returnCheckEventId&&returnIds.length&&returnIds.length<=30){
+     const evidence=await Promise.all([...returnIds,line.returnCheckEventId].map(eventId=>tx.get(ref(c,'distribution_trip_events',eventId))));
+     const checked=evidence.at(-1).data();
+     const matchesSource=(doc,type)=>{
+      const value=doc.data(),e=value?.returnEvidence;
+      return value?.type===type&&value.tripId===trip.id&&value.tenantId===uid&&value.generation===c.generation&&
+       e?.deliveryEventId===stop.proofId&&e.orderId===sale.id&&e.lineId===line.id&&e.orderLineId===line.orderLineId;
+     };
+     let provenQuantity=0,provenMinor=0n;
+     let valid=new Set(returnIds).size===returnIds.length;
+     for(const doc of evidence.slice(0,-1)){
+      const e=doc.data()?.returnEvidence;
+      if(!matchesSource(doc,'CUSTOMER_RETURN')||e.currency!=='PYG'||!Number.isSafeInteger(e.quantity)||e.quantity<1||!/^\d+$/.test(e.amountMinor)){
+       valid=false;break;
+      }
+      provenQuantity+=e.quantity;
+      provenMinor+=BigInt(e.amountMinor);
+     }
+     if(valid&&provenQuantity===quantity&&provenMinor===BigInt(returnedValue)&&matchesSource(evidence.at(-1),'CHECK_RETURN')&&
+      checked.returnEvidence.customerReturned===quantity&&checked.returnEvidence.totalChecked===line.returning&&
+      checked.returnEvidence.reintegrated===line.reintegrated&&checked.returnEvidence.quarantined===line.quarantined&&
+      stable(checked.returnEvidence.customerReturnEventIds)===stable(returnIds)){
+      compensationContract=planPygReturnCompensation({sale,credit,returnedValue,operatorId:financeActor.operatorId,
+       source:{tenantId:uid,generation:c.generation,tripId:trip.id,tripRevision:trip.revision,saleRevision:order.data().version,
+        deliveryEventId:stop.proofId,orderLineId:line.orderLineId,lineId:line.id,quantity,returnIds,returnCheckEventId:line.returnCheckEventId}});
+     }
+    }
     return {currency:'PYG',executable:false,orderId:sale.id,proofId:stop.proofId,
      quantity,returnedValue,original:sale.totalOriginal,received:credit.paid,
      outstanding:credit.remaining,maximum,projectedMinimum:credit.remaining-maximum,
      minimumRefundReview:pending,checkedBy:line.checkedBy,checkedAt:line.checkedAt,
      customerReturnEventIds:line.customerReturnEventIds||[],returnCheckEventId:line.returnCheckEventId||null,
-     eligibleMinor:null,postedMinor:0};
+     eligibleMinor:compensationContract?.eligibleMinor??null,postedMinor:0,compensationContract};
    }
    if(input.type==='catalog'){
     if(isDriver)error('FORBIDDEN');

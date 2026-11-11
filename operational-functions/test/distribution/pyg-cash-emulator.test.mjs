@@ -130,7 +130,7 @@ test('PYG pilot carries three customers through one manifest, custody and physic
  assert.equal(verification.data().returnEvidence.reintegrated,1);
  const preview=await service.routeQuery(f.uid,f.manager.sessionToken,{type:'pyg-return-preview',tripId:'T1',stopId:'O001',lineId});
  assert.equal(preview.returnCheckEventId,verification.id);
- assert.equal(preview.eligibleMinor,null);
+ assert.equal(preview.eligibleMinor,39990);
  assert.equal(preview.postedMinor,0);
  assert.equal(final.physicalClosure.deliveredByCurrency.PYG,'279930');
  assert.equal(final.stops[2].lines[0].quarantined,5);
@@ -191,9 +191,12 @@ test('three native PYG installments allocate two receipts across trips without d
    assert.equal(attempts.find(result=>result.status==='rejected').reason.code,'REVISION_CONFLICT');
    revision++;
   }
+  const lineId=(await trip(f,tripId)).trip.stops[0].lines[0].id;
+  if(tripId==='T2')await route(f,'driver','CUSTOMER_RETURN',tripId,revision++,{stopId:'O001',lineId,quantity:1,condition:'GOOD',note:'Retorno de prueba'});
   await route(f,'driver','ARRIVE',tripId,revision++);
+  if(tripId==='T2')await route(f,'manager','CHECK_RETURN',tripId,revision++,{lineId,quantity:1,disposition:'REINTEGRATE'});
   await route(f,'manager','CLOSE_PHYSICAL',tripId,revision++);
-  assert.deepEqual((await trip(f,tripId)).trip.physicalClosure.deliveredByCurrency,{PYG:String(quantity*200000)});
+  assert.deepEqual((await trip(f,tripId)).trip.physicalClosure.deliveredByCurrency,{PYG:String((tripId==='T2'?quantity-1:quantity)*200000)});
   await route(f,'manager','BEGIN_CLOSE',tripId,revision++,{cashSessionId:'CASH1',counted:{PYG:String(amount)}});
   await assert.rejects(service.routePost(f.uid,f.driver.sessionToken,{tripId,orderId:'O001'}),{code:'FORBIDDEN'});
   const post=()=>service.routePost(f.uid,f.manager.sessionToken,{tripId,orderId:'O001'});
@@ -202,7 +205,8 @@ test('three native PYG installments allocate two receipts across trips without d
   const persisted=(await trip(f,tripId)).trip;
   assert.equal(persisted.postedOrders.O001.receivedPYG,amount);
   assert.equal(persisted.postedOrders.O001.remainingCreditPYG,tripId==='T1'?750000:550000);
-  await route(f,'manager','CLOSE',tripId,revision+1);
+  if(tripId==='T1')await route(f,'manager','CLOSE',tripId,revision+1);
+  else await assert.rejects(route(f,'manager','CLOSE',tripId,revision+1),{code:'PYG_RETURN_FINANCE_PENDING'});
  }
  await assert.rejects(route(f,'manager','REFUND','T2',(await trip(f,'T2')).trip.revision,{method:'credito_fiado'}),{code:'PILOT_PYG_CREDIT_UNAVAILABLE'});
  const saved=(await saleRef.get()).data().data;
@@ -216,17 +220,12 @@ test('three native PYG installments allocate two receipts across trips without d
  const entries=(await ledger.get()).docs.map(doc=>doc.data());
  assert.equal(entries.length,3);
  assert.equal(entries.find(entry=>entry.tipo==='recebimento_fiado').financeLink.valorOriginal,250000);
- assert.equal((await db.doc(`${f.base}/produtos/P1`).get()).data().data.estoque,10);
- // The current trip commands cannot record a customer return after closure.
- // Inject the checked physical snapshot to test the read-only projection against the real delivery.
- const closed=(await trip(f,'T2')).trip;
- const returned=closed.stops[0].lines[0];
+ assert.equal((await db.doc(`${f.base}/produtos/P1`).get()).data().data.estoque,11);
+ const settled=(await trip(f,'T2')).trip;
+ const returned=settled.stops[0].lines[0];
  const input={type:'pyg-return-preview',tripId:'T2',stopId:'O001',lineId:returned.id};
  const preview=()=>service.routeQuery(f.uid,f.manager.sessionToken,input);
- await assert.rejects(preview(),{code:'RETURN_SOURCE_UNVERIFIED'});
  await assert.rejects(service.routeQuery(f.uid,f.driver.sessionToken,{...input,view:'driver'}),{code:'FORBIDDEN'});
- Object.assign(returned,{customerReturned:1,returning:1,reintegrated:1,returnChecked:true,checkedBy:'admin',checkedAt:Date.now()});
- await db.doc(`${f.root}/distribution_trips/T2`).update({stops:closed.stops});
  const [first,repeated]=await Promise.all([preview(),preview()]);
  assert.deepEqual(first,repeated);
  assert.equal(first.executable,false);
@@ -234,6 +233,16 @@ test('three native PYG installments allocate two receipts across trips without d
  assert.equal(first.outstanding,550000);
  assert.equal(first.maximum,200000);
  assert.equal(first.projectedMinimum,350000);
+ const contract=first.compensationContract;
+ assert.equal(contract.executable,false);
+ assert.equal(contract.policy,'REVERSE_INSTALLMENT_SCHEDULE');
+ assert.equal(contract.eligibleMinor,200000);
+ assert.equal(contract.outstandingAfter,350000);
+ assert.equal(contract.amountBRLCents,16000);
+ assert.deepEqual(contract.allocations,[{installmentId:'C',paidMinor:0,amountMinor:200000,amountBRLCents:16000}]);
+ assert.equal(contract.restitutionPendingMinor,0);
+ assert.equal(first.postedMinor,0);
+ await assert.rejects(route(f,'manager','VOID_RECEIPT','T2',settled.revision,{receiptId:settled.receipts.find(r=>r.posted).id,note:'Estorno de prueba'}),{code:'TRIP_LOCKED'});
  assert.equal((await client.get()).data().data.saldoDevedorBRL,440);
  assert.equal((await ledger.get()).size,3);
  assert.equal((await db.collection(`${f.base}/movimentosCaixa`).get()).size,2);
