@@ -67,8 +67,11 @@ export function buildFinancialReconciliation({db,ctx,authorize,now=()=>Date.now(
    error('FOREIGN_LEDGER_RECORD');
   const hasV2Links=ledger.some(e=>e.financeLinkVersion===2);
   // Do not mix verified V2 credit with unlinked legacy entries.
-  const computed=hasV2Links?
-   reconcileLinkedObligations({sale,adjustment,ledger,complete:sourceComplete}):
+  const nativePyg=sale.moedaDocumento==='PYG'&&sale.financeCreditV2?.nativeAmount?.currency==='PYG';
+  const computed=nativePyg?
+   reconcilePygTripJournal({sale,journal:pages.map(doc=>({...doc.data(),id:doc.id})),tenantId:adjustment.tenantId,
+    generation:c.generation,complete:sourceComplete,adjustment}):
+   hasV2Links?reconcileLinkedObligations({sale,adjustment,ledger,complete:sourceComplete}):
    calculateFinancialOrigin({sale,adjustment,ledger,sourceComplete});
   const returnLineage=classifySaleReturnHistory({
    sale,ledger,tenantId:adjustment.tenantId
