@@ -1,5 +1,5 @@
 import React,{useCallback,useEffect,useMemo,useRef,useState} from 'react';
-import {signInWithEmailAndPassword,onAuthStateChanged,sendPasswordResetEmail} from 'firebase/auth';
+import {signInWithEmailAndPassword,onAuthStateChanged,sendPasswordResetEmail,signOut} from 'firebase/auth';
 import {auth,ZENOS_RUNTIME} from '../firebase.js';
 import {zenosStorage} from '../core/storage.js';
 import {useUiLanguage} from '../core/useUiLanguage.js';
@@ -18,6 +18,8 @@ export default function DistributionCentral({operatorId:initialOperatorId='admin
  const [user,setUser]=useState(auth.currentUser),[session,setSession]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [scope,setScope]=useState('stock');
  const [email,setEmail]=useState(''),[password,setPassword]=useState(''),[operatorId,setOperatorId]=useState(initialOperatorId),[pin,setPin]=useState('');
+ const verifyAcceptance=ZENOS_RUNTIME.isStaging&&new URLSearchParams(window.location.search).has('verificar-entrega-c');
+ const [acceptanceResult,setAcceptanceResult]=useState('');
  const ownerSetup=ZENOS_RUNTIME.isStaging&&new URLSearchParams(window.location.search).has('ativar');
  const [settingOwnerPin,setSettingOwnerPin]=useState(ownerSetup);
  const client=useMemo(()=>user?createDistributionClient(user):null,[user]);
@@ -98,6 +100,17 @@ export default function DistributionCentral({operatorId:initialOperatorId='admin
   <header className="dist-top"><img src="/logo-zenos.png?v=4" alt="ZenOS"/><div className="dist-top-actions"><span className="dist-env">{t('homolog')}</span>{!externalLanguage&&<select aria-label="Idioma" value={localLanguage} onChange={e=>setLanguage(e.target.value)}><option value="pt">Português</option><option value="es">Español</option></select>}{session&&<button disabled={busy} onClick={async()=>{setBusy(true);try{await client.logout();setSession(null);setDetail(null);setSelection({});setRows([]);}catch(e){fail(e);}finally{setBusy(false);}}}>{t('logout')}</button>}</div></header>
   {(!session||session.scope!=='driver')&&<div className="dist-hero"><div><span className="dist-eyebrow">ZENOS · LOGÍSTICA</span><h1>{t('title')}</h1><p>{t('subtitle')}</p></div>{session&&<span className="dist-operator">{session.operatorName}</span>}</div>}
   {error&&<div className="dist-alert" role="alert">{t(error)} <button disabled={busy} onClick={()=>{setReload(n=>n+1);if(detail)openLoad(detail.id);}}>{t('retry')}</button></div>}
+  {verifyAcceptance&&<div className="dist-card">
+   {user&&<button type="button" disabled={busy} onClick={async()=>{setAcceptanceResult('');await signOut(auth);}}>{t('acceptanceFreshLogin')}</button>}
+   {session&&<button type="button" disabled={busy} onClick={async()=>{
+    setBusy(true);setAcceptanceResult('');
+    try{
+     const result=await client.routeQuery({type:'delivery-c-acceptance'},{refresh:true});
+     setAcceptanceResult(result.eligible?'acceptanceEligible':'acceptanceIneligible');
+    }catch{setAcceptanceResult('acceptanceIneligible');}finally{setBusy(false);}
+   }}>{t('acceptanceVerify')}</button>}
+   {acceptanceResult&&session&&<p role="status">{t(acceptanceResult)}</p>}
+  </div>}
   {notice&&<div className="dist-success" role="status">{t(notice)}</div>}
   {!session?<form className="dist-login dist-card" onSubmit={login}><span className="dist-eyebrow">{t('secure')}</span><h2>{t('login')}</h2><p>{t('loginHelp')}</p>{!user&&<><label>{t('email')}<input type="email" required autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)}/></label><label>{t('password')}<input type="password" required autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)}/></label></>}{user&&<><label>{language==='es'?'Modo de acceso':'Modo de acesso'}<select aria-label={language==='es'?'Modo de acceso':'Modo de acesso'} value={scope} onChange={e=>setScope(e.target.value)}><option value='stock'>{language==='es'?'Depósito y cargas':'Depósito e cargas'}</option><option value='trip'>{language==='es'?'Gestión de viajes':'Gestão de viagens'}</option><option value='driver'>{language==='es'?'Mi ruta · conductor':'Minha rota · motorista'}</option></select></label><label>{t('operator')}<input required value={operatorId} onChange={e=>setOperatorId(e.target.value)} autoComplete="off"/></label><label>{t(settingOwnerPin?'ownerNewPin':'pin')}<input type="password" required inputMode="numeric" pattern={settingOwnerPin?'[0-9]{8,12}':undefined} autoComplete="off" value={pin} onChange={e=>setPin(e.target.value)}/></label></>}<button className="primary" disabled={busy}>{busy?t('loading'):t(settingOwnerPin&&user?'ownerSavePin':'login')}</button>{ownerSetup&&!user&&<button type="button" disabled={busy||!email.trim()} onClick={resetOwnerPassword}>{t('ownerReset')}</button>}</form>:<>
    <div className="dist-toolbar"><div className="dist-segments" role="group" aria-label={t('date')}>{[['hoje','today'],['mes','month'],['anterior','previous'],['personalizado','custom']].map(([value,key])=><button key={value} aria-pressed={period===value} onClick={()=>choosePeriod(value)}>{t(key)}</button>)}</div>{!['trips','occurrences'].includes(tab)&&session.scope==='stock'&&<button disabled={busy||loading} onClick={()=>{client.invalidate();setReload(n=>n+1);}}>{t('refresh')}</button>}</div>

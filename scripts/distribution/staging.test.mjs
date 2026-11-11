@@ -50,3 +50,40 @@ test('shared handler uses authenticated UID and operator header with parsed Verc
  const attachment=response();await h({...req,url:'/occurrence-evidence-upload'},attachment);
  assert.equal(attachment.statusCode,404);
 });
+import {distributionService} from '../../operational-functions/src/distribution/service.js';
+import {hash,credentialFingerprint} from '../../operational-functions/src/distribution/security.js';
+
+test('Delivery C verification is read-only and requires the matching recent financial session',async()=>{
+ const uid='acceptance-tenant',root='lojas/'+uid,base=root+'/v2_generations/g1',token='a'.repeat(64);
+ const operator={id:'admin',patente:'admin',permissoes:{admin:true}};
+ const now=1700000000000;
+ const docs=new Map([
+  [root,{synthetic:true}],
+  [root+'/dados/storage_control',{mode:'v2',generation:'g1',sourceChecksum:'s',entitlements:{distribution:{enabled:true}}}],
+  [base,{schema:2,state:'ready',sourceChecksum:'s'}],
+  [root+'/distribution_config/module',{enabled:true,pilotProfile:'PYG_CREDIT_CASH_V1',nativePygCashEnabled:true}],
+  [root+'/distribution_sessions/'+hash(token),{uid,generation:'g1',operatorId:'admin',expiresAt:now+60000,credential:credentialFingerprint(operator)}],
+  [base+'/operadores/admin',{data:operator}],
+ ]);
+ const db={projectId:'zenos-distribution-staging',doc:path=>path,runTransaction(fn,options){
+  assert.deepEqual(options,{readOnly:true});
+  return fn({get:async path=>({data:()=>docs.get(path)})});
+ }};
+ const original=process.env.STAGING_ACCEPTANCE_UID;
+ process.env.STAGING_ACCEPTANCE_UID=uid;
+ try{
+  const service=distributionService(db,{staging:true,now:()=>now});
+  const identity={uid,auth_time:now/1000,firebase:{sign_in_provider:'password'}};
+  assert.deepEqual(await service.verifyDeliveryCAcceptance(identity,token),{matches:true,eligible:true});
+  assert.deepEqual(await service.verifyDeliveryCAcceptance({...identity,uid:'other'},token),{matches:false,eligible:false});
+  assert.deepEqual(await service.verifyDeliveryCAcceptance({...identity,auth_time:now/1000-301},token),{matches:false,eligible:false});
+  await assert.rejects(service.verifyDeliveryCAcceptance(identity,'bad'),{code:'UNAUTHENTICATED'});
+  docs.set(root+'/distribution_config/delivery_c_grant',{enabled:true,expiresAt:now+1000});
+  assert.deepEqual(await service.verifyDeliveryCAcceptance(identity,token),{matches:true,eligible:false});
+  docs.delete(root+'/distribution_config/delivery_c_grant');
+  docs.set(root,{synthetic:false});
+  assert.deepEqual(await service.verifyDeliveryCAcceptance(identity,token),{matches:true,eligible:false});
+ }finally{
+  if(original===undefined)delete process.env.STAGING_ACCEPTANCE_UID;else process.env.STAGING_ACCEPTANCE_UID=original;
+ }
+});

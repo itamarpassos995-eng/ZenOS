@@ -328,11 +328,28 @@ export function distributionService(db,{now=()=>Date.now(),staging=false,emulato
   });
  }
  async function logout(uid,sessionToken){return db.runTransaction(async tx=>{const c=await ctx(tx,uid);await authorize(tx,uid,sessionToken,c,'any');tx.delete(db.doc(`${c.root}/distribution_sessions/${hash(sessionToken)}`));return {ok:true};});}
+ async function verifyDeliveryCAcceptance(identity,sessionToken){
+  const ineligible={matches:false,eligible:false};
+  if(!staging||identity.firebase?.sign_in_provider!=='password'||
+   !Number.isSafeInteger(identity.auth_time)||identity.auth_time*1000>now()||
+   now()-identity.auth_time*1000>300000)return ineligible;
+  const matches=Boolean(process.env.STAGING_ACCEPTANCE_UID)&&identity.uid===process.env.STAGING_ACCEPTANCE_UID;
+  if(!matches)return ineligible;
+  return db.runTransaction(async tx=>{
+   const c=await ctx(tx,identity.uid);
+   await authorize(tx,identity.uid,sessionToken,c,'finance');
+   const [tenant,grant]=await Promise.all([tx.get(db.doc(c.root)),tx.get(db.doc(c.root+'/distribution_config/delivery_c_grant'))]);
+   const existing=grant.data();
+   const inactive=!existing||existing.enabled===false||
+    (existing.enabled===true&&Number.isSafeInteger(existing.expiresAt)&&existing.expiresAt<=now());
+   return {matches:true,eligible:tenant.data()?.synthetic===true&&c.config.nativePygCashEnabled===true&&inactive};
+  },{readOnly:true});
+ }
  const finalize=buildSettlement({db,ctx,authorize,login,now});
  const trips=buildTrips({db,ctx,authorize,finalize,now,deliveryCGrantScope:staging?{projectId:db.projectId,uid:process.env.STAGING_ACCEPTANCE_UID}:emulatorPygCompensationUid?{projectId:db.projectId,uid:emulatorPygCompensationUid}:null});
  const occurrences=buildOccurrences({db,ctx,authorize,now});
  const evidence=staging?{}:buildOccurrenceEvidence({db,ctx,authorize,now});
  const commercial=buildCommercialAdjustments({db,ctx,authorize,now});
  const reconciliations=buildFinancialReconciliation({db,ctx,authorize,now});
- return {login,command,query,logout,finalize,...trips,...occurrences,...evidence,...commercial,...reconciliations};
+ return {login,command,query,logout,finalize,verifyDeliveryCAcceptance,...trips,...occurrences,...evidence,...commercial,...reconciliations};
 }

@@ -1,5 +1,9 @@
 // All interface copy is selected through the central ZenOS language context.
 const messages={
+ acceptanceFreshLogin:['Entrar novamente no Firebase','Volver a iniciar sesión en Firebase'],
+ acceptanceVerify:['Verificar elegibilidade da Entrega C','Verificar elegibilidad de la Entrega C'],
+ acceptanceEligible:['Correspondência e elegibilidade confirmadas.','Coincidencia y elegibilidad confirmadas.'],
+ acceptanceIneligible:['Elegibilidade não confirmada. Use a conta sintética autorizada e uma sessão financeira recente.','Elegibilidad no confirmada. Use la cuenta sintética autorizada y una sesión financiera reciente.'],
  ownerReset:['Definir senha pelo e-mail','Definir contraseña por correo'],ownerResetSent:['Se o endereço estiver autorizado, o Firebase enviará um link para definir a senha.','Si el correo está autorizado, Firebase enviará un enlace para definir la contraseña.'],ownerResetFailed:['Não foi possível solicitar o link. Confira o endereço e tente novamente.','No se pudo solicitar el enlace. Verifique el correo e intente nuevamente.'],ownerNewPin:['Novo PIN do administrador','Nuevo PIN del administrador'],ownerSavePin:['Definir PIN','Definir PIN'],ownerInvalidPin:['Use de 8 a 12 dígitos para o PIN.','Use de 8 a 12 dígitos para el PIN.'],ownerVerification:['Verifique seu e-mail e entre novamente antes de definir o PIN.','Verifique su correo e inicie sesión nuevamente antes de definir el PIN.'],ownerPinSaved:['PIN definido. Acesse como admin com o PIN escolhido.','PIN definido. Acceda como admin con el PIN elegido.'],ownerPinAlreadySet:['O PIN já foi definido. Acesse como admin.','El PIN ya fue definido. Acceda como admin.'],
  truckLoading:['Quantidade colocada no caminhão','Cantidad cargada en el camión'],
  confirmLoading:['Confirmar carregamento físico','Confirmar carga física'],
