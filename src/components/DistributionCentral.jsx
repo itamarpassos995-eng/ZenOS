@@ -216,6 +216,7 @@ export default function DistributionCentral({operatorId:initialOperatorId='admin
     {detail.state==='DISPATCHED'&&<p className="dist-success" role="status">{words.complete}</p>}
    </div>
    <details className="dist-guided-extra"><summary>{words.advanced}</summary>
+    {detail.state==='APPROVED'&&detail.truckLoading&&detail.manifestVersions.length>0&&<button type="button" disabled={busy||![vehicle,driver,route].every(s=>s.trim())} onClick={()=>guidedCommands([{type:'MANIFEST',payload:{vehicle,driver,route}}])}>{language==='es'?'Reemitir romaneo con nueva versión':'Reemitir romaneio com nova versão'}</button>}
     {['DRAFT','PLANNED','LOADING'].includes(detail.state)&&<button className="danger" disabled={busy} onClick={()=>setConfirm('CANCEL')}>{t('cancel')}</button>}
     {detail.loadingCheck&&<div className="dist-history"><h3>{t('checked')} · {detail.loadingCheck.operatorId}</h3><p>{detail.loadingCheck.reason}</p>{detail.loadingCheck.lines.map(row=><p key={row.lineId}>{(detail.lines.find(l=>l.id===row.lineId)||detail.partialApproval?.lines.find(l=>l.lineId===row.lineId))?.description} · {row.checked} / {row.authorized} · {t('shortage')}: {row.authorized-row.checked}</p>)}</div>}
     {detail.truckLoading&&<p>{t('truckLoading')} · {detail.truckLoading.operatorId} · {date(detail.truckLoading.at)}</p>}
