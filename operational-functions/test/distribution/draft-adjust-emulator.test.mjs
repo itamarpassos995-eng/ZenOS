@@ -5,7 +5,7 @@ import {db,seed,PIN} from './fixture.mjs';
 import {distributionService} from '../../src/distribution/service.js';
 const service=distributionService(db);
 async function createFixture(stock,orders){
- const f=await seed('draft-adjust-'+randomUUID().slice(0,8),{stock,orders});
+ const f=await seed('distribution-draft-adjust-'+randomUUID().slice(0,8),{stock,orders});
  const session=await service.login(f.uid,{operatorId:'admin',pin:PIN});
  return {...f,session:session.sessionToken};
 }
