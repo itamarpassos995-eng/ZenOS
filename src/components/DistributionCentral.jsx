@@ -30,6 +30,7 @@ export default function DistributionCentral({operatorId:initialOperatorId='admin
  const [selection,setSelection]=useState({}),[detail,setDetail]=useState(null),[document,setDocument]=useState(null),[copy,setCopy]=useState(false),[confirm,setConfirm]=useState(null);
  const [vehicle,setVehicle]=useState(''),[driver,setDriver]=useState(''),[route,setRoute]=useState(''),[checked,setChecked]=useState({}),[checkReason,setCheckReason]=useState(''),[truck,setTruck]=useState({}),[customerDocument,setCustomerDocument]=useState('');
  const [physicalChecked,setPhysicalChecked]=useState(false),[physicalLoaded,setPhysicalLoaded]=useState(false);
+ const [stockAvailability,setStockAvailability]=useState(null),[draftQuantities,setDraftQuantities]=useState({});
  const epoch=useRef(0),dialogRef=useRef(null),previousFocus=useRef(null);
  useEffect(()=>onAuthStateChanged(auth,u=>{setUser(u);setSession(null);setDetail(null);setRows([]);setSelection({});}),[]);
  useEffect(()=>()=>client?.clear(),[client]);
@@ -83,9 +84,9 @@ export default function DistributionCentral({operatorId:initialOperatorId='admin
   }
   const result=await client.login(operatorId,pin,scope);setSession(result);setTab(result.scope==='trip'||result.scope==='driver'?'trips':'loads');setRange(distributionPeriod('hoje',Date.now(),result.timeZone));setPin('');setPassword('');setNotice('');
  }catch(e){if(user)fail(e);else setError(t(codeOf(e))===t('error')?'AUTH_SIGN_IN_FAILED':codeOf(e));}finally{setBusy(false);}}
- async function openLoad(loadId){setBusy(true);setError('');try{const result=await client.query({type:'detail',loadId},{refresh:true});setDetail(result.load);setChecked({});setCheckReason('');setTruck({});setPhysicalChecked(false);setPhysicalLoaded(false);setDocument(null);setConfirm(null);setVehicle(result.load.manifestVersions.at(-1)?.vehicle||'');setDriver(result.load.manifestVersions.at(-1)?.driver||'');setRoute(result.load.manifestVersions.at(-1)?.route||'');}catch(e){fail(e);}finally{setBusy(false);}}
+ async function openLoad(loadId){setBusy(true);setError('');try{const result=await client.query({type:'detail',loadId},{refresh:true});setDetail(result.load);setStockAvailability(result.availability??null);setDraftQuantities({});setChecked({});setCheckReason('');setTruck({});setPhysicalChecked(false);setPhysicalLoaded(false);setDocument(null);setConfirm(null);setVehicle(result.load.manifestVersions.at(-1)?.vehicle||'');setDriver(result.load.manifestVersions.at(-1)?.driver||'');setRoute(result.load.manifestVersions.at(-1)?.route||'');}catch(e){fail(e);}finally{setBusy(false);}}
  async function operate(type,payload={}){if(!detail||busy)return;setBusy(true);setError('');setNotice('');try{
-  await client.command(type,detail.id,detail.revision,payload);const result=await client.query({type:'detail',loadId:detail.id},{refresh:true});setDetail(result.load);setNotice('saved');setConfirm(null);setReload(n=>n+1);
+  await client.command(type,detail.id,detail.revision,payload);const result=await client.query({type:'detail',loadId:detail.id},{refresh:true});setDetail(result.load);setStockAvailability(result.availability??null);setDraftQuantities({});setNotice('saved');setConfirm(null);setReload(n=>n+1);
  }catch(e){fail(e);}finally{setBusy(false);}}
  // Re-read the authoritative load after every accepted command. If one action fails,
  // stop without issuing the next; the last confirmed state remains usable.
@@ -97,15 +98,35 @@ export default function DistributionCentral({operatorId:initialOperatorId='admin
    for(const step of steps){
     await client.command(step.type,current.id,current.revision,step.payload||{});
     const response=await client.query({type:'detail',loadId:current.id},{refresh:true});
-    current=response.load;setDetail(current);
+    current=response.load;setDetail(current);setStockAvailability(response.availability??null);setDraftQuantities({});
    }
    setNotice('saved');setReload(n=>n+1);
   }catch(e){
    // Never replay a command automatically after a lost acknowledgment.
    // A fresh read reconciles the visible state without writing.
-   try{const response=await client.query({type:'detail',loadId:current.id},{refresh:true});setDetail(response.load);}catch{}
+   try{const response=await client.query({type:'detail',loadId:current.id},{refresh:true});setDetail(response.load);setStockAvailability(response.availability??null);}catch{}
    fail(e);
   }finally{setBusy(false);}
+ }
+ const draftValues=detail?.lines.map(line=>draftQuantities[line.id]===undefined?line.quantity:Number(draftQuantities[line.id]))||[];
+ const draftHasChanges=!!detail&&detail.state==='DRAFT'&&draftValues.some((quantity,i)=>quantity!==detail.lines[i].quantity);
+ const draftQuantitiesValid=!!detail&&draftValues.length>0&&draftValues.some(n=>n>0)&&
+  draftValues.every((n,i)=>Number.isSafeInteger(n)&&n>=0&&n<=detail.lines[i].quantity);
+ const stockByProduct=detail?.lines.reduce((acc,line,i)=>{
+  acc[line.productId]=(acc[line.productId]||0)+(Number.isSafeInteger(draftValues[i])?draftValues[i]:0);return acc;
+ },{})||{};
+ const stockFits=!!stockAvailability&&Object.entries(stockByProduct).every(([productId,total])=>
+  Number.isSafeInteger(stockAvailability[productId])&&total<=stockAvailability[productId]);
+ function fillAvailableStock(){
+  if(!detail||!stockAvailability)return;
+  const remaining={...stockAvailability},values={};
+  for(const line of detail.lines){
+   const available=Math.max(0,remaining[line.productId]??0);
+   const quantity=Math.min(line.quantity,available);
+   values[line.id]=String(quantity);
+   remaining[line.productId]=available-quantity;
+  }
+  setDraftQuantities(values);
  }
  const guided=guidedLoadStatus(detail);
  const checkResult=detail?guidedFullCheck(detail.lines,checked,checkReason):{valid:false,full:false,quantities:[],reason:''};
@@ -178,9 +199,26 @@ export default function DistributionCentral({operatorId:initialOperatorId='admin
    <div className="dist-guided-summary"><strong>{language==='es'?'Resumen':'Resumo da carga'}</strong><span>{detail.lines.reduce((n,l)=>n+l.quantity,0)} UN · {new Set(detail.lines.map(l=>l.customerId)).size} {language==='es'?'clientes':'clientes'}</span></div>
    <div className="dist-table-wrap dist-load-lines"><table><thead><tr><th>{t('product')}</th><th>{t('customer')}</th><th>{t('quantity')}</th><th>{t('amount')}</th>{detail.state==='LOADING'&&<th>{t('checked')}</th>}</tr></thead><tbody>{detail.lines.map((l,i)=><tr key={l.id}><td data-label={t('product')}><strong>{l.description}</strong><small>{l.sku} · {l.orderId}</small></td><td data-label={t('customer')}>{l.customerName}<small>{l.destination}</small></td><td data-label={t('quantity')}>{l.quantity} {l.unit}</td><td data-label={t('amount')}>{distributionMoney(l.amount)}</td>{detail.state==='LOADING'&&<td data-label={t('checked')}><input aria-label={`${t('checked')} ${i+1}`} type="number" min="0" max={l.quantity} step="1" value={checked[i]??''} onChange={e=>{setPhysicalChecked(false);setChecked(s=>({...s,[i]:e.target.value}));}}/></td>}</tr>)}</tbody></table></div>
    <div className="dist-guided-actions">
+    {guided.canPrepare&&detail.state==='DRAFT'&&<div className="dist-guided-panel">
+     <h3>{language==='es'?'Ajustar cantidades a la disponibilidad':'Ajustar quantidades ao estoque disponível'}</h3>
+     <p>{language==='es'?'Puede reducir cantidades y liberar el saldo no atendido para otra carga. No se permite exceder el inventario.':'Você pode reduzir quantidades e liberar o saldo não atendido para outra carga. O sistema não permite ultrapassar o estoque disponível.'}</p>
+     {stockAvailability&&<><div className="dist-guided-stock">
+      {detail.lines.map((line,i)=><label key={line.id}>{line.description} · {line.customerName}
+       <span>{language==='es'?'Solicitado':'Solicitado'}: {line.quantity} · {language==='es'?'Disponible por producto':'Disponível por produto'}: {stockAvailability[line.productId]??0}</span>
+       <input type="number" min="0" max={line.quantity} step="1" aria-label={`${language==='es'?'Ajustar cantidad':'Ajustar quantidade'} ${line.customerName} ${i+1}`} value={draftQuantities[line.id]??String(line.quantity)} onChange={e=>setDraftQuantities(s=>({...s,[line.id]:e.target.value}))}/>
+      </label>)}
+     </div>
+     <div className="dist-guided-stock-actions">
+      <button type="button" disabled={busy} onClick={fillAvailableStock}>{language==='es'?'Distribuir según stock disponible':'Distribuir conforme estoque disponível'}</button>
+      <button className="primary" disabled={busy||!draftHasChanges||!draftQuantitiesValid||!stockFits} onClick={()=>guidedCommands([{type:'ADJUST_DRAFT',payload:{quantities:draftValues}}])}>{language==='es'?'Guardar cantidades corregidas':'Salvar quantidades corrigidas'}</button>
+     </div>
+     {!stockFits&&<p className="dist-guided-warning" role="status">{language==='es'?'La cantidad total supera la existencia disponible para uno o más productos.':'O total selecionado ultrapassa o estoque disponível de um ou mais produtos.'}</p>}
+     </>}
+     {!stockAvailability&&<p role="status">{language==='es'?'Stock no disponible para consulta.':'Estoque indisponível para consulta.'}</p>}
+    </div>}
     {guided.canPrepare&&<div className="dist-guided-panel">
      <p>{language==='es'?'Reserva las cantidades y abre la separación.':'Reserva as quantidades e inicia a separação em uma só ação.'}</p>
-     <button className="primary" disabled={busy} onClick={()=>guidedCommands(detail.state==='DRAFT'?[{type:'RESERVE'},{type:'START_PICK'}]:[{type:'START_PICK'}])}>{words.start}</button>
+     <button className="primary" disabled={busy||(detail.state==='DRAFT'&&(!stockFits||draftHasChanges))} onClick={()=>guidedCommands(detail.state==='DRAFT'?[{type:'RESERVE'},{type:'START_PICK'}]:[{type:'START_PICK'}])}>{words.start}</button>
     </div>}
     {guided.canCheck&&<div className="dist-guided-panel">
      <h3>{language==='es'?'Cantidades contadas':'Quantidades conferidas'}</h3>
