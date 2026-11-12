@@ -26,3 +26,10 @@ Repositório `itamarpassos995-eng/ZenOS`; branch **única** `feat/distribution-l
 
 ## Restrições
 Não reconstruir o módulo. Não criar branch paralela. Não refazer gates G1–G10. Não executar Entrega C fora da autorização vigente. Não afirmar deploy ou homologação aprovada sem status explícito. Continuar a partir destes commits, nunca reiniciar etapas anteriores.
+
+## Correção adicional (2026-11-12)
+- Causa comprovada no print: sessão `Minha rota` era do operador `admin`, enquanto a fixture sintética de staging cria operador `driver` (nome `Conductor de prueba`) com PIN SEPARADO fornecido na variável `STAGING_FIXTURE_DRIVER_PIN` durante a provisão. Nunca usar PIN do admin para agir como motorista.
+- `bce81348`: na tela de login da staging, ao escolher modo motorista partindo de admin, altera ID sugerido para `driver`, limpa PIN e mantém verificação server-side.
+- `25e8ca60`: tela vazia da staging passa a permitir `Entrar como motorista de teste`, efetuando logout operacional e preparando `driver` + `scope=driver`. Ainda exige o PIN separado do motorista. Sem alterações em produção ou permissões.
+- Deployment Vercel direcionado ao projeto correto `zenos-distribution-staging`, ID `dpl_6YuVr4KyueDZYmhEGKBqrBMXFhJt`, inicialmente QUEUED. Conferir READY antes de homologação.
+- A viagem real da fixture continua `PLANNED`; `START` só poderá ser executado após login como `driver` com PIN válido e consulta autorizada. Sem acesso ao PIN do motorista NÃO há evidência de funcionamento fim a fim. Não pedir que o usuário divulgue o PIN no chat.
