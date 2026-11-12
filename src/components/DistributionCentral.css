@@ -404,3 +404,11 @@ body *{visibility:hidden!important}
   touch-action:pan-y pan-x;
  }
 }
+
+
+/* Clear explanation for a persisted partial check, with its original audit reason. */
+.dist .dist-guided-shortage-line{
+ display:flex;flex-direction:column;justify-content:center;gap:5px;
+ padding:12px;border:1px solid var(--dist-border);background:var(--dist-bg);border-radius:12px;
+}
+.dist .dist-guided-shortage-line span{font-size:12px;color:var(--dist-muted)}
