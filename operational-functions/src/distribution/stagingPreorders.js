@@ -7,6 +7,13 @@ function productPrice(product){
  const value=product?.valoresMonetarios?.campos?.precoVenda;
  return value?.moeda==='PYG'&&Number.isSafeInteger(value.valor)&&value.valor>0?value.valor:null;
 }
+// The test PDV consumes a BRL-priced view, while the canonical catalog stores PYG.
+// This projection is response-only; the stored product and its original currency stay unchanged.
+export function projectStagingCatalogProduct(product,rate){
+ const price=productPrice(product);
+ if(price==null||!(Number.isFinite(rate)&&rate>0))return null;
+ return {...product,precoBRL:Math.round(price/rate*100)/100};
+}
 export function buildStagingPreorders({db,ctx,authorize,now}){
  return async function stagingPreorder(uid,session,input){
   return db.runTransaction(async tx=>{
@@ -23,7 +30,7 @@ export function buildStagingPreorders({db,ctx,authorize,now}){
     const [products,customers]=await Promise.all(['produtos','clientes'].map(name=>tx.get(db.collection(c.base+'/'+name).limit(maxCatalog+1))));
     if(products.size>maxCatalog||customers.size>maxCatalog)error('STAGING_CATALOG_LIMIT');
     const data=q=>q.docs.filter(s=>!s.data().deleted).map(s=>s.data().data);
-    return {actor:{operatorId:actor.operatorId,name:actor.name},rates,products:data(products).filter(p=>productPrice(p)!=null),customers:data(customers).map(({id,nome,cidade,endereco})=>({id,nome,cidade:cidade??'',endereco:endereco??''}))};
+    return {actor:{operatorId:actor.operatorId,name:actor.name},rates,products:data(products).map(p=>projectStagingCatalogProduct(p,rates.PYG)).filter(Boolean),customers:data(customers).map(({id,nome,cidade,endereco})=>({id,nome,cidade:cidade??'',endereco:endereco??''}))};
    }
    if(input?.type!=='create'||!/^pdv:PRÉ-PEDIDO-\d{13}-[a-z0-9]{6}$/u.test(input.key||'')||!Array.isArray(input.lines)||!input.lines.length||input.lines.length>20)error('INVALID_COMMAND');
    const orderId=input.key.slice(4),receiptId=hash(input.key);
