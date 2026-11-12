@@ -212,7 +212,10 @@ export default function DistributionCentral({operatorId:initialOperatorId='admin
       <button type="button" disabled={busy} onClick={fillAvailableStock}>{language==='es'?'Distribuir según stock disponible':'Distribuir conforme estoque disponível'}</button>
       <button className="primary" disabled={busy||!draftHasChanges||!draftQuantitiesValid||!stockFits} onClick={()=>guidedCommands([{type:'ADJUST_DRAFT',payload:{quantities:draftValues}}])}>{language==='es'?'Guardar cantidades corregidas':'Salvar quantidades corrigidas'}</button>
      </div>
-     {!stockFits&&<p className="dist-guided-warning" role="status">{language==='es'?'La cantidad total supera la existencia disponible para uno o más productos.':'O total selecionado ultrapassa o estoque disponível de um ou mais produtos.'}</p>}
+     {!stockFits&&<p className="dist-guided-warning" role="status">{language==='es'?'La cantidad total supera la existencia disponible. Reduzca cantidades o cancele el borrador sin perder los pedidos.':'A quantidade total ultrapassa o estoque disponível. Reduza os volumes ou cancele o rascunho para liberar os pedidos.'}</p>}
+     {!Object.values(stockAvailability).some(n=>n>0)&&<div className="dist-guided-final"><p>{language==='es'?'No hay stock para reservar esta carga. Reponer stock o cancelar el borrador.':'Sem estoque para reservar esta carga. Reponha o estoque ou cancele o rascunho.'}</p>
+      <button type="button" disabled={busy} onClick={()=>setConfirm('CANCEL')}>{language==='es'?'Cancelar borrador y liberar pedidos':'Cancelar rascunho e liberar pedidos'}</button>
+     </div>}
      </>}
      {!stockAvailability&&<p role="status">{language==='es'?'Stock no disponible para consulta.':'Estoque indisponível para consulta.'}</p>}
     </div>}
