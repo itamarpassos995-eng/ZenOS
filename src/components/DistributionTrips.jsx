@@ -1,170 +1,288 @@
 import React,{useCallback,useEffect,useMemo,useRef,useState} from 'react';
-import {createDriverStore} from '../core/distribution/outbox.js';
-import {hasPendingTripReturnFinance,custodyTotals,originalValue,nativeMinor} from '../core/distribution/trips.js';
-import {tripText,tripMoney} from '../core/distribution/tripI18n.js';
-import printCss from './DistributionCentral.css?inline';
-import './DistributionTrips.css';
-import tripPrintCss from './DistributionTrips.css?inline';
-const initialForm={note:'',outcome:'TOTAL',receiver:'',identification:'',condition:'GOOD',quantities:[],signature:[],photos:[],amount:'',method:'',acceptFrozenConversion:false,disposition:'REINTEGRATE',cashSessionId:'',counted:{},approveDivergence:false,pin:'',acceptCredit:false};
-export default function DistributionTrips({client,session,user,language,range,initialTripId=null,onSwitchToTripManagement}){
- const t=useMemo(()=>tripText(language),[language]),isDriver=session.scope==='driver',view=isDriver?'driver':'manage';
- const [returnPreview,setReturnPreview]=useState(null);
- const [rows,setRows]=useState([]),[trip,setTrip]=useState(null),[page,setPage]=useState(0),[cursors,setCursors]=useState([null]),[next,setNext]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(false),[notice,setNotice]=useState(''),[online,setOnline]=useState(navigator.onLine),[cached,setCached]=useState(false),[queue,setQueue]=useState([]),[options,setOptions]=useState({paymentMethods:[],photosAllowed:false}),[catalog,setCatalog]=useState(null),[loads,setLoads]=useState([]),[loadCursor,setLoadCursor]=useState(null),[dialog,setDialog]=useState(null),[form,setForm]=useState(initialForm),[proof,setProof]=useState(null),[history,setHistory]=useState(null),[historyCursor,setHistoryCursor]=useState(null),[tripDocument,setTripDocument]=useState(null);
- const store=useMemo(()=>createDriverStore(user.uid,session.operatorId),[user.uid,session.operatorId]);
- const tripRef=useRef(trip);tripRef.current=trip;
- const capabilities=session.capabilities||[],can=k=>capabilities.includes(k),blocked=busy||queue.some(q=>q.input.tripId===trip?.id&&(q.status==='CONFLICT'||q.input.type==='ARRIVE'));
- const queuedDelivery=stopId=>queue.find(q=>q.input.tripId===trip?.id&&q.input.type==='DELIVER'&&q.input.payload.stopId===stopId);
- const effectiveOutcome=s=>queuedDelivery(s.id)?.input.payload.outcome||s.state;
- const refreshQueue=useCallback(async()=>setQueue(await store.pending()),[store]);
- const loadRows=useCallback(async()=>{setError(false);try{const result=await client.routeQuery({type:'trips',view,from:Date.parse(range.inicio),to:Date.parse(range.fim),limit:12,cursor:cursors[page]},{refresh:true});setRows(result.items);setNext(result.next);setCached(false);}catch{if(isDriver){const records=await store.cachedTrips();setRows(records.filter(r=>r.createdAt>=Date.parse(range.inicio)&&r.createdAt<Date.parse(range.fim)).map(r=>({...r,stops:r.stops.length,completed:r.stops.filter(s=>s.state!=='PENDING').length,incidents:r.incidents.length,returns:r.stops.flatMap(s=>s.lines).reduce((a,l)=>a+l.returning-l.reintegrated-l.quarantined,0),received:custodyTotals(r.receipts)})));setCached(true);}else setError(true);}},[client,view,range,page,cursors,store,isDriver]);
- useEffect(()=>{setPage(0);setCursors([null]);},[range]);
- useEffect(()=>{loadRows();},[loadRows]);
- useEffect(()=>{refreshQueue();const on=()=>setOnline(navigator.onLine);window.addEventListener('online',on);window.addEventListener('offline',on);return()=>{window.removeEventListener('online',on);window.removeEventListener('offline',on);store.close();};},[store,refreshQueue]);
- async function open(id,{refresh=false,managed=false}={}){if(!managed)setBusy(true);setError(false);try{const data=await client.routeQuery({type:'detail',view,tripId:id},{refresh});await store.cache(data.trip,{paymentMethods:data.paymentMethods,photosAllowed:data.photosAllowed,pilotBRL:data.pilotBRL,pilotPYG:data.pilotPYG,nativePygCashEnabled:data.nativePygCashEnabled});setTrip(data.trip);setOptions(data);setCached(false);}catch{const data=isDriver?await store.cached(id):null;if(data){setTrip(data.trip);setOptions(data.options);setCached(true);}else setError(true);}finally{if(!managed)setBusy(false);}}
- // Direct handoff reads the assigned trip from the authorized server, even when its creation date is outside today's filter.
- const handoffOpened=useRef(null);
- useEffect(()=>{if(!isDriver||!initialTripId||handoffOpened.current===initialTripId)return;handoffOpened.current=initialTripId;open(initialTripId,{refresh:true});},[isDriver,initialTripId,session.operatorId]);
- const sync=useCallback(async()=>{if(!isDriver||!navigator.onLine)return;if(!(await store.pending()).length)return;setBusy(true);setError(false);try{const result=await store.sync(input=>client.routeCommand(input));if(result.confirmed)setNotice('confirmed');const current=tripRef.current;if(current){const data=await client.routeQuery({type:'detail',view:'driver',tripId:current.id},{refresh:true});await store.cache(data.trip,{paymentMethods:data.paymentMethods,photosAllowed:data.photosAllowed,pilotBRL:data.pilotBRL,pilotPYG:data.pilotPYG,nativePygCashEnabled:data.nativePygCashEnabled});setTrip(data.trip);setOptions(data);setCached(false);}await loadRows();}catch(e){setError(true);if(e.code==='REVISION_CONFLICT')setNotice('conflict');}finally{await refreshQueue();setBusy(false);}},[store,client,isDriver,loadRows,refreshQueue]);
- useEffect(()=>{if(online&&isDriver)sync();},[online]); // Explicit online transition; no polling/listener on Firestore.
- async function manage(type,payload={},id=trip?.id,revision=trip?.revision){setBusy(true);setError(false);try{await client.routeCommand({type,tripId:id,expectedRevision:revision,payload,key:crypto.randomUUID()});setNotice(type==='REORDER'?'routeReordered':type==='CREATE_TRIP'?'tripCreated':'confirmed');setDialog(null);if(trip)await open(trip.id,{refresh:true,managed:true});await loadRows();}catch(e){setError(e.code==='PYG_RETURN_FINANCE_PENDING'?e.code:true);}finally{setBusy(false);}}
- async function driver(type,payload={}){setBusy(true);setError(false);try{await store.enqueue(trip,type,payload);await refreshQueue();setDialog(null);setNotice('pending');if(navigator.onLine)await sync();}catch{setError(true);}finally{setBusy(false);}}
- async function createDialog(kind){setBusy(true);setError(false);try{const data=await client.routeQuery({type:'catalog',view,includeOperators:kind==='fleet'},{refresh:true});setCatalog(data);setForm({...initialForm,driverId:'',vehicleId:'',routeId:'',loadIds:[]});if(kind==='new'){const result=await client.query({type:'loads',from:Date.parse(range.inicio),to:Date.parse(range.fim),limit:30},{refresh:true});setLoads(result.items.filter(l=>l.state==='DISPATCHED'&&!l.tripId));setLoadCursor(result.next);}setDialog({kind});}catch{setError(true);}finally{setBusy(false);}}
- async function moreCatalog(){setBusy(true);try{const r=await client.routeQuery({type:'catalog',view,includeOperators:true,after:catalog.next},{refresh:true});setCatalog(c=>({...r,...Object.fromEntries(['drivers','vehicles','routes','operators'].map(k=>[k,[...new Map([...(c[k]||[]),...(r[k]||[])].map(x=>[x.id,x])).values()]]))}));}catch{setError(true);}finally{setBusy(false);}}
- function edit(kind,stop=null,line=null){setForm({...initialForm,quantities:stop?.lines.map(l=>l.quantity)||[],method:options.paymentMethods?.[0]?.id||'',currency:kind==='cheque'?'PYG':options.paymentMethods?.[0]?.currency||'PYG',lineId:line?.id,quantity:kind==='checkReturn'?'':line?.returning||1,disposition:line?.condition==='DAMAGED'?'QUARANTINE':line?.condition==='MIXED'?'SPLIT':'REINTEGRATE',reintegrateQuantity:line?.goodReturning??line?.returning??0,counted:Object.fromEntries(Object.entries(custodyTotals(trip?.receipts)).map(([c,n])=>[c,String(originalValue(n,c))]))});setDialog({kind,stop,line});}
- async function submit(e){e.preventDefault();const {kind,stop,line}=dialog;
-  if(kind==='schedule')return manage('SET_PYG_INSTALLMENTS',{installments:form.installments.map(row=>({...row,amountPYG:Number(row.amountPYG)}))},dialog.balance.orderId,dialog.balance.sourceRevision);
-  if(kind==='delivery')return driver('DELIVER',{stopId:stop.id,outcome:form.outcome,quantities:form.quantities,receiver:form.receiver,identification:form.identification,signature:form.signature,note:form.note,condition:form.condition,photos:form.photos});
-  if(kind==='cheque')return manage('RECORD_CHEQUE',{stopId:stop.id,bank:form.bank,reference:form.reference,currency:form.currency,amount:form.amount,presentationDate:form.presentationDate});
-  if(kind==='receive')return driver('COLLECT',{stopId:stop.id,method:form.method,currency:form.currency,amount:form.amount,acceptFrozenConversion:form.acceptFrozenConversion});
-  if(kind==='incident')return driver('INCIDENT',{stopId:stop?.id||null,note:form.note});
-  if(kind==='customerReturn')return driver('CUSTOMER_RETURN',{stopId:stop.id,lineId:form.lineId,quantity:Number(form.quantity),condition:form.condition,note:form.note});
-  if(kind==='checkReturn')return manage('CHECK_RETURN',{lineId:line.id,quantity:Number(form.quantity),disposition:form.disposition,reintegrateQuantity:Number(form.reintegrateQuantity),note:form.note});
-  if(kind==='beginClose')return manage('BEGIN_CLOSE',{cashSessionId:form.cashSessionId,counted:form.counted,approveDivergence:form.approveDivergence,note:form.note});
-  if(kind==='void')return manage('VOID_RECEIPT',{receiptId:dialog.receipt.id,note:form.note});
-  if(kind==='postOrder'){setBusy(true);setError(false);try{await client.routePost({tripId:trip.id,orderId:stop.orderId,pin:form.pin,acceptCredit:form.acceptCredit});setDialog(null);setNotice('confirmed');await open(trip.id,{refresh:true,managed:true});await loadRows();}catch{setError(true);}finally{setForm(f=>({...f,pin:''}));setBusy(false);}return;}
-  if(kind==='refund')return manage('REFUND',{lineId:line.id,method:form.method||'credito_fiado',currency:form.currency,amount:form.amount,acceptFrozenConversion:form.acceptFrozenConversion,bankReference:form.bankReference||'',note:form.note});
-  if(kind==='discard'){try{await store.discard(trip.id,form.note);await refreshQueue();setDialog(null);await open(trip.id,{refresh:true});}catch{setError(true);}return;}
-  if(kind==='access')return manage('SET_DRIVER_ACCESS',{permissions:form.permissions},form.operatorId,form.version);
-  if(kind==='new'){await manage('CREATE_TRIP',{driverId:form.driverId,vehicleId:form.vehicleId,routeId:form.routeId,loadIds:form.loadIds},'TRIP-'+crypto.randomUUID(),0);return;}
-  if(kind==='vehicle'||kind==='route')return manage(kind==='vehicle'?'SAVE_VEHICLE':'SAVE_ROUTE',{plate:form.plate,name:form.name,notes:form.note,active:form.active},dialog.entity?.id||((kind==='vehicle'?'V-':'R-')+crypto.randomUUID()),dialog.entity?.revision||0);
-  if(kind==='assign')return manage('ASSIGN',{driverId:form.driverId,vehicleId:form.vehicleId});
+import {signInWithEmailAndPassword,onAuthStateChanged,sendPasswordResetEmail,signOut} from 'firebase/auth';
+import {auth,ZENOS_RUNTIME} from '../firebase.js';
+import {zenosStorage} from '../core/storage.js';
+import {useUiLanguage} from '../core/useUiLanguage.js';
+import {distributionPeriod} from '../core/distribution/period.js';
+import {createDistributionClient} from '../core/distribution/client.js';
+import {distributionText,distributionMoney} from '../core/distribution/i18n.js';
+import {manifestForCustomer,summarizeManifest} from '../core/distribution/domain.js';
+import {guidedLoadStage,guidedLoadStatus,guidedFullCheck,guidedTruckReady} from '../core/distribution/guidedLoad.js';
+import './DistributionCentral.css';
+import distributionPrintCss from './DistributionCentral.css?inline';
+const DistributionTrips=React.lazy(()=>import('./DistributionTrips.jsx'));
+const DistributionOccurrences=React.lazy(()=>import('./DistributionOccurrences.jsx'));
+const codeOf=e=>e?.code||'REQUEST_FAILED';
+const remainingOrderQuantity=(order,index)=>Math.max(0,Number(order.itens[index].qtd)-(order._distribution?.allocated?.[index]||0));
+// Navigation is a login hint only; server still authenticates the exact operator and trip.
+const driverHandoff=()=>{const params=new URLSearchParams(window.location.search);const operator=params.get('motorista')||'',tripId=params.get('viagem')||'';return /^[A-Za-z0-9_-]{1,100}$/.test(operator)&&/^TRIP-[A-Za-z0-9_-]{1,100}$/.test(tripId)?{operator,tripId}:null;};
+export default function DistributionCentral({operatorId:initialOperatorId='admin',idioma:externalLanguage}) {
+ const [localLanguage,setLanguage]=useUiLanguage(zenosStorage),language=externalLanguage||localLanguage;
+ const t=useMemo(()=>distributionText(language),[language]);
+ const [user,setUser]=useState(auth.currentUser),[session,setSession]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
+ const handoff=useMemo(driverHandoff,[]);
+ const [scope,setScope]=useState(handoff?'driver':'stock');
+ const [email,setEmail]=useState(''),[password,setPassword]=useState(''),[operatorId,setOperatorId]=useState(handoff?.operator||initialOperatorId),[pin,setPin]=useState('');
+ const verifyAcceptance=ZENOS_RUNTIME.isStaging&&new URLSearchParams(window.location.search).has('verificar-entrega-c');
+ const [acceptanceResult,setAcceptanceResult]=useState('');
+ const ownerSetup=ZENOS_RUNTIME.isStaging&&new URLSearchParams(window.location.search).has('ativar');
+ const [settingOwnerPin,setSettingOwnerPin]=useState(ownerSetup);
+ const client=useMemo(()=>user?createDistributionClient(user):null,[user]);
+ const [tab,setTab]=useState('loads'),[period,setPeriod]=useState('hoje'),[from,setFrom]=useState(''),[to,setTo]=useState(''),[range,setRange]=useState(()=>distributionPeriod('hoje'));
+ const [page,setPage]=useState(0),[cursors,setCursors]=useState([null]),[rows,setRows]=useState([]),[next,setNext]=useState(null),[counts,setCounts]=useState({}),[loading,setLoading]=useState(false),[reload,setReload]=useState(0);
+ const [selection,setSelection]=useState({}),[detail,setDetail]=useState(null),[document,setDocument]=useState(null),[copy,setCopy]=useState(false),[confirm,setConfirm]=useState(null);
+ const [vehicle,setVehicle]=useState(''),[driver,setDriver]=useState(''),[route,setRoute]=useState(''),[checked,setChecked]=useState({}),[checkReason,setCheckReason]=useState(''),[truck,setTruck]=useState({}),[customerDocument,setCustomerDocument]=useState('');
+ const [physicalChecked,setPhysicalChecked]=useState(false),[physicalLoaded,setPhysicalLoaded]=useState(false),[rechecking,setRechecking]=useState(false);
+ const [stockAvailability,setStockAvailability]=useState(null),[draftQuantities,setDraftQuantities]=useState({});
+ const epoch=useRef(0),dialogRef=useRef(null),previousFocus=useRef(null);
+ useEffect(()=>onAuthStateChanged(auth,u=>{setUser(u);setSession(null);setDetail(null);setRows([]);setSelection({});}),[]);
+ useEffect(()=>()=>client?.clear(),[client]);
+ const fail=useCallback(e=>{const code=codeOf(e);setError(code);if(['SESSION_EXPIRED','FORBIDDEN','UNAUTHENTICATED'].includes(code)){client?.clear();setSession(null);}},[client]);
+ const queryInput=useMemo(()=>tab==='loads'?{type:'loads',from:Date.parse(range?.inicio),to:Date.parse(range?.fim),limit:12,cursor:cursors[page]}:{type:'orders',from:Date.parse(range?.inicio),to:Date.parse(range?.fim),limit:12,cursor:cursors[page]},[tab,range,cursors,page]);
+ useEffect(()=>{
+  if(!session||!client||!range||['trips','occurrences'].includes(tab)||session.scope==='driver'||session.scope==='trip')return;
+  const controller=new AbortController(),current=++epoch.current;setLoading(true);setError('');
+  client.query(queryInput,{signal:controller.signal,refresh:false}).then(result=>{if(epoch.current===current){setRows(result.items);setNext(result.next);}}).catch(e=>{if(e.name!=='AbortError'&&epoch.current===current)fail(e);}).finally(()=>{if(epoch.current===current)setLoading(false);});
+  return ()=>{++epoch.current;controller.abort();};
+ },[client,session,queryInput,reload,fail,range,tab]);
+ useEffect(()=>{
+  if(!session||!client||!range||['trips','occurrences'].includes(tab)||session.scope==='driver'||session.scope==='trip')return;
+  const controller=new AbortController();
+  client.query({type:'summary',from:Date.parse(range.inicio),to:Date.parse(range.fim)},{signal:controller.signal,refresh:false}).then(result=>setCounts(result.counts)).catch(e=>{if(e.name!=='AbortError'&&e.code!=='INVALID_PERIOD')fail(e);});
+  return ()=>controller.abort();
+ },[client,session,range,reload,fail,tab]);
+ // Modal focus remains trapped and returns to its invoking control.
+ useEffect(()=>{
+  if(!detail)return;
+  previousFocus.current=window.document.activeElement;dialogRef.current?.focus();
+  const onKey=e=>{
+   if(e.key==='Escape'&&!busy){setDetail(null);setDocument(null);setConfirm(null);}
+   if(e.key==='Tab'){
+    const nodes=[...dialogRef.current.querySelectorAll('button:not(:disabled),input,select,[tabindex="0"]')];
+    if(!nodes.length)return;
+    if(e.shiftKey&&(window.document.activeElement===nodes[0]||window.document.activeElement===dialogRef.current)){e.preventDefault();nodes.at(-1).focus();}
+    else if(!e.shiftKey&&window.document.activeElement===nodes.at(-1)){e.preventDefault();nodes[0].focus();}
+   }
+  };
+  window.document.addEventListener('keydown',onKey);return ()=>{window.document.removeEventListener('keydown',onKey);previousFocus.current?.focus();};
+ },[!!detail,busy]);
+ const resetPages=()=>{setPage(0);setCursors([null]);setSelection({});setRows([]);};
+ async function switchToSyntheticDriver(){if(!client||busy||!ZENOS_RUNTIME.isStaging)return;setBusy(true);setError('');try{await client.logout();setSession(null);setScope('driver');setOperatorId('driver');setPin('');setDetail(null);setTab('trips');}catch(e){fail(e);}finally{setBusy(false);}}
+ async function switchToTripManagement(){if(!client||busy)return;setBusy(true);setError('');try{await client.logout();setSession(null);setScope('trip');setOperatorId('admin');setPin('');setDetail(null);setTab('trips');}catch(e){fail(e);}finally{setBusy(false);}}
+ function choosePeriod(value){setPeriod(value);if(value==='personalizado')return;setRange(distributionPeriod(value,Date.now(),session?.timeZone));resetPages();}
+ async function resetOwnerPassword(){
+  setBusy(true);setError('');setNotice('');
+  try{await sendPasswordResetEmail(auth,email.trim());setNotice('ownerResetSent');}
+  catch{setError('ownerResetFailed');}finally{setBusy(false);}
  }
- const commercialTotals=kind=>{const values={};for(const s of trip?.stops||[]){const collected=trip.receipts.filter(r=>r.orderId===s.orderId&&!r.voided).reduce((a,r)=>a+r.centsBRL,0),value=kind==='expected'?s.expectedCollectionCents:(trip.postedOrders[s.orderId]?.remainingCreditCents??Math.max(0,s.expectedCollectionCents-collected));if(s.totalBRLCents>0){const numerator=BigInt(nativeMinor(s.totalOriginal,s.currency))*BigInt(value),denominator=BigInt(s.totalBRLCents),n=Number((numerator*2n+denominator)/(denominator*2n));values[s.currency]=(values[s.currency]||0)+n;}}return values;};
- const field=(label,key,type='text',extra={})=><label>{t(label)}<input type={type} value={form[key]??''} onChange={e=>setForm(f=>({...f,[key]:e.target.value}))} {...extra}/></label>;
- const selector=(label,key,items)=><label>{t(label)}<select aria-label={t(label)} required value={form[key]||''} onChange={e=>setForm(f=>({...f,[key]:e.target.value}))}><option value="">{t('choose')}</option>{items.map(x=><option key={x.id} value={x.id}>{x.name||x.plate}</option>)}</select></label>;
- const openDriverHandoff=()=>{if(!trip||trip.state!=='PLANNED')return;const target=new URL(window.location.href);target.searchParams.set('motorista',trip.driverId);target.searchParams.set('viagem',trip.id);window.open(target.toString(),'_blank','noopener,noreferrer');};
- const nativeTotals=values=><div className="trip-money">{Object.entries(values||{}).map(([c,n])=><span key={c}>{tripMoney(c,n)}</span>)}</div>;
- async function showReturnPreview(stop,line){
-  setBusy(true);setError(false);setReturnPreview(null);
+ async function login(e){e.preventDefault();setBusy(true);setError('');try{
+  const account=user||((await signInWithEmailAndPassword(auth,email,password)).user);
+  // Authentication callback can change user during email login; the local client
+  // is returned as state after one render. Server operator login is then explicit.
+  if(!user){setPassword('');setUser(account);setNotice('secure');return;}
+  if(settingOwnerPin){
+   const response=await fetch('/__distribution/owner-pin',{method:'POST',headers:{'Content-Type':'application/json',
+    Authorization:'Bearer '+await account.getIdToken(true)},body:JSON.stringify({pin}),cache:'no-store'});
+   const result=await response.json();
+   if(!response.ok&&result.error!=='OWNER_PIN_ALREADY_SET'){setError(result.error==='INVALID_PIN'?'ownerInvalidPin':'ownerVerification');return;}
+   setOperatorId('admin');setPin('');setSettingOwnerPin(false);setNotice(response.ok?'ownerPinSaved':'ownerPinAlreadySet');return;
+  }
+  const result=await client.login(operatorId,pin,scope);setSession(result);setTab(result.scope==='trip'||result.scope==='driver'?'trips':'loads');setRange(distributionPeriod('hoje',Date.now(),result.timeZone));setPin('');setPassword('');setNotice('');
+ }catch(e){if(user)fail(e);else setError(t(codeOf(e))===t('error')?'AUTH_SIGN_IN_FAILED':codeOf(e));}finally{setBusy(false);}}
+ async function openLoad(loadId){setBusy(true);setError('');try{const result=await client.query({type:'detail',loadId},{refresh:true});setDetail(result.load);setStockAvailability(result.availability??null);setDraftQuantities({});setChecked({});setCheckReason('');setRechecking(false);setTruck({});setPhysicalChecked(false);setPhysicalLoaded(false);setDocument(null);setConfirm(null);setVehicle(result.load.manifestVersions.at(-1)?.vehicle||'');setDriver(result.load.manifestVersions.at(-1)?.driver||'');setRoute(result.load.manifestVersions.at(-1)?.route||'');}catch(e){fail(e);}finally{setBusy(false);}}
+ async function operate(type,payload={}){if(!detail||busy)return;setBusy(true);setError('');setNotice('');try{
+  await client.command(type,detail.id,detail.revision,payload);const result=await client.query({type:'detail',loadId:detail.id},{refresh:true});setDetail(result.load);setStockAvailability(result.availability??null);setDraftQuantities({});setNotice('saved');setConfirm(null);setReload(n=>n+1);
+ }catch(e){fail(e);}finally{setBusy(false);}}
+ // Re-read the authoritative load after every accepted command. If one action fails,
+ // stop without issuing the next; the last confirmed state remains usable.
+ async function guidedCommands(steps){
+  if(!detail||busy)return;
+  setBusy(true);setError('');setNotice('');
+  let current=detail;
   try{
-   const result=await client.routeQuery({type:'pyg-return-preview',tripId:trip.id,stopId:stop.id,lineId:line.id},{refresh:true});
-   setReturnPreview({...result,tripId:trip.id,revision:trip.revision});
-  }catch{setError(true);}finally{setBusy(false);}
+   for(const step of steps){
+    await client.command(step.type,current.id,current.revision,step.payload||{});
+    const response=await client.query({type:'detail',loadId:current.id},{refresh:true});
+    current=response.load;setDetail(current);setStockAvailability(response.availability??null);setDraftQuantities({});setRechecking(false);
+   }
+   setNotice('saved');setReload(n=>n+1);
+  }catch(e){
+   // Never replay a command automatically after a lost acknowledgment.
+   // A fresh read reconciles the visible state without writing.
+   try{const response=await client.query({type:'detail',loadId:current.id},{refresh:true});setDetail(response.load);setStockAvailability(response.availability??null);}catch{}
+   fail(e);
+  }finally{setBusy(false);}
  }
- async function showProof(stop){setBusy(true);try{const p=await client.routeQuery({type:'proof',view,tripId:trip.id,eventId:stop.proofId});setProof(p);}catch{setError(true);}finally{setBusy(false);}}
- async function openTripDocument(eventId){
-  setBusy(true);
-  try{setTripDocument(await client.routeQuery({type:'document',view,tripId:trip.id,eventId}));}
-  catch{setError(true);}finally{setBusy(false);}
+ const draftValues=detail?.lines.map(line=>draftQuantities[line.id]===undefined?line.quantity:Number(draftQuantities[line.id]))||[];
+ const draftHasChanges=!!detail&&detail.state==='DRAFT'&&draftValues.some((quantity,i)=>quantity!==detail.lines[i].quantity);
+ const draftQuantitiesValid=!!detail&&draftValues.length>0&&draftValues.some(n=>n>0)&&
+  draftValues.every((n,i)=>Number.isSafeInteger(n)&&n>=0&&n<=detail.lines[i].quantity);
+ const stockByProduct=detail?.lines.reduce((acc,line,i)=>{
+  acc[line.productId]=(acc[line.productId]||0)+(Number.isSafeInteger(draftValues[i])?draftValues[i]:0);return acc;
+ },{})||{};
+ const stockFits=!!stockAvailability&&Object.entries(stockByProduct).every(([productId,total])=>
+  Number.isSafeInteger(stockAvailability[productId])&&total<=stockAvailability[productId]);
+ function fillAvailableStock(){
+  if(!detail||!stockAvailability)return;
+  const remaining={...stockAvailability},values={};
+  for(const line of detail.lines){
+   const available=Math.max(0,remaining[line.productId]??0);
+   const quantity=Math.min(line.quantity,available);
+   values[line.id]=String(quantity);
+   remaining[line.productId]=available-quantity;
+  }
+  setDraftQuantities(values);
  }
- async function showHistory(cursor=null){setBusy(true);try{const r=await client.routeQuery({type:'events',view,tripId:trip.id,cursor});setHistory(r.items);setHistoryCursor(r.next);}catch{setError(true);}finally{setBusy(false);}}
- return <div className="trip-module" data-testid="distribution-trips">
-  <div className="trip-title"><div><span className="dist-eyebrow">ZENOS · {isDriver?t('driverApp'):t('trips')}</span><h2>{t(isDriver?'driverApp':'overview')}</h2><p>{t('subtitle')}</p></div><div className="dist-actionbar"><span className={`dist-badge ${online?'approved':''}`}>{t(online?'online':'offline')}</span>{!isDriver&&can('manage')&&<><button disabled={busy} onClick={()=>createDialog('fleet')}>{t('fleet')}</button><button className="primary" disabled={busy} onClick={()=>createDialog('new')}>{t('newTrip')}</button></>}<button disabled={busy} onClick={()=>{client.invalidate();loadRows();if(trip)open(trip.id,{refresh:true});}}>{t('refresh')}</button></div></div>
-  {error&&<div className="dist-alert" role="alert">{t(error==='PYG_RETURN_FINANCE_PENDING'?'pygReturnFinancePending':'requestError')}</div>}{notice&&<div className={['confirmed','routeReordered','tripCreated'].includes(notice)?'dist-success':'trip-pending'} role="status">{notice==='routeReordered'?(language==='es'?'Orden de paradas guardado. Esto no inicia el viaje.':'Ordem das paradas salva. Isso não inicia a viagem.'):notice==='tripCreated'?(language==='es'?'Viaje creado. Abra el viaje y verifique el conductor asignado; el inicio se hace desde Mi ruta.':'Viagem criada. Abra a viagem e confira o motorista vinculado; o início acontece em Minha rota.'):t(notice)}</div>}{cached&&<p className="trip-pending">{t('cached')}</p>}
-  {!!queue.length&&<aside className="trip-pending"><strong>{queue.length} · {t('pending')}</strong><p>{t('pendingHelp')}</p>{queue.map(r=><div key={r.id}>{r.input.tripId} · {t(r.status==='CONFLICT'?'conflict':'pending')}</div>)}<button disabled={busy||!online} onClick={sync}>{t('sync')}</button>{trip&&<button disabled={busy} onClick={()=>edit('discard')}>{t('discard')}</button>}</aside>}
-  {!rows.length?<div className="dist-card dist-empty"><p>{t('empty')}</p>{isDriver&&<><p>{language==='es'?`Esta sesión usa el operador ${session.operatorId}, pero la ruta pertenece al conductor asignado. Ingresa con el ID del conductor vinculado, no con el usuario administrativo.`:`Esta sessão usa o operador ${session.operatorId}, mas a rota pertence ao motorista vinculado. Entre com o ID desse motorista, não com o usuário administrativo.`}</p>{session.operatorId==='admin'&&<><p role="alert">{language==='es'?'Se detectó un administrador en el acceso de conductor. Cambia a Gestión de viajes y abre el acceso del conductor desde el viaje programado.':'Administrador detectado no acesso de motorista. Entre em Gestão de viagens e use Abrir acesso do motorista na viagem programada.'}</p><button className="primary" type="button" disabled={busy} onClick={onSwitchToTripManagement}>{language==='es'?'Ir a Gestión de viajes':'Ir para Gestão de viagens'}</button></>}</>}</div>:<div className="trip-grid">{rows.map(r=><button className="trip-card" key={r.id} disabled={busy} onClick={()=>{setHistory(null);setProof(null);open(r.id);}}><div className="trip-card-head"><span className="dist-badge" data-state={r.state}>{t(r.state)}</span><span>{r.vehiclePlate}</span></div><h3>{r.routeName}</h3><p>{r.driverName}</p><div className="trip-progress"><span style={{width:`${r.stops?r.completed/r.stops*100:0}%`}}/></div><div className="trip-card-numbers"><span>{r.completed}/{r.stops} {t('stops')}</span><span>{r.incidents} {t('incidents')}</span><span>{r.returns} {t('returns')}</span></div>{nativeTotals(r.received)}<small>{r.id}</small></button>)}</div>}
-  <div className="dist-pagination"><button disabled={!page||busy} onClick={()=>setPage(n=>n-1)}>{t('back')}</button><span>{page+1}</span><button disabled={!next||busy} onClick={()=>{setCursors(c=>[...c.slice(0,page+1),next]);setPage(n=>n+1);}}>{t('next')}</button></div>
-  {trip&&<section className="dist-card trip-detail" aria-label={trip.id}><div className="trip-title"><div><span className="dist-eyebrow">{trip.id}</span><h2>{trip.routeName}</h2><p>{trip.driverName} · {trip.vehiclePlate}</p>{!isDriver&&<p><strong>{language==='es'?'ID del conductor asignado':'ID do motorista vinculado'}:</strong> <code>{trip.driverId}</code></p>}{!isDriver&&trip.state==='PLANNED'&&<p role="status">{language==='es'?'Viaje planificado. Subir/Bajar solo cambia el orden de las paradas. Para iniciar, el conductor asignado debe acceder a Mi ruta con su ID y PIN.':'Viagem planejada. Subir/Descer apenas altera a ordem das paradas. Para iniciar, o motorista vinculado deve entrar em Minha rota com seu ID e PIN.'}</p>}<span className="dist-badge" data-state={trip.state}>{t(trip.state)}</span></div><button onClick={()=>{setTrip(null);setHistory(null);setProof(null);}}>{t('close')}</button></div>
-   <div className="dist-actionbar">
-    {isDriver&&trip.state==='PLANNED'&&<button className="primary" disabled={blocked} onClick={()=>driver('START')}>{t('start')}</button>}
-    {isDriver&&trip.state==='IN_TRANSIT'&&<><button disabled={blocked} onClick={()=>edit('incident')}>{t('incident')}</button><button disabled={blocked||trip.stops.some(s=>effectiveOutcome(s)==='PENDING')} onClick={()=>driver('ARRIVE')}>{t('arrive')}</button></>}
-    {!isDriver&&can('manage')&&trip.state==='PLANNED'&&<button type="button" className="primary" disabled={busy} onClick={openDriverHandoff}>{language==='es'?'Abrir acceso del conductor':'Abrir acesso do motorista'}</button>}
-    {!isDriver&&can('manage')&&trip.state==='PLANNED'&&<button disabled={blocked} onClick={async()=>{await createDialog('assign');setForm(f=>({...f,driverId:trip.driverId,vehicleId:trip.vehicleId}));}}>{t('assign')}</button>}
-    {!isDriver&&can('returns')&&trip.state==='RETURNED'&&!trip.physicalClosure&&<button disabled={blocked||trip.stops.some(s=>s.lines.some(l=>l.returning&&!l.returnChecked))} onClick={()=>manage('CLOSE_PHYSICAL')}>{t('CLOSE_PHYSICAL')}</button>}
-    {!isDriver&&can('finance')&&(!options.pilotPYG||options.nativePygCashEnabled)&&trip.state==='RETURNED'&&<button className="primary" disabled={blocked||trip.stops.some(s=>s.lines.some(l=>l.returning&&!l.returnChecked))} onClick={()=>edit('beginClose')}>{t('beginClose')}</button>}
-    {!isDriver&&can('finance')&&(!options.pilotPYG||options.nativePygCashEnabled)&&trip.state==='SETTLING'&&<button className="primary" disabled={blocked||!!trip.cheques?.length||trip.stops.some(s=>s.commercialPending&&(!s.nativeSplitCredit||!trip.postedOrders[s.orderId]))||trip.receipts.some(r=>!r.voided&&!r.posted)||Object.keys(trip.receiptReversals||{}).length>0||hasPendingTripReturnFinance(trip,options.nativePygCashEnabled)} onClick={()=>manage('CLOSE')}>{t('finish')}</button>}
-    <button disabled={busy||!online} onClick={()=>showHistory()}>{t('history')}</button>
+ const guided=guidedLoadStatus(detail);
+ const checkResult=detail?guidedFullCheck(detail.lines,checked,checkReason):{valid:false,full:false,quantities:[],reason:''};
+ const labels=language==='es'
+  ?['Preparar carga','Conferir mercancías','Preparar salida','Expedir carga']
+  :['Preparar carga','Conferir mercadorias','Preparar saída','Expedir carga'];
+ const words=language==='es'?{
+  start:'Reservar y comenzar separación',check:'Confirmar conferencia',checkAll:'Marcar todas las cantidades',checkAttest:'Confirmo que conté físicamente los productos.',
+  finalizeCheck:'Confirmar y aprobar conferencia',truck:'Carga física en el vehículo',truckAll:'Usar las cantidades conferidas',
+  truckAttest:'Confirmo que la mercancía fue colocada físicamente en el vehículo.',truckConfirm:'Confirmar carga física',
+  manifest:'Emitir documento de carga',dispatch:'Confirmar salida del vehículo',advanced:'Detalles técnicos y operaciones excepcionales',
+  history:'Historial y versiones',next:'Próxima acción',complete:'Salida confirmada',part:'Existe una diferencia: indique el motivo y solicite aprobación.'
+ }:{
+  start:'Reservar e iniciar separação',check:'Confirmar conferência',checkAll:'Preencher quantidades previstas',checkAttest:'Confirmo que contei fisicamente os produtos.',
+  finalizeCheck:'Confirmar e aprovar conferência',truck:'Mercadorias colocadas no caminhão',truckAll:'Usar quantidades conferidas',
+  truckAttest:'Confirmo que as mercadorias foram fisicamente colocadas no veículo.',truckConfirm:'Confirmar carregamento físico',
+  manifest:'Emitir romaneio para conferência',dispatch:'Confirmar saída do veículo',advanced:'Detalhes técnicos e operações excepcionais',
+  history:'Histórico e versões',next:'Próxima ação',complete:'Saída confirmada',part:'Há divergência: informe o motivo e solicite aprovação.'
+ };
+ async function create(){setBusy(true);setError('');try{
+  const selections=Object.values(selection).flatMap(s=>s.items.map((item,index)=>({orderId:s.order.id,lineIndex:index,quantity:item})).filter(s=>s.quantity>0));
+  // Keep a stable ID if a network response is lost. The client retains the command key.
+  const identity=JSON.stringify(selections);
+  if(createAttempt.current?.identity!==identity)createAttempt.current={identity,loadId:`C-${crypto.randomUUID().slice(0,12)}`};
+  const result=await client.command('CREATE',createAttempt.current.loadId,0,{selections});setSelection({});createAttempt.current=null;setNotice('saved');setTab('loads');resetPages();setReload(n=>n+1);await openLoad(result.loadId);
+ }catch(e){fail(e);}finally{setBusy(false);}}
+ const createAttempt=useRef(null);
+ async function showVersion(version){setBusy(true);setError('');try{const result=await client.query({type:'manifest',loadId:detail.id,version});setCustomerDocument('');setDocument(result.document);setCopy(true);}catch(e){fail(e);}finally{setBusy(false);}}
+ async function download(){setBusy(true);setError('');try{const {manifestPdf}=await import('../core/distribution/pdf.js');const pdf=await manifestPdf(customerDocument?manifestForCustomer(document,customerDocument):document,{language,copy});const url=URL.createObjectURL(pdf.blob),a=window.document.createElement('a');a.href=url;a.download=pdf.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);}catch(e){fail(e);}finally{setBusy(false);}}
+ const date=value=>new Date(value).toLocaleString(language==='es'?'es-PY':'pt-BR');
+ if(!ZENOS_RUNTIME.isHomologacao&&!ZENOS_RUNTIME.isStaging)return <p>{t('safety')}</p>;
+ return <section className="dist" data-testid="distribution-central" lang={language==='es'?'es-PY':'pt-BR'}>
+  <header className="dist-top"><img src="/logo-zenos.png?v=4" alt="ZenOS"/><div className="dist-top-actions"><span className="dist-env">{t('homolog')}</span>{!externalLanguage&&<select aria-label="Idioma" value={localLanguage} onChange={e=>setLanguage(e.target.value)}><option value="pt">Português</option><option value="es">Español</option></select>}{session&&<button disabled={busy} onClick={async()=>{setBusy(true);try{await client.logout();setSession(null);setDetail(null);setSelection({});setRows([]);}catch(e){fail(e);}finally{setBusy(false);}}}>{t('logout')}</button>}</div></header>
+  {(!session||session.scope!=='driver')&&<div className="dist-hero"><div><span className="dist-eyebrow">ZENOS · LOGÍSTICA</span><h1>{t('title')}</h1><p>{t('subtitle')}</p></div>{session&&<span className="dist-operator">{session.operatorName}</span>}</div>}
+  {error&&<div className="dist-alert" role="alert">{t(error)} <button disabled={busy} onClick={()=>{setReload(n=>n+1);if(detail)openLoad(detail.id);}}>{t('retry')}</button></div>}
+  {verifyAcceptance&&<div className="dist-card">
+   {user&&<button type="button" disabled={busy} onClick={async()=>{setAcceptanceResult('');await signOut(auth);}}>{t('acceptanceFreshLogin')}</button>}
+   {session&&<button type="button" disabled={busy} onClick={async()=>{
+    setBusy(true);setAcceptanceResult('');
+    try{
+     const result=await client.routeQuery({type:'delivery-c-acceptance'},{refresh:true});
+     setAcceptanceResult(result.eligible?'acceptanceEligible':'acceptanceIneligible');
+    }catch{setAcceptanceResult('acceptanceIneligible');}finally{setBusy(false);}
+   }}>{t('acceptanceVerify')}</button>}
+   {acceptanceResult&&session&&<p role="status">{t(acceptanceResult)}</p>}
+  </div>}
+  {notice&&<div className="dist-success" role="status">{t(notice)}</div>}
+  {!session?<form className="dist-login dist-card" onSubmit={login}><span className="dist-eyebrow">{t('secure')}</span><h2>{t('login')}</h2><p>{t('loginHelp')}</p>{!user&&<><label>{t('email')}<input type="email" required autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)}/></label><label>{t('password')}<input type="password" required autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)}/></label></>}{user&&<><label>{language==='es'?'Modo de acceso':'Modo de acesso'}<select aria-label={language==='es'?'Modo de acceso':'Modo de acesso'} value={scope} onChange={e=>{setScope(e.target.value);setPin('');if(ZENOS_RUNTIME.isStaging&&e.target.value==='driver'&&operatorId==='admin')setOperatorId('driver');}}><option value='stock'>{language==='es'?'Depósito y cargas':'Depósito e cargas'}</option><option value='trip'>{language==='es'?'Gestión de viajes':'Gestão de viagens'}</option><option value='driver'>{language==='es'?'Mi ruta · conductor':'Minha rota · motorista'}</option></select></label><label>{t('operator')}<input required value={operatorId} onChange={e=>setOperatorId(e.target.value)} autoComplete="off"/></label><label>{t(settingOwnerPin?'ownerNewPin':'pin')}<input type="password" required inputMode="numeric" pattern={settingOwnerPin?'[0-9]{8,12}':undefined} aria-describedby={settingOwnerPin?'dist-owner-pin-hint':undefined} autoComplete="off" value={pin} onChange={e=>setPin(e.target.value)}/></label>{settingOwnerPin&&<small id="dist-owner-pin-hint" className="dist-field-hint">{t('ownerInvalidPin')}</small>}</>}<button className="primary" disabled={busy}>{busy?t('loading'):t(settingOwnerPin&&user?'ownerSavePin':'login')}</button>{ownerSetup&&!user&&<button type="button" disabled={busy||!email.trim()} onClick={resetOwnerPassword}>{t('ownerReset')}</button>}</form>:<>
+   <div className="dist-toolbar dist-period-toolbar"><div className="dist-segments dist-period-options" role="group" aria-label={t('date')}>{[['hoje','today'],['mes','month'],['anterior','previous'],['personalizado','custom']].map(([value,key])=><button key={value} aria-pressed={period===value} onClick={()=>choosePeriod(value)}>{t(key)}</button>)}</div>{!['trips','occurrences'].includes(tab)&&session.scope==='stock'&&<button disabled={busy||loading} onClick={()=>{client.invalidate();setReload(n=>n+1);}}>{t('refresh')}</button>}</div>
+   {period==='personalizado'&&<form className="dist-custom" onSubmit={e=>{e.preventDefault();let value;try{value=distributionPeriod('personalizado',Date.now(),session?.timeZone,from,to);}catch{setError('periodInvalid');return;}if(!value||Date.parse(value.fim)-Date.parse(value.inicio)>366*86400000){setError('periodInvalid');return;}setRange(value);resetPages();}}><label>{t('from')}<input type="date" required value={from} onChange={e=>setFrom(e.target.value)}/></label><label>{t('to')}<input type="date" required value={to} onChange={e=>setTo(e.target.value)}/></label><button>{t('apply')}</button></form>}
+   {session.scope!=='driver'&&<nav className='dist-segments dist-area-nav' aria-label='Área logística'>{session.scope==='stock'&&<button aria-pressed={tab==='loads'||tab==='orders'} onClick={()=>{setTab('loads');resetPages();}}>{language==='es'?'Depósito y cargas':'Depósito e cargas'}</button>}{session.capabilities?.some(c=>['manage','returns','finance','driver','admin','fiscalReview'].includes(c))&&<button aria-pressed={tab==='trips'||(session.scope==='trip'&&tab!=='occurrences')} onClick={()=>{setTab('trips');resetPages();}}>{language==='es'?'Viajes y entregas':'Viagens e entregas'}</button>}{session.capabilities?.some(c=>['returns','manage','admin','fiscalReview'].includes(c))&&<button aria-pressed={tab==='occurrences'} onClick={()=>{setTab('occurrences');resetPages();}}>{language==='es'?'Incidencias y devoluciones':'Ocorrências e devoluções'}</button>}</nav>}
+   {(tab==='trips'||session.scope==='driver'||(session.scope==='trip'&&tab!=='occurrences'))?<React.Suspense fallback={<p>{t('loading')}</p>}><DistributionTrips client={client} session={session} user={user} language={language} range={range} initialTripId={handoff?.tripId} onSwitchToTripManagement={switchToTripManagement} onSwitchToSyntheticDriver={ZENOS_RUNTIME.isStaging?switchToSyntheticDriver:undefined} isStaging={ZENOS_RUNTIME.isStaging}/></React.Suspense>:tab==='occurrences'?<React.Suspense fallback={<p>{t('loading')}</p>}><DistributionOccurrences client={client} session={session} range={range} language={language}/></React.Suspense>:<>
+   <div className="dist-kpis">{[['waiting',(counts.DRAFT||0)+(counts.PLANNED||0)],['picking',counts.LOADING||0],['ready',(counts.LOADED||0)+(counts.APPROVED||0)],['onRoute',counts.DISPATCHED||0]].map(([label,value])=><div className="dist-card" key={label}><span>{t(label)}</span><strong>{value}</strong><small>{t(period==='hoje'?'today':period==='mes'?'month':period==='anterior'?'previous':'custom')}</small></div>)}</div>
+   <div className="dist-card dist-board" data-view={tab}><div className="dist-board-head"><div className="dist-segments" role="group" aria-label={t('title')}>{['loads','orders'].map(value=><button key={value} aria-pressed={tab===value} onClick={()=>{setTab(value);resetPages();}}>{t(value)}</button>)}</div>{tab==='orders'&&<button className="primary" disabled={busy||!Object.values(selection).some(({items})=>items.some(quantity=>quantity>0))} onClick={create}>{t('newLoad')} {Object.keys(selection).length>0&&`(${Object.keys(selection).length})`}</button>}</div>
+    {loading?<div role="status" className="dist-skeleton">{t('loading')}</div>:!rows.length?<div className="dist-empty">{t('empty')}</div>:<div className="dist-table-wrap"><table><thead><tr>{tab==='loads'?<><th>{t('number')}</th><th>{t('date')}</th><th>{t('state')}</th><th>{t('items')}</th><th>{t('actions')}</th></>:<><th>{t('select')}</th><th>{t('order')}</th><th>{t('customer')}</th><th>{t('seller')}</th><th>{t('partial')}</th></>}</tr></thead><tbody>{rows.map(row=>tab==='loads'?<tr key={row.id}><td data-label={t('number')}><strong>{row.id}</strong><small>v{row.revision}</small></td><td data-label={t('date')}>{date(row.createdAt)}</td><td data-label={t('state')}><span className={`dist-badge ${row.state.toLowerCase()}`}>{t(row.state)}</span></td><td data-label={t('items')}>{row.linesCount}</td><td><button disabled={busy} onClick={()=>openLoad(row.id)}>{t('open')}</button></td></tr>:<tr key={row.id}><td><input aria-label={`${t('select')} ${row.id}`} type="checkbox" disabled={!row.itens.some((_,index)=>remainingOrderQuantity(row,index)>0)} checked={!!selection[row.id]} onChange={e=>setSelection(s=>{const n={...s};if(e.target.checked)n[row.id]={order:row,items:row.itens.map((_,i)=>remainingOrderQuantity(row,i))};else delete n[row.id];return n;})}/></td><td data-label={t('order')}><strong>{row.id}</strong><small>{row.moedaDocumento}</small>{!row.itens.some((_,index)=>remainingOrderQuantity(row,index)>0)&&<small>{t('orderFullyAllocated')}</small>}</td><td data-label={t('customer')}>{row.clienteNome}</td><td data-label={t('seller')}>{row.vendedorId}</td><td data-label={t('partial')}>{row.itens.map((item,i)=>{const available=remainingOrderQuantity(row,i);return <label key={i} className="dist-item-qty">{item.nome}<input type="number" aria-label={`${t('quantity')} ${row.id} ${i}`} min="0" max={available} step="1" disabled={!selection[row.id]} value={selection[row.id]?.items[i]??available} onChange={e=>{const value=Number(e.target.value);setSelection(s=>({...s,[row.id]:{...s[row.id],items:s[row.id].items.map((n,j)=>j===i?value:n)}}));}}/></label>;})}</td></tr>)}</tbody></table></div>}
+    <div className="dist-pagination"><button disabled={page===0||loading} onClick={()=>setPage(n=>n-1)}>{t('back')}</button><span>{t('page')} {page+1}</span><button disabled={!next||loading} onClick={()=>{setCursors(c=>[...c.slice(0,page+1),next]);setPage(n=>n+1);}}>{t('next')}</button></div>
+   </div><p className="dist-footnote">{t('stockNote')} {t('originLock')}</p></>}
+  </>}
+  {detail&&<div className="dist-overlay"><div className="dist-dialog" role="dialog" aria-modal="true" aria-labelledby="dist-dialog-title" tabIndex="-1" ref={dialogRef}>
+   <div className="dist-detail-head"><div><span className="dist-eyebrow">{t('loadDetail')}</span><h2 id="dist-dialog-title">{detail.id}</h2><span className={`dist-badge ${detail.state.toLowerCase()}`}>{t(detail.state)}</span></div><button disabled={busy} onClick={()=>{setDetail(null);setDocument(null);setConfirm(null);}}>{t('close')}</button></div>
+   {error&&<p role="alert" className="dist-alert">{t(error)}</p>}{notice&&<p role="status" className="dist-success">{t(notice)}</p>}
+   <div className="dist-guided-heading">
+    <div><span className="dist-eyebrow">{language==='es'?'FLUJO GUIADO':'FLUXO GUIADO'}</span><h3>{detail.state==='DISPATCHED'?words.complete:labels[Math.min(guided.step,3)]}</h3>
+    <p>{language==='es'?'Solo se muestra la siguiente acción necesaria.':'Apenas a próxima ação necessária fica em destaque.'}</p></div>
+    <strong>{detail.state==='DISPATCHED'?'✓':guided.step+1} / 4</strong>
    </div>
-   <div className="trip-stops">{trip.stops.map((s,i)=><article key={s.id} className="trip-stop"><div className="trip-stop-top"><span className="trip-stop-index">{i+1}</span><div><h3>{s.customerName}</h3><p>{s.destination}</p><small>{s.orderId}</small></div><span className="dist-badge" data-state={s.state}>{t(s.state)}</span></div>
-    {!isDriver&&trip.state==='PLANNED'&&can('manage')&&<div className="dist-actionbar"><button aria-label={`${t('up')} ${s.id}`} disabled={blocked||i===0} onClick={()=>{const ids=trip.stops.map(x=>x.id);[ids[i-1],ids[i]]=[ids[i],ids[i-1]];manage('REORDER',{stopIds:ids});}}>{t('up')}</button><button aria-label={`${t('down')} ${s.id}`} disabled={blocked||i===trip.stops.length-1} onClick={()=>{const ids=trip.stops.map(x=>x.id);[ids[i],ids[i+1]]=[ids[i+1],ids[i]];manage('REORDER',{stopIds:ids});}}>{t('down')}</button></div>}
-    {s.commercialPending&&!s.nativeSplitCredit&&<p className="trip-pending">{t(options.pilotPYG?'pilotPYGOrderBlocked':'commercialPending')}</p>}
-    {s.lines.map(l=><div className="trip-line" key={l.id}><strong>{l.description}</strong><small>{l.sku} · {l.quantity} {l.unit}</small>{s.state!=='PENDING'&&<div className="trip-line-facts"><span>{t('delivered')}: {l.delivered}</span><span>{t(trip.state==='IN_TRANSIT'?'inTransit':'physical')}: {l.returning}</span><span>{t('reintegrated')}: {l.reintegrated}</span><span>{t('quarantine')}: {l.quarantined}</span><span>{t('physicalPending')}: {l.quantity-l.delivered+(l.customerReturned||0)-l.returning}</span><span>{t('refunded')}: {l.refunded}</span></div>}
-     {!isDriver&&can('returns')&&trip.state==='RETURNED'&&l.returning>0&&!l.returnChecked&&<button disabled={blocked} onClick={()=>edit('checkReturn',s,l)}>{t('checkReturn')}</button>}
-     {l.pygCompensation?.active&&<p>{t('pygReturnPosted')} · {tripMoney('PYG',l.pygCompensation.eligibleMinor)}</p>}
-     {!isDriver&&can('finance')&&options.nativePygCashEnabled&&l.returnChecked&&l.customerReturned>0&&<button disabled={blocked} onClick={()=>showReturnPreview(s,l)}>{t('pygReturnPreview')}</button>}
-     {!isDriver&&can('finance')&&!options.pilotBRL&&!options.pilotPYG&&['SETTLING','CLOSED'].includes(trip.state)&&l.returnChecked&&l.refunded<l.returning&&<button disabled={blocked} onClick={()=>{edit('refund',s,l);setForm(f=>({...f,method:'credito_fiado'}));}}>{t('refund')}</button>}
-    </div>)}
-    {queuedDelivery(s.id)&&<p className='trip-pending'>{t('pending')}</p>}<div className="dist-actionbar">{isDriver&&trip.state==='IN_TRANSIT'&&<>{s.state==='PENDING'&&!queuedDelivery(s.id)?<button className="primary" aria-label={`${t('delivery')} ${s.id}`} disabled={blocked} onClick={()=>edit('delivery',s)}>{t('delivery')}</button>:['TOTAL','PARTIAL'].includes(effectiveOutcome(s))&&<><button disabled={blocked||(options.pilotPYG&&(!options.nativePygCashEnabled||!online))||(s.commercialPending&&!s.nativeSplitCredit)} aria-label={`${t('receive')} ${s.id}`} onClick={()=>edit('receive',s)}>{t('receive')}</button>{!options.pilotBRL&&!options.pilotPYG&&<button disabled={blocked||!online||s.state==='PENDING'} onClick={()=>edit('cheque',s)}>{t('RECORD_CHEQUE')}</button>}<button disabled={blocked||s.state==='PENDING'} onClick={()=>{edit('customerReturn',s);setForm(f=>({...f,lineId:s.lines[0].id}));}}>{t('customerReturn')}</button></>}</>}{s.proofId&&<button disabled={busy||!online} onClick={()=>showProof(s)}>{t('proof')}</button>}{!isDriver&&can('finance')&&(!options.pilotPYG||options.nativePygCashEnabled)&&trip.state==='SETTLING'&&(!s.commercialPending||s.nativeSplitCredit)&&!trip.postedOrders[s.orderId]&&<button disabled={blocked} onClick={()=>edit('postOrder',s)}>{t('postOrder')} · {s.orderId}</button>}{trip.postedOrders[s.orderId]&&<span className="dist-badge approved">{t('posted')}</span>}{trip.postedOrders[s.orderId]?.remainingCreditPYG!=null&&<span>{language==='es'?'Saldo pendiente':'Saldo devedor'} · {new Intl.NumberFormat(language==='es'?'es-PY':'pt-BR').format(trip.postedOrders[s.orderId].remainingCreditPYG)} PYG</span>}</div>
-   </article>)}</div><p className="dist-footnote">{t('returnWarning')}</p>
-   {trip.physicalClosure&&<p>{t('CLOSE_PHYSICAL')} · {trip.physicalClosure.operatorId}</p>}
-   {!!trip.cheques?.length&&<section><h3>{t('chequesPending')}</h3>{trip.cheques.map(cheque=><p key={cheque.id}>{cheque.orderId} · {cheque.bank} · ••••{cheque.referenceLast4} · {tripMoney(cheque.currency,cheque.minor)} · {t(cheque.status)} {can('returns')&&['RETURNED','SETTLING'].includes(trip.state)&&cheque.status==='DRIVER_CUSTODY'&&<button disabled={blocked} onClick={()=>manage('HANDOVER_CHEQUE',{chequeId:cheque.id})}>{t('HANDOVER_CHEQUE')}</button>}</p>)}</section>}
-   {options.pilotBRL&&<p className="trip-pending">{t('pilotLimits')}</p>}
-   {!isDriver&&can('finance')&&options.nativePygCashEnabled&&trip.state==='SETTLING'&&
-    hasPendingTripReturnFinance(trip,options.nativePygCashEnabled)&&
-    <p className="trip-pending">{t('pygReturnFinancePending')}</p>}
-   {options.pilotPYG&&<p className="trip-pending">{t(options.nativePygCashEnabled?'pilotPYGScope':'pilotPYGLimits')}</p>}
-   <div className="trip-finance"><h3>{t('expectedCommercial')}</h3>{nativeTotals(commercialTotals('expected'))}<h3>{t('remaining')}</h3>{nativeTotals(commercialTotals('pending'))}<h3>{t('custody')}</h3>{nativeTotals(custodyTotals(trip.receipts))}<p>{t('paymentHelp')}</p>{trip.receipts.map(r=><div className="trip-receipt" key={r.id}><span>{r.orderId} · {tripMoney(r.currency,r.minor)}</span><span>{t(r.voided?'voided':r.posted?'posted':'custodyPending')}</span>{!isDriver&&can('manage')&&!r.posted&&!r.voided&&['IN_TRANSIT','RETURNED'].includes(trip.state)&&<button disabled={blocked} onClick={()=>{edit('void');setDialog({kind:'void',receipt:r});}}>{t('voidReceipt')}</button>}</div>)}{trip.settlement&&<><h3>{t('expected')}</h3>{nativeTotals(trip.settlement.expected)}<h3>{t('difference')}</h3>{nativeTotals(trip.settlement.differences)}<p>{trip.settlement.note}</p><p>{t('settlementHelp')}</p></>}</div>
-   {trip.incidents.map(e=><div className="trip-pending" key={e.id}>{e.note}</div>)}
-   {returnPreview?.tripId===trip.id&&returnPreview.revision===trip.revision&&<section className="dist-card" aria-live="polite">
-    <h3>{t('pygReturnPreview')} · {returnPreview.orderId}</h3>
-    <p>{t('pygReturnPhysicalValue')} · {tripMoney('PYG',returnPreview.returnedValue)}</p>
-    <p>{t('pygReturnOpen')} · {tripMoney('PYG',returnPreview.outstanding)}</p>
-    <p>{t('pygReturnMaximum')} · {tripMoney('PYG',returnPreview.maximum)}</p>
-    <p>{t('pygReturnProjectedMinimum')} · {tripMoney('PYG',returnPreview.projectedMinimum)}</p>
-    {returnPreview.minimumRefundReview>0&&<p>{t('pygReturnReview')} · {tripMoney('PYG',returnPreview.minimumRefundReview)}</p>}
-    <p>{t('pygReturnEligible')} · {returnPreview.eligibleMinor===null?t('pygReturnEligibilityUnverified'):tripMoney('PYG',returnPreview.eligibleMinor)}</p>
-    {returnPreview.compensationContract&&<>
-     <p>{t('pygReturnSchedulePolicy')}</p>
-     {returnPreview.compensationContract.allocations.map(row=><p key={row.installmentId}>
-      {row.installmentId} · {tripMoney('PYG',row.amountMinor)} · {tripMoney('BRL',row.amountBRLCents)}
-     </p>)}
-    </>}
-    <p>{t('pygReturnPosted')} · {tripMoney('PYG',returnPreview.postedMinor)}</p>
-    {returnPreview.postedMinor===0&&<p>{t('pygReturnBlocked')}</p>}
-    <button onClick={()=>setReturnPreview(null)}>{t('close')}</button>
-   </section>}
-   {trip.installmentBalances?.map(balance=><section className="dist-card" key={balance.orderId}><h3>{balance.orderId} · {language==='es'?'Cuotas PYG':'Parcelas PYG'}</h3>{balance.blocked?<p>{t('pilotPYGOrderBlocked')}</p>:<>{!isDriver&&can('finance')&&balance.canSchedule&&<button disabled={busy||!online} onClick={()=>{setForm({...initialForm,installments:[{id:crypto.randomUUID(),amountPYG:'',dueAt:''},{id:crypto.randomUUID(),amountPYG:'',dueAt:''}]});setDialog({kind:'schedule',balance});}}>{t('schedulePYG')}</button>}{balance.installments.map(installment=><p key={installment.id}>{installment.id} · {installment.dueAt||'—'} · {language==='es'?'Original':'Original'} {tripMoney('PYG',installment.original)} · {language==='es'?'Recibido':'Recebido'} {tripMoney('PYG',installment.received)} · {language==='es'?'Pendiente':'Pendente'} {tripMoney('PYG',installment.remaining)}</p>)}</>}</section>)}
-   {history&&<section className="trip-history"><h3>{t('history')}</h3>{history.map(e=><p key={e.id}><time>{new Date(e.serverAt).toLocaleString(language==='es'?'es-PY':'pt-BR')}</time> · {e.operatorId} · {t(e.type)} {e.hasDocument&&<button disabled={busy} onClick={()=>openTripDocument(e.id)}>{t('tripDocument')}</button>}</p>)}{historyCursor&&<button onClick={()=>showHistory(historyCursor)}>{t('next')}</button>}</section>}
-   {tripDocument?.tripId===trip.id&&<><button disabled={busy} onClick={async()=>{try{const {printManifest}=await import('../core/distribution/print.js');await printManifest(window.document.querySelector('[data-testid=trip-document]'),printCss+tripPrintCss);}catch{setError(true);}}}>{t('printTripDocument')}</button><article className="dist-manifest" data-testid="trip-document"><h2>{tripDocument.document.issuer} · {t(tripDocument.type)}</h2><p>{trip.id} · v{tripDocument.revision} · {new Date(tripDocument.at).toLocaleString(language==='es'?'es-PY':'pt-BR')} · {tripDocument.operatorId}</p><p>{tripDocument.document.vehiclePlate} · {tripDocument.document.driverName} · {tripDocument.document.routeName}</p>{tripDocument.document.stops.map((stop,i)=><section key={stop.orderId}><h3>{i+1}. {stop.customerName} · {stop.orderId}</h3><p>{stop.destination} · {t(stop.state)}</p>{stop.remainingCreditPYG!=null&&<p>{t('pygReturnOpen')} · {tripMoney('PYG',stop.remainingCreditPYG)}</p>}{stop.lines.map(line=><p key={line.id}>{line.sku} · {line.description} · {t('loaded')}: {line.loaded} {line.unit} · {t('delivered')}: {line.delivered} · {t('returns')}: {line.returning} · {t('DAMAGED')}: {line.damaged} · {t('reintegrated')}: {line.reintegrated} · {t('quarantine')}: {line.quarantined}{line.compensatedPYG!=null&&<> · {t('pygReturnPosted')} {tripMoney('PYG',line.compensatedPYG)}</>}</p>)}</section>)}<footer>{t('tripNonFiscal')}</footer></article></>}
-   {proof&&<><button disabled={busy} onClick={async()=>{const {printManifest}=await import('../core/distribution/print.js');await printManifest(window.document.querySelector('[data-testid=delivery-proof]'),printCss+tripPrintCss);}}>{t('print')}</button><DeliveryProof proof={proof} t={t} language={language}/></>}
-  </section>}
-  {dialog&&<TripDialog title={t(({schedule:'schedulePYG',new:'newTrip',fleet:'fleet',vehicle:'vehicle',route:'route',access:'access',delivery:'delivery',receive:'receive',checkReturn:'checkReturn',beginClose:'beginClose',postOrder:'postOrder',refund:'refund',incident:'incident',customerReturn:'customerReturn',discard:'discard',void:'voidReceipt',assign:'assign'})[dialog.kind])} busy={busy} close={()=>{setDialog(null);setForm(initialForm);}} closeText={t('close')}>
-   {error&&<p className="dist-alert" role="alert">{t(error==='PYG_RETURN_FINANCE_PENDING'?'pygReturnFinancePending':'requestError')}</p>}
-   {dialog.kind==='fleet'?<>{catalog?.next&&Object.keys(catalog.next).length>0&&<button disabled={busy} onClick={moreCatalog}>{t('next')}</button>}<div className="trip-grid"><div><h3>{t('vehicle')}</h3>{catalog.vehicles.map(v=><p key={v.id}>{v.plate} · {v.name} <button onClick={()=>{setDialog({kind:'vehicle',entity:v});setForm({...initialForm,...v});}}>{t('edit')}</button></p>)}<button onClick={()=>{setDialog({kind:'vehicle'});setForm(initialForm);}}>{t('save')} · {t('vehicle')}</button></div><div><h3>{t('route')}</h3>{catalog.routes.map(r=><p key={r.id}>{r.name} <button onClick={()=>{setDialog({kind:'route',entity:r});setForm({...initialForm,...r,note:r.notes});}}>{t('edit')}</button></p>)}<button onClick={()=>{setDialog({kind:'route'});setForm(initialForm);}}>{t('save')} · {t('route')}</button></div></div>{can('admin')&&<button onClick={()=>{setDialog({kind:'access'});setForm({...initialForm,operatorId:'',permissions:{}});}}>{t('access')}</button>}</>:<form className="trip-form" onSubmit={submit}>{catalog?.next&&Object.keys(catalog.next).length>0&&['new','assign','access'].includes(dialog.kind)&&<button type='button' disabled={busy} onClick={moreCatalog}>{t('next')}</button>}
-    {dialog.kind==='access'&&<><label>{t('operator')}<select aria-label={t('operator')} required value={form.operatorId} onChange={e=>{const op=catalog.operators.find(o=>o.id===e.target.value);setForm(f=>({...f,operatorId:op?.id||'',version:op?.version,permissions:op?.permissions||{}}));}}><option value=''>{t('choose')}</option>{catalog.operators.filter(o=>o.id!=='admin').map(o=><option key={o.id} value={o.id}>{o.name}</option>)}</select></label>{['distributionDriver','distributionManage','distributionReturns','distributionFinance'].map(key=><label className='trip-checkbox' key={key}><input type='checkbox' checked={!!form.permissions[key]} onChange={e=>setForm(f=>({...f,permissions:{...f.permissions,[key]:e.target.checked}}))}/>{t(key)}</label>)}</>}
-    {['new','assign'].includes(dialog.kind)&&<>{selector('driver','driverId',catalog.drivers)}{selector('vehicle','vehicleId',catalog.vehicles.filter(v=>v.active))}</>}
-    {dialog.kind==='new'&&<>{selector('route','routeId',catalog.routes.filter(r=>r.active))}<fieldset><legend>{t('loads')}</legend>{loads.map(l=><label className="trip-checkbox" key={l.id}><input type="checkbox" checked={form.loadIds.includes(l.id)} onChange={e=>setForm(f=>({...f,loadIds:e.target.checked?[...f.loadIds,l.id]:f.loadIds.filter(k=>k!==l.id)}))}/>{l.id} · {l.linesCount}</label>)}{!loads.length&&<p className="dist-empty">{t('noEligibleLoads')}</p>}{loadCursor&&<button type='button' disabled={busy} onClick={async()=>{setBusy(true);try{const r=await client.query({type:'loads',from:Date.parse(range.inicio),to:Date.parse(range.fim),limit:30,cursor:loadCursor},{refresh:true});setLoads(v=>[...v,...r.items.filter(l=>l.state==='DISPATCHED'&&!l.tripId)]);setLoadCursor(r.next);}catch{setError(true);}finally{setBusy(false);}}}>{t('next')}</button>}</fieldset></>}
-    {['vehicle','route'].includes(dialog.kind)&&<><label className='trip-checkbox'><input type='checkbox' checked={form.active!==false} onChange={e=>setForm(f=>({...f,active:e.target.checked}))}/>{t('active')}</label>{field('name','name','text',{required:true,maxLength:100})}{dialog.kind==='vehicle'&&field('plate','plate','text',{required:true,maxLength:30})}</>}
-    {dialog.kind==='delivery'&&<><label>{t('outcome')}<select aria-label={t('outcome')} value={form.outcome} onChange={e=>{const outcome=e.target.value;setForm(f=>({...f,outcome,quantities:dialog.stop.lines.map(l=>['REFUSED','FAILED'].includes(outcome)?0:l.quantity)}));}}>{['TOTAL','PARTIAL','REFUSED','FAILED'].map(v=><option key={v} value={v}>{t(v)}</option>)}</select></label>{dialog.stop.lines.map((l,i)=><label key={l.id}>{t('delivered')} · {l.description}<input type="number" min="0" max={l.quantity} step="1" required value={form.quantities[i]} onChange={e=>setForm(f=>({...f,quantities:f.quantities.map((n,j)=>j===i?Number(e.target.value):n)}))}/></label>)}{form.quantities.some(n=>n>0)&&<>{field('receiver','receiver','text',{required:true,maxLength:100})}{field('identification','identification','text',{required:true,maxLength:100})}<Signature t={t} value={form.signature} onChange={signature=>setForm(f=>({...f,signature}))}/></>}{options.photosAllowed&&<label>{t('photos')}<input type="file" accept="image/png,image/jpeg" multiple onChange={async e=>{const files=[...e.target.files];if(files.length>2||files.some(f=>f.size>10000000||!['image/png','image/jpeg'].includes(f.type))){setError(true);return;}try{const photos=await Promise.all(files.map(compressDriverPhoto));setForm(f=>({...f,photos}));}catch{setError(true);}}}/></label>}</>}
-    {['delivery','customerReturn'].includes(dialog.kind)&&<label>{t('condition')}<select aria-label={t('condition')} value={form.condition} onChange={e=>setForm(f=>({...f,condition:e.target.value}))}>{['GOOD','DAMAGED'].map(v=><option key={v} value={v}>{t(v)}</option>)}</select></label>}
-    {dialog.kind==='customerReturn'&&<>{selector('quantity','lineId',dialog.stop.lines.map(l=>({id:l.id,name:l.description})))}{field('quantity','quantity','number',{min:1,step:1,required:true})}</>}
-    {dialog.kind==='cheque'&&<>{field('chequeBank','bank','text',{required:true,maxLength:80})}{field('chequeReference','reference','text',{required:true,maxLength:40,pattern:'[A-Za-z0-9-]+'})}<label>{t('method')}<select value={form.currency} onChange={e=>setForm(f=>({...f,currency:e.target.value}))}><option>PYG</option><option>BRL</option></select></label>{field('amount','amount','number',{required:true,min:form.currency==='PYG'?1:0.01,step:form.currency==='PYG'?1:0.01})}{field('chequePresentation','presentationDate','date',{required:true})}</>}
-    {dialog.kind==='receive'&&<><p>{t('paymentHelp')}</p><label>{t('method')}<select aria-label={t('method')} value={JSON.stringify([form.method,form.currency])} onChange={e=>{const [method,currency]=JSON.parse(e.target.value);setForm(f=>({...f,method,currency}));}}>{options.paymentMethods.map(m=><option key={m.id+m.currency} value={JSON.stringify([m.id,m.currency])}>{m.id.startsWith('dinheiro_')?(language==='es'?'Efectivo':'Dinheiro'):m.id.startsWith('cartao_credito')?(language==='es'?'Tarjeta de crédito':'Cartão de crédito'):m.id.startsWith('cartao_debito')?(language==='es'?'Tarjeta de débito':'Cartão de débito'):m.id==='pix'?'Pix':(language==='es'?'Transferencia':'Transferência')} · {m.currency}</option>)}</select></label>{field('amount','amount','number',{min:0,step:form.currency==='PYG'?1:0.01,required:true})}<label className="trip-checkbox"><input type="checkbox" checked={form.acceptFrozenConversion} onChange={e=>setForm(f=>({...f,acceptFrozenConversion:e.target.checked}))}/>{t('conversion')}</label></>}
-    {dialog.kind==='checkReturn'&&<><p>{dialog.line.description} · {dialog.line.returning} {dialog.line.unit}</p>{field('checkedQuantity','quantity','number',{min:0,step:1,required:true})}<label>{t('disposition')}<select aria-label={t('disposition')} value={form.disposition} onChange={e=>setForm(f=>({...f,disposition:e.target.value}))}>{['REINTEGRATE','QUARANTINE','SPLIT'].map(v=><option disabled={v==='REINTEGRATE'&&dialog.line.condition!=='GOOD'} key={v} value={v}>{t(v)}</option>)}</select></label>{form.disposition==='SPLIT'&&field('reintegrateQuantity','reintegrateQuantity','number',{min:0,max:dialog.line.goodReturning,step:1,required:true})}</>}
-    {dialog.kind==='beginClose'&&<>{field('cash','cashSessionId','text',{required:true})}{['BRL','PYG','USD','EUR'].map(c=><label key={c}>{t('counted')} · {c}<input type="number" min="0" step={c==='PYG'?1:0.01} required value={form.counted[c]||'0'} onChange={e=>setForm(f=>({...f,counted:{...f.counted,[c]:e.target.value}}))}/></label>)}<label className="trip-checkbox"><input type="checkbox" checked={form.approveDivergence} onChange={e=>setForm(f=>({...f,approveDivergence:e.target.checked}))}/>{t('approveDifference')}</label></>}
-    {dialog.kind==='postOrder'&&<><p>{t('settlementHelp')}</p>{field('pin','pin','password',{autoComplete:'off',required:true,inputMode:'numeric'})}<label className="trip-checkbox"><input type="checkbox" checked={form.acceptCredit} onChange={e=>setForm(f=>({...f,acceptCredit:e.target.checked}))}/>{t('creditConsent')}</label></>}
-    {dialog.kind==='schedule'&&<><p>{tripMoney('PYG',dialog.balance.remaining)}</p>{form.installments.map((row,index)=><div className="dist-card" key={row.id}><label>PYG<input type="number" min="1" step="1" required value={row.amountPYG} onChange={e=>setForm(f=>({...f,installments:f.installments.map((item,i)=>i===index?{...item,amountPYG:e.target.value}:item)}))}/></label><label>{language==='es'?'Vencimiento':'Vencimento'}<input type="date" required value={row.dueAt} onChange={e=>setForm(f=>({...f,installments:f.installments.map((item,i)=>i===index?{...item,dueAt:e.target.value}:item)}))}/></label></div>)}<button type="button" disabled={form.installments.length>=80} onClick={()=>setForm(f=>({...f,installments:[...f.installments,{id:crypto.randomUUID(),amountPYG:'',dueAt:''}]}))}>{language==='es'?'Añadir cuota':'Adicionar parcela'}</button></>}
-    {dialog.kind==='refund'&&<><label>{t('method')}<select aria-label={t('method')} value={form.method} onChange={e=>setForm(f=>({...f,method:e.target.value}))}><option value="credito_fiado">{t('creditRefund')}</option><option value="transferencia">{t('bankRefund')}</option></select></label>{form.method==='transferencia'&&<><label>{t('method')}<select aria-label={t('method')} value={form.currency} onChange={e=>setForm(f=>({...f,currency:e.target.value}))}>{options.paymentMethods.filter(m=>m.id==='transferencia').map(m=><option key={m.currency}>{m.currency}</option>)}</select></label>{field('amount','amount','number',{min:0,step:form.currency==='PYG'?1:0.01,required:true})}{field('bankReference','bankReference','text',{required:true})}<label className="trip-checkbox"><input type="checkbox" checked={form.acceptFrozenConversion} onChange={e=>setForm(f=>({...f,acceptFrozenConversion:e.target.checked}))}/>{t('conversion')}</label></>}</>}
-    {['delivery','customerReturn','incident','discard','void','checkReturn','refund','beginClose','route'].includes(dialog.kind)&&<label>{t('reason')}<textarea maxLength="1000" required={['customerReturn','incident','discard','void','refund'].includes(dialog.kind)||(dialog.kind==='delivery'&&form.outcome!=='TOTAL')||(dialog.kind==='beginClose'&&form.approveDivergence)} value={form.note} onChange={e=>setForm(f=>({...f,note:e.target.value}))}/></label>}
-    {dialog.kind==='discard'&&<p>{t('discardHelp')}</p>}
-    <button className="primary" disabled={busy||(dialog.kind==='new'&&!form.loadIds.length)}>{t(isDriver&&['delivery','receive','incident','customerReturn'].includes(dialog.kind)?'saveLocal':'save')}</button>
-   </form>}
-  </TripDialog>}
- </div>;
+   <div className="dist-guided-steps" role="list" aria-label={language==='es'?'Etapas de carga':'Etapas da carga'}>
+    {labels.map((s,i)=><div key={s} role="listitem" className={i<guided.step?'done':i===guided.step?'active':''} aria-current={i===guided.step?'step':undefined}><span>{i<guided.step?'✓':i+1}</span>{s}</div>)}
+   </div>
+   <div className="dist-guided-summary"><strong>{language==='es'?'Resumen':'Resumo da carga'}</strong><span>{detail.lines.reduce((n,l)=>n+l.quantity,0)} UN · {new Set(detail.lines.map(l=>l.customerId)).size} {language==='es'?'clientes':'clientes'}</span></div>
+   <div className="dist-table-wrap dist-load-lines"><table><thead><tr><th>{t('product')}</th><th>{t('customer')}</th><th>{t('quantity')}</th><th>{t('amount')}</th>{detail.state==='LOADING'&&<th>{t('checked')}</th>}</tr></thead><tbody>{detail.lines.map((l,i)=><tr key={l.id}><td data-label={t('product')}><strong>{l.description}</strong><small>{l.sku} · {l.orderId}</small></td><td data-label={t('customer')}>{l.customerName}<small>{l.destination}</small></td><td data-label={t('quantity')}>{l.quantity} {l.unit}</td><td data-label={t('amount')}>{distributionMoney(l.amount)}</td>{detail.state==='LOADING'&&<td data-label={t('checked')}><input aria-label={`${t('checked')} ${i+1}`} type="number" min="0" max={l.quantity} step="1" value={checked[i]??''} onChange={e=>{setPhysicalChecked(false);setChecked(s=>({...s,[i]:e.target.value}));}}/></td>}</tr>)}</tbody></table></div>
+   <div className="dist-guided-actions">
+    {guided.canPrepare&&detail.state==='DRAFT'&&<div className="dist-guided-panel">
+     <h3>{language==='es'?'Ajustar cantidades a la disponibilidad':'Ajustar quantidades ao estoque disponível'}</h3>
+     <p>{language==='es'?'Puede reducir cantidades y liberar el saldo no atendido para otra carga. No se permite exceder el inventario.':'Você pode reduzir quantidades e liberar o saldo não atendido para outra carga. O sistema não permite ultrapassar o estoque disponível.'}</p>
+     {stockAvailability&&<><div className="dist-guided-stock">
+      {detail.lines.map((line,i)=><label key={line.id}>{line.description} · {line.customerName}
+       <span>{language==='es'?'Solicitado':'Solicitado'}: {line.quantity} · {language==='es'?'Disponible por producto':'Disponível por produto'}: {stockAvailability[line.productId]??0}</span>
+       <input type="number" min="0" max={line.quantity} step="1" aria-label={`${language==='es'?'Ajustar cantidad':'Ajustar quantidade'} ${line.customerName} ${i+1}`} value={draftQuantities[line.id]??String(line.quantity)} onChange={e=>setDraftQuantities(s=>({...s,[line.id]:e.target.value}))}/>
+      </label>)}
+     </div>
+     <div className="dist-guided-stock-actions">
+      <button type="button" disabled={busy} onClick={fillAvailableStock}>{language==='es'?'Distribuir según stock disponible':'Distribuir conforme estoque disponível'}</button>
+      <button className="primary" disabled={busy||!draftHasChanges||!draftQuantitiesValid||!stockFits} onClick={()=>guidedCommands([{type:'ADJUST_DRAFT',payload:{quantities:draftValues}}])}>{language==='es'?'Guardar cantidades corregidas':'Salvar quantidades corrigidas'}</button>
+     </div>
+     {!stockFits&&<p className="dist-guided-warning" role="status">{language==='es'?'La cantidad total supera la existencia disponible. Reduzca cantidades o cancele el borrador sin perder los pedidos.':'A quantidade total ultrapassa o estoque disponível. Reduza os volumes ou cancele o rascunho para liberar os pedidos.'}</p>}
+     {!Object.values(stockAvailability).some(n=>n>0)&&<div className="dist-guided-final"><p>{language==='es'?'No hay stock para reservar esta carga. Reponer stock o cancelar el borrador.':'Sem estoque para reservar esta carga. Reponha o estoque ou cancele o rascunho.'}</p>
+      <button type="button" disabled={busy} onClick={()=>setConfirm('CANCEL')}>{language==='es'?'Cancelar borrador y liberar pedidos':'Cancelar rascunho e liberar pedidos'}</button>
+     </div>}
+     </>}
+     {!stockAvailability&&<p role="status">{language==='es'?'Stock no disponible para consulta.':'Estoque indisponível para consulta.'}</p>}
+    </div>}
+    {guided.canPrepare&&<div className="dist-guided-panel">
+     <p>{language==='es'?'Reserva las cantidades y abre la separación.':'Reserva as quantidades e inicia a separação em uma só ação.'}</p>
+     <button className="primary" disabled={busy||(detail.state==='DRAFT'&&(!stockFits||draftHasChanges))} onClick={()=>guidedCommands(detail.state==='DRAFT'?[{type:'RESERVE'},{type:'START_PICK'}]:[{type:'START_PICK'}])}>{words.start}</button>
+    </div>}
+    {(guided.canCheck||(guided.needsPartialApproval&&rechecking))&&<div className="dist-guided-panel">
+     <h3>{language==='es'?'Cantidades contadas':'Quantidades conferidas'}</h3>
+     <button type="button" disabled={busy} onClick={()=>{setChecked(Object.fromEntries(detail.lines.map((l,i)=>[i,String(l.quantity)])));setPhysicalChecked(false);}}>{words.checkAll}</button>
+     {!checkResult.full&&<label>{t('shortageReason')}<input maxLength="300" value={checkReason} onChange={e=>setCheckReason(e.target.value)}/></label>}
+     {checkResult.valid&&!checkResult.full&&<p className="dist-guided-warning">{words.part}</p>}
+     <label className="dist-guided-attest"><input type="checkbox" checked={physicalChecked} onChange={e=>setPhysicalChecked(e.target.checked)}/><span>{words.checkAttest}</span></label>
+     <button className="primary" disabled={busy||!physicalChecked||!checkResult.valid} onClick={()=>guidedCommands(checkResult.full?[{type:'CHECK',payload:{quantities:checkResult.quantities,reason:''}},{type:'APPROVE'}]:[{type:'CHECK',payload:{quantities:checkResult.quantities,reason:checkResult.reason}}])}>{checkResult.full?words.finalizeCheck:words.check}</button>
+    </div>}
+    {guided.needsPartialApproval&&!rechecking&&<div className="dist-guided-panel" role="region" aria-label={language==='es'?'Conferencia parcial registrada':'Conferência parcial registrada'}>
+     <h3>{language==='es'?'Conferencia parcial registrada':'Conferência parcial registrada'}</h3>
+     <p role="status">{language==='es'?'La conferencia fue guardada. Falta aprobación de un responsable para la salida parcial.':'A conferência foi salva. Falta a autorização de um responsável para liberar a carga parcial.'}</p>
+     <div className="dist-guided-summary"><strong>{language==='es'?'Total confirmado':'Total conferido'}</strong><span>{detail.loadingCheck?.lines.reduce((sum,l)=>sum+l.checked,0)||0} / {detail.loadingCheck?.lines.reduce((sum,l)=>sum+l.authorized,0)||0} UN</span></div>
+     <p><strong>{language==='es'?'Justificación registrada':'Justificativa registrada'}:</strong> {detail.loadingCheck?.reason||'—'}</p>
+     <div className="dist-guided-quantities">{detail.loadingCheck?.lines.map((l,i)=><div key={l.lineId} className="dist-guided-shortage-line"><strong>{detail.lines.find(line=>line.id===l.lineId)?.customerName||String(i+1)}</strong><span>{l.checked} / {l.authorized} UN{l.authorized>l.checked?` · ${language==='es'?'Faltan':'Falta'} ${l.authorized-l.checked} UN`:''}</span></div>)}</div>
+     {session?.capabilities?.includes('manage')?
+      <button className="primary" disabled={busy||!detail.loadingCheck?.lines.some(l=>l.checked>0)} onClick={()=>guidedCommands([{type:'APPROVE',payload:{partial:true}}])}>{language==='es'?'Autorizar salida parcial':'Autorizar saída parcial'}</button>:
+      <p className="dist-guided-warning" role="status">{language==='es'?'Se necesita un operador con permiso de gerencia para autorizar.':'É necessário um operador com permissão de gerência para autorizar.'}</p>}
+     <button type="button" disabled={busy} onClick={()=>{setChecked(Object.fromEntries(detail.loadingCheck.lines.map((l,i)=>[i,String(l.checked)])));setCheckReason(detail.loadingCheck.reason||'');setPhysicalChecked(false);setRechecking(true);}}>{language==='es'?'Recontar mercancías':'Refazer conferência'}</button>
+    </div>}
+    {guided.canApprove&&<div className="dist-guided-panel"><p>{language==='es'?'Conferencia registrada: falta aprobación.':'Conferência registrada: falta aprovação.'}</p>
+     <button className="primary" disabled={busy} onClick={()=>guidedCommands([{type:'APPROVE'}])}>{t('approve')}</button>
+    </div>}
+    {guided.canConfirmTruck&&<div className="dist-guided-panel">
+     <h3>{words.truck}</h3><p>{language==='es'?'Confirme la carga física del vehículo.':'Confirme fisicamente o carregamento do veículo.'}</p>
+     <button type="button" disabled={busy} onClick={()=>{setTruck(Object.fromEntries(detail.lines.map(l=>[l.id,String(l.quantity)])));setPhysicalLoaded(false);}}>{words.truckAll}</button>
+     <div className="dist-guided-quantities">{detail.lines.map(l=><label key={l.id}>{l.description} · {l.customerName} · {l.quantity} {l.unit}<input aria-label={`${t('truckLoading')} ${l.orderId} ${l.orderLineId}`} type="number" min="0" max={l.quantity} step="1" value={truck[l.id]??''} onChange={e=>{setPhysicalLoaded(false);setTruck(s=>({...s,[l.id]:e.target.value}));}}/></label>)}</div>
+     <label className="dist-guided-attest"><input type="checkbox" checked={physicalLoaded} onChange={e=>setPhysicalLoaded(e.target.checked)}/><span>{words.truckAttest}</span></label>
+     <button className="primary" disabled={busy||!physicalLoaded||!guidedTruckReady(detail.lines,truck)} onClick={()=>guidedCommands([{type:'CONFIRM_LOADING',payload:{quantities:detail.lines.map(l=>Number(truck[l.id]))}}])}>{words.truckConfirm}</button>
+    </div>}
+    {detail.state==='APPROVED'&&<div className="dist-guided-panel">
+     <h3>{language==='es'?'Vehículo, conductor y ruta':'Veículo, motorista e rota'}</h3>
+     <div className="dist-fields">{[['vehicle',vehicle,setVehicle],['driver',driver,setDriver],['route',route,setRoute]].map(([key,value,set])=><label key={key}>{t(key)}<input maxLength="100" value={value} onChange={e=>set(e.target.value)}/></label>)}</div>
+     {guided.requiresManifest&&<button className="primary" disabled={busy||![vehicle,driver,route].every(s=>s.trim())} onClick={()=>guidedCommands([{type:'MANIFEST',payload:{vehicle,driver,route}}])}>{words.manifest}</button>}
+     {guided.canDispatch&&<div className="dist-guided-final">
+      <p>{language==='es'?'Documento actualizado. Compruébelo antes de confirmar la salida.':'Romaneio atualizado. Confira o documento antes da saída.'}</p>
+      <button type="button" disabled={busy} onClick={()=>showVersion(detail.manifestVersions.at(-1).version)}>{language==='es'?'Visualizar romaneo':'Visualizar romaneio'}</button>
+      <button className="primary" disabled={busy} onClick={()=>setConfirm('DISPATCH')}>{words.dispatch}</button>
+     </div>}
+    </div>}
+    {detail.state==='DISPATCHED'&&<p className="dist-success" role="status">{words.complete}</p>}
+   </div>
+   <details className="dist-guided-extra"><summary>{words.advanced}</summary>
+    {detail.state==='APPROVED'&&detail.truckLoading&&detail.manifestVersions.length>0&&<button type="button" disabled={busy||![vehicle,driver,route].every(s=>s.trim())} onClick={()=>guidedCommands([{type:'MANIFEST',payload:{vehicle,driver,route}}])}>{language==='es'?'Reemitir romaneo con nueva versión':'Reemitir romaneio com nova versão'}</button>}
+    {['DRAFT','PLANNED','LOADING'].includes(detail.state)&&<button className="danger" disabled={busy} onClick={()=>setConfirm('CANCEL')}>{t('cancel')}</button>}
+    {detail.loadingCheck&&<div className="dist-history"><h3>{t('checked')} · {detail.loadingCheck.operatorId}</h3><p>{detail.loadingCheck.reason}</p>{detail.loadingCheck.lines.map(row=><p key={row.lineId}>{(detail.lines.find(l=>l.id===row.lineId)||detail.partialApproval?.lines.find(l=>l.lineId===row.lineId))?.description} · {row.checked} / {row.authorized} · {t('shortage')}: {row.authorized-row.checked}</p>)}</div>}
+    {detail.truckLoading&&<p>{t('truckLoading')} · {detail.truckLoading.operatorId} · {date(detail.truckLoading.at)}</p>}
+    {!!detail.manifestVersions.length&&<div className="dist-history"><h3>{t('versions')}</h3>{detail.manifestVersions.map(m=><button disabled={busy} key={m.version} onClick={()=>showVersion(m.version)}>{t('version')} {m.version} · {date(m.issuedAt)} · {t('preview')}</button>)}</div>}
+   </details>
+   {confirm&&<div className="dist-confirm"><h3>{t(confirm==='CANCEL'?'confirmCancel':'confirmDispatch')}</h3><p>{t(confirm==='CANCEL'?'cancelHelp':'dispatchHelp')}</p><button className="primary" disabled={busy} onClick={()=>operate(confirm)}>{t('confirm')}</button><button disabled={busy} onClick={()=>setConfirm(null)}>{t('close')}</button></div>}
+   {document&&<><div className="dist-actionbar"><label>{t('customer')} <select value={customerDocument} onChange={e=>setCustomerDocument(e.target.value)}><option value="">{t('loadSummary')}</option>{summarizeManifest(document).customers.map(group=><option key={group.key} value={group.key}>{group.name} · {group.city||t('cityUnknown')}</option>)}</select></label><button disabled={busy} onClick={download}>{t('pdf')}</button><button disabled={busy} onClick={async()=>{try{const {printManifest}=await import('../core/distribution/print.js');await printManifest(window.document.querySelector('[data-testid=manifest-preview]'),distributionPrintCss);}catch(e){fail(e);}}}>{t('print')}</button></div><ManifestView document={customerDocument?manifestForCustomer(document,customerDocument):document} t={t} copy={copy}/></>}
+   {busy&&<p role="status">{t('loading')}</p>}
+  </div></div>}
+ </section>;
 }
-function TripDialog({title,busy,close,closeText,children}){
- const ref=useRef(null);useEffect(()=>{const previous=document.activeElement;ref.current.focus();const key=e=>{if(e.key==='Escape'&&!busy)close();if(e.key==='Tab'){const nodes=[...ref.current.querySelectorAll('button:not(:disabled),input:not(:disabled),select,textarea')];if(!nodes.length)return;if(e.shiftKey&&(document.activeElement===nodes[0]||document.activeElement===ref.current)){e.preventDefault();nodes.at(-1).focus();}else if(!e.shiftKey&&document.activeElement===nodes.at(-1)){e.preventDefault();nodes[0].focus();}}};document.addEventListener('keydown',key);return()=>{document.removeEventListener('keydown',key);previous?.focus();};},[busy]);
- return <div className="dist-overlay"><section ref={ref} className="dist-dialog trip-modal" role="dialog" aria-modal="true" aria-label={title} tabIndex="-1"><div className="trip-title"><h2>{title}</h2><button type="button" disabled={busy} onClick={close}>{closeText}</button></div>{children}</section></div>;
+export function ManifestView({document:d,t,copy}) {
+ const {products,customers}=summarizeManifest(d);
+ return <article className="dist-manifest" data-testid="manifest-preview"><header><div><p>{d.issuer.name}</p><small>{d.issuer.taxId}</small><h2>{t('manifestTitle').toLocaleUpperCase()}</h2><strong>{d.number} · {t('version')} {d.version} {copy&&`· ${t('copy')}`}</strong></div>{d.issuer.logoData&&<img src={d.issuer.logoData} alt={d.issuer.name}/>}</header><p>{t('date')}: {new Date(d.issuedAt).toLocaleString(t('today')==='Hoy'?'es-PY':'pt-BR',{timeZone:d.timeZone||'UTC'})}</p><p>{t('warehouse')}: {d.warehouseId} · {t('vehicle')}: {d.vehicle}</p><p>{t('driver')}: {d.driver} · {t('route')}: {d.route}</p><h3>{t('loadSummary')}</h3><table><thead><tr><th>{t('product')}</th><th>{t('authorizedQuantity')}</th></tr></thead><tbody>{products.map(row=><tr key={row.key}><td>{row.sku} · {row.description}<small>{[row.variant,row.packaging,row.lot,row.warehouseId].filter(Boolean).join(' · ')}</small></td><td>{row.quantity} {row.unit}</td></tr>)}</tbody></table><h3>{t('byCustomer')}</h3>{customers.map(group=><section key={group.key}><h4>{group.city||t('cityUnknown')} · {group.name}</h4><table><thead><tr><th>{t('customer')}</th><th>{t('product')}</th><th>{t('quantity')}</th><th>{t('amount')}</th></tr></thead><tbody>{group.lines.map(l=><tr key={l.id}><td>{l.customerName}<small>{l.destination}<br/>{l.orderId}</small></td><td>{l.sku}<small>{l.description}</small></td><td>{l.quantity} {l.unit}</td><td>{distributionMoney(l.amount)}</td></tr>)}</tbody></table></section>)}<h3>{t('total')}</h3>{Object.entries(d.totalsByCurrency).map(([currency,minor])=><p key={currency}>{distributionMoney({currency,minor,precision:currency==='PYG'?0:2})}</p>)}<div className="dist-signatures"><span>{t('signCheck')}</span><span>{t('signDriver')}</span></div><footer>{t('verification')}: {d.verificationCode}<br/>{t('nonFiscal')}</footer></article>;
 }
-function Signature({t,value,onChange}){
- const ref=useRef(),current=useRef(null);
- function point(e){const r=ref.current.getBoundingClientRect();return [Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)),Math.min(1,Math.max(0,(e.clientY-r.top)/r.height))];}
- useEffect(()=>{const ctx=ref.current.getContext('2d');ctx.clearRect(0,0,600,200);ctx.lineWidth=2;ctx.strokeStyle='#17303c';for(const stroke of value){ctx.beginPath();stroke.forEach(([x,y],i)=>ctx[i?'lineTo':'moveTo'](x*600,y*200));ctx.stroke();}},[value]);
- return <div><label>{t('signature')}</label><canvas ref={ref} className="trip-signature" width="600" height="200" aria-label={t('signature')} onPointerDown={e=>{if(value.length>=20)return;ref.current.setPointerCapture(e.pointerId);current.current=[point(e)];}} onPointerMove={e=>{if(current.current&&current.current.length<80){current.current.push(point(e));const ctx=ref.current.getContext('2d'),s=current.current;ctx.beginPath();ctx.moveTo(s.at(-2)[0]*600,s.at(-2)[1]*200);ctx.lineTo(s.at(-1)[0]*600,s.at(-1)[1]*200);ctx.strokeStyle='#17303c';ctx.lineWidth=2;ctx.stroke();}}} onPointerUp={()=>{if(current.current?.length>=2&&value.flat().length+current.current.length<=600)onChange([...value,current.current]);current.current=null;}} onPointerCancel={()=>{current.current=null;}}/><button type="button" onClick={()=>onChange([])}>{t('clearSignature')}</button></div>;
-}
-export function DeliveryProof({proof:p,t,language}){
- const e=p.event,s=p.stop,signature=typeof p.event.payload.signature==='string'?JSON.parse(p.event.payload.signature):[],fmt=n=>new Date(n).toLocaleString(language==='es'?'es-PY':'pt-BR');
- return <article className="dist-manifest trip-proof" data-testid="delivery-proof"><header><div><p>{p.issuer.name}</p><small>{p.issuer.taxId}</small><h2>{t('proof')}</h2><strong>{t('nonFiscal')}</strong></div>{p.issuer.logoData&&<img src={p.issuer.logoData} alt={p.issuer.name}/>}</header><p>{p.trip.id} · {p.trip.vehiclePlate} · {p.trip.driverName}</p><h3>{s.customerName}</h3><p>{s.destination} · {s.orderId}</p><h3>{t(e.payload.outcome)}</h3><p>{t('serverAt')}: {fmt(e.serverAt)}</p>{e.clientAt&&<p>{t('clientAt')}: {fmt(e.clientAt)}</p>}<table><thead><tr><th>{t('name')}</th><th>{t('quantity')}</th><th>{t('delivered')}</th></tr></thead><tbody>{s.lines.map((l,i)=><tr key={l.id}><td>{l.description} · {l.sku}</td><td>{l.quantity} {l.unit}</td><td>{e.payload.quantities[i]} {l.unit}</td></tr>)}</tbody></table><p>{t('receiver')}: {e.payload.receiver||'—'} · {t('identification')}: {e.payload.identification||'—'}</p><p>{e.payload.note}</p>{signature.length>0&&<svg viewBox="0 0 600 200" style={{width:300,height:100,borderBottom:'1px solid #82959c'}} aria-label={t('signature')}>{signature.map((s,i)=><polyline key={i} points={s.map(([x,y])=>`${x*600},${y*200}`).join(' ')} fill="none" stroke="#17303c" strokeWidth="2"/>)}</svg>}<div>{e.payload.photos?.map((photo,i)=><img key={i} src={photo} alt={t('photos')} style={{maxWidth:180,maxHeight:180}}/>)}</div><footer>{e.id}<br/>{t('nonFiscal')}</footer></article>;
-}
-
-async function compressDriverPhoto(file){const bitmap=await createImageBitmap(file);try{const canvas=document.createElement('canvas');let data;for(const width of [640,400,280]){const scale=Math.min(1,width/bitmap.width);canvas.width=Math.round(bitmap.width*scale);canvas.height=Math.round(bitmap.height*scale);canvas.getContext('2d').drawImage(bitmap,0,0,canvas.width,canvas.height);data=canvas.toDataURL('image/jpeg',.55);if(data.length<=33500)return data;}throw Error('PHOTO_TOO_LARGE');}finally{bitmap.close();}}
