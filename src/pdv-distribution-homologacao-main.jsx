@@ -9,6 +9,7 @@ import {persistV1BusinessOperationSafe} from './core/productionSync.js';
 import {traducoes} from './data.js';
 import PDV from './components/PDV.jsx';
 import {createDistributionClient} from './core/distribution/client.js';
+import {validateStagingPreorderDraft,stagingPreorderErrorMessage} from './core/distribution/stagingPreorderValidation.js';
 import './components/DistributionCentral.css';
 function Host(){
  const [data,setData]=useState(null),[error,setError]=useState('');
@@ -37,29 +38,28 @@ function StagingHost(){
   finally{setBusy(false);}
  }
  async function commit(request){
-  const order=request.changes?.find(c=>c.field==='historicoVendas')?.value?.[0];
-  if(request.changes?.length!==1||request.financialEntries?.length||request.stockEvents?.length||
-     order?.tipoDocumento!=='pre_pedido'||order.estado!=='pendente'||!order.clienteId||order.pagamentos?.length){
-   const code=!order?.clienteId?'CUSTOMER_REQUIRED':'INVALID_PREORDER_SNAPSHOT';
-   setError(code==='CUSTOMER_REQUIRED'?'Selecione um cliente cadastrado antes de finalizar o pré-pedido.':'Pré-pedido inválido para a homologação. Somente pedidos sem pagamento são permitidos.');
-   return {cloudOk:false,error:{code,message:code}};
+  // Pure, staging-only preflight: never tries to write or bypass the server.
+  const preflight=validateStagingPreorderDraft(request,data);
+  if(!preflight.ok){
+   setError(preflight.message);
+   return {cloudOk:false,error:{code:preflight.code,message:preflight.message}};
   }
   try{
-   const {sale}=await client.stagingPreorder({type:'create',key:request.operationKey,customerId:order.clienteId,
-    lines:order.itens.map(item=>({productId:String(item.produtoOriginalId??item.id),quantity:Number(item.qtd)})),
-    totalOriginal:Math.round(order.totalOriginal),pygRate:data.rates.PYG});
-   const orders=[sale,...data.orders.filter(o=>o.id!==sale.id)];
-   setData(current=>({...current,orders}));
-   return {cloudOk:true,values:{historicoVendas:orders}};
+   setError('');
+   const {sale}=await client.stagingPreorder(preflight.payload);
+   // Keep the synthetic local order list in step with the confirmed response.
+   setData(current=>({...current,orders:[sale,...current.orders.filter(o=>o.id!==sale.id)]}));
+   return {cloudOk:true,values:{historicoVendas:[sale,...data.orders.filter(o=>o.id!==sale.id)]}};
   }catch(error){
    const code=typeof error?.code==='string'&&/^[A-Z0-9_]{3,60}$/.test(error.code)?error.code:'REQUEST_FAILED';
-   setError('Pré-pedido não confirmado ('+code+'). Preserve o carrinho; não repita antes de conferir o pedido na Central.');
-   return {cloudOk:false,error:{code,message:code}};
+   const message=stagingPreorderErrorMessage(code);
+   setError(message);
+   return {cloudOk:false,error:{code,message}};
   }
  }
  return <main className="dist" lang="pt-BR">
   <header className="dist-top"><img src="/logo-zenos.png?v=4" alt="ZenOS"/><a href="/distribution-homologacao.html">Central de Distribuição</a></header>
-  <h1>PDV de homologação</h1><p>Pré-pedidos sintéticos em PYG.</p>
+  <h1>PDV de homologação</h1><p>Pré-pedidos sintéticos em PYG. Para finalizar, selecione um <strong>cliente cadastrado</strong> da lista e um produto disponível. Não é permitido concluir como consumidor avulso ou registrar pagamento neste teste.</p>
   {error&&<div className="dist-alert" role="alert">{error}</div>}
   {!data?<form className="dist-card dist-login" onSubmit={login}>
    {!account?<><label>E-mail da empresa<input required type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)}/></label><label>Senha da empresa<input required type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)}/></label></>:
