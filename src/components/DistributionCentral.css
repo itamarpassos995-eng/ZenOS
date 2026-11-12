@@ -320,3 +320,50 @@ body *{visibility:hidden!important}
   .dist .dist-kpis { grid-template-columns: 1fr; }
   .dist .dist-kpis .dist-card { grid-template-rows: auto; }
 }
+
+
+/* Guided loading flow: a focused operator surface, independent from server transitions. */
+@media screen {
+ .dist .dist-guided-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:6px 0 16px}
+ .dist .dist-guided-heading h3{font-size:clamp(18px,2vw,23px);line-height:1.25;margin:5px 0}
+ .dist .dist-guided-heading p{color:var(--dist-muted);margin:0;font-size:13px}
+ .dist .dist-guided-heading>strong{font-size:14px;color:var(--dist-accent-text);background:var(--dist-accent-surface);border:1px solid var(--dist-accent-border);padding:10px 13px;border-radius:999px;white-space:nowrap}
+ .dist .dist-guided-steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:16px}
+ .dist .dist-guided-steps>div{display:flex;align-items:center;gap:8px;padding:12px 9px;color:var(--dist-muted);font-size:12px;border:1px solid var(--dist-border);border-radius:12px;min-width:0;background:var(--dist-surface)}
+ .dist .dist-guided-steps>div span{display:grid;place-items:center;flex:0 0 25px;height:25px;border-radius:50%;background:var(--dist-subtle);font-weight:750;color:var(--dist-muted)}
+ .dist .dist-guided-steps>div.active{background:var(--dist-accent-surface);color:var(--dist-accent-text);font-weight:750;border-color:var(--dist-primary)}
+ .dist .dist-guided-steps>div.active span,.dist .dist-guided-steps>div.done span{background:var(--dist-primary);color:white}
+ .dist .dist-guided-steps>div.done{color:var(--dist-accent-text)}
+ .dist .dist-guided-summary{display:flex;justify-content:space-between;flex-wrap:wrap;gap:7px;padding:12px 16px;background:var(--dist-subtle);border-radius:12px;margin-bottom:14px;color:var(--dist-text)}
+ .dist .dist-guided-summary span{color:var(--dist-muted)}
+ .dist .dist-guided-actions{margin:12px 0 20px}
+ .dist .dist-guided-panel{display:flex;flex-direction:column;gap:13px;padding:20px;border:1px solid var(--dist-border);border-radius:16px;background:var(--dist-surface)}
+ .dist .dist-guided-panel h3{font-size:15px;margin:0}
+ .dist .dist-guided-panel p{margin:0;color:var(--dist-muted)}
+ .dist .dist-guided-panel>button,.dist .dist-guided-final>button{align-self:flex-start}
+ .dist .dist-guided-panel>button.primary,.dist .dist-guided-final>button.primary{min-width:230px}
+ .dist .dist-guided-panel label{display:flex;flex-direction:column;gap:6px;font-size:13px}
+ .dist .dist-guided-panel .dist-fields{padding:0}
+ .dist .dist-guided-panel .dist-fields label{min-width:0}
+ .dist .dist-guided-quantities{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+ .dist .dist-guided-quantities label{padding:10px 12px;border:1px solid var(--dist-border);border-radius:10px;background:var(--dist-bg)}
+ .dist .dist-guided-quantities input{max-width:100px}
+ .dist .dist-guided-panel label.dist-guided-attest{flex-direction:row;align-items:flex-start;gap:10px;padding:12px;border-radius:12px;background:var(--dist-accent-surface);color:var(--dist-text)}
+ .dist .dist-guided-attest input{flex:0 0 20px;min-width:20px;width:20px;height:20px;accent-color:var(--dist-primary)}
+ .dist .dist-guided-warning{border-left:3px solid var(--dist-warning-text);padding:10px;background:var(--dist-warning-surface);border-radius:6px;color:var(--dist-warning-text)!important}
+ .dist .dist-guided-final{display:flex;flex-wrap:wrap;align-items:center;gap:10px;border-top:1px solid var(--dist-border);padding-top:14px}
+ .dist .dist-guided-final p{width:100%}
+ .dist .dist-guided-extra{border:1px solid var(--dist-border);padding:13px 16px;border-radius:12px;margin:18px 0;background:var(--dist-bg)}
+ .dist .dist-guided-extra summary{cursor:pointer;font-weight:650;color:var(--dist-muted)}
+ .dist .dist-guided-extra[open] summary{margin-bottom:12px}
+ .dist .dist-guided-extra .dist-history{margin-top:10px}
+}
+@media screen and (max-width:720px) {
+ .dist .dist-guided-steps{gap:5px}
+ .dist .dist-guided-steps>div{flex-direction:column;text-align:center;padding:9px 4px;gap:6px;font-size:11px;overflow-wrap:anywhere}
+ .dist .dist-guided-steps>div span{flex-basis:auto;width:25px}
+ .dist .dist-guided-quantities{grid-template-columns:1fr}
+ .dist .dist-guided-panel{padding:14px}
+ .dist .dist-guided-panel>button.primary,.dist .dist-guided-final>button.primary{width:100%;min-width:0}
+ .dist .dist-guided-final>button{flex:1 1 100%}
+}
