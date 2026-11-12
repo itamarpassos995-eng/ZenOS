@@ -17,6 +17,7 @@ on:
       - operational-functions/src/distribution/reconciliationService.js
       - operational-functions/src/distribution/service.js
       - operational-functions/test/distribution/pyg-cash-emulator.test.mjs
+      - operational-functions/test/distribution/draft-adjust-emulator.test.mjs
       - scripts/distribution/homologate.mjs
       - scripts/distribution/central.ui.test.jsx
       - src/components/DistributionTrips.jsx
