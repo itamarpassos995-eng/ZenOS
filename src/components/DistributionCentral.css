@@ -367,3 +367,31 @@ body *{visibility:hidden!important}
  .dist .dist-guided-panel>button.primary,.dist .dist-guided-final>button.primary{width:100%;min-width:0}
  .dist .dist-guided-final>button{flex:1 1 100%}
 }
+
+
+/* Single predictable modal scrollbar: the overlay scrolls on wheel, trackpad and touch.
+   Document, business logic, print and mobile interaction remain unchanged. */
+@media screen {
+ .dist .dist-overlay{
+  display:flex;align-items:flex-start;justify-content:center;
+  overflow-x:hidden;overflow-y:auto;overscroll-behavior-y:auto;
+  touch-action:pan-y;-webkit-overflow-scrolling:touch;
+  padding-top:clamp(10px,3vh,30px);padding-bottom:clamp(10px,3vh,30px);
+ }
+ .dist .dist-dialog{
+  flex:0 1 1120px;max-height:none;height:auto;min-height:0;
+  overflow:visible;overscroll-behavior-y:auto;touch-action:pan-y;
+  margin:auto 0;
+ }
+ .dist .dist-guided-stock{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+ .dist .dist-guided-stock>label{min-width:0;padding:12px;border:1px solid var(--dist-border);border-radius:12px;background:var(--dist-bg)}
+ .dist .dist-guided-stock>label span{font-size:12px;color:var(--dist-muted)}
+ .dist .dist-guided-stock input{width:100%;max-width:110px}
+ .dist .dist-guided-stock-actions{display:flex;gap:10px;flex-wrap:wrap}
+ .dist .dist-guided-stock-actions button{flex:1 1 210px}
+}
+@media screen and (max-width:650px){
+ .dist .dist-overlay{padding:8px;align-items:flex-start}
+ .dist .dist-dialog{margin:0;max-height:none;height:auto;width:100%}
+ .dist .dist-guided-stock{grid-template-columns:1fr}
+}
