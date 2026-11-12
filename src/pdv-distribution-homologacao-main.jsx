@@ -39,8 +39,11 @@ function StagingHost(){
  async function commit(request){
   const order=request.changes?.find(c=>c.field==='historicoVendas')?.value?.[0];
   if(request.changes?.length!==1||request.financialEntries?.length||request.stockEvents?.length||
-     order?.tipoDocumento!=='pre_pedido'||order.estado!=='pendente'||!order.clienteId||order.pagamentos?.length)
-   return {cloudOk:false};
+     order?.tipoDocumento!=='pre_pedido'||order.estado!=='pendente'||!order.clienteId||order.pagamentos?.length){
+   const code=!order?.clienteId?'CUSTOMER_REQUIRED':'INVALID_PREORDER_SNAPSHOT';
+   setError(code==='CUSTOMER_REQUIRED'?'Selecione um cliente cadastrado antes de finalizar o pré-pedido.':'Pré-pedido inválido para a homologação. Somente pedidos sem pagamento são permitidos.');
+   return {cloudOk:false,error:{code,message:code}};
+  }
   try{
    const {sale}=await client.stagingPreorder({type:'create',key:request.operationKey,customerId:order.clienteId,
     lines:order.itens.map(item=>({productId:String(item.produtoOriginalId??item.id),quantity:Number(item.qtd)})),
