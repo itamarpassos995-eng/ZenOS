@@ -1851,8 +1851,8 @@ export default function PDV({ preOrderOnly = false, abrirFilaOnlineToken = 0, on
             </button>
           </div>
 
-          <button disabled={preOrderOnly} onClick={abrirFechamento} style={{ background: vendaBloqueadaPorMargem ? '#334155' : 'linear-gradient(135deg, #4f46e5, #4338ca)', border: '1px solid #6366f1', color: '#fff', padding: '18px', borderRadius: '14px', fontSize: '15px', fontWeight: 900, cursor: vendaBloqueadaPorMargem ? 'not-allowed' : 'pointer', textAlign: 'center', boxShadow: '0 4px 15px rgba(79, 70, 229, 0.3)', width: '100%', boxSizing: 'border-box' }}>
-            {tx("[F10] Receber no Caixa","[F10] Cobrar en caja")} {vendaBloqueadaPorMargem ? '🔒' : ''}
+          <button disabled={processandoTransacao || (preOrderOnly && itensVenda.length===0)} onClick={preOrderOnly ? () => concluirTransacao('pre_pedido') : abrirFechamento} style={{ background: preOrderOnly ? 'linear-gradient(135deg, #0f766e, #0d9488)' : vendaBloqueadaPorMargem ? '#334155' : 'linear-gradient(135deg, #4f46e5, #4338ca)', border: '1px solid #6366f1', color: '#fff', padding: '18px', borderRadius: '14px', fontSize: '15px', fontWeight: 900, cursor: vendaBloqueadaPorMargem ? 'not-allowed' : 'pointer', textAlign: 'center', boxShadow: '0 4px 15px rgba(79, 70, 229, 0.3)', width: '100%', boxSizing: 'border-box' }}>
+            {preOrderOnly ? tx('📝 Finalizar Pré-Pedido (sem pagamento)', '📝 Finalizar Prepedido (sin pago)') : <>{tx("[F10] Receber no Caixa","[F10] Cobrar en caja")} {vendaBloqueadaPorMargem ? '🔒' : ''}</>}
           </button>
         </div>
       </div>
