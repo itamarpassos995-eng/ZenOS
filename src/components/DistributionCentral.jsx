@@ -167,23 +167,61 @@ export default function DistributionCentral({operatorId:initialOperatorId='admin
   {detail&&<div className="dist-overlay"><div className="dist-dialog" role="dialog" aria-modal="true" aria-labelledby="dist-dialog-title" tabIndex="-1" ref={dialogRef}>
    <div className="dist-detail-head"><div><span className="dist-eyebrow">{t('loadDetail')}</span><h2 id="dist-dialog-title">{detail.id}</h2><span className={`dist-badge ${detail.state.toLowerCase()}`}>{t(detail.state)}</span></div><button disabled={busy} onClick={()=>{setDetail(null);setDocument(null);setConfirm(null);}}>{t('close')}</button></div>
    {error&&<p role="alert" className="dist-alert">{t(error)}</p>}{notice&&<p role="status" className="dist-success">{t(notice)}</p>}
-   <div className="dist-stepper">{['DRAFT','PLANNED','LOADING','LOADED','APPROVED','DISPATCHED'].map(s=><span key={s} aria-current={s===detail.state?'step':undefined}>{t(s)}</span>)}</div>
-   <div className="dist-table-wrap dist-load-lines"><table><thead><tr><th>{t('product')}</th><th>{t('customer')}</th><th>{t('quantity')}</th><th>{t('amount')}</th>{detail.state==='LOADING'&&<th>{t('checked')}</th>}</tr></thead><tbody>{detail.lines.map((l,i)=><tr key={l.id}><td data-label={t('product')}><strong>{l.description}</strong><small>{l.sku} · {l.orderId}</small></td><td data-label={t('customer')}>{l.customerName}<small>{l.destination}</small></td><td data-label={t('quantity')}>{l.quantity} {l.unit}</td><td data-label={t('amount')}>{distributionMoney(l.amount)}</td>{detail.state==='LOADING'&&<td data-label={t('checked')}><input aria-label={`${t('checked')} ${i+1}`} type="number" min="0" max={l.quantity} step="1" value={checked[i]??''} onChange={e=>setChecked(s=>({...s,[i]:e.target.value}))}/></td>}</tr>)}</tbody></table></div>
-   {detail.state==='APPROVED'&&detail.loadingCheck&&!detail.truckLoading&&<div className="dist-fields"><h3>{t('truckLoading')}</h3>{detail.lines.map(l=><label key={l.id}>{l.description} · {l.customerName} · {l.quantity} {l.unit}<input aria-label={`${t('truckLoading')} ${l.orderId} ${l.orderLineId}`} type="number" min="0" max={l.quantity} step="1" value={truck[l.id]??''} onChange={e=>setTruck(values=>({...values,[l.id]:e.target.value}))}/></label>)}<button disabled={busy||detail.lines.some(l=>!truck[l.id]?.trim()||Number(truck[l.id])!==l.quantity)} onClick={()=>operate('CONFIRM_LOADING',{quantities:detail.lines.map(l=>Number(truck[l.id]))})}>{t('confirmLoading')}</button></div>}
-   {detail.truckLoading&&<p>{t('truckLoading')} · {detail.truckLoading.operatorId} · {date(detail.truckLoading.at)}</p>}
-   {detail.state==='APPROVED'&&<div className="dist-fields">{[['vehicle',vehicle,setVehicle],['driver',driver,setDriver],['route',route,setRoute]].map(([key,value,set])=><label key={key}>{t(key)}<input maxLength="100" value={value} onChange={e=>set(e.target.value)}/></label>)}</div>}
-   <div className="dist-actionbar">
-    {detail.state==='DRAFT'&&<button className="primary" disabled={busy} onClick={()=>operate('RESERVE')}>{t('reserve')}</button>}
-    {detail.state==='PLANNED'&&<button className="primary" disabled={busy} onClick={()=>operate('START_PICK')}>{t('startPick')}</button>}
-    {detail.state==='LOADING'&&<><label>{t('shortageReason')} <input maxLength={300} value={checkReason} onChange={e=>setCheckReason(e.target.value)}/></label><button className="primary" disabled={busy||detail.lines.some((l,i)=>!checked[i]?.trim()||!Number.isSafeInteger(Number(checked[i]))||Number(checked[i])<0||Number(checked[i])>l.quantity||(Number(checked[i])<l.quantity&&!checkReason.trim()))} onClick={()=>operate('CHECK',{quantities:detail.lines.map((_,i)=>Number(checked[i])),reason:checkReason})}>{t('check')}</button></>}
-    {detail.state==='LOADING'&&detail.pickingState==='SHORTAGE'&&detail.loadingCheck.lines.some(row=>row.checked>0)&&<button disabled={busy} onClick={()=>operate('APPROVE',{partial:true})}>{t('approvePartial')}</button>}
-    {detail.state==='LOADED'&&<button className="primary" disabled={busy} onClick={()=>operate('APPROVE')}>{t('approve')}</button>}
-    {detail.state==='APPROVED'&&<><button className="primary" disabled={busy||(detail.loadingCheck&&!detail.truckLoading)||![vehicle,driver,route].every(s=>s.trim())} onClick={()=>operate('MANIFEST',{vehicle,driver,route})}>{t('manifest')}</button><button disabled={busy||(detail.loadingCheck&&!detail.truckLoading)||detail.manifestVersions.at(-1)?.loadRevision!==detail.revision} onClick={()=>setConfirm('DISPATCH')}>{t('dispatch')}</button></>}
-    {['DRAFT','PLANNED','LOADING'].includes(detail.state)&&<button className="danger" disabled={busy} onClick={()=>setConfirm('CANCEL')}>{t('cancel')}</button>}
+   <div className="dist-guided-heading">
+    <div><span className="dist-eyebrow">{language==='es'?'FLUJO GUIADO':'FLUXO GUIADO'}</span><h3>{detail.state==='DISPATCHED'?words.complete:labels[Math.min(guided.step,3)]}</h3>
+    <p>{language==='es'?'Solo se muestra la siguiente acción necesaria.':'Apenas a próxima ação necessária fica em destaque.'}</p></div>
+    <strong>{detail.state==='DISPATCHED'?'✓':guided.step+1} / 4</strong>
    </div>
+   <div className="dist-guided-steps" role="list" aria-label={language==='es'?'Etapas de carga':'Etapas da carga'}>
+    {labels.map((s,i)=><div key={s} role="listitem" className={i<guided.step?'done':i===guided.step?'active':''} aria-current={i===guided.step?'step':undefined}><span>{i<guided.step?'✓':i+1}</span>{s}</div>)}
+   </div>
+   <div className="dist-guided-summary"><strong>{language==='es'?'Resumen':'Resumo da carga'}</strong><span>{detail.lines.reduce((n,l)=>n+l.quantity,0)} UN · {new Set(detail.lines.map(l=>l.customerId)).size} {language==='es'?'clientes':'clientes'}</span></div>
+   <div className="dist-table-wrap dist-load-lines"><table><thead><tr><th>{t('product')}</th><th>{t('customer')}</th><th>{t('quantity')}</th><th>{t('amount')}</th>{detail.state==='LOADING'&&<th>{t('checked')}</th>}</tr></thead><tbody>{detail.lines.map((l,i)=><tr key={l.id}><td data-label={t('product')}><strong>{l.description}</strong><small>{l.sku} · {l.orderId}</small></td><td data-label={t('customer')}>{l.customerName}<small>{l.destination}</small></td><td data-label={t('quantity')}>{l.quantity} {l.unit}</td><td data-label={t('amount')}>{distributionMoney(l.amount)}</td>{detail.state==='LOADING'&&<td data-label={t('checked')}><input aria-label={`${t('checked')} ${i+1}`} type="number" min="0" max={l.quantity} step="1" value={checked[i]??''} onChange={e=>{setPhysicalChecked(false);setChecked(s=>({...s,[i]:e.target.value}));}}/></td>}</tr>)}</tbody></table></div>
+   <div className="dist-guided-actions">
+    {guided.canPrepare&&<div className="dist-guided-panel">
+     <p>{language==='es'?'Reserva las cantidades y abre la separación.':'Reserva as quantidades e inicia a separação em uma só ação.'}</p>
+     <button className="primary" disabled={busy} onClick={()=>guidedCommands(detail.state==='DRAFT'?[{type:'RESERVE'},{type:'START_PICK'}]:[{type:'START_PICK'}])}>{words.start}</button>
+    </div>}
+    {guided.canCheck&&<div className="dist-guided-panel">
+     <h3>{language==='es'?'Cantidades contadas':'Quantidades conferidas'}</h3>
+     <button type="button" disabled={busy} onClick={()=>{setChecked(Object.fromEntries(detail.lines.map((l,i)=>[i,String(l.quantity)])));setPhysicalChecked(false);}}>{words.checkAll}</button>
+     {!checkResult.full&&<label>{t('shortageReason')}<input maxLength="300" value={checkReason} onChange={e=>setCheckReason(e.target.value)}/></label>}
+     {checkResult.valid&&!checkResult.full&&<p className="dist-guided-warning">{words.part}</p>}
+     <label className="dist-guided-attest"><input type="checkbox" checked={physicalChecked} onChange={e=>setPhysicalChecked(e.target.checked)}/><span>{words.checkAttest}</span></label>
+     <button className="primary" disabled={busy||!physicalChecked||!checkResult.valid} onClick={()=>guidedCommands(checkResult.full?[{type:'CHECK',payload:{quantities:checkResult.quantities,reason:''}},{type:'APPROVE'}]:[{type:'CHECK',payload:{quantities:checkResult.quantities,reason:checkResult.reason}}])}>{checkResult.full?words.finalizeCheck:words.check}</button>
+    </div>}
+    {guided.needsPartialApproval&&<div className="dist-guided-panel"><p className="dist-guided-warning">{words.part}</p>
+     <button className="primary" disabled={busy||!detail.loadingCheck?.lines.some(l=>l.checked>0)} onClick={()=>guidedCommands([{type:'APPROVE',payload:{partial:true}}])}>{t('approvePartial')}</button>
+    </div>}
+    {guided.canApprove&&<div className="dist-guided-panel"><p>{language==='es'?'Conferencia registrada: falta aprobación.':'Conferência registrada: falta aprovação.'}</p>
+     <button className="primary" disabled={busy} onClick={()=>guidedCommands([{type:'APPROVE'}])}>{t('approve')}</button>
+    </div>}
+    {guided.canConfirmTruck&&<div className="dist-guided-panel">
+     <h3>{words.truck}</h3><p>{language==='es'?'Confirme la carga física del vehículo.':'Confirme fisicamente o carregamento do veículo.'}</p>
+     <button type="button" disabled={busy} onClick={()=>{setTruck(Object.fromEntries(detail.lines.map(l=>[l.id,String(l.quantity)])));setPhysicalLoaded(false);}}>{words.truckAll}</button>
+     <div className="dist-guided-quantities">{detail.lines.map(l=><label key={l.id}>{l.description} · {l.customerName} · {l.quantity} {l.unit}<input aria-label={`${t('truckLoading')} ${l.orderId} ${l.orderLineId}`} type="number" min="0" max={l.quantity} step="1" value={truck[l.id]??''} onChange={e=>{setPhysicalLoaded(false);setTruck(s=>({...s,[l.id]:e.target.value}));}}/></label>)}</div>
+     <label className="dist-guided-attest"><input type="checkbox" checked={physicalLoaded} onChange={e=>setPhysicalLoaded(e.target.checked)}/><span>{words.truckAttest}</span></label>
+     <button className="primary" disabled={busy||!physicalLoaded||!guidedTruckReady(detail.lines,truck)} onClick={()=>guidedCommands([{type:'CONFIRM_LOADING',payload:{quantities:detail.lines.map(l=>Number(truck[l.id]))}}])}>{words.truckConfirm}</button>
+    </div>}
+    {detail.state==='APPROVED'&&<div className="dist-guided-panel">
+     <h3>{language==='es'?'Vehículo, conductor y ruta':'Veículo, motorista e rota'}</h3>
+     <div className="dist-fields">{[['vehicle',vehicle,setVehicle],['driver',driver,setDriver],['route',route,setRoute]].map(([key,value,set])=><label key={key}>{t(key)}<input maxLength="100" value={value} onChange={e=>set(e.target.value)}/></label>)}</div>
+     {guided.requiresManifest&&<button className="primary" disabled={busy||![vehicle,driver,route].every(s=>s.trim())} onClick={()=>guidedCommands([{type:'MANIFEST',payload:{vehicle,driver,route}}])}>{words.manifest}</button>}
+     {guided.canDispatch&&<div className="dist-guided-final">
+      <p>{language==='es'?'Documento actualizado. Compruébelo antes de confirmar la salida.':'Romaneio atualizado. Confira o documento antes da saída.'}</p>
+      <button type="button" disabled={busy} onClick={()=>showVersion(detail.manifestVersions.at(-1).version)}>{language==='es'?'Visualizar romaneo':'Visualizar romaneio'}</button>
+      <button className="primary" disabled={busy} onClick={()=>setConfirm('DISPATCH')}>{words.dispatch}</button>
+     </div>}
+    </div>}
+    {detail.state==='DISPATCHED'&&<p className="dist-success" role="status">{words.complete}</p>}
+   </div>
+   <details className="dist-guided-extra"><summary>{words.advanced}</summary>
+    {['DRAFT','PLANNED','LOADING'].includes(detail.state)&&<button className="danger" disabled={busy} onClick={()=>setConfirm('CANCEL')}>{t('cancel')}</button>}
+    {detail.loadingCheck&&<div className="dist-history"><h3>{t('checked')} · {detail.loadingCheck.operatorId}</h3><p>{detail.loadingCheck.reason}</p>{detail.loadingCheck.lines.map(row=><p key={row.lineId}>{(detail.lines.find(l=>l.id===row.lineId)||detail.partialApproval?.lines.find(l=>l.lineId===row.lineId))?.description} · {row.checked} / {row.authorized} · {t('shortage')}: {row.authorized-row.checked}</p>)}</div>}
+    {detail.truckLoading&&<p>{t('truckLoading')} · {detail.truckLoading.operatorId} · {date(detail.truckLoading.at)}</p>}
+    {!!detail.manifestVersions.length&&<div className="dist-history"><h3>{t('versions')}</h3>{detail.manifestVersions.map(m=><button disabled={busy} key={m.version} onClick={()=>showVersion(m.version)}>{t('version')} {m.version} · {date(m.issuedAt)} · {t('preview')}</button>)}</div>}
+   </details>
    {confirm&&<div className="dist-confirm"><h3>{t(confirm==='CANCEL'?'confirmCancel':'confirmDispatch')}</h3><p>{t(confirm==='CANCEL'?'cancelHelp':'dispatchHelp')}</p><button className="primary" disabled={busy} onClick={()=>operate(confirm)}>{t('confirm')}</button><button disabled={busy} onClick={()=>setConfirm(null)}>{t('close')}</button></div>}
-   {detail.loadingCheck&&<div className="dist-history"><h3>{t('checked')} · {detail.loadingCheck.operatorId}</h3><p>{detail.loadingCheck.reason}</p>{detail.loadingCheck.lines.map(row=><p key={row.lineId}>{(detail.lines.find(line=>line.id===row.lineId)||detail.partialApproval?.lines.find(line=>line.lineId===row.lineId))?.description} · {row.checked} / {row.authorized} · {t('shortage')}: {row.authorized-row.checked}</p>)}</div>}
-   {!!detail.manifestVersions.length&&<div className="dist-history"><h3>{t('versions')}</h3>{detail.manifestVersions.map(m=><button disabled={busy} key={m.version} onClick={()=>showVersion(m.version)}>{t('version')} {m.version} · {date(m.issuedAt)} · {t('preview')}</button>)}</div>}
    {document&&<><div className="dist-actionbar"><label>{t('customer')} <select value={customerDocument} onChange={e=>setCustomerDocument(e.target.value)}><option value="">{t('loadSummary')}</option>{summarizeManifest(document).customers.map(group=><option key={group.key} value={group.key}>{group.name} · {group.city||t('cityUnknown')}</option>)}</select></label><button disabled={busy} onClick={download}>{t('pdf')}</button><button disabled={busy} onClick={async()=>{try{const {printManifest}=await import('../core/distribution/print.js');await printManifest(window.document.querySelector('[data-testid=manifest-preview]'),distributionPrintCss);}catch(e){fail(e);}}}>{t('print')}</button></div><ManifestView document={customerDocument?manifestForCustomer(document,customerDocument):document} t={t} copy={copy}/></>}
    {busy&&<p role="status">{t('loading')}</p>}
   </div></div>}
