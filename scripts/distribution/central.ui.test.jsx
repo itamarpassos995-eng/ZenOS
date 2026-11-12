@@ -31,6 +31,8 @@ describe('Central with real HTTP API, Auth token and Firestore Emulator',()=>{
   await user.click(await screen.findByRole('button',{name:'Usar quantidades conferidas'}));
   await user.click(screen.getByRole('checkbox',{name:'Confirmo que as mercadorias foram fisicamente colocadas no veículo.'}));
   await user.click(button('Confirmar carregamento físico'));
+  // The guided command refreshes authoritative state asynchronously; wait before typing.
+  await waitFor(()=>expect(screen.queryByRole('button',{name:'Confirmar carregamento físico'})).toBeNull());
   await user.type(await screen.findByLabelText('Veículo / placa'),'HML-2026');await user.type(screen.getByLabelText('Motorista'),'Carlos · teste');await user.type(screen.getByLabelText('Rota'),'Centro / Vila Operária');
   await waitFor(()=>expect(button('Emitir romaneio para conferência').disabled).toBe(false));
   await user.click(button('Emitir romaneio para conferência'));
