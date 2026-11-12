@@ -48,9 +48,10 @@ function StagingHost(){
    const orders=[sale,...data.orders.filter(o=>o.id!==sale.id)];
    setData(current=>({...current,orders}));
    return {cloudOk:true,values:{historicoVendas:orders}};
-  }catch{
-   setError('Pré-pedido não confirmado. Confira cliente, saldo de estoque e preço PYG do catálogo.');
-   return {cloudOk:false};
+  }catch(error){
+   const code=typeof error?.code==='string'&&/^[A-Z0-9_]{3,60}$/.test(error.code)?error.code:'REQUEST_FAILED';
+   setError('Pré-pedido não confirmado ('+code+'). Preserve o carrinho; não repita antes de conferir o pedido na Central.');
+   return {cloudOk:false,error:{code,message:code}};
   }
  }
  return <main className="dist" lang="pt-BR">
