@@ -395,3 +395,12 @@ body *{visibility:hidden!important}
  .dist .dist-dialog{margin:0;max-height:none;height:auto;width:100%}
  .dist .dist-guided-stock{grid-template-columns:1fr}
 }
+
+/* Ensure vertical gestures on the products table reach the single overlay scrollbar. */
+@media screen {
+ .dist .dist-dialog .dist-table-wrap,
+ .dist .dist-dialog .dist-load-lines {
+  overscroll-behavior-y:auto;
+  touch-action:pan-y pan-x;
+ }
+}
