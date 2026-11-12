@@ -9,7 +9,7 @@ async function run(args){await new Promise((resolve,reject)=>{const child=start(
 try {
  start(['operational-functions/src/distribution/server.js']);
  await waitFor('http://127.0.0.1:8787/query');
- if(!process.argv.includes('--ui-only')&&!process.argv.includes('--browser-only'))await run(['--test','operational-functions/test/distribution/emulator.test.mjs','operational-functions/test/distribution/pyg-cash-emulator.test.mjs']);
+ if(!process.argv.includes('--ui-only')&&!process.argv.includes('--browser-only'))await run(['--test','operational-functions/test/distribution/emulator.test.mjs','operational-functions/test/distribution/pyg-cash-emulator.test.mjs','operational-functions/test/distribution/draft-adjust-emulator.test.mjs']);
  if(!process.argv.includes('--backend-only')&&!process.argv.includes('--browser-only')){
   await run(['operational-functions/test/distribution/fixture.mjs']);
   await run(['node_modules/vitest/vitest.mjs','run','--config','vitest.distribution.config.js']);
