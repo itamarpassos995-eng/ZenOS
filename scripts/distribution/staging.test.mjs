@@ -103,3 +103,15 @@ test('PDV pre-order endpoint is Preview-only and derives the tenant from Firebas
  const valid=response();await preview(req,valid);
  assert.deepEqual(calls,[['synthetic','pdv-session',req.body]]);
 });
+
+test('staging catalog projects canonical PYG sale price for native PDV without mutating original money',async()=>{
+ const {projectStagingCatalogProduct}=await import('../../operational-functions/src/distribution/stagingPreorders.js');
+ const {valorProdutoBRL}=await import('../../src/core/productMoney.js');
+ const source={id:'P1',sku:'PY-001',nome:'Papel de prueba',valoresMonetarios:{versao:1,campos:{precoVenda:{valor:39990,moeda:'PYG'}}}};
+ const mapped=projectStagingCatalogProduct(source,1333);
+ assert.equal(mapped.precoBRL,30);
+ assert.equal(valorProdutoBRL(mapped,'precoBRL',(value,moeda)=>moeda==='PYG'?value/1333:value),30);
+ assert.equal(mapped.valoresMonetarios.campos.precoVenda.valor,39990);
+ assert.equal(source.precoBRL,undefined);
+ assert.equal(projectStagingCatalogProduct(source,0),null);
+});
