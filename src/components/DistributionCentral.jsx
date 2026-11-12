@@ -29,7 +29,7 @@ export default function DistributionCentral({operatorId:initialOperatorId='admin
  const [page,setPage]=useState(0),[cursors,setCursors]=useState([null]),[rows,setRows]=useState([]),[next,setNext]=useState(null),[counts,setCounts]=useState({}),[loading,setLoading]=useState(false),[reload,setReload]=useState(0);
  const [selection,setSelection]=useState({}),[detail,setDetail]=useState(null),[document,setDocument]=useState(null),[copy,setCopy]=useState(false),[confirm,setConfirm]=useState(null);
  const [vehicle,setVehicle]=useState(''),[driver,setDriver]=useState(''),[route,setRoute]=useState(''),[checked,setChecked]=useState({}),[checkReason,setCheckReason]=useState(''),[truck,setTruck]=useState({}),[customerDocument,setCustomerDocument]=useState('');
- const [physicalChecked,setPhysicalChecked]=useState(false),[physicalLoaded,setPhysicalLoaded]=useState(false);
+ const [physicalChecked,setPhysicalChecked]=useState(false),[physicalLoaded,setPhysicalLoaded]=useState(false),[rechecking,setRechecking]=useState(false);
  const [stockAvailability,setStockAvailability]=useState(null),[draftQuantities,setDraftQuantities]=useState({});
  const epoch=useRef(0),dialogRef=useRef(null),previousFocus=useRef(null);
  useEffect(()=>onAuthStateChanged(auth,u=>{setUser(u);setSession(null);setDetail(null);setRows([]);setSelection({});}),[]);
@@ -84,7 +84,7 @@ export default function DistributionCentral({operatorId:initialOperatorId='admin
   }
   const result=await client.login(operatorId,pin,scope);setSession(result);setTab(result.scope==='trip'||result.scope==='driver'?'trips':'loads');setRange(distributionPeriod('hoje',Date.now(),result.timeZone));setPin('');setPassword('');setNotice('');
  }catch(e){if(user)fail(e);else setError(t(codeOf(e))===t('error')?'AUTH_SIGN_IN_FAILED':codeOf(e));}finally{setBusy(false);}}
- async function openLoad(loadId){setBusy(true);setError('');try{const result=await client.query({type:'detail',loadId},{refresh:true});setDetail(result.load);setStockAvailability(result.availability??null);setDraftQuantities({});setChecked({});setCheckReason('');setTruck({});setPhysicalChecked(false);setPhysicalLoaded(false);setDocument(null);setConfirm(null);setVehicle(result.load.manifestVersions.at(-1)?.vehicle||'');setDriver(result.load.manifestVersions.at(-1)?.driver||'');setRoute(result.load.manifestVersions.at(-1)?.route||'');}catch(e){fail(e);}finally{setBusy(false);}}
+ async function openLoad(loadId){setBusy(true);setError('');try{const result=await client.query({type:'detail',loadId},{refresh:true});setDetail(result.load);setStockAvailability(result.availability??null);setDraftQuantities({});setChecked({});setCheckReason('');setRechecking(false);setTruck({});setPhysicalChecked(false);setPhysicalLoaded(false);setDocument(null);setConfirm(null);setVehicle(result.load.manifestVersions.at(-1)?.vehicle||'');setDriver(result.load.manifestVersions.at(-1)?.driver||'');setRoute(result.load.manifestVersions.at(-1)?.route||'');}catch(e){fail(e);}finally{setBusy(false);}}
  async function operate(type,payload={}){if(!detail||busy)return;setBusy(true);setError('');setNotice('');try{
   await client.command(type,detail.id,detail.revision,payload);const result=await client.query({type:'detail',loadId:detail.id},{refresh:true});setDetail(result.load);setStockAvailability(result.availability??null);setDraftQuantities({});setNotice('saved');setConfirm(null);setReload(n=>n+1);
  }catch(e){fail(e);}finally{setBusy(false);}}
@@ -98,7 +98,7 @@ export default function DistributionCentral({operatorId:initialOperatorId='admin
    for(const step of steps){
     await client.command(step.type,current.id,current.revision,step.payload||{});
     const response=await client.query({type:'detail',loadId:current.id},{refresh:true});
-    current=response.load;setDetail(current);setStockAvailability(response.availability??null);setDraftQuantities({});
+    current=response.load;setDetail(current);setStockAvailability(response.availability??null);setDraftQuantities({});setRechecking(false);
    }
    setNotice('saved');setReload(n=>n+1);
   }catch(e){
@@ -223,7 +223,7 @@ export default function DistributionCentral({operatorId:initialOperatorId='admin
      <p>{language==='es'?'Reserva las cantidades y abre la separación.':'Reserva as quantidades e inicia a separação em uma só ação.'}</p>
      <button className="primary" disabled={busy||(detail.state==='DRAFT'&&(!stockFits||draftHasChanges))} onClick={()=>guidedCommands(detail.state==='DRAFT'?[{type:'RESERVE'},{type:'START_PICK'}]:[{type:'START_PICK'}])}>{words.start}</button>
     </div>}
-    {guided.canCheck&&<div className="dist-guided-panel">
+    {(guided.canCheck||(guided.needsPartialApproval&&rechecking))&&<div className="dist-guided-panel">
      <h3>{language==='es'?'Cantidades contadas':'Quantidades conferidas'}</h3>
      <button type="button" disabled={busy} onClick={()=>{setChecked(Object.fromEntries(detail.lines.map((l,i)=>[i,String(l.quantity)])));setPhysicalChecked(false);}}>{words.checkAll}</button>
      {!checkResult.full&&<label>{t('shortageReason')}<input maxLength="300" value={checkReason} onChange={e=>setCheckReason(e.target.value)}/></label>}
@@ -231,8 +231,16 @@ export default function DistributionCentral({operatorId:initialOperatorId='admin
      <label className="dist-guided-attest"><input type="checkbox" checked={physicalChecked} onChange={e=>setPhysicalChecked(e.target.checked)}/><span>{words.checkAttest}</span></label>
      <button className="primary" disabled={busy||!physicalChecked||!checkResult.valid} onClick={()=>guidedCommands(checkResult.full?[{type:'CHECK',payload:{quantities:checkResult.quantities,reason:''}},{type:'APPROVE'}]:[{type:'CHECK',payload:{quantities:checkResult.quantities,reason:checkResult.reason}}])}>{checkResult.full?words.finalizeCheck:words.check}</button>
     </div>}
-    {guided.needsPartialApproval&&<div className="dist-guided-panel"><p className="dist-guided-warning">{words.part}</p>
-     <button className="primary" disabled={busy||!detail.loadingCheck?.lines.some(l=>l.checked>0)} onClick={()=>guidedCommands([{type:'APPROVE',payload:{partial:true}}])}>{t('approvePartial')}</button>
+    {guided.needsPartialApproval&&!rechecking&&<div className="dist-guided-panel" role="region" aria-label={language==='es'?'Conferencia parcial registrada':'Conferência parcial registrada'}>
+     <h3>{language==='es'?'Conferencia parcial registrada':'Conferência parcial registrada'}</h3>
+     <p role="status">{language==='es'?'La conferencia fue guardada. Falta aprobación de un responsable para la salida parcial.':'A conferência foi salva. Falta a autorização de um responsável para liberar a carga parcial.'}</p>
+     <div className="dist-guided-summary"><strong>{language==='es'?'Total confirmado':'Total conferido'}</strong><span>{detail.loadingCheck?.lines.reduce((sum,l)=>sum+l.checked,0)||0} / {detail.loadingCheck?.lines.reduce((sum,l)=>sum+l.authorized,0)||0} UN</span></div>
+     <p><strong>{language==='es'?'Justificación registrada':'Justificativa registrada'}:</strong> {detail.loadingCheck?.reason||'—'}</p>
+     <div className="dist-guided-quantities">{detail.loadingCheck?.lines.map((l,i)=><div key={l.lineId} className="dist-guided-shortage-line"><strong>{detail.lines.find(line=>line.id===l.lineId)?.customerName||String(i+1)}</strong><span>{l.checked} / {l.authorized} UN{l.authorized>l.checked?` · ${language==='es'?'Faltan':'Falta'} ${l.authorized-l.checked} UN`:''}</span></div>)}</div>
+     {session?.capabilities?.includes('manage')?
+      <button className="primary" disabled={busy||!detail.loadingCheck?.lines.some(l=>l.checked>0)} onClick={()=>guidedCommands([{type:'APPROVE',payload:{partial:true}}])}>{language==='es'?'Autorizar salida parcial':'Autorizar saída parcial'}</button>:
+      <p className="dist-guided-warning" role="status">{language==='es'?'Se necesita un operador con permiso de gerencia para autorizar.':'É necessário um operador com permissão de gerência para autorizar.'}</p>}
+     <button type="button" disabled={busy} onClick={()=>{setChecked(Object.fromEntries(detail.loadingCheck.lines.map((l,i)=>[i,String(l.checked)])));setCheckReason(detail.loadingCheck.reason||'');setPhysicalChecked(false);setRechecking(true);}}>{language==='es'?'Recontar mercancías':'Refazer conferência'}</button>
     </div>}
     {guided.canApprove&&<div className="dist-guided-panel"><p>{language==='es'?'Conferencia registrada: falta aprobación.':'Conferência registrada: falta aprovação.'}</p>
      <button className="primary" disabled={busy} onClick={()=>guidedCommands([{type:'APPROVE'}])}>{t('approve')}</button>
