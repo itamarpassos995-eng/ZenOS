@@ -19,7 +19,7 @@ function minor(value,precision) {
  const fraction=(m[2]||'').padEnd(precision+1,'0');
  return BigInt(m[1])*10n**BigInt(precision)+BigInt(fraction.slice(0,precision)||0)+(Number(fraction[precision]||0)>=5?1n:0n);
 }
-const actions = new Set(['CREATE','RESERVE','START_PICK','CHECK','APPROVE','CONFIRM_LOADING','MANIFEST','DISPATCH','CANCEL']);
+const actions = new Set(['CREATE','ADJUST_DRAFT','RESERVE','START_PICK','CHECK','APPROVE','CONFIRM_LOADING','MANIFEST','DISPATCH','CANCEL']);
 export function distributionService(db,{now=()=>Date.now(),staging=false,emulatorPygCompensationUid=null}={}) {
  if(staging){
   if(db.projectId!=='zenos-distribution-staging'||process.env.FIRESTORE_EMULATOR_HOST||process.env.FIREBASE_AUTH_EMULATOR_HOST)error('STAGING_PROJECT_REQUIRED');
@@ -143,6 +143,34 @@ export function distributionService(db,{now=()=>Date.now(),staging=false,emulato
     if(!load||load.tenantId!==uid||load.revision!==input.expectedRevision)error('REVISION_CONFLICT');
     // Pre-read all source records so no write occurs before all validation reads.
     for(const line of load.lines){await readOrder(line.orderId);await readProduct(line.productId);}
+    if(input.type==='ADJUST_DRAFT') {
+     // A draft has no physical stock reservations yet. Reductions release
+     // their order allocations atomically, without posting inventory or finance.
+     if(load.state!=='DRAFT'||load.reservationState!=='NONE'||!Array.isArray(p.quantities)||
+        p.quantities.length!==load.lines.length||p.quantities.some((n,i)=>!Number.isSafeInteger(n)||n<0||n>load.lines[i].quantity)||
+        !p.quantities.some(n=>n>0))error('INVALID_QUANTITY');
+     const kept=[];
+     for(const [index,line] of load.lines.entries()){
+      const quantity=p.quantities[index],removed=line.quantity-quantity;
+      const order=orderCache.get(line.orderId);
+      if(removed){
+       const allocation=order.data._distribution;
+       if(!allocation?.allocated||!allocation?.allocatedMinor)error('MONEY_ALLOCATION_CONFLICT');
+       const previousAmount=BigInt(line.amount.minor);
+       const retained=previousAmount*BigInt(quantity)/BigInt(line.quantity);
+       const released=previousAmount-retained;
+       const oldQty=integer(allocation.allocated[line.orderLineId]);
+       const oldMinor=BigInt(allocation.allocatedMinor[line.orderLineId]);
+       if(oldQty<removed||oldMinor<released)error('MONEY_ALLOCATION_CONFLICT');
+       allocation.allocated[line.orderLineId]=oldQty-removed;
+       allocation.allocatedMinor[line.orderLineId]=String(oldMinor-released);
+       allocation.stockManaged=Object.values(allocation.allocated).some(v=>v>0);
+       orderWrites.set(line.orderId,order);
+       if(quantity>0)kept.push({...line,quantity,amount:{...line.amount,minor:String(retained)}});
+      }else kept.push(line);
+     }
+     load={...replaceLoadLines(load,kept),updatedBy:actor.operatorId};
+    }
     if(input.type==='RESERVE') {
      if(load.state!=='DRAFT'||load.reservationState!=='NONE')error('INVALID_TRANSITION');
      for(const line of load.lines) {
@@ -292,7 +320,18 @@ export function distributionService(db,{now=()=>Date.now(),staging=false,emulato
    const c=await ctx(tx,uid);await authorize(tx,uid,sessionToken,c);
    if(input.type==='detail') {
     const snap=await tx.get(db.doc(`${c.root}/distribution_loads/${id(input.loadId)}`));
-    if(!snap.exists)error('LOAD_NOT_FOUND');return {load:snap.data()};
+    if(!snap.exists)error('LOAD_NOT_FOUND');
+    const load=snap.data();
+    if(load.state!=='DRAFT')return {load};
+    // Read live availability only for a draft detail, bounded by its line count.
+    const productIds=[...new Set(load.lines.map(l=>l.productId))];
+    if(productIds.length>40)return {load};
+    const products=await tx.getAll(...productIds.map(productId=>db.doc(`${c.base}/produtos/${id(productId)}`)));
+    const availability=Object.fromEntries(productIds.map((productId,i)=>{
+     const p=products[i].data()?.data;
+     return [productId,Math.max(0,Math.floor(Number(p?.estoqueGalpao??0)-Number(p?.estoqueReservadoDistribuicao??0)))];
+    }));
+    return {load,availability};
    }
    if(input.type==='manifest') {
     const snap=await tx.get(db.doc(`${c.root}/distribution_loads/${id(input.loadId)}`));
