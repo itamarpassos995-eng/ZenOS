@@ -5,6 +5,10 @@ on:
     branches: [feat/distribution-logistics-foundation]
     paths:
       - api/distribution-staging.js
+      - operational-functions/src/distribution/stagingPreorders.js
+      - scripts/distribution/staging-preflight.test.mjs
+      - src/core/distribution/stagingPreorderValidation.js
+      - src/pdv-distribution-homologacao-main.jsx
       - operational-functions/src/distribution/stagingFixture.js
       - operational-functions/src/distribution/trips.js
       - operational-functions/src/distribution/reconciliationService.js
