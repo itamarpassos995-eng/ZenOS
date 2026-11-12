@@ -9,6 +9,9 @@ on:
       - scripts/distribution/staging-preflight.test.mjs
       - src/core/distribution/stagingPreorderValidation.js
       - src/pdv-distribution-homologacao-main.jsx
+      - src/core/distribution/guidedLoad.js
+      - src/components/DistributionCentral.css
+      - scripts/distribution/guided-load.test.mjs
       - operational-functions/src/distribution/stagingFixture.js
       - operational-functions/src/distribution/trips.js
       - operational-functions/src/distribution/reconciliationService.js
