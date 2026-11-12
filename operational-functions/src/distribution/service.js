@@ -146,8 +146,8 @@ export function distributionService(db,{now=()=>Date.now(),staging=false,emulato
     if(input.type==='ADJUST_DRAFT') {
      // A draft has no physical stock reservations yet. Reductions release
      // their order allocations atomically, without posting inventory or finance.
-     if(load.state!=='DRAFT'||load.reservationState!=='NONE'||!Array.isArray(p.quantities)||
-        p.quantities.length!==load.lines.length||p.quantities.some((n,i)=>!Number.isSafeInteger(n)||n<0||n>load.lines[i].quantity)||
+     if(load.state!=='DRAFT'||load.reservationState!=='NONE')error('INVALID_TRANSITION');
+     if(!Array.isArray(p.quantities)||p.quantities.length!==load.lines.length||p.quantities.some((n,i)=>!Number.isSafeInteger(n)||n<0||n>load.lines[i].quantity)||
         !p.quantities.some(n=>n>0))error('INVALID_QUANTITY');
      const kept=[];
      for(const [index,line] of load.lines.entries()){
