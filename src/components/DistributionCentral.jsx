@@ -7,6 +7,7 @@ import {distributionPeriod} from '../core/distribution/period.js';
 import {createDistributionClient} from '../core/distribution/client.js';
 import {distributionText,distributionMoney} from '../core/distribution/i18n.js';
 import {manifestForCustomer,summarizeManifest} from '../core/distribution/domain.js';
+import {guidedLoadStage,guidedLoadStatus,guidedFullCheck,guidedTruckReady} from '../core/distribution/guidedLoad.js';
 import './DistributionCentral.css';
 import distributionPrintCss from './DistributionCentral.css?inline';
 const DistributionTrips=React.lazy(()=>import('./DistributionTrips.jsx'));
@@ -28,6 +29,7 @@ export default function DistributionCentral({operatorId:initialOperatorId='admin
  const [page,setPage]=useState(0),[cursors,setCursors]=useState([null]),[rows,setRows]=useState([]),[next,setNext]=useState(null),[counts,setCounts]=useState({}),[loading,setLoading]=useState(false),[reload,setReload]=useState(0);
  const [selection,setSelection]=useState({}),[detail,setDetail]=useState(null),[document,setDocument]=useState(null),[copy,setCopy]=useState(false),[confirm,setConfirm]=useState(null);
  const [vehicle,setVehicle]=useState(''),[driver,setDriver]=useState(''),[route,setRoute]=useState(''),[checked,setChecked]=useState({}),[checkReason,setCheckReason]=useState(''),[truck,setTruck]=useState({}),[customerDocument,setCustomerDocument]=useState('');
+ const [physicalChecked,setPhysicalChecked]=useState(false),[physicalLoaded,setPhysicalLoaded]=useState(false);
  const epoch=useRef(0),dialogRef=useRef(null),previousFocus=useRef(null);
  useEffect(()=>onAuthStateChanged(auth,u=>{setUser(u);setSession(null);setDetail(null);setRows([]);setSelection({});}),[]);
  useEffect(()=>()=>client?.clear(),[client]);
@@ -81,10 +83,48 @@ export default function DistributionCentral({operatorId:initialOperatorId='admin
   }
   const result=await client.login(operatorId,pin,scope);setSession(result);setTab(result.scope==='trip'||result.scope==='driver'?'trips':'loads');setRange(distributionPeriod('hoje',Date.now(),result.timeZone));setPin('');setPassword('');setNotice('');
  }catch(e){if(user)fail(e);else setError(t(codeOf(e))===t('error')?'AUTH_SIGN_IN_FAILED':codeOf(e));}finally{setBusy(false);}}
- async function openLoad(loadId){setBusy(true);setError('');try{const result=await client.query({type:'detail',loadId},{refresh:true});setDetail(result.load);setChecked({});setCheckReason('');setTruck({});setDocument(null);setConfirm(null);setVehicle(result.load.manifestVersions.at(-1)?.vehicle||'');setDriver(result.load.manifestVersions.at(-1)?.driver||'');setRoute(result.load.manifestVersions.at(-1)?.route||'');}catch(e){fail(e);}finally{setBusy(false);}}
+ async function openLoad(loadId){setBusy(true);setError('');try{const result=await client.query({type:'detail',loadId},{refresh:true});setDetail(result.load);setChecked({});setCheckReason('');setTruck({});setPhysicalChecked(false);setPhysicalLoaded(false);setDocument(null);setConfirm(null);setVehicle(result.load.manifestVersions.at(-1)?.vehicle||'');setDriver(result.load.manifestVersions.at(-1)?.driver||'');setRoute(result.load.manifestVersions.at(-1)?.route||'');}catch(e){fail(e);}finally{setBusy(false);}}
  async function operate(type,payload={}){if(!detail||busy)return;setBusy(true);setError('');setNotice('');try{
   await client.command(type,detail.id,detail.revision,payload);const result=await client.query({type:'detail',loadId:detail.id},{refresh:true});setDetail(result.load);setNotice('saved');setConfirm(null);setReload(n=>n+1);
  }catch(e){fail(e);}finally{setBusy(false);}}
+ // Re-read the authoritative load after every accepted command. If one action fails,
+ // stop without issuing the next; the last confirmed state remains usable.
+ async function guidedCommands(steps){
+  if(!detail||busy)return;
+  setBusy(true);setError('');setNotice('');
+  let current=detail;
+  try{
+   for(const step of steps){
+    await client.command(step.type,current.id,current.revision,step.payload||{});
+    const response=await client.query({type:'detail',loadId:current.id},{refresh:true});
+    current=response.load;setDetail(current);
+   }
+   setNotice('saved');setReload(n=>n+1);
+  }catch(e){
+   // Never replay a command automatically after a lost acknowledgment.
+   // A fresh read reconciles the visible state without writing.
+   try{const response=await client.query({type:'detail',loadId:current.id},{refresh:true});setDetail(response.load);}catch{}
+   fail(e);
+  }finally{setBusy(false);}
+ }
+ const guided=guidedLoadStatus(detail);
+ const checkResult=detail?guidedFullCheck(detail.lines,checked,checkReason):{valid:false,full:false,quantities:[],reason:''};
+ const labels=language==='es'
+  ?['Preparar carga','Conferir mercancías','Preparar salida','Expedir carga']
+  :['Preparar carga','Conferir mercadorias','Preparar saída','Expedir carga'];
+ const words=language==='es'?{
+  start:'Reservar y comenzar separación',check:'Confirmar conferencia',checkAll:'Marcar todas las cantidades',checkAttest:'Confirmo que conté físicamente los productos.',
+  finalizeCheck:'Confirmar y aprobar conferencia',truck:'Carga física en el vehículo',truckAll:'Usar las cantidades conferidas',
+  truckAttest:'Confirmo que la mercancía fue colocada físicamente en el vehículo.',truckConfirm:'Confirmar carga física',
+  manifest:'Emitir documento de carga',dispatch:'Confirmar salida del vehículo',advanced:'Detalles técnicos y operaciones excepcionales',
+  history:'Historial y versiones',next:'Próxima acción',complete:'Salida confirmada',part:'Existe una diferencia: indique el motivo y solicite aprobación.'
+ }:{
+  start:'Reservar e iniciar separação',check:'Confirmar conferência',checkAll:'Preencher quantidades previstas',checkAttest:'Confirmo que contei fisicamente os produtos.',
+  finalizeCheck:'Confirmar e aprovar conferência',truck:'Mercadorias colocadas no caminhão',truckAll:'Usar quantidades conferidas',
+  truckAttest:'Confirmo que as mercadorias foram fisicamente colocadas no veículo.',truckConfirm:'Confirmar carregamento físico',
+  manifest:'Emitir romaneio para conferência',dispatch:'Confirmar saída do veículo',advanced:'Detalhes técnicos e operações excepcionais',
+  history:'Histórico e versões',next:'Próxima ação',complete:'Saída confirmada',part:'Há divergência: informe o motivo e solicite aprovação.'
+ };
  async function create(){setBusy(true);setError('');try{
   const selections=Object.values(selection).flatMap(s=>s.items.map((item,index)=>({orderId:s.order.id,lineIndex:index,quantity:item})).filter(s=>s.quantity>0));
   // Keep a stable ID if a network response is lost. The client retains the command key.
