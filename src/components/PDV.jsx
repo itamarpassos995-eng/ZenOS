@@ -43,6 +43,8 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   const [focoInputCliente, setFocoInputCliente] = useState(false);
 
   const [modalProdutoPDVAberto, setModalProdutoPDVAberto] = useState(false);
+  const [salvandoProdutoPDV, setSalvandoProdutoPDV] = useState(false);
+  const salvandoProdutoPDVRef = useRef(false);
   const [produtoEmEdicaoPDV, setProdutoEmEdicaoPDV] = useState(null);
   const [formProdutoPDV, setFormProdutoPDV] = useState(normalizarProduto({}));
 
@@ -494,6 +496,10 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   };
 
   const salvarProdutoPDV = async () => {
+    if (salvandoProdutoPDVRef.current) return;
+    salvandoProdutoPDVRef.current = true;
+    setSalvandoProdutoPDV(true);
+    try {
     if (produtoEmEdicaoPDV?.permitirEstoqueNegativo === true && formProdutoPDV.permitirEstoqueNegativo !== true && Number(produtoEmEdicaoPDV.estoque) < 0) {
       return mostrarZen('warning', tx('Saldo negativo pendente','Saldo negativo pendiente','Outstanding negative stock'),
         tx('Regularize o estoque antes de desativar esta opção.','Regularice el stock antes de desactivar esta opción.','Reconcile stock before disabling this option.'));
@@ -514,6 +520,17 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
         ? Number(normalizarProduto(produtoEmEdicaoPDV).estoque) || 0
         : estoqueVitrineNovo + estoqueGalpaoNovo;
 
+    // Uma encomenda já lançada não pode ser recriada por um clique/retry
+    // com outro SKU automático enquanto ainda estiver no atendimento.
+    if (!produtoEmEdicaoPDV && usoUnicoEncomendado && itensVenda.some(item =>
+      ehEncomendaUsoUnico(item) &&
+      String(item.nome || '').trim().toLocaleLowerCase() === String(formProdutoPDV.nome || '').trim().toLocaleLowerCase() &&
+      Number(item.precoBRL || item.precoPraticadoBRL || 0) === Number(preco))) {
+      return mostrarZen('warning', tx('Encomenda já lançada','Pedido ya incluido','Order already added'),
+        tx('Esta encomenda já está neste atendimento. Ajuste a quantidade do item existente em vez de cadastrar novamente.',
+          'Este pedido ya está en la venta. Ajuste la cantidad existente en lugar de registrarlo de nuevo.',
+          'This order is already in the cart. Adjust its quantity instead of creating it again.'));
+    }
     if (skuJaExiste(produtos, formProdutoPDV.sku, produtoEmEdicaoPDV)) return mostrarZen('danger', tx('SKU duplicado','SKU duplicado','Duplicate SKU'), `${tx('Já existe outro produto com o SKU','Ya existe otro producto con el SKU','Another product already uses SKU')} ${formProdutoPDV.sku}. ${tx('Use um SKU diferente.','Use un SKU diferente.','Use a different SKU.')}`);
     const skuAjustado = ajustarSkuPorTipoProdutoRapido(formProdutoPDV.sku, usoUnicoEncomendado);
     const dadosFinais = normalizarProduto({
@@ -564,10 +581,30 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     try {
       let produtosConfirmados = listaProposta;
       if (typeof commitVendaCritica === 'function') {
-        const confirmado = await commitVendaCritica({
-          changes:[{ field:'produtos', value:listaProposta, storageSuffix:'produtos' }],
+        const confirmar = lista => commitVendaCritica({
+          changes:[{ field:'produtos', value:lista, storageSuffix:'produtos' }],
           stockEvents:eventoInicial ? [eventoInicial] : [],
         });
+        let confirmado = await confirmar(listaProposta);
+        // Base local defasada: uma única reconciliação autoritativa, sem
+        // reescrever preços/custos de outro terminal ou criar outro ID.
+        if (!confirmado?.cloudOk && confirmado?.error?.code === 'ZENOS_MONEY_CONFLICT' && !produtoEmEdicaoPDV) {
+          const snapshot = await getOperationalSnapshot(db, userId);
+          if (!snapshot.exists() || !Array.isArray(snapshot.data()?.produtos)) {
+            throw confirmado.error;
+          }
+          const remotos = snapshot.data().produtos;
+          const jaGravado = remotos.find(p => String(p.id) === String(dadosFinais.id));
+          if (jaGravado) {
+            confirmado = {cloudOk:true, values:{produtos:remotos}};
+          } else {
+            if (typeof recarregarDadosPDV !== 'function') throw confirmado.error;
+            await recarregarDadosPDV();
+            // A coleção remota prevalece em todos os produtos existentes.
+            // A única entidade adicionada é o produto deste cadastro.
+            confirmado = await confirmar([dadosFinais, ...remotos]);
+          }
+        }
         if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou o produto.');
         produtosConfirmados = confirmado.values?.produtos || listaProposta;
       } else if (eventoInicial) {
@@ -594,6 +631,10 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
         console.warn('[ZenOS] Confirmação do produto desconhecida; índice original preservado para reconciliação.');
       }
       mostrarZen('danger',tx('Cadastro não confirmado','Registro sin confirmar','Registration unconfirmed'),tx('Não foi possível confirmar o cadastro rápido. Ele pode existir no servidor; procure o produto original antes de repetir.','No se pudo confirmar el registro rápido. Puede existir en el servidor; compruebe antes de repetir.','Quick registration was not confirmed. It may exist on the server; check the original product before retrying.'),[erro?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
+    } finally {
+      salvandoProdutoPDVRef.current = false;
+      setSalvandoProdutoPDV(false);
+    }
     }
   };
 
@@ -1902,7 +1943,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
             </div>
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
               <button onClick={() => setModalProdutoPDVAberto(false)} style={{ flex: 1, backgroundColor: '#020617', border: '1px solid #1e293b', color: '#94a3b8', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}>{tx('Cancelar', 'Cancelar', 'Cancel')}</button>
-              <button onClick={salvarProdutoPDV} style={{ flex: 2, background: 'linear-gradient(135deg, #0284c7, #0369a1)', border: 'none', color: '#ffffff', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 900, cursor: 'pointer' }}>{tx('Salvar e Lançar na Venda', 'Guardar e Incluir', 'Save and Add')}</button>
+              <button disabled={salvandoProdutoPDV} onClick={salvarProdutoPDV} style={{ flex: 2, opacity: salvandoProdutoPDV ? 0.65 : 1, background: 'linear-gradient(135deg, #0284c7, #0369a1)', border: 'none', color: '#ffffff', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 900, cursor: 'pointer' }}>{salvandoProdutoPDV ? tx('Salvando...', 'Guardando...', 'Saving...') : tx('Salvar e Lançar na Venda', 'Guardar e Incluir', 'Save and Add')}</button>
             </div>
           </div>
         </div>
