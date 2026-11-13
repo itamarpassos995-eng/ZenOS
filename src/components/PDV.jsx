@@ -584,6 +584,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
         const confirmar = lista => commitVendaCritica({
           changes:[{ field:'produtos', value:lista, storageSuffix:'produtos' }],
           stockEvents:eventoInicial ? [eventoInicial] : [],
+          operationKey: `pdv:cadastro-produto:${dadosFinais.id}`,
         });
         let confirmado = await confirmar(listaProposta);
         // Base local defasada: uma única reconciliação autoritativa, sem
