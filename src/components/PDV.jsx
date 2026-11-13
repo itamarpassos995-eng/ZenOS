@@ -631,10 +631,10 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
         console.warn('[ZenOS] Confirmação do produto desconhecida; índice original preservado para reconciliação.');
       }
       mostrarZen('danger',tx('Cadastro não confirmado','Registro sin confirmar','Registration unconfirmed'),tx('Não foi possível confirmar o cadastro rápido. Ele pode existir no servidor; procure o produto original antes de repetir.','No se pudo confirmar el registro rápido. Puede existir en el servidor; compruebe antes de repetir.','Quick registration was not confirmed. It may exist on the server; check the original product before retrying.'),[erro?.message || tx('Falha de persistência','Falla de persistencia','Persistence failure')]);
+    }
     } finally {
       salvandoProdutoPDVRef.current = false;
       setSalvandoProdutoPDV(false);
-    }
     }
   };
 
