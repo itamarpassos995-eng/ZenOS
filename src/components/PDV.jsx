@@ -18,7 +18,7 @@ import { validarCredencialGerencial } from '../core/accessControl';
 import { calcularCmvVenda } from '../core/salesFinancials';
 import { validarComposicaoPagamento } from '../core/paymentValidation';
 import { interpretarValorMonetario } from '../core/cashMoneyInput';
-import { lerRascunhoPDV, salvarRascunhoPDV, apagarRascunhoPDV } from '../core/pdvDraft';
+import { lerRascunhoPDV, salvarRascunhoPDV, apagarRascunhoPDVProtegido, salvarRascunhoPDVProtegido, lerRascunhoPDVRecuperavel } from '../core/pdvDraft';
 import { getOperationalSnapshot } from '../core/operationalRepository';
 import { autoriaDoDocumento, autoriaDoOperador, resolverAutoriaVenda } from '../core/salesAttribution';
 import { indexarProdutosPDV, indexarClientesPDV, buscarProdutosPDV, buscarClientesPDV } from '../core/pdvSearch';
@@ -27,6 +27,32 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   pedidoPrivadoSolicitado, onPedidoPrivadoRecebido, perfilLoja, taxasCambio = {}, registrarFinanceiro, commitOperacaoCritica, commitVendaCritica, recarregarDadosPDV, vouchers = [], setVouchers, userId, produtos, setProdutos, clientes, setClientes, moeda, fmt, t, tx, converterDeBRL, converterParaBRL, historicoVendas, setHistoricoVendas, patenteUsuario, idioma, regrasDesconto, vendedores = [], operadorAtivo, sessaoAtiva }) {
   const [rascunhoInicial] = useState(() => lerRascunhoPDV(userId, operadorAtivo?.id));
   const [avisoRascunhoRecuperado, setAvisoRascunhoRecuperado] = useState(Boolean(rascunhoInicial?.itensVenda?.length));
+  // Recupera o backup durável quando o localStorage foi esgotado no terminal.
+  // Não substitui um atendimento que já recebeu itens nesta sessão.
+  useEffect(()=>{
+    if(!userId)return;
+    let ativo=true;
+    void lerRascunhoPDVRecuperavel(userId,operadorAtivo?.id).then(salvo=>{
+      if(!ativo || !salvo?.itensVenda?.length)return;
+      // Só substitui se o backup foi realmente atualizado depois da cópia inicial.
+      if(rascunhoInicial && Date.parse(salvo.atualizadoEm||0)<=Date.parse(rascunhoInicial.atualizadoEm||0))return;
+      setItensVenda(atual=>{
+        if(JSON.stringify(atual)!==JSON.stringify(rascunhoInicial?.itensVenda||[]))return atual;
+        setAutoriaAtendimento(salvo.autoriaAtendimento||null);
+        setDescontoTexto(salvo.descontoTexto||'0');
+        setNomeClienteVulso(salvo.nomeClienteVulso||'');
+        setClienteSelecionadoPDV(salvo.clienteSelecionadoPDV||null);
+        setClienteQuerFiscal(Boolean(salvo.clienteQuerFiscal));
+        setPagamentosLancados(salvo.pagamentosLancados||[]);
+        setPrePedidoEmAbertoId(salvo.prePedidoEmAbertoId||null);
+        setModalFechamentoAberto(Boolean(salvo.modalFechamentoAberto));
+        if(salvo.operacaoDocumento?.id)operacaoDocumentoRef.current=salvo.operacaoDocumento;
+        setAvisoRascunhoRecuperado(true);
+        return salvo.itensVenda;
+      });
+    }).catch(error=>console.warn('[ZenOS PDV] Recuperação do atendimento:',error));
+    return()=>{ativo=false};
+  },[userId,operadorAtivo?.id]);
   const [termoBusca, setTermoBusca] = useState('');
   const [indiceFocoBusca, setIndiceFocoBusca] = useState(0);
   const [itensVenda, setItensVenda] = useState(rascunhoInicial?.itensVenda || []);
@@ -986,7 +1012,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       const vendaId = operacaoDocumentoRef.current.id;
       // Mesmo ID/data em cada retry: não duplicar recibos financeiros após timeout.
       const instanteVenda = new Date(operacaoDocumentoRef.current.instante || new Date().toISOString());
-      const rascunhoSeguro = salvarRascunhoPDV(userId, operadorAtivo?.id, {
+      const rascunhoSeguro = await salvarRascunhoPDVProtegido(userId, operadorAtivo?.id, {
         itensVenda, autoriaAtendimento, descontoTexto, nomeClienteVulso,
         clienteSelecionadoPDV: clienteSelecionadoPDV ? {
           id: clienteSelecionadoPDV.id, nome: clienteSelecionadoPDV.nome,
@@ -1301,7 +1327,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                 String(v?.id ?? '') === String(vendaId) && v?.estado === 'pendente');
               if (confirmadoNoServidor) {
                 setHistoricoVendas(pedidos);
-                apagarRascunhoPDV(userId, operadorAtivo?.id);
+                await apagarRascunhoPDVProtegido(userId, operadorAtivo?.id);
                 setVendaConcluidaObj(confirmadoNoServidor);
                 setVendaSucesso(true);
                 setModalFechamentoAberto(true);
@@ -1355,7 +1381,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
           });
         } catch (_) {}
       }
-      apagarRascunhoPDV(userId, operadorAtivo?.id);
+      await apagarRascunhoPDVProtegido(userId, operadorAtivo?.id);
       setVendaConcluidaObj(novaVenda);
       setVendaSucesso(true);
       // Força a tela de imprimir o recibo a saltar, mesmo em Orçamentos/Pré-Pedidos
@@ -1386,8 +1412,8 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     janelaImpressao.document.close();
   };
 
-  const limparParaNovaVenda = () => {
-    apagarRascunhoPDV(userId, operadorAtivo?.id);
+  const limparParaNovaVenda = async () => {
+    await apagarRascunhoPDVProtegido(userId, operadorAtivo?.id);
     operacaoDocumentoRef.current = { assinatura: null, id: null, instante: null };
     setItensVenda([]); setDescontoTexto('0'); setPagamentosLancados([]);
     setAutoriaAtendimento(null);

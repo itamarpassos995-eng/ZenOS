@@ -922,11 +922,13 @@ export default function App() {
 
   const processarLoginOperador = async (operador,pin) => {
     const uid=userId;
-    const snapshot=await getOperationalSnapshot(db,uid);
+    // V2: confirmação autoritativa dos operadores é liberada antes da leitura
+    // de produtos/vendas. Na V1, mantém a consulta operacional original.
+    const acesso=await getOperationalAccessSnapshot(db,uid);
+    const snapshot=Array.isArray(acesso?.vendedores)?null:await getOperationalSnapshot(db,uid);
     if(authRouteUidRef.current!==uid)throw new Error(tx('A sessão mudou. Entre novamente.','La sesión cambió. Ingrese nuevamente.','Session changed. Sign in again.'));
-    // Resolve roles and verify PIN again against the complete confirmed snapshot:
-    // a changed PIN, deleted operator or changed permissions during bootstrap cannot reuse the preview.
-    const atuais=snapshot.exists()?snapshot.data().vendedores:null;
+    // PIN, permissões e operador são sempre conferidos contra dados do servidor.
+    const atuais=Array.isArray(acesso?.vendedores)?acesso.vendedores:(snapshot?.exists()?snapshot.data().vendedores:null);
     const atualizado=operadorConfirmadoTerminal({vendedores:atuais,operadorId:operador.id,adminInicial:nuvemSincronizada&&!operadoresConfirmados?syncBaseRef.current.get('vendedores')?.find(v=>v.id==='admin'):null});
     if(!atualizado||!(await verificarPinOperador(atualizado,pin)))throw new Error(tx('O acesso do operador mudou. Confira o PIN e tente novamente.','El acceso del operador cambió. Verifique el PIN e intente nuevamente.','Operator access changed. Check the PIN and try again.'));
     if(authRouteUidRef.current!==uid)throw new Error(tx('A sessão mudou. Entre novamente.','La sesión cambió. Ingrese nuevamente.','Session changed. Sign in again.'));
