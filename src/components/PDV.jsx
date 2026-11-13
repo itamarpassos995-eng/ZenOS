@@ -503,12 +503,18 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     try { dinheiroProduto=registrarValoresProduto(formProdutoPDV,moeda,converterParaBRL,produtoEmEdicaoPDV,converterDeBRL); }
     catch(error){return mostrarZen('warning',tx('Valor inválido','Importe inválido','Invalid amount'),error.message);}
     const {custoBRL:custo,precoBRL:preco,preco2BRL:preco2,preco3BRL:preco3}=dinheiroProduto;
-    const estoque = produtoEmEdicaoPDV
-      ? Number(normalizarProduto(produtoEmEdicaoPDV).estoque) || 0
-      : estoqueVitrineNovo + estoqueGalpaoNovo;
+    // Os saldos do formulário são os valores reais digitados no cadastro rápido.
+    // Encomendas de uso único nunca criam saldo ou movimentação de estoque.
+    const usoUnicoEncomendado = Boolean(formProdutoPDV.usoUnicoEncomendado);
+    const estoqueVitrineNovo = usoUnicoEncomendado ? 0 : Number(formProdutoPDV.estoqueVitrine) || 0;
+    const estoqueGalpaoNovo = usoUnicoEncomendado ? 0 : Number(formProdutoPDV.estoqueGalpao) || 0;
+    const estoque = usoUnicoEncomendado
+      ? 0
+      : produtoEmEdicaoPDV
+        ? Number(normalizarProduto(produtoEmEdicaoPDV).estoque) || 0
+        : estoqueVitrineNovo + estoqueGalpaoNovo;
 
     if (skuJaExiste(produtos, formProdutoPDV.sku, produtoEmEdicaoPDV)) return mostrarZen('danger', tx('SKU duplicado','SKU duplicado','Duplicate SKU'), `${tx('Já existe outro produto com o SKU','Ya existe otro producto con el SKU','Another product already uses SKU')} ${formProdutoPDV.sku}. ${tx('Use um SKU diferente.','Use un SKU diferente.','Use a different SKU.')}`);
-    const usoUnicoEncomendado = Boolean(formProdutoPDV.usoUnicoEncomendado);
     const skuAjustado = ajustarSkuPorTipoProdutoRapido(formProdutoPDV.sku, usoUnicoEncomendado);
     const dadosFinais = normalizarProduto({
       ...formProdutoPDV,
