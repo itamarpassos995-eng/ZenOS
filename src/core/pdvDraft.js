@@ -99,15 +99,18 @@ export async function salvarRascunhoPDVProtegido(lojaId,operadorId,rascunho) {
 
 export async function lerRascunhoPDVRecuperavel(lojaId,operadorId) {
   const local=lerRascunhoPDV(lojaId,operadorId);
-  if(local) return local;
   const chave=chaveRascunhoPDV(lojaId,operadorId);
-  if(!chave)return null;
+  if(!chave)return local;
   try {
-    const alternativo=await executarBackup(chave,'readonly');
-    return correspondeAoOperador(alternativo,lojaId,operadorId)?alternativo:null;
+    const registro=await executarBackup(chave,'readonly');
+    const alternativo=correspondeAoOperador(registro,lojaId,operadorId)?registro:null;
+    // Se o localStorage estava cheio, ele pode conter uma versão antiga válida.
+    // O backup mais recente deve prevalecer para não perder itens do atendimento.
+    if(!alternativo)return local;
+    return !local || Date.parse(alternativo.atualizadoEm||0)>Date.parse(local.atualizadoEm||0) ? alternativo : local;
   }catch(error){
     console.warn('[ZenOS PDV] Não foi possível recuperar o backup alternativo.',error);
-    return null;
+    return local;
   }
 }
 
