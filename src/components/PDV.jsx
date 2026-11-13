@@ -30,12 +30,14 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   // Recupera o backup durável quando o localStorage foi esgotado no terminal.
   // Não substitui um atendimento que já recebeu itens nesta sessão.
   useEffect(()=>{
-    if(!userId || rascunhoInicial)return;
+    if(!userId)return;
     let ativo=true;
     void lerRascunhoPDVRecuperavel(userId,operadorAtivo?.id).then(salvo=>{
       if(!ativo || !salvo?.itensVenda?.length)return;
+      // Só substitui se o backup foi realmente atualizado depois da cópia inicial.
+      if(rascunhoInicial && Date.parse(salvo.atualizadoEm||0)<=Date.parse(rascunhoInicial.atualizadoEm||0))return;
       setItensVenda(atual=>{
-        if(atual.length)return atual;
+        if(JSON.stringify(atual)!==JSON.stringify(rascunhoInicial?.itensVenda||[]))return atual;
         setAutoriaAtendimento(salvo.autoriaAtendimento||null);
         setDescontoTexto(salvo.descontoTexto||'0');
         setNomeClienteVulso(salvo.nomeClienteVulso||'');
