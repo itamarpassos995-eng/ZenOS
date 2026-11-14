@@ -25,6 +25,26 @@ assert.equal(venda30.produtos[0].estoqueGalpao, 20);
 assert.deepEqual(venda30.itens[0].movimentoEstoqueVenda, { vitrine: 0, galpao: 30, total: 30 });
 ok('Cenário real: depósito 50 - venda 30 = depósito/total 20');
 
+// Large tenant regression: legacy catalog fields must not become incidental
+// writes when a cashier sells one product. This was triggering V2 size limits.
+const catalogoLegado = Array.from({ length: 1200 }, (_, index) => ({
+  id: `LEGADO-${index}`, nome: `Produto legado ${index}`, estoque: 15,
+  observacao: 'informação comercial existente',
+}));
+const vendaLojaGrande = aplicarVendaAoEstoque(catalogoLegado, [
+  { id: 'linha-venda', produtoOriginalId: 'LEGADO-5', qtd: 2, tipoItem: 'mercadoria' },
+]);
+assert.equal(vendaLojaGrande.produtos.length, 1200);
+assert.equal(vendaLojaGrande.produtos[5].estoque, 13);
+assert.equal(vendaLojaGrande.produtos[5].estoqueVitrine, 13);
+assert.equal(vendaLojaGrande.produtos[5].estoqueGalpao, 0);
+assert.strictEqual(vendaLojaGrande.produtos[0], catalogoLegado[0]);
+assert.strictEqual(vendaLojaGrande.produtos[1199], catalogoLegado[1199]);
+assert.equal(vendaLojaGrande.produtos[0].estoqueVitrine, undefined);
+assert.equal(vendaLojaGrande.produtos.filter((produto, index) => produto !== catalogoLegado[index]).length, 1);
+assert.equal(catalogoLegado[5].estoque, 15);
+ok('Loja grande: venda altera somente o SKU vendido sem normalizar os demais 1199 registros');
+
 const alocRet10 = calcularAlocacaoReposicaoDevolucao(venda30.itens[0], 0, 10);
 const retorno10 = reporEstoqueProduto(venda30.produtos[0], 10, alocRet10);
 assert.equal(retorno10.produto.estoque, 30);
