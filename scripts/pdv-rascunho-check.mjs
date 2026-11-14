@@ -54,7 +54,7 @@ assert.match(pdv,/useState\(\(\) => lerRascunhoPDV\(userId, operadorAtivo\?\.id\
 assert.match(pdv,/const instanteVenda = new Date\(operacaoDocumentoRef\.current\.instante/);
 assert.match(pdv,/if \(!rascunhoSeguro\)/);
 assert.match(pdv,/if \(!confirmado\?\.cloudOk\)[\s\S]*?return;/);
-assert.match(pdv,/apagarRascunhoPDV\(userId, operadorAtivo\?\.id\);\s*setVendaConcluidaObj/);
+assert.match(pdv,/await apagarRascunhoPDVProtegido\(userId, operadorAtivo\?\.id\);\s*setVendaConcluidaObj/);
 assert.match(pdv,/operationKey: `pdv:\$\{vendaId\}`/);
 assert.match(pdv,/\['V2_REUSE_ID','ZENOS_ENTITY_DELETED_REMOTE'\]\.includes\(confirmado\?\.error\?\.code\)/);
 assert.match(app,/recarregarDadosPDV=\{recarregarDadosPDV\}/);

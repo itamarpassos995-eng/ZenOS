@@ -199,7 +199,11 @@ export const reporEstoqueProduto = (produto, quantidade, alocacaoPreferida = nul
 };
 
 export const aplicarVendaAoEstoque = (produtos = [], itensVenda = [], referenciasParaRemover = []) => {
-  let novosProdutos = (produtos || []).map((produto) => aplicarEstoqueNormalizado(produto));
+  // Preserve untouched catalog records byte-for-byte. Normalizing the whole store
+  // on every checkout silently rewrites legacy products and can exceed V2's
+  // atomic transaction budget even for a sale with just one item.
+  // baixarEstoqueProduto normalizes only products actually sold.
+  let novosProdutos = (produtos || []).slice();
   const itensComMovimento = [];
 
   for (const item of itensVenda || []) {

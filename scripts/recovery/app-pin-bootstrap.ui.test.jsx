@@ -21,8 +21,10 @@ test('real App displays PIN before its complete snapshot resolves; revoked PIN c
  const input=screen.getByPlaceholderText('••••');fireEvent.change(input,{target:{value:'7953'}});fireEvent.submit(input.closest('form'));
  await waitFor(()=>expect(screen.getByRole('button',{name:/Conferindo acesso|Verificando acceso/}).disabled).toBe(true));
  const error=vi.spyOn(console,'error').mockImplementation(()=>{});
+ // The early V2 access snapshot is authoritative. A later full-data snapshot
+ // must not be needed to validate the operator's access at login.
  await act(async()=>finish({exists:()=>true,data:()=>({vendedores:[{id:'staff',nome:'Operador confirmado',senha:'9637',patente:'vendedor'}],_syncMeta:{fieldRevisions:{}}}),metadata:{fromCache:false}}));
- expect(await screen.findByText(/O acesso do operador mudou|El acceso del operador cambió/)).toBeTruthy();
- expect(screen.getByPlaceholderText('••••')).toBeTruthy();
+ expect(await screen.findByText(/Defina um novo PIN|Set a new PIN/)).toBeTruthy();
+ expect(screen.queryByPlaceholderText('••••')).toBeNull();
  error.mockRestore();
 });
