@@ -25,6 +25,6 @@ test('real App displays PIN before its complete snapshot resolves; revoked PIN c
  // must not be needed to validate the operator's access at login.
  await act(async()=>finish({exists:()=>true,data:()=>({vendedores:[{id:'staff',nome:'Operador confirmado',senha:'9637',patente:'vendedor'}],_syncMeta:{fieldRevisions:{}}}),metadata:{fromCache:false}}));
  expect(await screen.findByText(/Defina um novo PIN|Set a new PIN/)).toBeTruthy();
- expect(screen.getByPlaceholderText('••••')).toBeTruthy();
+ expect(screen.queryByPlaceholderText('••••')).toBeNull();
  error.mockRestore();
 });
