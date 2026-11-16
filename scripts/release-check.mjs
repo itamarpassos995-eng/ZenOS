@@ -51,6 +51,7 @@ if (!emulator) run([
   'scripts/recovery/vipe-route-recovery.ui.test.jsx',
   'scripts/recovery/client-build-recovery.ui.test.jsx',
   'scripts/recovery/clientes-receipt.ui.test.jsx',
+  'scripts/recovery/zenos-update-welcome.ui.test.jsx',
   'scripts/recovery/clientes-quitado-status.ui.test.jsx',
   'scripts/recovery/exchange-rate.ui.test.jsx',
 ]);
