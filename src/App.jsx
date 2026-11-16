@@ -1,3 +1,4 @@
+import {installMissingChunkRecovery} from './core/missingChunkRecovery.js';
 import {operadorConfirmadoTerminal} from './core/terminalAccess.js';
 import {financialPeriod,withinFinancialPeriod} from './core/financialPeriod.js';
 import { projetarProdutoMonetario } from './core/productMoney.js';
@@ -19,6 +20,8 @@ import { auditarFinanceiroVenda } from './core/financialAudit';
 import { registroEhDoDiaLocal } from './core/dates';
 import { filtrarVendasHojeVisiveis } from './core/salesTodayScope';
 import LandingPage from './components/LandingPage';
+
+installMissingChunkRecovery();
 
 const Produtos = React.lazy(() => import('./components/Produtos'));
 const Fornecedores = React.lazy(() => import('./components/Fornecedores'));
