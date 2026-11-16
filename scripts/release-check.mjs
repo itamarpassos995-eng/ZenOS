@@ -48,6 +48,7 @@ if (!emulator) run([
   'node_modules/vitest/vitest.mjs', 'run', '--config', 'vitest.recovery.config.js',
   'scripts/recovery/i18n-spanish.ui.test.jsx',
   'scripts/recovery/pdv-draft.ui.test.jsx',
+  'scripts/recovery/vipe-route-recovery.ui.test.jsx',
   'scripts/recovery/clientes-receipt.ui.test.jsx',
   'scripts/recovery/clientes-quitado-status.ui.test.jsx',
   'scripts/recovery/exchange-rate.ui.test.jsx',
