@@ -120,7 +120,11 @@ export async function persistV2BusinessOperationSafe({db,userId,changes=[],finan
      for(const w of [...ledger,...audit])if((await tx.get(w.ref)).exists())throw v2Error('V2_HISTORY_COLLISION','Histórico já existe sem comprovante da operação. Reconciliação necessária.');
      const receipt=cleanV2Value({schema:2,key,fingerprint,sequence:next,revisions,patches,financialEntries:normalized,
       reads:writes.length+ledger.length+audit.length+4+(fx?1:0),writes:count,createdAtClient:new Date().toISOString()});
-     requireSize(receipt,750_000,'V2_RECEIPT_SIZE',{changedEntities:patches.length});requireSize([...writes,...ledger,...audit].map(w=>w.value),2_000_000,'V2_COMMIT_SIZE',{changedEntities:writes.length+ledger.length+audit.length});
+     // Firestore permits a document up to 1 MiB. Leave ~148 KiB for document
+     // encoding/field-name overhead instead of rejecting valid multi-item PDV
+     // receipts at the old arbitrary 750 KB threshold. Retain the atomic
+     // transaction's entity, request, write-count and 2 MB payload guards.
+     requireSize(receipt,900_000,'V2_RECEIPT_SIZE',{changedEntities:patches.length});requireSize([...writes,...ledger,...audit].map(w=>w.value),2_000_000,'V2_COMMIT_SIZE',{changedEntities:writes.length+ledger.length+audit.length});
      for(const w of writes)tx.set(w.ref,w.value);
      for(const w of [...ledger,...audit])tx.set(w.ref,{...w.value,serverRecordedAt:serverTimestamp(),_v2:{generation:session.generation,commandId:receiptId,sequence:next}});
      tx.set(receiptRef,receipt);tx.update(headRef,{sequence:next,lastReceipt:receiptId,fieldCounts,fieldRevisions:revisions,updatedAtServer:serverTimestamp()});
