@@ -32,7 +32,7 @@ export default function ZenOSUpdateWelcome() {
       role="status"
       aria-live="polite"
       data-testid="zenos-update-welcome"
-      className="fixed bottom-4 right-4 z-[80] w-[calc(100vw-2rem)] max-w-[440px] overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 text-slate-100 shadow-2xl sm:bottom-6 sm:right-6"
+      className="fixed bottom-24 right-4 z-[80] w-[calc(100vw-2rem)] max-w-[440px] overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 text-slate-100 shadow-2xl sm:bottom-28 sm:right-6"
     >
       <div className="h-1 bg-gradient-to-r from-rose-600 via-rose-400 to-emerald-400" />
       <div className="p-5">
