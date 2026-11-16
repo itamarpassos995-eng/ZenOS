@@ -12,6 +12,7 @@ import {
   precoLiquidoUnitarioItem,
 } from '../src/core/salesFinancials.js';
 import fs from 'node:fs';
+import {compactProductReceiptPatch,expandProductReceiptPatch} from '../src/core/v2ReceiptDelta.js';
 
 const ok = (nome) => console.log(`[OK] ${nome}`);
 const quase = (a, b, eps = 0.001) => assert.ok(Math.abs(a - b) <= eps, `${a} != ${b}`);
@@ -126,5 +127,28 @@ assert.match(v2, /requireSize\(\[\.\.\.writes,\.\.\.ledger,\.\.\.audit\]\.map\(w
 assert.match(v2, /requireSize\(patch,256_000,'V2_ENTITY_SIZE'/);
 assert.ok(738 * 1024 < 900_000 && 900_000 < 1024 * 1024);
 ok('VIPE: recibo de 738 KiB permitido com limite conservador abaixo de 1 MiB');
+
+// Regression VIPE 16/11: 84 changed products previously placed full catalogue
+// images into a 1.238 MiB receipt, even though only stock changed.
+const fullProductImage='data:image/jpeg;base64,'+'R'.repeat(15000);
+const beforeProductRecords=Array.from({length:84},(_,i)=>({
+ field:'produtos',routeId:'V-'+i,deleted:false,version:5,
+ data:{id:'V-'+i,nome:'Produto '+i,imagem:fullProductImage,estoque:12,estoqueVitrine:12,estoqueGalpao:0,precoBRL:20},
+}));
+const fullProductPatches=beforeProductRecords.map(record=>({
+ ...record,version:6,data:{...record.data,estoque:11,estoqueVitrine:11},commandId:'VENDA-VIPE',
+}));
+const compacted=fullProductPatches.map((patch,i)=>compactProductReceiptPatch(patch,beforeProductRecords[i]));
+assert.ok(JSON.stringify(fullProductPatches).length>1000000);
+assert.ok(JSON.stringify(compacted).length<900000);
+for(let i=0;i<compacted.length;i++){
+ assert.equal(compacted[i].data,undefined);
+ assert.deepEqual(expandProductReceiptPatch(compacted[i],beforeProductRecords[i]),fullProductPatches[i]);
+}
+assert.throws(()=>expandProductReceiptPatch(compacted[0],null),{code:'V2_RECEIPT_DELTA_BASE'});
+const removalFull={...fullProductPatches[0],data:{id:'V-0',nome:'Produto 0',estoque:11}};
+assert.deepEqual(expandProductReceiptPatch(compactProductReceiptPatch(removalFull,beforeProductRecords[0]),beforeProductRecords[0]),removalFull);
+assert.deepEqual(compactProductReceiptPatch(fullProductPatches[0],null),fullProductPatches[0]);
+ok('VIPE: 84 alterações com imagens grandes geram recibo compacto e replay idêntico');
 
 console.log('\nATT 02: 10 grupos de verificações aprovados.');

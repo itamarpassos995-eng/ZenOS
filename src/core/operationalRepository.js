@@ -1,3 +1,4 @@
+import {expandProductReceiptPatch} from './v2ReceiptDelta.js';
 import {cacheScope,readOperationalCache,writeOperationalCache,appendOperationalReceipt} from './operationalCache.js';
 import { executarLotes } from './boundedTasks.js';
 import {doc,collection,getDocFromServer,getDocFromCache,getDocsFromServer,getDocsFromCache,onSnapshot,query,orderBy,documentId,limit,startAfter,where} from 'firebase/firestore';
@@ -47,7 +48,8 @@ export class V2Session {
   for(const p of receipt.patches||[]){
    if(V2_COLLECTIONS[p.field]){
     if(!this.records.has(p.field))this.records.set(p.field,new Map());
-    this.records.get(p.field).set(p.routeId,{...p});
+    const previous=this.records.get(p.field).get(p.routeId);
+    this.records.get(p.field).set(p.routeId,expandProductReceiptPatch(p,previous));
    }else this.values[p.field]=p.value;
   }
   this.sequence=receipt.sequence;this.revisions={...receipt.revisions};
