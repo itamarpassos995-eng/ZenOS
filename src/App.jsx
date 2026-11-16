@@ -1,4 +1,5 @@
 import {operadorConfirmadoTerminal} from './core/terminalAccess.js';
+import ZenOSUpdateWelcome from './components/ZenOSUpdateWelcome.jsx';
 import {financialPeriod,withinFinancialPeriod} from './core/financialPeriod.js';
 import { projetarProdutoMonetario } from './core/productMoney.js';
 import { useUiLanguage } from './core/useUiLanguage.js';
@@ -1953,6 +1954,7 @@ export default function App() {
         }
       `}</style>
       
+      <ZenOSUpdateWelcome />
       <ZenNavigationLayout
         sidebarProps={{
           ecraAtual,
