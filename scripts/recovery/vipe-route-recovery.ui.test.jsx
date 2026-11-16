@@ -55,3 +55,19 @@ test('VIPE: conflicting authoritative route does not fall back to legacy or retr
  expect(mock.reroutes).toBe(0);
  expect(mock.v2Commits).toHaveLength(0);
 });
+
+test('VIPE: authoritative legacy route triggers only one guarded retry, no write loop',async()=>{
+ mock.serverMode='legacy';
+ const pending={id:'VENDA-VIPE-PENDENTE'};
+ const result=await persistV1BusinessOperationSafe({
+  db:{},userId:'vipe',
+  changes:[{field:'historicoVendas',baseValue:[],value:[pending]}],
+  operationKey:'pdv:VENDA-VIPE-PENDENTE',
+ });
+ expect(result.cloudOk).toBe(false);
+ expect(result.error.code).toBe('ZENOS_STORAGE_ROUTE_MISMATCH');
+ expect(result.error.routeMode).toBe('legacy');
+ expect(result.error.recoveryAttempts).toBe(1);
+ expect(mock.reroutes).toBe(1);
+ expect(mock.v2Commits).toHaveLength(0);
+});
