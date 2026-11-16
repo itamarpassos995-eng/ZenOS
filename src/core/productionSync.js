@@ -1,5 +1,5 @@
 import {exchangeRateSnapshotsEqual} from './exchangeRateGuard.js';
-import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { doc, getDocFromServer, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { getOperationalWriteSession, clearOperationalSession } from './operationalRepository.js';
 import { zenosStorage } from './storage.js';
 import { getV1OperationPath, notifyPersistenceStatus, safeSetLocalJson } from './persistenceSafety.js';
@@ -570,18 +570,30 @@ export const persistV1BusinessOperationSafe = async ({
     // submit the SAME idempotent command through the V2 atomic protocol.
     // Never fall back to V1 when the current route is V2.
     if (error?.code === 'ZENOS_STORAGE_ROUTE_CHANGED') {
+      // Do not guess whether this is V1 or V2 from stale React/localStorage
+      // state. Read the authoritative route point document once, then rebuild.
+      // The rejected V1 transaction has performed no writes.
       try {
-        clearOperationalSession(db,userId);
-        const refreshedV2 = await getOperationalWriteSession(db,userId);
-        if (refreshedV2 && !refreshedV2.failed && refreshedV2.control?.mode === 'v2') {
+        const routeRef=doc(db,'lojas',String(userId),'dados','storage_control');
+        const routeSnap=await getDocFromServer(routeRef);
+        const mode=routeSnap.exists()?String(routeSnap.data()?.mode||'unknown'):'legacy';
+        if(mode==='v2'){
+          clearOperationalSession(db,userId);
+          const refreshedV2=await getOperationalWriteSession(db,userId);
+          if(!refreshedV2||refreshedV2.failed||refreshedV2.control?.mode!=='v2'){
+            throw Object.assign(new Error('A loja está na V2, mas a sessão segura não foi carregada. Nenhuma venda foi gravada. Reabra o acesso sem limpar os dados.'),{code:'ZENOS_V2_ROUTE_NOT_READY',routeMode:mode});
+          }
           recordSyncMetric('v2RouteRecoveries','operacao_critica');
           return await (await import('./operationalV2.js')).persistV2BusinessOperationSafe({
             db,userId,changes:valid,financialEntries,stockEvents,guards,operationKey,
           });
         }
-      } catch (routeError) {
-        // Preserve the original protected cart and operationKey. A failed
-        // bootstrap must NEVER cause an unguarded legacy write or new sale ID.
+        return {ok:false,cloudOk:false,error:Object.assign(
+          new Error('O servidor indica rota '+mode+' enquanto o terminal tentou V1. A gravação foi bloqueada sem modificar a venda.'),
+          {code:'ZENOS_STORAGE_ROUTE_MISMATCH',routeMode:mode},
+        ),values:{},revisions:{}};
+      } catch(routeError) {
+        // Never send the same command again through V1 after this condition.
         return {ok:false,cloudOk:false,error:routeError,values:{},revisions:{}};
       }
     }

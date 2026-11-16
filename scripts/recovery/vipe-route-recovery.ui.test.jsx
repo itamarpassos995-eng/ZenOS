@@ -1,8 +1,9 @@
 import {test,expect,vi,beforeEach} from 'vitest';
-const mock=vi.hoisted(()=>({route:null,reroutes:0,v2Commits:[]}));
+const mock=vi.hoisted(()=>({route:null,reroutes:0,v2Commits:[],serverMode:'v2'}));
 vi.mock('firebase/firestore',async original=>({
   ...(await original()),
   doc:(_db,...path)=>path.join('/'),
+  getDocFromServer:async()=>({exists:()=>true,data:()=>({mode:mock.serverMode})}),
   runTransaction:async (_db,handler)=>handler({
     get:async path=>{
       if(path==='lojas/vipe/dados/storage_control')return {exists:()=>true,data:()=>({mode:'v2'})};
@@ -22,7 +23,7 @@ vi.mock('../../src/core/operationalV2.js',()=>({
 }));
 import {persistV1BusinessOperationSafe} from '../../src/core/productionSync.js';
 
-beforeEach(()=>{mock.route=null;mock.reroutes=0;mock.v2Commits.length=0;});
+beforeEach(()=>{mock.route=null;mock.reroutes=0;mock.v2Commits.length=0;mock.serverMode='v2';});
 
 test('VIPE: V1 guard rejects changed route; retry V2 with same sale, stock, payment and idempotency key',async()=>{
  const sale={id:'VENDA-VIPE-ORIGINAL',itens:[{id:'I',qtd:1}]};
@@ -43,4 +44,14 @@ test('VIPE: V1 guard rejects changed route; retry V2 with same sale, stock, paym
  expect(mock.v2Commits[0].financialEntries).toEqual(command.financialEntries);
  expect(mock.v2Commits[0].stockEvents).toEqual(command.stockEvents);
  expect(mock.v2Commits[0].guards).toEqual(command.guards);
+});
+
+test('VIPE: conflicting authoritative route does not fall back to legacy or retry payment',async()=>{
+ mock.serverMode='maintenance';
+ const result=await persistV1BusinessOperationSafe({db:{},userId:'vipe',changes:[{field:'historicoVendas',baseValue:[],value:[{id:'SALE-PENDING'}]}],operationKey:'pdv:SALE-PENDING'});
+ expect(result.cloudOk).toBe(false);
+ expect(result.error.code).toBe('ZENOS_STORAGE_ROUTE_MISMATCH');
+ expect(result.error.routeMode).toBe('maintenance');
+ expect(mock.reroutes).toBe(0);
+ expect(mock.v2Commits).toHaveLength(0);
 });
