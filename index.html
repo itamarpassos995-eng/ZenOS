@@ -11,6 +11,35 @@
   </head>
   <body class="bg-slate-900 text-slate-100">
     <div id="root"></div>
+    <script>
+      // Vite emits this event when an old long-lived browser tab tries to load
+      // a chunk removed by a newer deployment. Never erase local app data.
+      window.addEventListener('vite:preloadError', function(event) {
+        event.preventDefault();
+        if (document.getElementById('zenos-update-recovery')) return;
+        var overlay = document.createElement('div');
+        overlay.id = 'zenos-update-recovery';
+        overlay.setAttribute('role', 'alertdialog');
+        overlay.setAttribute('aria-modal', 'true');
+        overlay.setAttribute('aria-label', 'Atualização do ZenOS necessária');
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:rgba(2,6,23,.95);color:#f8fafc;font:16px system-ui,sans-serif;padding:20px';
+        var panel = document.createElement('div');
+        panel.style.cssText = 'max-width:440px;background:#111827;border:1px solid #475569;border-radius:16px;padding:24px;box-shadow:0 18px 60px #0009';
+        var heading = document.createElement('h2');
+        heading.textContent = 'ZenOS recebeu uma atualização';
+        heading.style.cssText = 'font-size:20px;margin:0 0 12px';
+        var message = document.createElement('p');
+        message.textContent = 'Uma parte da versão anterior não está mais disponível. Recarregue o aplicativo para abrir a versão atual. Não limpe os dados do navegador. Se houver uma venda pendente, confira o histórico antes de tentar concluí-la novamente.';
+        message.style.cssText = 'line-height:1.55;color:#cbd5e1;margin:0 0 20px';
+        var button = document.createElement('button');
+        button.textContent = 'Recarregar ZenOS';
+        button.style.cssText = 'background:#e11d48;border:0;border-radius:10px;padding:14px 18px;color:white;font:600 16px system-ui,sans-serif;width:100%;cursor:pointer';
+        button.addEventListener('click', function() { window.location.reload(); });
+        panel.appendChild(heading);panel.appendChild(message);panel.appendChild(button);overlay.appendChild(panel);
+        document.body.appendChild(overlay);
+        button.focus();
+      });
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
