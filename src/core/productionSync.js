@@ -1,4 +1,5 @@
 import {exchangeRateSnapshotsEqual} from './exchangeRateGuard.js';
+import {dispatchRouteRecovery} from './clientBuildRecovery.js';
 import { doc, getDocFromServer, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { getOperationalWriteSession, clearOperationalSession } from './operationalRepository.js';
 import { zenosStorage } from './storage.js';
@@ -602,10 +603,12 @@ export const persistV1BusinessOperationSafe = async ({
             routeRecoveryAttempts:1,
           });
         }
-        return {ok:false,cloudOk:false,error:Object.assign(
+        const blocked=Object.assign(
           new Error('Rota '+mode+' confirmada, mas a gravação foi recusada após verificação. Nenhuma nova tentativa automática será feita.'),
           {code:'ZENOS_STORAGE_ROUTE_MISMATCH',routeMode:mode,recoveryAttempts:routeRecoveryAttempts},
-        ),values:{},revisions:{}};
+        );
+        dispatchRouteRecovery(blocked);
+        return {ok:false,cloudOk:false,error:blocked,values:{},revisions:{}};
       } catch(routeError) {
         // Never send the same command again through V1 after this condition.
         return {ok:false,cloudOk:false,error:routeError,values:{},revisions:{}};
