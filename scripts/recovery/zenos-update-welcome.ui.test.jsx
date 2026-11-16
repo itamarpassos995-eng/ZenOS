@@ -33,3 +33,11 @@ test('older version triggers a new notice exactly once',()=>{
  expect(screen.getByText('ZenOS Atualizado com Sucesso!')).toBeTruthy();
  expect(localStorage.getItem(ZENOS_UPDATE_ACK_KEY)).toBe(CLIENT_BUILD_ID);
 });
+
+test('toast is positioned above the floating Zen IA control',()=>{
+ render(<ZenOSUpdateWelcome />);
+ const toast=screen.getByTestId('zenos-update-welcome');
+ expect(toast.className).toContain('bottom-24');
+ expect(toast.className).toContain('sm:bottom-28');
+ expect(screen.getByRole('button',{name:'Entendido / Continuar'})).toBeTruthy();
+});
