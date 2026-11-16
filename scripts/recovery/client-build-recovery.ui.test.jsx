@@ -42,6 +42,27 @@ test('first boot records version but never deletes a protected cart',async()=>{
  expect(mocks.pending).not.toHaveBeenCalled();
 });
 
+test('build change with protected sale backup never opens blocking modal or flushes writes',async()=>{
+ installRecoveryPrompt();
+ localStorage.setItem(CLIENT_BUILD_KEY,'previous-build');
+ localStorage.setItem('zenos_vipe_pdv_rascunho_admin',JSON.stringify({itensVenda:[{id:'sale-123'}]}));
+ expect(await checkBuildAtBootstrap()).toBe(false);
+ expect(localStorage.getItem(CLIENT_BUILD_KEY)).toBe(CLIENT_BUILD_ID);
+ expect(localStorage.getItem('zenos_vipe_pdv_rascunho_admin')).toContain('sale-123');
+ expect(document.getElementById('zenos-recovery-prompt')).toBeNull();
+ expect(mocks.pending).not.toHaveBeenCalled();
+});
+
+test('build change while signed out never blocks terminal login',async()=>{
+ installRecoveryPrompt();
+ mocks.auth.currentUser=null;
+ localStorage.setItem(CLIENT_BUILD_KEY,'old-build');
+ expect(await checkBuildAtBootstrap()).toBe(false);
+ expect(document.getElementById('zenos-recovery-prompt')).toBeNull();
+ expect(localStorage.getItem(CLIENT_BUILD_KEY)).toBe(CLIENT_BUILD_ID);
+ expect(mocks.pending).not.toHaveBeenCalled();
+});
+
 test('a protected draft blocks any auto-sync/reload attempt',async()=>{
  localStorage.setItem('zenos_vipe_pdv_rascunho_admin',JSON.stringify({itensVenda:[{id:'P-1'}]}));
  expect(await inspectPendingOperations()).toEqual({safe:false,reason:'draft'});
