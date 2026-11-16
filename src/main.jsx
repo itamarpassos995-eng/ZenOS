@@ -7,7 +7,6 @@ import './index.css'
 import {checkBuildAtBootstrap,installRecoveryPrompt} from './core/clientBuildRecovery.js'
 
 installRecoveryPrompt()
-await checkBuildAtBootstrap()
 
 // Rota independente e somente leitura. Não inicializa o fluxo de vendas do App.
 const previewMatch = window.location.pathname.match(/^\/loja\/([^/]+)\/?$/)
@@ -20,11 +19,19 @@ if (previewMatch) {
   }
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(
+void checkBuildAtBootstrap().then((reloadScheduled) => {
+  if (reloadScheduled) return;
+  ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <EnvironmentBanner />
     <React.Suspense fallback={<div role="status" style={{minHeight:"100vh",background:"#020617",color:"#cbd5e1",display:"grid",placeItems:"center"}}>ZenOS…</div>}>
     {previewMatch ? <CommerceVitrinePreview lojaIdRota={previewLojaId} /> : <App />}
     </React.Suspense>
   </React.StrictMode>,
-)
+  )
+}).catch(error => {
+  console.warn('[ZenOS Build] Falha não bloqueante na verificação local:', error);
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    <React.StrictMode><EnvironmentBanner /><React.Suspense fallback={<div>ZenOS…</div>}>{previewMatch ? <CommerceVitrinePreview lojaIdRota={previewLojaId} /> : <App />}</React.Suspense></React.StrictMode>,
+  )
+})
