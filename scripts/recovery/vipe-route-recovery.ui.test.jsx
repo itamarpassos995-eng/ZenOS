@@ -13,7 +13,7 @@ vi.mock('firebase/firestore',async original=>({
 }));
 vi.mock('../../src/core/operationalRepository.js',()=>({
   getOperationalWriteSession:async()=>mock.route,
-  clearOperationalSession:()=>{mock.reroutes++;mock.route={control:{mode:'v2'},failed:null};},
+  clearOperationalSession:()=>{mock.reroutes++;mock.route=mock.serverMode==='v2'?{control:{mode:'v2'},failed:null}:null;},
 }));
 vi.mock('../../src/core/operationalV2.js',()=>({
   persistV2BusinessOperationSafe:async command=>{
