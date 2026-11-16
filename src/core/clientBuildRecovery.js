@@ -147,18 +147,23 @@ export async function checkBuildAtBootstrap(){
   if(typeof window==='undefined')return false;
   const previous=read(window.localStorage,CLIENT_BUILD_KEY);
   if(previous===CLIENT_BUILD_ID)return false;
-  if(previous===null){
-    // First install/cleared storage: mark but never delete prior drafts.
-    write(window.localStorage,CLIENT_BUILD_KEY,CLIENT_BUILD_ID);
-    return false;
+
+  // The running JavaScript IS the current build already. On an ordinary
+  // frontend version change, a PDV draft is NOT a reason to trap the
+  // operator behind a modal, and reloading adds no safety.
+  //
+  // Keep all Firestore/IndexedDB persistence, local session keys, PDV drafts
+  // and unsent transactions intact. No Firebase read, auth wait or flush.
+  // A route mismatch during a real write still uses the separate guarded UI.
+  if(!write(window.localStorage,CLIENT_BUILD_KEY,CLIENT_BUILD_ID)) {
+    console.warn('[ZenOS Build] Não foi possível registrar a versão local; mantendo atendimento.');
   }
-  if(read(window.sessionStorage,CLIENT_BUILD_RELOAD_KEY)===previous+'>'+CLIENT_BUILD_ID)
-    return false;
-  window.dispatchEvent(new CustomEvent(CLIENT_RECOVERY_EVENT,{
-    detail:{code:'ZENOS_BUILD_CHANGED',previousBuild:previous},
-  }));
-  // Rendering continues to allow accessing drafts if recovery isn't safe.
-  return false;
+
+  if(previous!==null) {
+    try { await clearDisposableWebCaches(); }
+    catch(error) { console.warn('[ZenOS Build] Cache descartável não limpo; atendimento preservado:',error); }
+  }
+  return false; // Never block login or force a reload just for a new build.
 }
 
 export function dispatchRouteRecovery(error){
