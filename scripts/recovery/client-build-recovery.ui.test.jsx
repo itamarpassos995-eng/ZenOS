@@ -10,11 +10,9 @@ beforeEach(()=>{
 
 test('first boot records version without clearing operational data',async()=>{
  localStorage.setItem('zenos_pdv_pending','KEEP-ME');
- const spy=vi.spyOn(window.caches||{},'keys');
  expect(await checkBuildAtBootstrap()).toBe(false);
  expect(localStorage.getItem(CLIENT_BUILD_KEY)).toBe(CLIENT_BUILD_ID);
  expect(localStorage.getItem('zenos_pdv_pending')).toBe('KEEP-ME');
- spy.mockRestore();
 });
 
 test('selective cache cleanup preserves unrelated caches and never accesses IndexedDB',async()=>{
