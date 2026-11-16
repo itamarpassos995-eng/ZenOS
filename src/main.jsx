@@ -4,6 +4,10 @@ import App from './App.jsx'
 import EnvironmentBanner from './components/EnvironmentBanner.jsx'
 const CommerceVitrinePreview = React.lazy(() => import('./components/CommerceVitrinePreview.jsx'))
 import './index.css'
+import {checkBuildAtBootstrap,installRecoveryPrompt} from './core/clientBuildRecovery.js'
+
+installRecoveryPrompt()
+await checkBuildAtBootstrap()
 
 // Rota independente e somente leitura. Não inicializa o fluxo de vendas do App.
 const previewMatch = window.location.pathname.match(/^\/loja\/([^/]+)\/?$/)
