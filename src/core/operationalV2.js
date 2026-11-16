@@ -6,7 +6,6 @@ import {businessOperationChecks as checks,recordSyncMetric} from './productionSy
 import {mergeV1FieldThreeWay,syncValuesEqual,cloneSyncValue} from './syncMerge.js';
 import {reconciliarExclusoesV2} from './v2TombstoneReconciliation.js';
 import {projetarHistoricoNovaVendaPDV} from './pdvWriteIntent.js';
-import {compactProductReceiptPatch} from './v2ReceiptDelta.js';
 import {criarLancamentoFinanceiro} from './financialLedgerCore.js';
 import {notifyPersistenceStatus} from './persistenceSafety.js';
 const bytes=v=>new TextEncoder().encode(stableV2Json(v)).length;
@@ -103,8 +102,7 @@ export async function persistV2BusinessOperationSafe({db,userId,changes=[],finan
         const patch=cleanV2Value({field:c.field,routeId:id,data:after.get(id)??before.get(id),deleted:!after.has(id),
          legacyField:c.field,legacyIndex:cached?.legacyIndex??(-next*1000+patches.length),version:next,commandId:receiptId});
         requireSize(patch,256_000,'V2_ENTITY_SIZE',{field:c.field,entityId:id});
-        // Compress only the receipt; the authoritative product document remains full.
-        patches.push(compactProductReceiptPatch(patch,cached));
+        patches.push(patch);
         const {field,routeId,...envelope}=patch;writes.push({ref,value:envelope});
        }
       }else if(!syncValuesEqual(merged,remote[c.field])){
