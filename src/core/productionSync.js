@@ -1,6 +1,6 @@
 import {exchangeRateSnapshotsEqual} from './exchangeRateGuard.js';
 import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
-import { getOperationalWriteSession } from './operationalRepository.js';
+import { getOperationalWriteSession, clearOperationalSession } from './operationalRepository.js';
 import { zenosStorage } from './storage.js';
 import { getV1OperationPath, notifyPersistenceStatus, safeSetLocalJson } from './persistenceSafety.js';
 import { cloneSyncValue, mergeV1FieldThreeWay, syncValuesEqual } from './syncMerge.js';
@@ -564,6 +564,27 @@ export const persistV1BusinessOperationSafe = async ({
       estimatedBytes:result.estimatedBytes,
     };
   } catch (error) {
+    // Migration may switch the store from V1 to V2 after this terminal
+    // initialized its route. The V1 transaction was rejected by its FIRST
+    // guard (before any writes), so it is safe to rebuild the route and
+    // submit the SAME idempotent command through the V2 atomic protocol.
+    // Never fall back to V1 when the current route is V2.
+    if (error?.code === 'ZENOS_STORAGE_ROUTE_CHANGED') {
+      try {
+        clearOperationalSession(db,userId);
+        const refreshedV2 = await getOperationalWriteSession(db,userId);
+        if (refreshedV2 && !refreshedV2.failed && refreshedV2.control?.mode === 'v2') {
+          recordSyncMetric('v2RouteRecoveries','operacao_critica');
+          return await (await import('./operationalV2.js')).persistV2BusinessOperationSafe({
+            db,userId,changes:valid,financialEntries,stockEvents,guards,operationKey,
+          });
+        }
+      } catch (routeError) {
+        // Preserve the original protected cart and operationKey. A failed
+        // bootstrap must NEVER cause an unguarded legacy write or new sale ID.
+        return {ok:false,cloudOk:false,error:routeError,values:{},revisions:{}};
+      }
+    }
     console.error('[ZenOS ATT10.2] Operação crítica não confirmada:', error);
     if (quotaError(error)) {
       quotaBlockedUntil = Date.now() + QUOTA_COOLDOWN_MS;
