@@ -155,5 +155,11 @@ const mergedConcorrente=mergeV1FieldThreeWay({
 assert.deepEqual(mergedConcorrente.find(p=>p.id==='P-5'),remotoConcorrente[5]);
 assert.equal(mergedConcorrente.find(p=>p.id==='P-3').estoque,49);
 ok('VIPE: 84 produtos com fotos e valores monetários — só o vendido é modificado; concorrência preservada');
+const v2Source=fs.readFileSync(new URL('../src/core/operationalV2.js',import.meta.url),'utf8');
+assert.ok(v2Source.indexOf("requireSize(receipt,900_000") < v2Source.indexOf("const verified=await Promise.all("));
+assert.ok(v2Source.includes("pendingEntityChecks.push({ref,cached})"));
+assert.doesNotMatch(v2Source,/const actual=await tx\.get\(ref\)/);
+ok('VIPE: recibo excedido falha antes de ler 84 documentos; verificações paralelas preservadas');
+
 
 console.log('\nATT 02: 10 grupos de verificações aprovados.');
