@@ -13,7 +13,7 @@ vi.mock('firebase/firestore',async original=>({
 }));
 vi.mock('../../src/core/operationalRepository.js',()=>({
   getOperationalWriteSession:async()=>mock.route,
-  clearOperationalSession:()=>{mock.reroutes++;mock.route={control:{mode:'v2'},failed:null};},
+  clearOperationalSession:()=>{mock.reroutes++;mock.route=mock.serverMode==='v2'?{control:{mode:'v2'},failed:null}:null;},
 }));
 vi.mock('../../src/core/operationalV2.js',()=>({
   persistV2BusinessOperationSafe:async command=>{
@@ -53,5 +53,21 @@ test('VIPE: conflicting authoritative route does not fall back to legacy or retr
  expect(result.error.code).toBe('ZENOS_STORAGE_ROUTE_MISMATCH');
  expect(result.error.routeMode).toBe('maintenance');
  expect(mock.reroutes).toBe(0);
+ expect(mock.v2Commits).toHaveLength(0);
+});
+
+test('VIPE: authoritative legacy route triggers only one guarded retry, no write loop',async()=>{
+ mock.serverMode='legacy';
+ const pending={id:'VENDA-VIPE-PENDENTE'};
+ const result=await persistV1BusinessOperationSafe({
+  db:{},userId:'vipe',
+  changes:[{field:'historicoVendas',baseValue:[],value:[pending]}],
+  operationKey:'pdv:VENDA-VIPE-PENDENTE',
+ });
+ expect(result.cloudOk).toBe(false);
+ expect(result.error.code).toBe('ZENOS_STORAGE_ROUTE_MISMATCH');
+ expect(result.error.routeMode).toBe('legacy');
+ expect(result.error.recoveryAttempts).toBe(1);
+ expect(mock.reroutes).toBe(1);
  expect(mock.v2Commits).toHaveLength(0);
 });

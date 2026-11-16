@@ -437,6 +437,7 @@ export const persistV1BusinessOperationSafe = async ({
   stockEvents = [],
   guards = [],
   operationKey = null,
+  routeRecoveryAttempts = 0,
 }) => {
   try {
     if (await getOperationalWriteSession(db, userId)) return (await import('./operationalV2.js')).persistV2BusinessOperationSafe({db,userId,changes,financialEntries,stockEvents,guards,operationKey});
@@ -588,9 +589,22 @@ export const persistV1BusinessOperationSafe = async ({
             db,userId,changes:valid,financialEntries,stockEvents,guards,operationKey,
           });
         }
+        // A V1 transaction can observe a cutover or a temporary control
+        // change while a subsequent authoritative point-read confirms a
+        // valid legacy/shadow route again. Retry ONCE through the normal
+        // V1 transaction, which rechecks storage_control *before any write*.
+        // Keep the same operationKey so a prior confirmed sale is not copied.
+        if ((mode==='legacy'||mode==='shadow') && routeRecoveryAttempts===0) {
+          clearOperationalSession(db,userId);
+          recordSyncMetric('legacyRouteRecoveries','operacao_critica');
+          return await persistV1BusinessOperationSafe({
+            db,userId,changes:valid,financialEntries,stockEvents,guards,operationKey,
+            routeRecoveryAttempts:1,
+          });
+        }
         return {ok:false,cloudOk:false,error:Object.assign(
-          new Error('O servidor indica rota '+mode+' enquanto o terminal tentou V1. A gravação foi bloqueada sem modificar a venda.'),
-          {code:'ZENOS_STORAGE_ROUTE_MISMATCH',routeMode:mode},
+          new Error('Rota '+mode+' confirmada, mas a gravação foi recusada após verificação. Nenhuma nova tentativa automática será feita.'),
+          {code:'ZENOS_STORAGE_ROUTE_MISMATCH',routeMode:mode,recoveryAttempts:routeRecoveryAttempts},
         ),values:{},revisions:{}};
       } catch(routeError) {
         // Never send the same command again through V1 after this condition.
