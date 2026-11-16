@@ -117,4 +117,14 @@ assert.match(vendas, /totalLiquidoBRL/);
 assert.doesNotMatch(vendas, /zenosStorage\.setItem\('zenos_produtos'/);
 ok('PDV e devolução usam os novos motores sem persistência genérica concorrente');
 
+// VIPE incident: 48 changed entities produced a 738 KiB receipt.
+// Keep the receipt below Firestore's 1 MiB document ceiling while retaining
+// the smaller atomic write payload / request guards and entity budget.
+const v2 = fs.readFileSync(new URL('../src/core/operationalV2.js', import.meta.url), 'utf8');
+assert.match(v2, /requireSize\(receipt,900_000,'V2_RECEIPT_SIZE'/);
+assert.match(v2, /requireSize\(\[\.\.\.writes,\.\.\.ledger,\.\.\.audit\]\.map\(w=>w\.value\),2_000_000,'V2_COMMIT_SIZE'/);
+assert.match(v2, /requireSize\(patch,256_000,'V2_ENTITY_SIZE'/);
+assert.ok(738 * 1024 < 900_000 && 900_000 < 1024 * 1024);
+ok('VIPE: recibo de 738 KiB permitido com limite conservador abaixo de 1 MiB');
+
 console.log('\nATT 02: 10 grupos de verificações aprovados.');
