@@ -409,7 +409,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
             setFormProduto(prev => ({ ...prev, imagem: canvas.toDataURL('image/jpeg', 0.7) }));
           } catch (_) { setFormProduto(prev => ({ ...prev, imagem: imagemOriginalSegura(original) })); }
         };
-        img.onerror = () => setFormProduto(prev => ({ ...prev, imagem: original }));
+        img.onerror = () => setFormProduto(prev => ({ ...prev, imagem: imagemOriginalSegura(original) }));
         img.src = original;
       };
       reader.readAsDataURL(arquivo);
