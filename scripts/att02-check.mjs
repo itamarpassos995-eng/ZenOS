@@ -12,6 +12,7 @@ import {
   precoLiquidoUnitarioItem,
 } from '../src/core/salesFinancials.js';
 import fs from 'node:fs';
+import {mergeV1FieldThreeWay,syncValuesEqual} from '../src/core/syncMerge.js';
 
 const ok = (nome) => console.log(`[OK] ${nome}`);
 const quase = (a, b, eps = 0.001) => assert.ok(Math.abs(a - b) <= eps, `${a} != ${b}`);
@@ -126,5 +127,33 @@ assert.match(v2, /requireSize\(\[\.\.\.writes,\.\.\.ledger,\.\.\.audit\]\.map\(w
 assert.match(v2, /requireSize\(patch,256_000,'V2_ENTITY_SIZE'/);
 assert.ok(738 * 1024 < 900_000 && 900_000 < 1024 * 1024);
 ok('VIPE: recibo de 738 KiB permitido com limite conservador abaixo de 1 MiB');
+
+// VIPE 16/11: a venda de 1 produto não pode regravar dezenas de outros
+// produtos por arredondamento do custo ou normalização de valoresMonetarios.
+const imagemLegada='data:image/jpeg;base64,'+'X'.repeat(15000);
+const produtosGrandes=Array.from({length:84},(_,i)=>({
+  id:`P-${i}`,nome:`Produto ${i}`,imagem:imagemLegada,
+  custoBRL:3.123456789,precoBRL:12.5,
+  valoresMonetarios:{versao:2,campos:{precoBRL:{moeda:'BRL',valor:12.5}}},
+  estoque:50,estoqueVitrine:50,estoqueGalpao:0,
+}));
+const localVenda=produtosGrandes.map((p,i)=>i===3?{...p,estoque:49,estoqueVitrine:49}:p);
+const mergedVenda=mergeV1FieldThreeWay({
+  field:'produtos',baseValue:produtosGrandes,localValue:localVenda,
+  remoteValue:produtosGrandes,
+});
+const alteradosVenda=mergedVenda.filter((p,i)=>!syncValuesEqual(p,produtosGrandes[i]));
+assert.equal(alteradosVenda.length,1,'Só o produto vendido deve virar patch V2');
+assert.equal(mergedVenda[0].custoBRL,3.123456789);
+assert.equal(mergedVenda[0].valoresMonetarios.versao,2);
+assert.equal(mergedVenda[3].estoque,49);
+const remotoConcorrente=produtosGrandes.map((p,i)=>i===5?{...p,estoque:44,estoqueVitrine:44}:p);
+const mergedConcorrente=mergeV1FieldThreeWay({
+  field:'produtos',baseValue:produtosGrandes,localValue:localVenda,
+  remoteValue:remotoConcorrente,
+});
+assert.deepEqual(mergedConcorrente.find(p=>p.id==='P-5'),remotoConcorrente[5]);
+assert.equal(mergedConcorrente.find(p=>p.id==='P-3').estoque,49);
+ok('VIPE: 84 produtos com fotos e valores monetários — só o vendido é modificado; concorrência preservada');
 
 console.log('\nATT 02: 10 grupos de verificações aprovados.');
