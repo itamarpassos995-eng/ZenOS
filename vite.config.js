@@ -3,8 +3,6 @@ import react from '@vitejs/plugin-react'
 import { createHash, pbkdf2Sync } from 'node:crypto'
 import { resolve } from 'node:path'
 
-const BUILD_ID = process.env.VERCEL_GIT_COMMIT_SHA || process.env.GITHUB_SHA || process.env.VITE_APP_VERSION || 'local-development'
-
 const PIN_ITERATIONS = 120000
 
 function zenosHomologacaoPinBridge() {
@@ -59,7 +57,6 @@ function zenosHomologacaoPinBridge() {
 }
 
 export default defineConfig(({ mode }) => ({
-  define: { __ZENOS_BUILD_ID__: JSON.stringify(BUILD_ID) },
   build: {
     rollupOptions: {
       input: {
