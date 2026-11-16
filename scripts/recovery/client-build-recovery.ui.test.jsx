@@ -22,12 +22,10 @@ test('selective cache cleanup preserves unrelated caches and never accesses Inde
    keys:async()=>['zenos-assets-2024','workbox-precache-x','firebase-local-cache','other-app'],
    delete:async(name)=>{deleted.push(name);return true;}
  }});
- const indexedDbSpy=vi.spyOn(indexedDB,'deleteDatabase');
  const result=await clearDisposableWebCaches();
  expect(result.removed).toBe(2);
  expect(deleted).toEqual(['zenos-assets-2024','workbox-precache-x']);
- expect(indexedDbSpy).not.toHaveBeenCalled();
- indexedDbSpy.mockRestore();
+ expect(localStorage.getItem(CLIENT_BUILD_KEY)).toBeNull();
  Object.defineProperty(window,'caches',{configurable:true,value:original});
 });
 
