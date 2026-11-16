@@ -14,7 +14,7 @@ const indexed=(field,list)=>{
  const map=new Map();for(const item of list||[]){const id=encodeV2Id(entityIdV2(field,item));
  if(map.has(id))throw v2Error('V2_DUPLICATE_ID','Identificador duplicado; operação bloqueada.');map.set(id,item);}return map;
 };
-const requireSize=(value,max,code)=>{if(bytes(value)>max)throw v2Error(code,'Operação excede o limite seguro. Divida em operações menores.');};
+const requireSize=(value,max,code,context={})=>{const size=bytes(value);if(size>max)throw Object.assign(v2Error(code,'Operação excede o limite seguro. Divida em operações menores.'),{bytes:size,max,...context});};
 
 // A complete server-confirmed session is pinned to the generation's sequence.
 // The head is a transaction fence: a concurrent writer forces catch-up before
@@ -54,7 +54,7 @@ export async function persistV2BusinessOperationSafe({db,userId,changes=[],finan
    return {field:c.field,entities,removeEntityIds:c.removeEntityIds};
   });
   const meaningful=cleanV2Value({changes:commandChanges,financialEntries,stockEvents,guards});
-  requireSize(meaningful,4_000_000,'V2_REQUEST_SIZE');
+  requireSize(meaningful,4_000_000,'V2_REQUEST_SIZE',{field:commandChanges.find(c=>c.entities?.length)?.field,changedEntities:commandChanges.reduce((sum,c)=>sum+(c.entities?.length||0),0)});
   const fingerprint=await hashV2(meaningful),key=String(operationKey||`edit:${fingerprint}`),receiptId=await hashV2(key);
   const budget=checks.consumeWriteBudget(budgetField);if(!budget.ok)throw budget.error;
   notifyPersistenceStatus({status:'SALVANDO',field:'operacao_v2'});
@@ -101,7 +101,7 @@ export async function persistV2BusinessOperationSafe({db,userId,changes=[],finan
         if(cached?.deleted&&after.has(id))throw v2Error('V2_REUSE_ID','ID histórico removido não pode ser reutilizado.');
         const patch=cleanV2Value({field:c.field,routeId:id,data:after.get(id)??before.get(id),deleted:!after.has(id),
          legacyField:c.field,legacyIndex:cached?.legacyIndex??(-next*1000+patches.length),version:next,commandId:receiptId});
-        requireSize(patch,256_000,'V2_ENTITY_SIZE');patches.push(patch);
+        requireSize(patch,256_000,'V2_ENTITY_SIZE',{field:c.field,entityId:id});patches.push(patch);
         const {field,routeId,...envelope}=patch;writes.push({ref,value:envelope});
        }
       }else if(!syncValuesEqual(merged,remote[c.field])){
@@ -120,7 +120,7 @@ export async function persistV2BusinessOperationSafe({db,userId,changes=[],finan
      for(const w of [...ledger,...audit])if((await tx.get(w.ref)).exists())throw v2Error('V2_HISTORY_COLLISION','Histórico já existe sem comprovante da operação. Reconciliação necessária.');
      const receipt=cleanV2Value({schema:2,key,fingerprint,sequence:next,revisions,patches,financialEntries:normalized,
       reads:writes.length+ledger.length+audit.length+4+(fx?1:0),writes:count,createdAtClient:new Date().toISOString()});
-     requireSize(receipt,750_000,'V2_RECEIPT_SIZE');requireSize([...writes,...ledger,...audit].map(w=>w.value),2_000_000,'V2_COMMIT_SIZE');
+     requireSize(receipt,750_000,'V2_RECEIPT_SIZE',{changedEntities:patches.length});requireSize([...writes,...ledger,...audit].map(w=>w.value),2_000_000,'V2_COMMIT_SIZE',{changedEntities:writes.length+ledger.length+audit.length});
      for(const w of writes)tx.set(w.ref,w.value);
      for(const w of [...ledger,...audit])tx.set(w.ref,{...w.value,serverRecordedAt:serverTimestamp(),_v2:{generation:session.generation,commandId:receiptId,sequence:next}});
      tx.set(receiptRef,receipt);tx.update(headRef,{sequence:next,lastReceipt:receiptId,fieldCounts,fieldRevisions:revisions,updatedAtServer:serverTimestamp()});

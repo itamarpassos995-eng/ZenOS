@@ -1355,7 +1355,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
             variante:'danger',
             titulo: tipoFinalizacao === 'venda' ? tx('Venda não concluída','Venta no concluida','Sale not completed') : tx('Documento não salvo','Documento no guardado','Document not saved'),
             mensagem:tx('A confirmação não foi obtida. O resultado pode estar pendente no servidor. Preserve o carrinho e verifique o histórico antes de repetir qualquer operação.','No se obtuvo confirmación. El resultado podría estar pendiente en el servidor. Conserve el carrito y consulte el historial antes de reintentar.','Confirmation was not obtained. The result may be pending on the server. Keep the cart and check history before trying again.'),
-            detalhes: detalheFalha,
+            detalhes: [detalheFalha, ...(confirmado?.error?.code ? [`Código: ${confirmado.error.code}`] : []), ...(Number.isFinite(confirmado?.error?.bytes) && Number.isFinite(confirmado?.error?.max) ? [`Tamanho: ${Math.ceil(confirmado.error.bytes/1024)} KB / limite ${Math.ceil(confirmado.error.max/1024)} KB`] : []), ...(confirmado?.error?.field ? [`Campo: ${confirmado.error.field}`] : []), ...(confirmado?.error?.entityId ? [`Registro: ${confirmado.error.entityId}`] : []), ...(Number.isFinite(confirmado?.error?.changedEntities) ? [`Registros alterados: ${confirmado.error.changedEntities}`] : [])],
             apenasConfirmar:true,
           });
           return;
