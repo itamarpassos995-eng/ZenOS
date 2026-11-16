@@ -137,6 +137,16 @@ const mergeArrayGeneric = ({ field, base = [], local = [], remote = [], entityMe
       continue;
     }
 
+    if (hasBase && hasLocal && hasRemote && syncValuesEqual(l, b)) {
+      // A field-wide PDV checkout sends the entire catalog, but only a few
+      // products are edited. Do not run the monetary/inventory merger for
+      // untouched entities: rounding or normalization can turn unchanged
+      // records into new V2 patches (huge receipts with inline images).
+      // The authoritative remote entity always wins when local equals base.
+      result.push(cloneSyncValue(r));
+      continue;
+    }
+
     if (hasBase && hasLocal && hasRemote && isObject(b) && isObject(l) && isObject(r)) {
       result.push(entityMerger
         ? entityMerger({ base: b, local: l, remote: r })

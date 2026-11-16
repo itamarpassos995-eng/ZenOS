@@ -80,7 +80,7 @@ export async function persistV2BusinessOperationSafe({db,userId,changes=[],finan
      if(fx){const config=await tx.get(doc(db,'lojas',String(userId),'dados','configuracoes'));
       if(config.data()?.taxasCambio&&!exchangeRateSnapshotsEqual(config.data().taxasCambio,fx.taxas))throw v2Error('ZENOS_CASH_FX_CHANGED','Cotação mudou; refaça o fechamento.');}
      checks.assertBusinessGuards(remote,guards);checks.assertStockEventsAgainstRemote(remote,stockEvents);
-     const next=sequence+1,revisions={...baseRevisions},fieldCounts={...(head.data().fieldCounts||Object.fromEntries(Object.entries(head.data().fieldManifest).filter(([,m])=>m.kind==='array').map(([f,m])=>[f,m.count])))},patches=[],writes=[],confirmedValues={};
+     const next=sequence+1,revisions={...baseRevisions},fieldCounts={...(head.data().fieldCounts||Object.fromEntries(Object.entries(head.data().fieldManifest).filter(([,m])=>m.kind==='array').map(([f,m])=>[f,m.count])))},patches=[],writes=[],confirmedValues={},pendingEntityChecks=[];
      for(const c of valid){
       let merged=mergeV1FieldThreeWay({field:c.field,baseValue:c.baseValue,localValue:c.value,remoteValue:remote[c.field]});
       merged=checks.applyGuardedEntityRemovals({field:c.field,mergedValue:merged,removeEntityIds:c.removeEntityIds,guards});
@@ -95,10 +95,10 @@ export async function persistV2BusinessOperationSafe({db,userId,changes=[],finan
         if(syncValuesEqual(before.get(id),after.get(id)))continue;
         if(writes.length>=350)throw v2Error('V2_READ_BUDGET','Muitas entidades alteradas em uma operação.');
         const cached=pinnedRecords.get(c.field)?.get(id),ref=doc(db,...session.root,V2_COLLECTIONS[c.field],id);
-        const actual=await tx.get(ref);
-        if(stableV2Json(actual.exists()?actual.data():null)!==stableV2Json(cached?Object.fromEntries(Object.entries(cached).filter(([k])=>!['routeId','field'].includes(k))):null))
-         throw v2Error('V2_ENTITY_DIVERGED','Registro mudou fora do protocolo. Operação bloqueada para reconciliação.');
+        // Prepare the receipt BEFORE remote entity reads. Invalid oversized
+        // receipts fail instantly rather than after dozens of serial reads.
         if(cached?.deleted&&after.has(id))throw v2Error('V2_REUSE_ID','ID histórico removido não pode ser reutilizado.');
+        pendingEntityChecks.push({ref,cached});
         const patch=cleanV2Value({field:c.field,routeId:id,data:after.get(id)??before.get(id),deleted:!after.has(id),
          legacyField:c.field,legacyIndex:cached?.legacyIndex??(-next*1000+patches.length),version:next,commandId:receiptId});
         requireSize(patch,256_000,'V2_ENTITY_SIZE',{field:c.field,entityId:id});
@@ -118,7 +118,6 @@ export async function persistV2BusinessOperationSafe({db,userId,changes=[],finan
      const count=writes.length+ledger.length+audit.length+2;
      if(normalized.length>350)throw v2Error('V2_FINANCE_BUDGET','Muitos lançamentos em uma operação.');
      if(count>450||writes.length+ledger.length+audit.length+4+(fx?1:0)>400)throw v2Error('ZENOS_ATOMIC_WRITE_LIMIT','Operação excede o orçamento de leitura/gravação.');
-     for(const w of [...ledger,...audit])if((await tx.get(w.ref)).exists())throw v2Error('V2_HISTORY_COLLISION','Histórico já existe sem comprovante da operação. Reconciliação necessária.');
      const receipt=cleanV2Value({schema:2,key,fingerprint,sequence:next,revisions,patches,financialEntries:normalized,
       reads:writes.length+ledger.length+audit.length+4+(fx?1:0),writes:count,createdAtClient:new Date().toISOString()});
      // Firestore permits a document up to 1 MiB. Leave ~148 KiB for document
@@ -126,6 +125,18 @@ export async function persistV2BusinessOperationSafe({db,userId,changes=[],finan
      // receipts at the old arbitrary 750 KB threshold. Retain the atomic
      // transaction's entity, request, write-count and 2 MB payload guards.
      requireSize(receipt,900_000,'V2_RECEIPT_SIZE',{changedEntities:patches.length});requireSize([...writes,...ledger,...audit].map(w=>w.value),2_000_000,'V2_COMMIT_SIZE',{changedEntities:writes.length+ledger.length+audit.length});
+     // All Firestore reads still happen before the first write. Execute entity
+     // verification and ledger/audit collision reads concurrently to avoid N
+     // network round-trips on multi-item sales.
+     const historicalChecks=[...ledger,...audit];
+     const verified=await Promise.all([...pendingEntityChecks.map(c=>c.ref),...historicalChecks.map(c=>c.ref)].map(ref=>tx.get(ref)));
+     pendingEntityChecks.forEach(({cached},index)=>{
+      const actual=verified[index];
+      if(stableV2Json(actual.exists()?actual.data():null)!==stableV2Json(cached?Object.fromEntries(Object.entries(cached).filter(([k])=>!['routeId','field'].includes(k))):null))
+       throw v2Error('V2_ENTITY_DIVERGED','Registro mudou fora do protocolo. Operação bloqueada para reconciliação.');
+     });
+     if(verified.slice(pendingEntityChecks.length).some(snapshot=>snapshot.exists()))
+      throw v2Error('V2_HISTORY_COLLISION','Histórico já existe sem comprovante da operação. Reconciliação necessária.');
      for(const w of writes)tx.set(w.ref,w.value);
      for(const w of [...ledger,...audit])tx.set(w.ref,{...w.value,serverRecordedAt:serverTimestamp(),_v2:{generation:session.generation,commandId:receiptId,sequence:next}});
      tx.set(receiptRef,receipt);tx.update(headRef,{sequence:next,lastReceipt:receiptId,fieldCounts,fieldRevisions:revisions,updatedAtServer:serverTimestamp()});
