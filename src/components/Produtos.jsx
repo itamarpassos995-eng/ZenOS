@@ -387,6 +387,9 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
     };
   }, [gruposCadastrados, moeda, produtos]);
 
+  // Prevent oversized inline images from being added when browser compression fails.
+  const imagemOriginalSegura = (original) => (typeof original === 'string' && original.length <= 120000) ? original : '';
+
   const lidarUploadImagem = (e) => {
     const arquivo = e.target.files?.[0];
     if (arquivo) {
@@ -404,7 +407,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
             canvas.height = Math.max(1, Math.round(img.height * escala));
             canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
             setFormProduto(prev => ({ ...prev, imagem: canvas.toDataURL('image/jpeg', 0.7) }));
-          } catch (_) { setFormProduto(prev => ({ ...prev, imagem: original })); }
+          } catch (_) { setFormProduto(prev => ({ ...prev, imagem: imagemOriginalSegura(original) })); }
         };
         img.onerror = () => setFormProduto(prev => ({ ...prev, imagem: original }));
         img.src = original;
