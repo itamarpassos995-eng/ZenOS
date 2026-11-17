@@ -84,12 +84,11 @@ const correspondeAoOperador = (v,lojaId,operadorId) =>
   v?.schema===1 && v.lojaId===String(lojaId) &&
   v.operadorId===String(operadorId || 'admin') && Array.isArray(v.itensVenda);
 
-export async function salvarRascunhoPDVProtegido(lojaId,operadorId,rascunho) {
+// Only IndexedDB: enables ordered async mirrors without an older queued
+// checkpoint overwriting the newest synchronous localStorage edit.
+export async function espelharRascunhoPDVIndexedDB(lojaId,operadorId,rascunho) {
   const chave=chaveRascunhoPDV(lojaId,operadorId);
   if (!chave) return false;
-  // Dual local checkpoints for every edit, not only on checkout. Neither
-  // storage is a confirmed sale: no Firestore writes are created here.
-  const salvoLocal=salvarRascunhoPDV(lojaId,operadorId,rascunho);
   try {
     if(!rascunho?.itensVenda?.length && !rascunho?.prePedidoEmAbertoId)
       await executarBackup(chave,'readwrite');
@@ -97,12 +96,17 @@ export async function salvarRascunhoPDVProtegido(lojaId,operadorId,rascunho) {
       await executarBackup(chave,'readwrite',rascunhoNormalizado(lojaId,operadorId,rascunho));
     return true;
   } catch(error) {
-    // A synchronous localStorage checkpoint still protects refresh when IDB
-    // is unavailable, but never claim safety if BOTH storage writes failed.
-    if(salvoLocal)return true;
-    console.error('[ZenOS PDV] Ambos os armazenamentos locais falharam; venda protegida por bloqueio.',error);
+    console.warn('[ZenOS PDV] Backup IndexedDB não confirmado; localStorage preservado.',error);
     return false;
   }
+}
+
+export async function salvarRascunhoPDVProtegido(lojaId,operadorId,rascunho) {
+  const salvoLocal=salvarRascunhoPDV(lojaId,operadorId,rascunho);
+  const salvoIndexedDB=await espelharRascunhoPDVIndexedDB(lojaId,operadorId,rascunho);
+  if(!salvoLocal && !salvoIndexedDB)
+    console.error('[ZenOS PDV] Ambos os armazenamentos locais falharam; venda protegida por bloqueio.');
+  return salvoLocal || salvoIndexedDB;
 }
 
 export async function lerRascunhoPDVRecuperavel(lojaId,operadorId) {
