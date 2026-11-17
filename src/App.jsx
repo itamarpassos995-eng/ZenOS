@@ -708,7 +708,7 @@ export default function App() {
       setNuvemSincronizada(false);
       console.error('[ZenOS][BOOTSTRAP] Auth observer failed:', error);
     });
-    return () => { mounted = false; authSequence++; window.clearTimeout(watchdog); unsubscribe(); };
+    return () => { mounted = false; authSequence++; unsubscribe(); window.clearTimeout(watchdog); };
   }, []);
 
   // ATT 06.2: sincronização reativa V1 entre terminais.
