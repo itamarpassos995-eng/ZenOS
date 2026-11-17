@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const file=new URL('../public/recuperar.html',import.meta.url);
+const page=fs.readFileSync(file,'utf8');
+const app=fs.readFileSync(new URL('../src/App.jsx',import.meta.url),'utf8');
+const vercel=JSON.parse(fs.readFileSync(new URL('../vercel.json',import.meta.url),'utf8'));
+assert.match(page,/<button id="safe"/);
+assert.match(page,/sessionStorage\.setItem\('zenos_safe_session','1'\)/);
+assert.match(page,/location\.assign\('\/login\?zenos_safe_session=1'\)/);
+assert.match(page,/https:\/\/www\.zenos\.app\.br\/login\?zenos_safe_session=1/);
+assert.doesNotMatch(page,/deleteDatabase\(|localStorage\.(?:clear|removeItem)\(|indexedDB\.|firebase\/|serviceWorker\.register\(/);
+assert.match(app,/href="\/recuperar\.html"/);
+const config=vercel.headers.find(x=>x.source==='/recuperar.html');
+assert.equal(config?.headers?.find(x=>x.key==='Cache-Control')?.value,'no-store, max-age=0');
+console.log('VIPE standalone recovery: accessible without Firebase startup, no persisted-data deletion — OK');
