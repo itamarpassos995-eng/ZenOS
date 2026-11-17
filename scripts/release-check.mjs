@@ -27,6 +27,7 @@ const checks = emulator ? [
   'scripts/p0-fiado-link-audit-check.mjs',
   'scripts/att1021-prepedido-check.mjs',
   'scripts/pdv-rascunho-check.mjs',
+  'scripts/vipe-bootstrap-recovery-check.mjs',
   'scripts/v2-tombstone-check.mjs',
   'scripts/v2-tail-window-check.mjs',
   'scripts/p0-cash-blind-and-sales-scope-check.mjs',
