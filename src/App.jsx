@@ -8,7 +8,7 @@ import {verificarMovimentoCaixaNoServidor} from './core/cashMovementReadOnly.js'
 import TerminalLogin from './components/TerminalLogin';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { traducoes, moedasConfig, normalizarProduto, normalizarCliente, produtosIniciais, clientesIniciais } from './data';
-import { auth, db } from './firebase';
+import { auth, db, ZENOS_SAFE_SESSION } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, collection, query, where, getDocsFromServer, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { inspectLocalSchemaVersion, PERSISTENCE_STATUS_EVENT, notifyPersistenceStatus } from './core/persistenceSafety';
@@ -161,6 +161,8 @@ export default function App() {
   const [statusLoja, setStatusLoja] = useState(null);
   const [planoLoja, setPlanoLoja] = useState('basico');
   const [carregandoAuth, setCarregandoAuth] = useState(true);
+  const [falhaInicializacao, setFalhaInicializacao] = useState(null);
+  const etapaInicializacaoRef = useRef('autenticacao');
   
   // 🔒 MOTOR DE SINCRONIZAÇÃO (TRANCA DE DADOS)
   const [nuvemSincronizada, setNuvemSincronizada] = useState(false);
@@ -509,9 +511,19 @@ export default function App() {
     // outra loja depois de logout/troca de conta ou do StrictMode cleanup.
     let mounted = true;
     let authSequence = 0;
+    // Chrome persistent auth can stall before the first callback. Never
+    // make the operator wait indefinitely or clear their protected drafts.
+    const watchdog = window.setTimeout(() => {
+      if (!mounted) return;
+      setFalhaInicializacao('ZENOS_BOOTSTRAP_TIMEOUT:' + etapaInicializacaoRef.current);
+      setCarregandoAuth(false);
+      setNuvemSincronizada(false);
+      console.error('[ZenOS][BOOTSTRAP] Startup stalled:', etapaInicializacaoRef.current);
+    }, 30000);
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       const sequence = ++authSequence;
       const isCurrent = () => mounted && sequence === authSequence;
+      etapaInicializacaoRef.current = 'sessao-da-loja';
       if (authRouteUidRef.current) clearOperationalSession(db, authRouteUidRef.current);
       authRouteUidRef.current = user?.uid || null;
       setOperadoresConfirmados(false);setOperadorAtivo(null);setCarregandoAuth(true);
@@ -536,6 +548,8 @@ export default function App() {
         setFalhaBootstrapNuvem(null);
         try {
           const docRef = doc(db, "lojas", user.uid);
+          etapaInicializacaoRef.current = 'consulta-da-loja';
+
           const docSnap = await getDoc(docRef);
           if (!isCurrent()) return;
           if (docSnap.exists()) {
@@ -562,6 +576,8 @@ export default function App() {
             if(!isCurrent()||!access?.vendedores?.length)return;
             setVendedores(access.vendedores);setOperadoresConfirmados(true);setCarregandoAuth(false);
           }).catch(()=>{}); // The full bootstrap below owns the visible failure state.
+          etapaInicializacaoRef.current = 'dados-operacionais';
+
           const dadosLojaSnap = await getOperationalSnapshot(db, user.uid);
           if (!isCurrent()) return;
           const adminPadrao = [{ id: 'admin', nome: 'Administrador (Gerência)', patente: 'gerencia', senha: 'admin', pinTrocaObrigatoria: true, percentual: 0, comissaoTipo: 'lucro', permissoes: { admin: true } }];
@@ -679,9 +695,20 @@ export default function App() {
         setFalhaBootstrapNuvem(null);
         setProdutos([]); setClientes([]); setHistoricoVendas([]); setCaixaMovimentos([]); setDespesas([]); setHistoricoCompras([]); setFornecedores([]); setVouchers([]); setLivroFinanceiro([]); setSessoesCaixa([]); setRegrasDesconto({ ...REGRAS_DESCONTO_PADRAO }); setRegrasComissao(normalizarRegrasComissao(REGRAS_COMISSAO_PADRAO)); setVendedores([]); setPerfilLoja(normalizarPerfilLoja({})); setPerfilRapidoRascunho(normalizarPerfilLoja({})); setTaxasCambio({ ...TAXAS_CAMBIO_PADRAO }); setTaxasInput({ ...TAXAS_INPUT_PADRAO });
       }
-      if (isCurrent()) setCarregandoAuth(false);
+      if (isCurrent()) {
+        window.clearTimeout(watchdog);
+        setFalhaInicializacao(null);
+        setCarregandoAuth(false);
+      }
+    }, error => {
+      if (!mounted) return;
+      window.clearTimeout(watchdog);
+      setFalhaInicializacao('ZENOS_AUTH_OBSERVER_ERROR');
+      setCarregandoAuth(false);
+      setNuvemSincronizada(false);
+      console.error('[ZenOS][BOOTSTRAP] Auth observer failed:', error);
     });
-    return () => { mounted = false; authSequence++; unsubscribe(); };
+    return () => { mounted = false; authSequence++; unsubscribe(); window.clearTimeout(watchdog); };
   }, []);
 
   // ATT 06.2: sincronização reativa V1 entre terminais.
@@ -1766,6 +1793,34 @@ export default function App() {
     );
   };
 
+  if (falhaInicializacao) {
+    return <div role="alert" style={{minHeight:'100vh',background:'#020617',display:'flex',alignItems:'center',justifyContent:'center',padding:20,fontFamily:'system-ui,sans-serif'}}>
+      <div style={{maxWidth:540,width:'100%',background:'#0f172a',color:'#f8fafc',border:'1px solid #f59e0b',borderRadius:20,padding:28,boxShadow:'0 24px 60px #0008'}}>
+        <h2 style={{fontSize:22,margin:'0 0 14px'}}>{tx('Não foi possível concluir a inicialização','No se pudo completar el inicio','Startup could not complete')}</h2>
+        <p style={{color:'#cbd5e1',lineHeight:1.6}}>{tx(
+          'A sessão deste navegador não respondeu à verificação de segurança. Os carrinhos e dados locais não foram apagados. Nenhuma venda foi confirmada por esta tentativa.',
+          'La sesión de este navegador no respondió. No se eliminaron carritos ni datos locales; no se confirmó ninguna venta.',
+          'This browser session did not respond. Local carts and data were preserved; no sale was confirmed.'
+        )}</p>
+        <p style={{color:'#94a3b8',fontSize:12}}>Diagnóstico: {falhaInicializacao}</p>
+        <button type="button" onClick={() => window.location.reload()} style={{width:'100%',padding:14,border:0,borderRadius:10,background:'#0284c7',color:'white',fontWeight:800,cursor:'pointer'}}>
+          {tx('Tentar abrir novamente','Intentar abrir de nuevo','Try again')}
+        </button>
+        {!ZENOS_SAFE_SESSION && <button type="button" onClick={() => {
+          try { window.sessionStorage.setItem('zenos_safe_session','1'); } catch (_) {}
+          window.location.assign('/login?zenos_safe_session=1');
+        }} style={{width:'100%',marginTop:10,padding:14,border:'1px solid #34d399',borderRadius:10,background:'#052e26',color:'#a7f3d0',fontWeight:800,cursor:'pointer'}}>
+          {tx('Entrar em sessão temporária protegida','Entrar en sesión temporal protegida','Open protected temporary session')}
+        </button>}
+        <p style={{fontSize:12,color:'#fbbf24',marginTop:14}}>{tx(
+          'Não utilize “Limpar dados do site”. Se outra sessão abriu normalmente, use-a para consultar dados confirmados, sem repetir vendas pendentes.',
+          'No use “Borrar datos del sitio”. Consulte registros confirmados en otra sesión sin repetir ventas pendientes.',
+          'Do not clear site data. Consult confirmed records in a separate session without replaying pending sales.'
+        )}</p>
+      </div>
+    </div>;
+  }
+
   if (carregandoAuth) {
     return (
       <div style={{ minHeight: '100vh', backgroundColor: '#020617', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1991,6 +2046,13 @@ export default function App() {
       `}</style>
       
       <ZenOSUpdateWelcome />
+      {ZENOS_SAFE_SESSION && <div role="status" style={{
+        position:'fixed',bottom:16,left:16,zIndex:85,maxWidth:390,
+        background:'#052e26',color:'#a7f3d0',border:'1px solid #047857',
+        borderRadius:12,padding:'10px 14px',fontSize:12
+      }}>{tx('Sessão temporária: o armazenamento original do Firebase foi preservado. Confira vendas pendentes antes de lançar novamente.',
+             'Sesión temporal: el almacenamiento original está preservado. Verifique las ventas pendientes.',
+             'Temporary session: original Firebase storage is preserved. Review pending sales before charging again.')}</div>}
       {inconsistenciasMonetarias.length > 0 &&
         (operadorAtivo?.id === 'admin' || patenteUsuario === 'gerencia' || operadorAtivo?.permissoes?.admin) && (
         <div role="status" style={{
