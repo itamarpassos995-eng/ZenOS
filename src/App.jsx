@@ -1042,7 +1042,43 @@ export default function App() {
     try { return new Intl.NumberFormat(conf.locale, { style: 'currency', currency: conf.moeda, maximumFractionDigits: conf.moeda === 'PYG' ? 0 : 2 }).format(val); } catch { return `${conf.simbolo} ${Number(val).toFixed(2)}`; }
   };
 
-  const produtosParaAnalise=useMemo(()=>produtos.map(p=>projetarProdutoMonetario(p,converterParaBRL)),[produtos,taxasCambio]);
+  // A historical product with invalid monetary metadata must not crash the
+  // whole app during rendering. Keep the original catalog untouched for the
+  // PDV/stock/financial modules; never replace invalid prices with zero.
+  // Only the optional Zen IA projection skips unsafe records.
+  const { produtosParaAnalise, inconsistenciasMonetarias } = useMemo(() => {
+    const validos = [];
+    const invalidos = [];
+    for (const produto of produtos) {
+      try {
+        validos.push(projetarProdutoMonetario(produto, (valor, codigo) => {
+          const taxa = Number(taxasCambio?.[codigo]);
+          if (!['BRL', 'PYG', 'USD', 'EUR'].includes(codigo) ||
+              !Number.isFinite(taxa) || taxa <= 0) {
+            throw new Error('Moeda ou cotação não reconhecida');
+          }
+          const convertido = Number(valor) / taxa;
+          if (!Number.isFinite(convertido) || convertido < 0) {
+            throw new Error('Valor monetário inválido');
+          }
+          return convertido;
+        }));
+      } catch (error) {
+        invalidos.push({
+          id: String(produto?.id ?? 'sem-id'),
+          sku: String(produto?.sku ?? ''),
+          motivo: String(error?.message || 'Erro monetário desconhecido'),
+        });
+      }
+    }
+    return { produtosParaAnalise: validos, inconsistenciasMonetarias: invalidos };
+  }, [produtos, taxasCambio]);
+
+  useEffect(() => {
+    if (!inconsistenciasMonetarias.length) return;
+    console.error('[ZenOS][Moedas] Produtos excluídos somente da análise Zen IA (cadastros preservados):',
+      inconsistenciasMonetarias);
+  }, [inconsistenciasMonetarias]);
 
   const salvarTaxasCambio = async () => {
     const usd = interpretarValorMonetario(taxasInput.USD, 'BRL');
@@ -1955,6 +1991,22 @@ export default function App() {
       `}</style>
       
       <ZenOSUpdateWelcome />
+      {inconsistenciasMonetarias.length > 0 &&
+        (operadorAtivo?.id === 'admin' || patenteUsuario === 'gerencia' || operadorAtivo?.permissoes?.admin) && (
+        <div role="status" style={{
+          position:'fixed',top:12,right:12,zIndex:75,maxWidth:450,
+          background:'#451a03',color:'#fef3c7',border:'1px solid #f59e0b',
+          borderRadius:12,padding:'12px 16px',fontSize:12,boxShadow:'0 8px 28px #0006'
+        }}>
+          <strong>{tx('Atenção ao cadastro monetário','Revisar datos monetarios','Review monetary records')}</strong>
+          <div>{inconsistenciasMonetarias.length} {tx(
+            'produto(s) possuem valores/moedas inválidos. O PDV e os dados originais foram preservados; a Zen IA não usará esses produtos nos cálculos até a correção.',
+            'producto(s) tienen importes o monedas inválidos. El PDV y los datos originales se preservaron; Zen IA no los incluirá.',
+            'products have invalid monetary data. Original records remain untouched; Zen AI will exclude them.'
+          )}</div>
+          <small>{inconsistenciasMonetarias.slice(0,3).map(x => x.sku || x.id).join(', ')}</small>
+        </div>
+      )}
       <ZenNavigationLayout
         sidebarProps={{
           ecraAtual,
