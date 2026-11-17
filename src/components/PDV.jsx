@@ -27,6 +27,11 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   pedidoPrivadoSolicitado, onPedidoPrivadoRecebido, perfilLoja, taxasCambio = {}, registrarFinanceiro, commitOperacaoCritica, commitVendaCritica, recarregarDadosPDV, vouchers = [], setVouchers, userId, produtos, setProdutos, clientes, setClientes, moeda, fmt, t, tx, converterDeBRL, converterParaBRL, historicoVendas, setHistoricoVendas, patenteUsuario, idioma, regrasDesconto, vendedores = [], operadorAtivo, sessaoAtiva }) {
   const [rascunhoInicial] = useState(() => lerRascunhoPDV(userId, operadorAtivo?.id));
   const [avisoRascunhoRecuperado, setAvisoRascunhoRecuperado] = useState(Boolean(rascunhoInicial?.itensVenda?.length));
+  // Do not overwrite a newer IndexedDB draft with the initial (possibly empty)
+  // React render while the durable backup is still being restored.
+  const [rascunhoHidratado, setRascunhoHidratado] = useState(false);
+  const filaProtecaoRascunhoRef = useRef(Promise.resolve());
+  const [falhaProtecaoRascunho, setFalhaProtecaoRascunho] = useState(false);
   // Recupera o backup durável quando o localStorage foi esgotado no terminal.
   // Não substitui um atendimento que já recebeu itens nesta sessão.
   useEffect(()=>{
@@ -50,7 +55,8 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
         setAvisoRascunhoRecuperado(true);
         return salvo.itensVenda;
       });
-    }).catch(error=>console.warn('[ZenOS PDV] Recuperação do atendimento:',error));
+    }).catch(error=>console.warn('[ZenOS PDV] Recuperação do atendimento:',error))
+      .finally(()=>{if(ativo)setRascunhoHidratado(true);});
     return()=>{ativo=false};
   },[userId,operadorAtivo?.id]);
   const [termoBusca, setTermoBusca] = useState('');
@@ -346,21 +352,33 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       setAutoriaAtendimento(autoriaDoOperador(operadorAtivo));
   }, [itensVenda.length, prePedidoEmAbertoId, autoriaAtendimento, operadorAtivo?.id, operadorAtivo?.nome]);
 
-  // Persistir o carrinho após cada edição; a confirmação da venda continua exclusiva da nuvem.
-  // Guardar somente dados comerciais necessários (nunca fotos grandes no localStorage).
+  // Save every cart edit locally, with durable IndexedDB fallback if the
+  // synchronous storage is full. Serialise writes so older snapshots cannot
+  // overwrite newer ones. No Firestore reads or confirmed sales are created.
   useEffect(() => {
-    if (vendaSucesso) return;
-    salvarRascunhoPDV(userId, operadorAtivo?.id, {
+    if (!rascunhoHidratado || vendaSucesso || !userId) return;
+    const snapshot = {
       itensVenda, autoriaAtendimento, descontoTexto, nomeClienteVulso,
       clienteSelecionadoPDV: clienteSelecionadoPDV ? {
         id: clienteSelecionadoPDV.id, nome: clienteSelecionadoPDV.nome,
       } : null,
       clienteQuerFiscal, pagamentosLancados, prePedidoEmAbertoId,
       modalFechamentoAberto, operacaoDocumento: operacaoDocumentoRef.current,
-    });
-  }, [userId, operadorAtivo?.id, itensVenda, autoriaAtendimento, descontoTexto, nomeClienteVulso,
-      clienteSelecionadoPDV, clienteQuerFiscal, pagamentosLancados,
-      prePedidoEmAbertoId, modalFechamentoAberto, vendaSucesso]);
+    };
+    // Fast synchronous checkpoint protects refresh immediately when possible.
+    const sincronizado = salvarRascunhoPDV(userId, operadorAtivo?.id, snapshot);
+    if (!sincronizado) setFalhaProtecaoRascunho(true);
+    const pending = filaProtecaoRascunhoRef.current
+      .catch(() => {})
+      .then(async () => {
+        const espelhado = await salvarRascunhoPDVProtegido(userId, operadorAtivo?.id, snapshot, {onlyBackup:true});
+        setFalhaProtecaoRascunho(!sincronizado && !espelhado);
+      });
+    filaProtecaoRascunhoRef.current = pending;
+  }, [rascunhoHidratado, userId, operadorAtivo?.id, itensVenda, autoriaAtendimento,
+      descontoTexto, nomeClienteVulso, clienteSelecionadoPDV,
+      clienteQuerFiscal, pagamentosLancados, prePedidoEmAbertoId,
+      modalFechamentoAberto, vendaSucesso]);
 
   const perfilRecibo = useMemo(() => normalizarPerfilLoja(perfilLoja), [perfilLoja]);
   const cotacoesRecibo = vendaConcluidaObj?.taxasCambio || taxasCambio || {};
@@ -1327,7 +1345,8 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                 String(v?.id ?? '') === String(vendaId) && v?.estado === 'pendente');
               if (confirmadoNoServidor) {
                 setHistoricoVendas(pedidos);
-                await apagarRascunhoPDVProtegido(userId, operadorAtivo?.id);
+                await filaProtecaoRascunhoRef.current.catch(() => {});
+      await apagarRascunhoPDVProtegido(userId, operadorAtivo?.id);
                 setVendaConcluidaObj(confirmadoNoServidor);
                 setVendaSucesso(true);
                 setModalFechamentoAberto(true);
@@ -1381,6 +1400,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
           });
         } catch (_) {}
       }
+      await filaProtecaoRascunhoRef.current.catch(() => {});
       await apagarRascunhoPDVProtegido(userId, operadorAtivo?.id);
       setVendaConcluidaObj(novaVenda);
       setVendaSucesso(true);
@@ -1413,6 +1433,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   };
 
   const limparParaNovaVenda = async () => {
+    await filaProtecaoRascunhoRef.current.catch(() => {});
     await apagarRascunhoPDVProtegido(userId, operadorAtivo?.id);
     operacaoDocumentoRef.current = { assinatura: null, id: null, instante: null };
     setItensVenda([]); setDescontoTexto('0'); setPagamentosLancados([]);
@@ -1425,7 +1446,14 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px', width: '100%', boxSizing: 'border-box' }}>
-      {avisoRascunhoRecuperado && !vendaSucesso && (
+      {falhaProtecaoRascunho && !vendaSucesso && (
+        <div role="alert" style={{gridColumn:'1 / -1',padding:'12px 16px',borderRadius:12,background:'#451a03',border:'1px solid #f59e0b',color:'#fef3c7',fontSize:13,fontWeight:700}}>
+          {tx('Atenção: este atendimento ainda não tem backup local confirmado. Não atualize nem feche a página até liberar espaço ou salvar o carrinho.',
+              'Atención: este pedido todavía no tiene copia de seguridad local confirmada. No actualice ni cierre la página.',
+              'Warning: this cart has no confirmed local backup. Do not refresh or close the page.')}
+        </div>
+      )}
+            {avisoRascunhoRecuperado && !vendaSucesso && (
         <div role="status" style={{gridColumn:'1 / -1',border:'1px solid #38bdf8',background:'#082f49',borderRadius:12,
           padding:'12px 16px',display:'flex',gap:12,alignItems:'center',justifyContent:'space-between',color:'#e0f2fe',flexWrap:'wrap'}}>
           <span>{tx(
