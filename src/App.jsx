@@ -515,10 +515,30 @@ export default function App() {
     // make the operator wait indefinitely or clear their protected drafts.
     const watchdog = window.setTimeout(() => {
       if (!mounted) return;
-      setFalhaInicializacao('ZENOS_BOOTSTRAP_TIMEOUT:' + etapaInicializacaoRef.current);
+      const etapa = etapaInicializacaoRef.current;
+      console.error('[ZenOS][BOOTSTRAP] Startup stalled:', etapa);
+      // Recover exactly once per tab from a stuck browser-persistent Firebase
+      // cache. Keep local drafts, receipts and IndexedDB untouched. Do not
+      // repeat the redirect if the protected session also cannot connect.
+      if (!ZENOS_SAFE_SESSION) {
+        try {
+          const attempted = window.sessionStorage.getItem('zenos_bootstrap_auto_recovery');
+          if (attempted !== '1') {
+            window.sessionStorage.setItem('zenos_bootstrap_auto_recovery', '1');
+            window.sessionStorage.setItem('zenos_safe_session', '1');
+            const recoveryUrl = new URL(window.location.href);
+            recoveryUrl.searchParams.set('zenos_safe_session', '1');
+            recoveryUrl.searchParams.set('login', '1');
+            window.location.replace(recoveryUrl.toString());
+            return;
+          }
+        } catch (error) {
+          console.warn('[ZenOS][BOOTSTRAP] Safe recovery navigation unavailable:', error);
+        }
+      }
+      setFalhaInicializacao('ZENOS_BOOTSTRAP_TIMEOUT:' + etapa);
       setCarregandoAuth(false);
       setNuvemSincronizada(false);
-      console.error('[ZenOS][BOOTSTRAP] Startup stalled:', etapaInicializacaoRef.current);
     }, 30000);
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       const sequence = ++authSequence;
