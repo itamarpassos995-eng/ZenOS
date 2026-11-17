@@ -8,7 +8,7 @@ import {verificarMovimentoCaixaNoServidor} from './core/cashMovementReadOnly.js'
 import TerminalLogin from './components/TerminalLogin';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { traducoes, moedasConfig, normalizarProduto, normalizarCliente, produtosIniciais, clientesIniciais } from './data';
-import { auth, db } from './firebase';
+import { auth, db, ZENOS_SAFE_SESSION } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, collection, query, where, getDocsFromServer, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { inspectLocalSchemaVersion, PERSISTENCE_STATUS_EVENT, notifyPersistenceStatus } from './core/persistenceSafety';
@@ -1806,6 +1806,12 @@ export default function App() {
         <button type="button" onClick={() => window.location.reload()} style={{width:'100%',padding:14,border:0,borderRadius:10,background:'#0284c7',color:'white',fontWeight:800,cursor:'pointer'}}>
           {tx('Tentar abrir novamente','Intentar abrir de nuevo','Try again')}
         </button>
+        {!ZENOS_SAFE_SESSION && <button type="button" onClick={() => {
+          try { window.sessionStorage.setItem('zenos_safe_session','1'); } catch (_) {}
+          window.location.assign('/login?zenos_safe_session=1');
+        }} style={{width:'100%',marginTop:10,padding:14,border:'1px solid #34d399',borderRadius:10,background:'#052e26',color:'#a7f3d0',fontWeight:800,cursor:'pointer'}}>
+          {tx('Entrar em sessão temporária protegida','Entrar en sesión temporal protegida','Open protected temporary session')}
+        </button>}
         <p style={{fontSize:12,color:'#fbbf24',marginTop:14}}>{tx(
           'Não utilize “Limpar dados do site”. Se outra sessão abriu normalmente, use-a para consultar dados confirmados, sem repetir vendas pendentes.',
           'No use “Borrar datos del sitio”. Consulte registros confirmados en otra sesión sin repetir ventas pendientes.',
@@ -2040,6 +2046,13 @@ export default function App() {
       `}</style>
       
       <ZenOSUpdateWelcome />
+      {ZENOS_SAFE_SESSION && <div role="status" style={{
+        position:'fixed',bottom:16,left:16,zIndex:85,maxWidth:390,
+        background:'#052e26',color:'#a7f3d0',border:'1px solid #047857',
+        borderRadius:12,padding:'10px 14px',fontSize:12
+      }}>{tx('Sessão temporária: o armazenamento original do Firebase foi preservado. Confira vendas pendentes antes de lançar novamente.',
+             'Sesión temporal: el almacenamiento original está preservado. Verifique las ventas pendientes.',
+             'Temporary session: original Firebase storage is preserved. Review pending sales before charging again.')}</div>}
       {inconsistenciasMonetarias.length > 0 &&
         (operadorAtivo?.id === 'admin' || patenteUsuario === 'gerencia' || operadorAtivo?.permissoes?.admin) && (
         <div role="status" style={{
