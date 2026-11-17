@@ -101,8 +101,8 @@ export async function espelharRascunhoPDVIndexedDB(lojaId,operadorId,rascunho) {
   }
 }
 
-export async function salvarRascunhoPDVProtegido(lojaId,operadorId,rascunho) {
-  const salvoLocal=salvarRascunhoPDV(lojaId,operadorId,rascunho);
+export async function salvarRascunhoPDVProtegido(lojaId,operadorId,rascunho,{onlyBackup=false}={}) {
+  const salvoLocal=onlyBackup ? false : salvarRascunhoPDV(lojaId,operadorId,rascunho);
   const salvoIndexedDB=await espelharRascunhoPDVIndexedDB(lojaId,operadorId,rascunho);
   if(!salvoLocal && !salvoIndexedDB)
     console.error('[ZenOS PDV] Ambos os armazenamentos locais falharam; venda protegida por bloqueio.');
