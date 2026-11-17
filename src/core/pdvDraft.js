@@ -87,19 +87,11 @@ const correspondeAoOperador = (v,lojaId,operadorId) =>
 export async function salvarRascunhoPDVProtegido(lojaId,operadorId,rascunho) {
   const chave=chaveRascunhoPDV(lojaId,operadorId);
   if (!chave) return false;
-  // Dual local checkpoints for every edit, not only on checkout. Neither
-  // storage is a confirmed sale: no Firestore writes are created here.
-  const salvoLocal=salvarRascunhoPDV(lojaId,operadorId,rascunho);
+  if (salvarRascunhoPDV(lojaId,operadorId,rascunho)) return true;
   try {
-    if(!rascunho?.itensVenda?.length && !rascunho?.prePedidoEmAbertoId)
-      await executarBackup(chave,'readwrite');
-    else
-      await executarBackup(chave,'readwrite',rascunhoNormalizado(lojaId,operadorId,rascunho));
+    await executarBackup(chave,'readwrite',rascunhoNormalizado(lojaId,operadorId,rascunho));
     return true;
   } catch(error) {
-    // A synchronous localStorage checkpoint still protects refresh when IDB
-    // is unavailable, but never claim safety if BOTH storage writes failed.
-    if(salvoLocal)return true;
     console.error('[ZenOS PDV] Ambos os armazenamentos locais falharam; venda protegida por bloqueio.',error);
     return false;
   }
