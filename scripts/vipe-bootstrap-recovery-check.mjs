@@ -10,10 +10,10 @@ assert.match(app,/setCarregandoAuth\(false\)/);
 assert.match(app,/ZENOS_AUTH_OBSERVER_ERROR/);
 assert.match(app,/zenos_safe_session=1/);
 assert.match(app,/zenos_bootstrap_auto_recovery/);
-assert.match(app,/window\\.location\\.replace\\(recoveryUrl\\.toString\\(\\)\\)/);
-assert.match(app,/if \\(!ZENOS_SAFE_SESSION\\)/);
-assert.match(app,/recoveryUrl\\.searchParams\\.set\\('zenos_safe_session', '1'\\)/);
-assert.match(app,/window\\.sessionStorage\\.setItem\\('zenos_safe_session', '1'\\)/);
+assert.ok(app.includes('window.location.replace(recoveryUrl.toString())'));
+assert.ok(app.includes('if (!ZENOS_SAFE_SESSION)'));
+assert.ok(app.includes("recoveryUrl.searchParams.set('zenos_safe_session', '1')"));
+assert.ok(app.includes("window.sessionStorage.setItem('zenos_safe_session', '1')"));
 
 assert.match(app,/window\.sessionStorage\.setItem\('zenos_safe_session','1'\)/);
 assert.match(app,/role="alert"/);
