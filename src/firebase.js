@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, connectAuthEmulator } from "firebase/auth";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator } from "firebase/firestore";
+import { getAuth, initializeAuth, browserSessionPersistence, connectAuthEmulator } from "firebase/auth";
+import { initializeFirestore, memoryLocalCache, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator } from "firebase/firestore";
 import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
 import { getAnalytics } from "firebase/analytics";
 import { ZENOS_RUNTIME } from './core/runtimeEnvironment';
@@ -31,14 +31,32 @@ const firebaseConfig = ZENOS_RUNTIME.isHomologacao
   : productionFirebaseConfig;
 
 const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-// Cache persistente compartilhado entre abas. Deve ser inicializado antes de qualquer leitura.
-// O SDK ainda consulta o servidor quando a aplicação precisa de dados atualizados;
- // somente leituras explicitamente feitas do cache dispensam faturamento remoto.
+
+// Recovery is explicit, isolated to the browser tab, and never deletes the
+// original Auth/Firestore IndexedDB or protected PDV drafts. This avoids a
+// damaged browser-persistent Firebase store when incognito still works.
+const safeSessionRequested = (() => {
+  if (typeof window === 'undefined') return false;
+  try {
+    const requested = new URLSearchParams(window.location.search).get('zenos_safe_session') === '1';
+    if (requested) window.sessionStorage.setItem('zenos_safe_session', '1');
+    return requested || window.sessionStorage.getItem('zenos_safe_session') === '1';
+  } catch {
+    return false;
+  }
+})();
+export const ZENOS_SAFE_SESSION = safeSessionRequested && ZENOS_RUNTIME.isProduction;
+export const auth = ZENOS_SAFE_SESSION
+  ? initializeAuth(app, { persistence: browserSessionPersistence })
+  : getAuth(app);
+
+// The normal mode retains existing persistent multi-tab Firestore cache.
+// In explicitly chosen recovery mode use memory-only cache, to avoid opening
+// broken IndexedDB. Server confirmation and write guards are unchanged.
 export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({
-    tabManager: persistentMultipleTabManager(),
-  }),
+  localCache: ZENOS_SAFE_SESSION
+    ? memoryLocalCache()
+    : persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
 });
 
 if (ZENOS_RUNTIME.isHomologacao) {
