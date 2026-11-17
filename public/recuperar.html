@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#020617">
+  <meta http-equiv="Cache-Control" content="no-store">
+  <title>ZenOS — Recuperação de acesso</title>
+  <style>
+    :root{font-family:Inter,system-ui,-apple-system,sans-serif;color-scheme:dark}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;display:grid;place-items:center;padding:20px;background:radial-gradient(ellipse at 50% 0%,#10304b,#020617 65%);color:#f8fafc}
+    main{width:100%;max-width:540px;border:1px solid #254263;border-radius:22px;padding:clamp(22px,5vw,36px);background:#0f172acc;box-shadow:0 25px 75px #0007}
+    .brand{font-weight:900;font-size:23px;letter-spacing:.4px}.brand span{color:#38bdf8}
+    .eyebrow{font-size:11px;letter-spacing:2px;color:#34d399;font-weight:800;margin:27px 0 10px}
+    h1{font-size:clamp(24px,4vw,30px);line-height:1.2;margin:0 0 15px}
+    p{line-height:1.65;color:#cbd5e1;font-size:14px}
+    .notice{background:#082f2a;border:1px solid #047857;border-radius:12px;padding:13px 15px;margin:22px 0;color:#bbf7d0;font-size:13px;line-height:1.6}
+    button,a.secondary{display:block;width:100%;min-height:50px;border-radius:12px;font:700 15px system-ui;cursor:pointer;text-align:center;padding:14px;text-decoration:none}
+    button{border:0;color:white;background:linear-gradient(100deg,#0284c7,#0d9488)}
+    button:focus-visible,a:focus-visible{outline:3px solid #7dd3fc;outline-offset:3px}
+    a.secondary{border:1px solid #334155;background:#0b1222;color:#e2e8f0;margin-top:10px}
+    .footer{font-size:12px;color:#94a3b8;margin-top:17px}
+    #feedback{font-size:12px;color:#fbbf24;min-height:20px}
+  </style>
+</head>
+<body>
+<main>
+  <div class="brand">Zen<span>OS</span></div>
+  <div class="eyebrow">RECUPERAÇÃO DE ACESSO</div>
+  <h1>Entrar sem apagar os dados do computador</h1>
+  <p>Se o ZenOS fica preso em “A INICIAR SISTEMA”, esta página abre uma sessão temporária separada do armazenamento persistente do Firebase. Não é necessário abrir o F12 ou limpar o navegador.</p>
+  <div class="notice"><strong>Seus dados locais serão preservados.</strong> Esta recuperação não apaga IndexedDB, localStorage, rascunhos do PDV ou dados do navegador. Antes de repetir uma cobrança, confira o histórico de vendas confirmadas.</div>
+  <button id="safe" type="button">Abrir ZenOS em sessão protegida</button>
+  <a class="secondary" href="https://www.zenos.app.br/login?zenos_safe_session=1" rel="noopener">Tentar pelo domínio alternativo (www)</a>
+  <p class="footer">É possível que você precise entrar novamente com o e-mail e senha da loja. Os dados locais da sessão antiga não serão recuperados automaticamente nesta sessão temporária.</p>
+  <p id="feedback" role="status" aria-live="polite"></p>
+</main>
+<script>
+(function(){
+  'use strict';
+  var button=document.getElementById('safe');
+  var feedback=document.getElementById('feedback');
+  button.addEventListener('click',function(){
+    button.disabled=true;
+    try{window.sessionStorage.setItem('zenos_safe_session','1');}
+    catch(e){feedback.textContent='Sessão temporária indisponível; tentando a opção segura pela URL.';}
+    // No persistent-storage operations, Firebase scripts or service workers
+    // are loaded in this recovery page.
+    window.location.assign('/login?zenos_safe_session=1');
+  });
+})();
+</script>
+</body>
+</html>
