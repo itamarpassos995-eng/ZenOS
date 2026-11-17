@@ -38,14 +38,14 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); apagarRascunhoPDV(loja,operador.id); });
 
-test('PDV restaura 30 itens e conserva edicoes apos remontar o componente', () => {
+test('PDV restaura 30 itens e conserva edicoes apos remontar o componente', async () => {
   const rendered=montar();
   expect(screen.getByText('Item de teste 1')).toBeTruthy();
   expect(screen.getByText('Item de teste 30')).toBeTruthy();
   expect(screen.getAllByRole('spinbutton')).toHaveLength(30);
   expect(screen.getByText(/Atendimento anterior recuperado/)).toBeTruthy();
   fireEvent.change(screen.getAllByRole('spinbutton')[0],{target:{value:'3'}});
-  expect(lerRascunhoPDV(loja,operador.id).itensVenda[0].qtd).toBe('3');
+  await waitFor(() => expect(lerRascunhoPDV(loja,operador.id).itensVenda[0].qtd).toBe('3'));
   rendered.unmount();
   montar();
   expect(screen.getAllByRole('spinbutton')[0].value).toBe('3');
@@ -85,4 +85,12 @@ test('Conflito V2 mantém 30 itens, não duplica venda e reusa ID/data ao tentar
   expect(chamadas[1].financialEntries[0].createdAt).toBe(primeira.financialEntries[0].createdAt);
   await screen.findByRole('button',{name:'Novo Atendimento'});
   expect(lerRascunhoPDV(loja,operador.id)).toBe(null);
+});
+
+test('rascunho não é apagado no primeiro render enquanto backup durável está carregando', async () => {
+  const rendered=montar();
+  expect(lerRascunhoPDV(loja,operador.id)?.itensVenda).toHaveLength(30);
+  await waitFor(()=>expect(screen.getByText('Item de teste 30')).toBeTruthy());
+  rendered.unmount();
+  expect(lerRascunhoPDV(loja,operador.id)?.itensVenda).toHaveLength(30);
 });
