@@ -1808,7 +1808,7 @@ export default function App() {
         </button>
         {!ZENOS_SAFE_SESSION && <button type="button" onClick={() => {
           try { window.sessionStorage.setItem('zenos_safe_session','1'); } catch (_) {}
-          window.location.assign('/login?zenos_safe_session=1');
+          window.location.assign('/?login=1&zenos_safe_session=1');
         }} style={{width:'100%',marginTop:10,padding:14,border:'1px solid #34d399',borderRadius:10,background:'#052e26',color:'#a7f3d0',fontWeight:800,cursor:'pointer'}}>
           {tx('Entrar em sessão temporária protegida','Entrar en sesión temporal protegida','Open protected temporary session')}
         </button>}
