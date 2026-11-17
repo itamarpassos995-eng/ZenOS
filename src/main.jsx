@@ -34,13 +34,13 @@ safeButton.onclick = () => {
   // Only the active TAB gets a temporary Auth/Firestore session. No local
   // data, old Firebase databases, drafts or customer receipts are deleted.
   try { window.sessionStorage.setItem('zenos_safe_session','1') } catch (_) {}
-  window.location.assign('/login?zenos_safe_session=1')
+  window.location.assign('/?login=1&zenos_safe_session=1')
 }
 const alternate = document.createElement('a')
 alternate.textContent = 'Abrir pelo domínio alternativo'
 alternate.href = window.location.hostname === 'www.zenos.app.br'
-  ? 'https://zenos.app.br/login?zenos_safe_session=1'
-  : 'https://www.zenos.app.br/login?zenos_safe_session=1'
+  ? 'https://zenos.app.br/?login=1&zenos_safe_session=1'
+  : 'https://www.zenos.app.br/?login=1&zenos_safe_session=1'
 alternate.style.cssText = 'display:block;margin-top:14px;color:#7dd3fc;font-weight:700;'
 const safetyNotice = document.createElement('p')
 safetyNotice.textContent = 'Não limpe os dados do site. Confira vendas pendentes antes de repetir pagamentos.'
