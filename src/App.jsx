@@ -1803,6 +1803,9 @@ export default function App() {
           'This browser session did not respond. Local carts and data were preserved; no sale was confirmed.'
         )}</p>
         <p style={{color:'#94a3b8',fontSize:12}}>Diagnóstico: {falhaInicializacao}</p>
+        <p style={{fontSize:13,color:'#cbd5e1'}}><a href="/recuperar.html" style={{color:'#7dd3fc',textDecoration:'underline'}}>
+          {tx('Abrir recuperação independente','Abrir recuperación independiente','Open standalone recovery')}
+        </a></p>
         <button type="button" onClick={() => window.location.reload()} style={{width:'100%',padding:14,border:0,borderRadius:10,background:'#0284c7',color:'white',fontWeight:800,cursor:'pointer'}}>
           {tx('Tentar abrir novamente','Intentar abrir de nuevo','Try again')}
         </button>
@@ -1827,6 +1830,9 @@ export default function App() {
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
           <ZenosLogo aoClicar={() => {}} tx={tx} />
           <span style={{ color: '#64748b', fontSize: '14px', fontWeight: 700, letterSpacing: '2px' }}>{tx('A INICIAR SISTEMA...','INICIANDO SISTEMA...','STARTING SYSTEM...')}</span>
+          <a href="/recuperar.html" style={{color:'#38bdf8',fontSize:12,textDecoration:'underline',marginTop:16}}>
+            {tx('Não consegue entrar? Acesso protegido','¿No puede ingresar? Acceso protegido','Cannot sign in? Protected access')}
+          </a>
         </div>
       </div>
     );
