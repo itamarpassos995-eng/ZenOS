@@ -18,7 +18,7 @@ import { validarCredencialGerencial } from '../core/accessControl';
 import { calcularCmvVenda } from '../core/salesFinancials';
 import { validarComposicaoPagamento } from '../core/paymentValidation';
 import { interpretarValorMonetario } from '../core/cashMoneyInput';
-import { lerRascunhoPDV, salvarRascunhoPDV, apagarRascunhoPDVProtegido, salvarRascunhoPDVProtegido, lerRascunhoPDVRecuperavel } from '../core/pdvDraft';
+import { lerRascunhoPDV, salvarRascunhoPDV, apagarRascunhoPDVProtegido, salvarRascunhoPDVProtegido, lerRascunhoPDVRecuperavel, espelharRascunhoPDVIndexedDB } from '../core/pdvDraft';
 import { getOperationalSnapshot } from '../core/operationalRepository';
 import { autoriaDoDocumento, autoriaDoOperador, resolverAutoriaVenda } from '../core/salesAttribution';
 import { indexarProdutosPDV, indexarClientesPDV, buscarProdutosPDV, buscarClientesPDV } from '../core/pdvSearch';
@@ -371,8 +371,8 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     const pending = filaProtecaoRascunhoRef.current
       .catch(() => {})
       .then(async () => {
-        const protegido = await salvarRascunhoPDVProtegido(userId, operadorAtivo?.id, snapshot);
-        setFalhaProtecaoRascunho(!protegido);
+        const espelhado = await espelharRascunhoPDVIndexedDB(userId, operadorAtivo?.id, snapshot);
+        setFalhaProtecaoRascunho(!sincronizado && !espelhado);
       });
     filaProtecaoRascunhoRef.current = pending;
   }, [rascunhoHidratado, userId, operadorAtivo?.id, itensVenda, autoriaAtendimento,
