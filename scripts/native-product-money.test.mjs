@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {registrarValoresProduto,produtoParaFormularioMonetario,quantiaOriginalProduto,valorProdutoBRL,projetarProdutoMonetario,custoFornecedorProdutoBRL} from '../src/core/productMoney.js';
+import {registrarValoresProduto,produtoParaFormularioMonetario,quantiaOriginalProduto,valorProdutoBRL,projetarProdutoMonetario,custoFornecedorProdutoBRL,atualizarCotacaoPrecoItemPDV} from '../src/core/productMoney.js';
 import {mergeArrayThreeWay} from '../src/core/syncMerge.js';
 import {criarSnapshotCommercePublico,conferirCarrinhoContraSnapshot,minorCommerceParaBRL} from '../src/core/commercePublicCatalog.js';
 const rates={BRL:1,PYG:1150,USD:0.2,EUR:0.18};
@@ -80,4 +80,30 @@ test('último custo do fornecedor mantém moeda original ao reabrir uma compra c
  assert.equal(custoFornecedorProdutoBRL(p,to),50);
  assert.equal(custoFornecedorProdutoBRL(p,(v,m)=>v/({...rates,USD:0.25}[m])),40);
  assert.equal(p.ultimoCustoFornecedorOriginal.valor,10);
+});
+
+test('PDV em PYG preserva preço nativo após mudança de 1150 para 1100',()=>{
+ const item={precoOrigemPDV:{valor:25000,moeda:'PYG'},precoPraticadoBRL:25000/1150,precoTexto:'25000',qtd:'1'};
+ const taxaNova={...rates,PYG:1100};
+ const novo=atualizarCotacaoPrecoItemPDV(item,'PYG',(v,m)=>v/taxaNova[m],(v,m)=>v*taxaNova[m]);
+ assert.equal(novo.precoTexto,'25000');
+ assert.equal(novo.precoPraticadoBRL,25000/1100);
+ assert.equal(novo.precoPraticadoBRL*1100,25000);
+ assert.equal(item.precoPraticadoBRL,25000/1150);
+});
+test('PDV em BRL mantém preço BRL estável quando cotação PYG muda',()=>{
+ const item={precoOrigemPDV:{valor:50,moeda:'BRL'},precoPraticadoBRL:50,precoTexto:'50.00'};
+ const taxaNova={...rates,PYG:1100};
+ const novo=atualizarCotacaoPrecoItemPDV(item,'BRL',(v,m)=>v/taxaNova[m],(v,m)=>v*taxaNova[m]);
+ assert.equal(novo.precoTexto,'50.00');
+ assert.equal(novo.precoPraticadoBRL,50);
+ const emGuarani=atualizarCotacaoPrecoItemPDV(novo,'PYG',(v,m)=>v/taxaNova[m],(v,m)=>v*taxaNova[m]);
+ assert.equal(emGuarani.precoTexto,'55000');
+});
+test('PDV preserva preço digitado em guaranis; não infere moedas de itens legados',()=>{
+ const taxaNova={...rates,PYG:1100},to=(v,m)=>v/taxaNova[m],from=(v,m)=>v*taxaNova[m];
+ const manual={precoDigitadoOriginal:{valor:25000,moeda:'PYG'},precoPraticadoBRL:25000/1150,precoTexto:'25000'};
+ assert.equal(atualizarCotacaoPrecoItemPDV(manual,'PYG',to,from).precoTexto,'25000');
+ const legado={precoPraticadoBRL:25000/1150,precoTexto:'25000'};
+ assert.equal(atualizarCotacaoPrecoItemPDV(legado,'PYG',to,from),legado);
 });
