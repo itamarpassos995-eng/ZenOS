@@ -1,4 +1,4 @@
-import { produtoParaFormularioMonetario, registrarValoresProduto, valorProdutoBRL, projetarProdutoMonetario, quantiaOriginalProduto, atualizarCotacaoPrecoItemPDV } from '../core/productMoney.js';
+import { produtoParaFormularioMonetario, registrarValoresProduto, valorProdutoBRL, projetarProdutoMonetario, quantiaOriginalProduto, atualizarCotacaoPrecoItemPDV, recuperarPrecoVisivelRascunhoPDV } from '../core/productMoney.js';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { normalizarProduto, normalizarCliente } from '../data';
 import { aplicarVendaAoEstoque, obterEstoqueProduto, preverBaixaEstoqueProduto } from '../core/inventory';
@@ -24,7 +24,7 @@ import { autoriaDoDocumento, autoriaDoOperador, resolverAutoriaVenda } from '../
 import { indexarProdutosPDV, indexarClientesPDV, buscarProdutosPDV, buscarClientesPDV } from '../core/pdvSearch';
 
 export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizados,
-  pedidoPrivadoSolicitado, onPedidoPrivadoRecebido, perfilLoja, taxasCambio = {}, registrarFinanceiro, commitOperacaoCritica, commitVendaCritica, recarregarDadosPDV, vouchers = [], setVouchers, userId, produtos, setProdutos, clientes, setClientes, moeda, fmt, t, tx, converterDeBRL, converterParaBRL, historicoVendas, setHistoricoVendas, patenteUsuario, idioma, regrasDesconto, vendedores = [], operadorAtivo, sessaoAtiva }) {
+  pedidoPrivadoSolicitado, onPedidoPrivadoRecebido, perfilLoja, taxasCambio = {}, registrarFinanceiro, commitOperacaoCritica, commitVendaCritica, recarregarDadosPDV, vouchers = [], setVouchers, userId, produtos, setProdutos, clientes, setClientes, moeda, moedaPadrao = 'BRL', fmt, t, tx, converterDeBRL, converterParaBRL, historicoVendas, setHistoricoVendas, patenteUsuario, idioma, regrasDesconto, vendedores = [], operadorAtivo, sessaoAtiva }) {
   const [rascunhoInicial] = useState(() => lerRascunhoPDV(userId, operadorAtivo?.id));
   const [avisoRascunhoRecuperado, setAvisoRascunhoRecuperado] = useState(Boolean(rascunhoInicial?.itensVenda?.length));
   // Do not overwrite a newer IndexedDB draft with the initial (possibly empty)
@@ -62,14 +62,6 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   const [termoBusca, setTermoBusca] = useState('');
   const [indiceFocoBusca, setIndiceFocoBusca] = useState(0);
   const [itensVenda, setItensVenda] = useState(rascunhoInicial?.itensVenda || []);
-  // Rebase only explicitly sourced prices when the exchange rate or display currency changes.
-  // Drafts and legacy items without a proven source currency are not guessed or overwritten.
-  useEffect(() => {
-    setItensVenda(anteriores => {
-      const atualizados = anteriores.map(item => atualizarCotacaoPrecoItemPDV(item, moeda, converterParaBRL, converterDeBRL));
-      return atualizados.every((item, i) => item === anteriores[i]) ? anteriores : atualizados;
-    });
-  }, [taxasCambio, moeda, rascunhoHidratado]);
   const [autoriaAtendimento, setAutoriaAtendimento] = useState(() =>
     rascunhoInicial?.autoriaAtendimento || (rascunhoInicial?.itensVenda?.length ? autoriaDoOperador(operadorAtivo) : null));
   const [descontoTexto, setDescontoTexto] = useState(rascunhoInicial?.descontoTexto || '0');
@@ -96,6 +88,25 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   const [modalFechamentoAberto, setModalFechamentoAberto] = useState(Boolean(rascunhoInicial?.modalFechamentoAberto));
 
   const [pagamentosLancados, setPagamentosLancados] = useState(rascunhoInicial?.pagamentosLancados || []);
+  // In an existing checkout do not silently revalue payments after an FX edit.
+  // The operator must complete or cancel that checkout using its frozen quote.
+  // Recover VIPE's old saved PYG draft using the visible unit price, never
+  // relabeling catalog records or changing data for any other store.
+  useEffect(() => {
+    if (pagamentosLancados.length > 0) return;
+    setItensVenda(anteriores => {
+      const vipeRascunhoLegado = userId === 'QNtFleq9ajNNmU6iwiFSi5w1alu2'
+        && moedaPadrao === 'PYG' && moeda === 'PYG' && avisoRascunhoRecuperado;
+      const atualizados = anteriores.map(item => {
+        const recuperado = vipeRascunhoLegado
+          ? recuperarPrecoVisivelRascunhoPDV(item, moeda, converterParaBRL, converterDeBRL)
+          : item;
+        return atualizarCotacaoPrecoItemPDV(recuperado, moeda, converterParaBRL, converterDeBRL);
+      });
+      return atualizados.every((item, i) => item === anteriores[i]) ? anteriores : atualizados;
+    });
+  }, [taxasCambio, moeda, moedaPadrao, rascunhoHidratado, pagamentosLancados.length, userId, avisoRascunhoRecuperado]);
+
   const [formaSelecionada, setFormaSelecionada] = useState('dinheiro_brl');
   const [valorLancamentoInput, setValorLancamentoInput] = useState('');
   const [voucherCodigoInput, setVoucherCodigoInput] = useState('');
