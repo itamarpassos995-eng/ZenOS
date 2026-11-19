@@ -65,6 +65,14 @@ test('nenhum arquivo de persistência Firestore nem regras foi modificado',()=>{
    assert.ok(changed.includes('scripts/card-multicurrency.test.mjs'),
     'Alteração de conciliação exige teste multimoeda dedicado');
  }
+ const allowedDailySales='src/core/dailySalesNative.js';
+ if(changed.includes(allowedDailySales)){
+   const source=read(allowedDailySales);
+   assert.doesNotMatch(source,/firebase\/firestore|\bonSnapshot\s*\(|\bgetDocs(?:FromServer)?\s*\(|\bgetDoc(?:FromServer)?\s*\(|\brunTransaction\s*\(/,
+     'Faturamento diário precisa ser cálculo puro, sem consultas Firestore');
+   assert.ok(changed.includes('scripts/daily-sales-native.test.mjs'),
+     'Alteração do faturamento exige teste de câmbio histórico');
+ }
  const allowedCashMoney='src/core/cashMoneyInput.js';
  if(changed.includes(allowedCashMoney)){
    const source=read(allowedCashMoney);
@@ -114,7 +122,7 @@ test('nenhum arquivo de persistência Firestore nem regras foi modificado',()=>{
    /(^|\/)firestore[^/]*\.rules$/.test(path)||
    /^src\/firebase[^/]*\.[jt]s$/.test(path)||
    /^functions\//.test(path)||
-   (/^src\/core\//.test(path)&&!uiOnlyCore.has(path)&&path!==allowedFinancialCore&&path!==allowedCashGuard&&path!==allowedReadOnlyAudit&&path!==allowedCashHistory&&path!==allowedInventory&&path!==allowedCardSettlement&&path!==allowedCashMoney&&!correctionModules.has(path)&&path!=='src/core/operationalRepository.js'&&path!=='src/core/operationalCache.js'&&path!=='src/core/financialPeriod.js'&&path!=='src/core/terminalAccess.js')
+   (/^src\/core\//.test(path)&&!uiOnlyCore.has(path)&&path!==allowedFinancialCore&&path!==allowedCashGuard&&path!==allowedReadOnlyAudit&&path!==allowedCashHistory&&path!==allowedInventory&&path!==allowedCardSettlement&&path!==allowedCashMoney&&path!==allowedDailySales&&!correctionModules.has(path)&&path!=='src/core/operationalRepository.js'&&path!=='src/core/operationalCache.js'&&path!=='src/core/financialPeriod.js'&&path!=='src/core/terminalAccess.js')
  );
  assert.deepEqual(protectedPaths,[],'A mudança visual não pode alterar persistência nem regras');
 });
