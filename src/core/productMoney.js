@@ -102,7 +102,11 @@ export function atualizarCotacaoPrecoItemPDV(item, moedaExibicao, converterParaB
 export function recuperarPrecoVisivelRascunhoPDV(item, moeda, converterParaBRL, converterDeBRL) {
   if (!item || item.precoOrigemPDV || item.precoDigitadoOriginal) return item;
   if (moeda !== 'PYG' || typeof item.precoTexto !== 'string') return item;
-  const parsed = interpretarValorMonetario(item.precoTexto, 'PYG');
+  // Old drafts formatted PYG as "25000.00". Accept only an all-zero
+  // decimal suffix from this saved editable field; never round real fractions.
+  const texto = item.precoTexto.trim();
+  const textoInteiro = /^\\d+[.,]0{1,2}$/.test(texto) ? texto.replace(/[.,]0{1,2}$/, '') : texto;
+  const parsed = interpretarValorMonetario(textoInteiro, 'PYG');
   if (!parsed.ok || !(parsed.valor > 0)) return item;
   const original = { ...item, precoDigitadoOriginal: { valor: parsed.valor, moeda: 'PYG' } };
   return atualizarCotacaoPrecoItemPDV(original, moeda, converterParaBRL, converterDeBRL);
