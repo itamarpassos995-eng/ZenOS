@@ -43,3 +43,18 @@ test('vendas parcialmente auditáveis não produzem total inventado nem escondem
  assert.equal(valor.pendentes,1);
  assert.deepEqual(valor.pendencias,[{id:'antiga-sem-moeda',motivo:'moeda_nao_registrada'}]);
 });
+
+test('PYG ruído decimal de ponto flutuante não torna toda receita do dia pendente',()=>{
+ const v=venda('PYG',24999.999999999996,25000/1100);
+ const resultado=apurarVendasNativasDoDia([v],'PYG');
+ assert.equal(resultado.ok,true);
+ assert.equal(resultado.total,25000);
+ assert.equal(resultado.pendentes,0);
+});
+test('PYG fração monetária real não é arredondada silenciosamente',()=>{
+ const v=venda('PYG',24999.75,25000/1100);
+ const resultado=apurarVendasNativasDoDia([v],'PYG');
+ assert.equal(resultado.ok,false);
+ assert.equal(resultado.pendentes,1);
+ assert.equal(resultado.total,null);
+});
