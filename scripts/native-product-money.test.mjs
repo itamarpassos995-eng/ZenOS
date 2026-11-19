@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {registrarValoresProduto,produtoParaFormularioMonetario,quantiaOriginalProduto,valorProdutoBRL,projetarProdutoMonetario,custoFornecedorProdutoBRL,atualizarCotacaoPrecoItemPDV} from '../src/core/productMoney.js';
+import {registrarValoresProduto,produtoParaFormularioMonetario,quantiaOriginalProduto,valorProdutoBRL,projetarProdutoMonetario,custoFornecedorProdutoBRL,atualizarCotacaoPrecoItemPDV,atualizarQuantiaProduto} from '../src/core/productMoney.js';
 import {mergeArrayThreeWay} from '../src/core/syncMerge.js';
 import {validarComposicaoPagamento} from '../src/core/paymentValidation.js';
 import {criarSnapshotCommercePublico,conferirCarrinhoContraSnapshot,minorCommerceParaBRL} from '../src/core/commercePublicCatalog.js';
@@ -135,4 +135,26 @@ test('preço nativo USD e EUR não altera sua origem quando muda PYG',()=>{
   assert.equal(Number(novo.precoTexto),valor);
   assert.equal(novo.precoPraticadoBRL,valor/cambioNovo[moeda]);
  }
+});
+
+test('recompra atualiza custo sem alterar preço original PYG nem bloquear valor positivo da venda',()=>{
+ const produto={id:'v',...registrarValoresProduto({...form('PYG',25000),custoBRL:13000},'PYG',to)};
+ const precoAntes=quantiaOriginalProduto(produto,'precoBRL');
+ const custoAntes=quantiaOriginalProduto(produto,'custoBRL');
+ const novo=atualizarQuantiaProduto(produto,'custoBRL',15000,'PYG',to);
+ assert.equal(custoAntes.valor,13000);
+ assert.equal(quantiaOriginalProduto(novo,'custoBRL').valor,15000);
+ assert.deepEqual(quantiaOriginalProduto(novo,'precoBRL'),precoAntes);
+ const valorVendaBRL=valorProdutoBRL(novo,'precoBRL',to);
+ assert.ok(valorVendaBRL>0);
+ assert.equal(Math.round(valorVendaBRL*rates.PYG),25000);
+ assert.equal(validarComposicaoPagamento({totalBRL:valorVendaBRL,recebidoBRL:valorVendaBRL,recebidoDinheiroBRL:valorVendaBRL}).podeConcluir,true);
+});
+test('custo de recompra em outra moeda não modifica preço PYG',()=>{
+ const produto={id:'v',...registrarValoresProduto({...form('PYG',25000),custoBRL:13000},'PYG',to)};
+ const alterado=atualizarQuantiaProduto(produto,'custoBRL',14,'USD',to);
+ assert.equal(quantiaOriginalProduto(alterado,'custoBRL').moeda,'USD');
+ assert.equal(quantiaOriginalProduto(alterado,'custoBRL').valor,14);
+ assert.equal(quantiaOriginalProduto(alterado,'precoBRL').valor,25000);
+ assert.equal(quantiaOriginalProduto(produto,'custoBRL').valor,13000);
 });
