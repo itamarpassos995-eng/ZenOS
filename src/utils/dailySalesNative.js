@@ -9,32 +9,38 @@ const MOEDAS = new Set(['BRL','PYG','USD','EUR']);
  * exigem auditoria, nunca estimativa nem conversão silenciosa.
  */
 export function apurarVendasNativasDoDia(vendas = [], moedaPadrao = 'BRL') {
-  if (!MOEDAS.has(moedaPadrao)) return {ok:false,total:null,pendentes:vendas.length,outrasMoedas:0};
-  let total = 0, pendentes = 0, outrasMoedas = 0;
+  if (!MOEDAS.has(moedaPadrao)) return {ok:false,total:null,subtotalConfirmado:0,confirmadas:0,pendentes:vendas.length,outrasMoedas:0,pendencias:[]};
+  let total = 0, pendentes = 0, outrasMoedas = 0, confirmadas = 0;
+  const pendencias = [];
   for (const v of vendas) {
     if (v?.moedaDocumento !== moedaPadrao) {
       if (MOEDAS.has(v?.moedaDocumento)) outrasMoedas++;
-      else pendentes++;
+      else { pendentes++; pendencias.push({id:String(v?.id || ''),motivo:'moeda_nao_registrada'}); }
       continue;
     }
     if (v.totalOriginal == null || typeof v.totalOriginal !== 'number' ||
         !Number.isFinite(v.totalOriginal) || v.totalOriginal < 0 ||
-        (moedaPadrao === 'PYG' && !Number.isInteger(v.totalOriginal))) {
+        (moedaPadrao === 'PYG' && Math.abs(v.totalOriginal - Math.round(v.totalOriginal)) > 1e-6)) {
       pendentes++;
+      pendencias.push({id:String(v?.id || ''),motivo:'valor_original_nao_comprovado'});
       continue;
     }
     const {totalBrutoBRL, totalLiquidoBRL} = obterFinanceiroVenda(v);
     if (!Number.isFinite(totalBrutoBRL) || !Number.isFinite(totalLiquidoBRL) ||
         totalBrutoBRL < 0 || totalLiquidoBRL < 0 || totalLiquidoBRL > totalBrutoBRL + 0.01) {
       pendentes++;
+      pendencias.push({id:String(v?.id || ''),motivo:'historico_financeiro_inconsistente'});
       continue;
     }
     // Histórico de devolução: preserva parte líquida do preço original.
     // Nenhuma cotação entra na conta.
     const fator = totalBrutoBRL > 0 ? Math.max(0,Math.min(1,totalLiquidoBRL/totalBrutoBRL)) : 0;
-    total += v.totalOriginal * fator;
+    const originalNativo = moedaPadrao === 'PYG' ? Math.round(v.totalOriginal) : v.totalOriginal;
+    total += originalNativo * fator;
+    confirmadas++;
   }
   const casas = moedaPadrao === 'PYG' ? 1 : 100;
   if (!Number.isFinite(total) || !Number.isSafeInteger(Math.round(total * casas))) pendentes++;
-  return {ok:pendentes === 0,total:pendentes === 0 ? Math.round(total * casas)/casas : null,pendentes,outrasMoedas};
+  return {ok:pendentes === 0,total:pendentes === 0 ? Math.round(total * casas)/casas : null,
+    subtotalConfirmado:Math.round(total * casas)/casas,confirmadas,pendentes,outrasMoedas,pendencias};
 }
