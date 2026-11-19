@@ -69,7 +69,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       const atualizados = anteriores.map(item => atualizarCotacaoPrecoItemPDV(item, moeda, converterParaBRL, converterDeBRL));
       return atualizados.every((item, i) => item === anteriores[i]) ? anteriores : atualizados;
     });
-  }, [taxasCambio, moeda]);
+  }, [taxasCambio, moeda, rascunhoHidratado]);
   const [autoriaAtendimento, setAutoriaAtendimento] = useState(() =>
     rascunhoInicial?.autoriaAtendimento || (rascunhoInicial?.itensVenda?.length ? autoriaDoOperador(operadorAtivo) : null));
   const [descontoTexto, setDescontoTexto] = useState(rascunhoInicial?.descontoTexto || '0');
