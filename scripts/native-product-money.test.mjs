@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {registrarValoresProduto,produtoParaFormularioMonetario,quantiaOriginalProduto,valorProdutoBRL,projetarProdutoMonetario,custoFornecedorProdutoBRL,atualizarCotacaoPrecoItemPDV,atualizarQuantiaProduto} from '../src/core/productMoney.js';
+import {registrarValoresProduto,produtoParaFormularioMonetario,quantiaOriginalProduto,valorProdutoBRL,projetarProdutoMonetario,custoFornecedorProdutoBRL,atualizarCotacaoPrecoItemPDV,atualizarQuantiaProduto,recuperarPrecoVisivelRascunhoPDV} from '../src/core/productMoney.js';
 import {mergeArrayThreeWay} from '../src/core/syncMerge.js';
 import {validarComposicaoPagamento} from '../src/core/paymentValidation.js';
 import {criarSnapshotCommercePublico,conferirCarrinhoContraSnapshot,minorCommerceParaBRL} from '../src/core/commercePublicCatalog.js';
@@ -157,4 +157,34 @@ test('custo de recompra em outra moeda não modifica preço PYG',()=>{
  assert.equal(quantiaOriginalProduto(alterado,'custoBRL').valor,14);
  assert.equal(quantiaOriginalProduto(alterado,'precoBRL').valor,25000);
  assert.equal(quantiaOriginalProduto(produto,'custoBRL').valor,13000);
+});
+
+test('VIPE atendimento antigo recuperado mostra Gs 25.000 e subtotal Gs 25.000, não Gs 21.739',()=>{
+ const taxaAntiga=1150,taxaAtual=1000;
+ const antigo={id:'vipe-cart',qtd:'1',precoTexto:'25000.00',precoPraticadoBRL:25000/taxaAntiga};
+ const original=JSON.stringify(antigo);
+ const corrigido=recuperarPrecoVisivelRascunhoPDV(antigo,'PYG',(v,m)=>m==='PYG'?v/taxaAtual:v,(v,m)=>m==='PYG'?v*taxaAtual:v);
+ assert.equal(corrigido.precoTexto,'25000');
+ assert.equal(corrigido.precoDigitadoOriginal.valor,25000);
+ assert.equal(corrigido.precoDigitadoOriginal.moeda,'PYG');
+ assert.equal(corrigido.precoPraticadoBRL,25);
+ assert.equal(corrigido.precoPraticadoBRL*taxaAtual,25000);
+ assert.equal(JSON.stringify(antigo),original);
+ const novoCambio=1100;
+ const atualizado=atualizarCotacaoPrecoItemPDV(corrigido,'PYG',(v,m)=>m==='PYG'?v/novoCambio:v,(v,m)=>m==='PYG'?v*novoCambio:v);
+ assert.equal(atualizado.precoTexto,'25000');
+ assert.equal(Math.round(atualizado.precoPraticadoBRL*novoCambio),25000);
+});
+test('recuperação não presume moeda onde não existe valor visível válido',()=>{
+ const legado={precoPraticadoBRL:5};
+ assert.equal(recuperarPrecoVisivelRascunhoPDV(legado,'PYG',v=>v,v=>v),legado);
+ assert.equal(recuperarPrecoVisivelRascunhoPDV({...legado,precoTexto:'abc'},'PYG',v=>v,v=>v).precoDigitadoOriginal,undefined);
+ assert.equal(recuperarPrecoVisivelRascunhoPDV({...legado,precoTexto:'25000'},'BRL',v=>v,v=>v).precoDigitadoOriginal,undefined);
+});
+test('escopo VIPE da recuperação exige loja, moeda padrão, moeda atual e rascunho; não altera pagamento',async()=>{
+ const fs=await import('node:fs');
+ const pdv=fs.readFileSync(new URL('../src/components/PDV.jsx',import.meta.url),'utf8');
+ assert.match(pdv,/userId === 'QNtFleq9ajNNmU6iwiFSi5w1alu2'/);
+ assert.match(pdv,/moedaPadrao === 'PYG' && moeda === 'PYG' && avisoRascunhoRecuperado/);
+ assert.match(pdv,/if \(pagamentosLancados\.length > 0\) return/);
 });
