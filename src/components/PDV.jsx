@@ -62,24 +62,6 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   const [termoBusca, setTermoBusca] = useState('');
   const [indiceFocoBusca, setIndiceFocoBusca] = useState(0);
   const [itensVenda, setItensVenda] = useState(rascunhoInicial?.itensVenda || []);
-  // In an existing checkout do not silently revalue payments after an FX edit.
-  // The operator must complete or cancel that checkout using its frozen quote.
-  // Recover VIPE's old saved PYG draft using the visible unit price, never
-  // relabeling catalog records or changing data for any other store.
-  useEffect(() => {
-    if (pagamentosLancados.length > 0) return;
-    setItensVenda(anteriores => {
-      const vipeRascunhoLegado = userId === 'QNtFleq9ajNNmU6iwiFSi5w1alu2'
-        && moedaPadrao === 'PYG' && moeda === 'PYG' && avisoRascunhoRecuperado;
-      const atualizados = anteriores.map(item => {
-        const recuperado = vipeRascunhoLegado
-          ? recuperarPrecoVisivelRascunhoPDV(item, moeda, converterParaBRL, converterDeBRL)
-          : item;
-        return atualizarCotacaoPrecoItemPDV(recuperado, moeda, converterParaBRL, converterDeBRL);
-      });
-      return atualizados.every((item, i) => item === anteriores[i]) ? anteriores : atualizados;
-    });
-  }, [taxasCambio, moeda, moedaPadrao, rascunhoHidratado, pagamentosLancados.length, userId, avisoRascunhoRecuperado]);
   const [autoriaAtendimento, setAutoriaAtendimento] = useState(() =>
     rascunhoInicial?.autoriaAtendimento || (rascunhoInicial?.itensVenda?.length ? autoriaDoOperador(operadorAtivo) : null));
   const [descontoTexto, setDescontoTexto] = useState(rascunhoInicial?.descontoTexto || '0');
@@ -106,6 +88,25 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   const [modalFechamentoAberto, setModalFechamentoAberto] = useState(Boolean(rascunhoInicial?.modalFechamentoAberto));
 
   const [pagamentosLancados, setPagamentosLancados] = useState(rascunhoInicial?.pagamentosLancados || []);
+  // In an existing checkout do not silently revalue payments after an FX edit.
+  // The operator must complete or cancel that checkout using its frozen quote.
+  // Recover VIPE's old saved PYG draft using the visible unit price, never
+  // relabeling catalog records or changing data for any other store.
+  useEffect(() => {
+    if (pagamentosLancados.length > 0) return;
+    setItensVenda(anteriores => {
+      const vipeRascunhoLegado = userId === 'QNtFleq9ajNNmU6iwiFSi5w1alu2'
+        && moedaPadrao === 'PYG' && moeda === 'PYG' && avisoRascunhoRecuperado;
+      const atualizados = anteriores.map(item => {
+        const recuperado = vipeRascunhoLegado
+          ? recuperarPrecoVisivelRascunhoPDV(item, moeda, converterParaBRL, converterDeBRL)
+          : item;
+        return atualizarCotacaoPrecoItemPDV(recuperado, moeda, converterParaBRL, converterDeBRL);
+      });
+      return atualizados.every((item, i) => item === anteriores[i]) ? anteriores : atualizados;
+    });
+  }, [taxasCambio, moeda, moedaPadrao, rascunhoHidratado, pagamentosLancados.length, userId, avisoRascunhoRecuperado]);
+
   const [formaSelecionada, setFormaSelecionada] = useState('dinheiro_brl');
   const [valorLancamentoInput, setValorLancamentoInput] = useState('');
   const [voucherCodigoInput, setVoucherCodigoInput] = useState('');
