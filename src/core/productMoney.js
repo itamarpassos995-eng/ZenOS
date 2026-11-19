@@ -74,3 +74,21 @@ export function custoFornecedorProdutoBRL(produto,converterParaBRL){
  return Number.isFinite(produto?.ultimoCustoFornecedorBRL)&&produto.ultimoCustoFornecedorBRL>=0
   ?produto.ultimoCustoFornecedorBRL:valorProdutoBRL(produto,'custoBRL',converterParaBRL);
 }
+
+/**
+ * Keeps an in-progress counter price anchored in its explicit source currency.
+ * Do not infer currency for legacy products without original monetary metadata.
+ * No catalog, receipt or historical document is mutated by this projection.
+ */
+export function atualizarCotacaoPrecoItemPDV(item, moedaExibicao, converterParaBRL, converterDeBRL) {
+  const origem = item?.precoDigitadoOriginal || item?.precoOrigemPDV;
+  if (!origem) return item;
+  const parsed = interpretarValorMonetario(origem.valor, origem.moeda);
+  if (!parsed.ok || !(Number(converterParaBRL(1, origem.moeda)) > 0)) return item;
+  const valorBRL = Number(converterParaBRL(parsed.valor, origem.moeda));
+  const exibido = Number(converterDeBRL(valorBRL, moedaExibicao));
+  if (!Number.isFinite(valorBRL) || !Number.isFinite(exibido) || valorBRL < 0 || exibido < 0) return item;
+  const precoTexto = exibido.toFixed(moedaExibicao === 'PYG' ? 0 : 2);
+  if (item.precoPraticadoBRL === valorBRL && item.precoTexto === precoTexto) return item;
+  return { ...item, precoPraticadoBRL: valorBRL, precoTexto };
+}
