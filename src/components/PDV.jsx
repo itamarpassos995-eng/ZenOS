@@ -1,4 +1,4 @@
-import { produtoParaFormularioMonetario, registrarValoresProduto, valorProdutoBRL, projetarProdutoMonetario } from '../core/productMoney.js';
+import { produtoParaFormularioMonetario, registrarValoresProduto, valorProdutoBRL, projetarProdutoMonetario, quantiaOriginalProduto, atualizarCotacaoPrecoItemPDV } from '../core/productMoney.js';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { normalizarProduto, normalizarCliente } from '../data';
 import { aplicarVendaAoEstoque, obterEstoqueProduto, preverBaixaEstoqueProduto } from '../core/inventory';
@@ -62,6 +62,14 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   const [termoBusca, setTermoBusca] = useState('');
   const [indiceFocoBusca, setIndiceFocoBusca] = useState(0);
   const [itensVenda, setItensVenda] = useState(rascunhoInicial?.itensVenda || []);
+  // Rebase only explicitly sourced prices when the exchange rate or display currency changes.
+  // Drafts and legacy items without a proven source currency are not guessed or overwritten.
+  useEffect(() => {
+    setItensVenda(anteriores => {
+      const atualizados = anteriores.map(item => atualizarCotacaoPrecoItemPDV(item, moeda, converterParaBRL, converterDeBRL));
+      return atualizados.every((item, i) => item === anteriores[i]) ? anteriores : atualizados;
+    });
+  }, [taxasCambio, moeda, rascunhoHidratado]);
   const [autoriaAtendimento, setAutoriaAtendimento] = useState(() =>
     rascunhoInicial?.autoriaAtendimento || (rascunhoInicial?.itensVenda?.length ? autoriaDoOperador(operadorAtivo) : null));
   const [descontoTexto, setDescontoTexto] = useState(rascunhoInicial?.descontoTexto || '0');
@@ -479,6 +487,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
           return [...prev, {
             ...projetarProdutoMonetario(prodOriginal,converterParaBRL),
             snapshotMoedasProduto: prodOriginal.valoresMonetarios || null,
+            precoOrigemPDV: quantiaOriginalProduto(prodOriginal, clienteSelecionadoPDV?.perfilPreco === 'preco2' && prodOriginal.habilitarPreco2 && prodOriginal.preco2BRL > 0 ? 'preco2BRL' : 'precoBRL'),
             taxasCambioItem: {...taxasCambio},
             id: `${prodOriginal.id}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
             produtoOriginalId: prodOriginal.id,
@@ -711,6 +720,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       setItensVenda([ ...itensVenda, {
         ...projetarProdutoMonetario(itemParaAdicionar,converterParaBRL),
         snapshotMoedasProduto:itemParaAdicionar.valoresMonetarios||null,
+        precoOrigemPDV: quantiaOriginalProduto(itemParaAdicionar, clienteSelecionadoPDV?.perfilPreco === 'preco2' && itemParaAdicionar.habilitarPreco2 && itemParaAdicionar.preco2BRL > 0 ? 'preco2BRL' : 'precoBRL'),
         taxasCambioItem:{...taxasCambio},
         id: `${itemParaAdicionar.id}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         produtoOriginalId: itemParaAdicionar.id,
@@ -726,7 +736,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
 
   const removerItem = (id) => { setItensVenda(itensVenda.filter(item => item.id !== id)); };
   const atualizarQtd = (id, valor) => { setItensVenda(itensVenda.map(item => item.id === id ? { ...item, qtd: String(Math.max(1, parseInt(valor) || 1)) } : item)); };
-  const lidarDigitacaoPreco = (id, valorDigitado) => { setItensVenda(itensVenda.map(item => item.id === id ? { ...item, precoTexto: valorDigitado, precoPraticadoBRL: converterParaBRL(interpretarValorMonetario(valorDigitado,moeda).valor||0, moeda), precoEntradaInvalida: !interpretarValorMonetario(valorDigitado,moeda).ok } : item)); };
+  const lidarDigitacaoPreco = (id, valorDigitado) => { setItensVenda(itensVenda.map(item => item.id === id ? { ...item, precoTexto: valorDigitado, precoDigitadoOriginal: interpretarValorMonetario(valorDigitado,moeda).ok ? {valor: interpretarValorMonetario(valorDigitado,moeda).valor, moeda} : null, precoPraticadoBRL: converterParaBRL(interpretarValorMonetario(valorDigitado,moeda).valor||0, moeda), precoEntradaInvalida: !interpretarValorMonetario(valorDigitado,moeda).ok } : item)); };
 
   const [consultandoResgate, setConsultandoResgate] = useState(false);
   const resgateEmAndamentoRef = useRef(false);
