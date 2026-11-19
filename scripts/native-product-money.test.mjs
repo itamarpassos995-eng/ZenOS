@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {registrarValoresProduto,produtoParaFormularioMonetario,quantiaOriginalProduto,valorProdutoBRL,projetarProdutoMonetario,custoFornecedorProdutoBRL,atualizarCotacaoPrecoItemPDV} from '../src/core/productMoney.js';
 import {mergeArrayThreeWay} from '../src/core/syncMerge.js';
+import {validarComposicaoPagamento} from '../src/core/paymentValidation.js';
 import {criarSnapshotCommercePublico,conferirCarrinhoContraSnapshot,minorCommerceParaBRL} from '../src/core/commercePublicCatalog.js';
 const rates={BRL:1,PYG:1150,USD:0.2,EUR:0.18};
 const to=(v,m)=>v/rates[m],from=(v,m)=>v*rates[m];
@@ -106,4 +107,32 @@ test('PDV preserva preço digitado em guaranis; não infere moedas de itens lega
  assert.equal(atualizarCotacaoPrecoItemPDV(manual,'PYG',to,from).precoTexto,'25000');
  const legado={precoPraticadoBRL:25000/1150,precoTexto:'25000'};
  assert.equal(atualizarCotacaoPrecoItemPDV(legado,'PYG',to,from),legado);
+});
+
+test('BRL PYG USD EUR: recebimentos mistos preservam valor original e taxa aplicada',()=>{
+ const cotacao={BRL:1,PYG:1100,USD:0.20,EUR:0.18};
+ const pagamentos=[
+  {moedaOrigem:'PYG',valorOriginal:11000,taxaCambioAplicada:1100,valorConvertidoBRL:10,formaId:'dinheiro_pyg'},
+  {moedaOrigem:'BRL',valorOriginal:10,taxaCambioAplicada:1,valorConvertidoBRL:10,formaId:'dinheiro_brl'},
+  {moedaOrigem:'USD',valorOriginal:2,taxaCambioAplicada:0.2,valorConvertidoBRL:10,formaId:'dinheiro_usd'},
+  {moedaOrigem:'EUR',valorOriginal:1.8,taxaCambioAplicada:0.18,valorConvertidoBRL:10,formaId:'dinheiro_eur'}
+ ];
+ const original=JSON.stringify(pagamentos);
+ const item={precoOrigemPDV:{valor:44000,moeda:'PYG'},precoPraticadoBRL:44000/1150,precoTexto:'44000'};
+ const after=atualizarCotacaoPrecoItemPDV(item,'PYG',(v,m)=>v/cotacao[m],(v,m)=>v*cotacao[m]);
+ assert.equal(after.precoTexto,'44000');
+ assert.equal(after.precoPraticadoBRL,40);
+ assert.equal(pagamentos.reduce((a,p)=>a+p.valorConvertidoBRL,0),40);
+ assert.equal(validarComposicaoPagamento({totalBRL:after.precoPraticadoBRL,recebidoBRL:40,recebidoDinheiroBRL:40}).podeConcluir,true);
+ assert.equal(JSON.stringify(pagamentos),original);
+ assert.equal(cotacao.PYG,1100);
+});
+test('preço nativo USD e EUR não altera sua origem quando muda PYG',()=>{
+ const cambioNovo={BRL:1,PYG:1100,USD:0.25,EUR:0.2};
+ for(const [moeda,valor] of [['USD',12.5],['EUR',9.99]]){
+  const item={precoOrigemPDV:{valor,moeda},precoPraticadoBRL:valor/(moeda==='USD'?0.2:0.18),precoTexto:String(valor)};
+  const novo=atualizarCotacaoPrecoItemPDV(item,moeda,(v,m)=>v/cambioNovo[m],(v,m)=>v*cambioNovo[m]);
+  assert.equal(Number(novo.precoTexto),valor);
+  assert.equal(novo.precoPraticadoBRL,valor/cambioNovo[moeda]);
+ }
 });
