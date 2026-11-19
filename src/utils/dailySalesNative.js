@@ -20,7 +20,7 @@ export function apurarVendasNativasDoDia(vendas = [], moedaPadrao = 'BRL') {
     }
     if (v.totalOriginal == null || typeof v.totalOriginal !== 'number' ||
         !Number.isFinite(v.totalOriginal) || v.totalOriginal < 0 ||
-        (moedaPadrao === 'PYG' && !Number.isInteger(v.totalOriginal))) {
+        (moedaPadrao === 'PYG' && Math.abs(v.totalOriginal - Math.round(v.totalOriginal)) > 1e-6)) {
       pendentes++;
       pendencias.push({id:String(v?.id || ''),motivo:'valor_original_nao_comprovado'});
       continue;
@@ -35,7 +35,8 @@ export function apurarVendasNativasDoDia(vendas = [], moedaPadrao = 'BRL') {
     // Histórico de devolução: preserva parte líquida do preço original.
     // Nenhuma cotação entra na conta.
     const fator = totalBrutoBRL > 0 ? Math.max(0,Math.min(1,totalLiquidoBRL/totalBrutoBRL)) : 0;
-    total += v.totalOriginal * fator;
+    const originalNativo = moedaPadrao === 'PYG' ? Math.round(v.totalOriginal) : v.totalOriginal;
+    total += originalNativo * fator;
     confirmadas++;
   }
   const casas = moedaPadrao === 'PYG' ? 1 : 100;
