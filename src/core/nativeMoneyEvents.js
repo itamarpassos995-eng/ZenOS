@@ -53,19 +53,20 @@ export function validarPagamentoObrigacaoNativa({
   if (!pago.ok) return pago;
   const taxaOrigem=taxaEfetiva(moedaObrigacao,taxasCambio);
   if (!Number.isFinite(taxaOrigem) || taxaOrigem<=0) return {ok:false,erro:'Cotação atual da moeda da dívida ausente ou inválida.'};
-  const quitacaoNaOrigem = pago.valorOriginal/pago.taxaCambioAplicada*taxaOrigem;
-  const unidades = moedaObrigacao==='PYG' ? 1 : 100;
-  const nominalCalculado=Math.round(quitacaoNaOrigem*unidades)/unidades;
+  const unidadesPagamento=moedaFisica==='PYG' ? 1 : 100;
+  const valorPagamentoExato = divida.valor/taxaOrigem*pago.taxaCambioAplicada;
+  const valorPagamentoEsperado=Math.round((valorPagamentoExato+Number.EPSILON)*unidadesPagamento)/unidadesPagamento;
+  const quitacaoNaOrigem=pago.valorOriginal/pago.taxaCambioAplicada*taxaOrigem;
   const residuoOrigem=quitacaoNaOrigem-divida.valor;
-  if (nominalCalculado!==divida.valor ||
-      (moedaFisica===moedaObrigacao && Math.abs(residuoOrigem)>1e-8))
-    return {ok:false,erro:'Pagamento não quita exatamente o valor na moeda contratual. Confirme valor, diferença ou troco.',
-      diferencaOrigem:residuoOrigem};
+  if (Math.abs(pago.valorOriginal-valorPagamentoEsperado)>1e-8)
+    return {ok:false,erro:'Pagamento não corresponde ao valor devido na moeda original com arredondamento da moeda recebida. Confira a quantia ou registre diferença/troco.',
+      valorPagamentoEsperado,moedaPagamentoEsperada:moedaFisica,diferencaOrigem:residuoOrigem};
   if (!Number.isFinite(valorContabilHistoricoBRL) || valorContabilHistoricoBRL<=0)
     return {ok:false,erro:'Equivalente contábil histórico ausente.'};
   return {...pago,moedaObrigacao,valorObrigacaoOriginal:divida.valor,
     valorContabilHistoricoBRL,valorContabilDataPagamentoBRL:pago.valorConvertidoBRL,
     diferencaCambialBRL:arredondarBRL(pago.valorConvertidoBRL-valorContabilHistoricoBRL),
     taxaOrigemAtual:taxaOrigem,
-    residuoArredondamentoOrigem:residuoOrigem};
+    residuoArredondamentoOrigem:residuoOrigem,
+    valorPagamentoEsperado};
 }
