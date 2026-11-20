@@ -21,6 +21,8 @@ const setup=commit=>render(<Despesas userId="store" despesas={[despesa]} setDesp
  fmt={v=>String(v)} tx={v=>v} moeda="BRL" converterParaBRL={v=>v}/>);
 async function pagar(){
  fireEvent.click(screen.getByRole('button',{name:'Baixar Pgto'}));
+ fireEvent.change(screen.getByRole('combobox',{name:'Moeda efetivamente paga'}),{target:{value:'BRL'}});
+ fireEvent.change(screen.getByRole('textbox',{name:'Valor efetivamente pago'}),{target:{value:'100'}});
  fireEvent.click(screen.getByRole('button',{name:'Confirmar Pago'}));
 }
 test('histórico existente reconcilia status sem uma segunda saída do caixa',async()=>{
