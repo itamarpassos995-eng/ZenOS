@@ -1,4 +1,4 @@
-import { produtoParaFormularioMonetario, registrarValoresProduto, valorProdutoBRL, projetarProdutoMonetario, quantiaOriginalProduto, atualizarCotacaoPrecoItemPDV, recuperarPrecoVisivelRascunhoPDV, precoExibicaoProduto, textoPrecoExibicaoProduto } from '../core/productMoney.js';
+import { produtoParaFormularioMonetario, registrarValoresProduto, valorProdutoBRL, projetarProdutoMonetario, quantiaOriginalProduto, atualizarCotacaoPrecoItemPDV, recuperarPrecoVisivelRascunhoPDV, precoExibicaoProduto, textoPrecoExibicaoProduto, reprecificarItemPDVPorPerfil } from '../core/productMoney.js';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { normalizarProduto, normalizarCliente } from '../data';
 import { aplicarVendaAoEstoque, obterEstoqueProduto, preverBaixaEstoqueProduto } from '../core/inventory';
@@ -470,8 +470,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     try {
       const novosItens = itensVenda.map(item => {
         const prodOriginal = obterProdutoCatalogoSeguro(item, 'reprecificação por cliente');
-        const novoPrecoBRL = aplicarPrecoPorPerfilCliente(prodOriginal, cli);
-        return { ...item, precoPraticadoBRL: novoPrecoBRL, precoTexto: textoNativoCatalogo(prodOriginal,cli) };
+        return reprecificarItemPDVPorPerfil(item,prodOriginal,campoPrecoPorPerfil(prodOriginal,cli),moeda,converterParaBRL,converterDeBRL);
       });
       setClienteSelecionadoPDV(cli); setNomeClienteVulso(cli.nome); setFocoInputCliente(false);
       setItensVenda(novosItens);
@@ -482,7 +481,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     try {
       const novosItens = itensVenda.map(item => {
         const prodOriginal = obterProdutoCatalogoSeguro(item, 'retorno ao preço de balcão');
-        return { ...item, precoPraticadoBRL: valorProdutoBRL(prodOriginal,'precoBRL',converterParaBRL), precoTexto: textoNativoCatalogo(prodOriginal,null) };
+        return reprecificarItemPDVPorPerfil(item,prodOriginal,'precoBRL',moeda,converterParaBRL,converterDeBRL);
       });
       setClienteSelecionadoPDV(null); setNomeClienteVulso('');
       setItensVenda(novosItens);
