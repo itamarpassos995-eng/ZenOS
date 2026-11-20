@@ -33,6 +33,6 @@ export function validarLiquidacaoMultimoeda({valorDevidoBRL,valorFisico,moedaFis
   if (!evento.ok) return evento;
   const diferenca=arredondarBRL(evento.valorConvertidoBRL-valorDevidoBRL);
   // Do not silently settle an over/underpayment or change sale amounts.
-  if (Math.abs(diferenca)>0.01) return {ok:false,erro:'Valor físico e obrigação contábil não conferem. Revise o câmbio, diferença e troco.',diferencaBRL:diferenca};
+  if (diferenca !== 0) return {ok:false,erro:'Valor físico e obrigação contábil não conferem. Revise o câmbio, diferença e troco.',diferencaBRL:diferenca};
   return {...evento,diferencaBRL:diferenca};
 }
