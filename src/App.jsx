@@ -2,6 +2,7 @@ import {operadorConfirmadoTerminal} from './core/terminalAccess.js';
 import ZenOSUpdateWelcome from './components/ZenOSUpdateWelcome.jsx';
 import {financialPeriod,withinFinancialPeriod} from './core/financialPeriod.js';
 import { projetarProdutoMonetario } from './core/productMoney.js';
+import { resumirFiadoLojaNativo } from './core/nativeCustomerCredit.js';
 import { useUiLanguage } from './core/useUiLanguage.js';
 import {getOperationalSnapshot,getOperationalAccessSnapshot,subscribeOperationalSnapshot,clearOperationalSession} from './core/operationalRepository.js';
 import {verificarMovimentoCaixaNoServidor} from './core/cashMovementReadOnly.js';
@@ -1207,6 +1208,10 @@ export default function App() {
   const despesasPagasBRL = useMemo(() => despesas.filter(d => withinFinancialPeriod(d,intervaloFinanceiro,{payment:true}) && (d.status === 'paga' || (d.status === 'excluida' && d.financeiroMantido === true)) && d.afetaResultado !== false && d.naturezaContabil !== 'estoque_ativo' && d.categoria !== 'Mercadoria para Revenda').reduce((acc,d)=>acc+(Number(d.valorBRL)||0),0), [despesas,intervaloFinanceiro]);
   const lucroLiquidoRealBRL = lucroBrutoBRL - despesasPagasBRL;
   const totalFiadoAbertoBRL = useMemo(() => clientes.reduce((acc, c) => acc + (parseFloat(c.saldoDevedorBRL) || 0), 0), [clientes]);
+  const resumoFiadoNativo = useMemo(() => resumirFiadoLojaNativo(clientes,moedaPadrao),[clientes,moedaPadrao]);
+  const fiadoNominal = valor => new Intl.NumberFormat(moedasConfig[moedaPadrao]?.locale||'pt-BR',{
+    style:'currency',currency:moedaPadrao,maximumFractionDigits:moedaPadrao==='PYG'?0:2
+  }).format(valor);
 
   const gerarCurvaABC = () => {
     const mapa = {};
@@ -2151,7 +2156,17 @@ export default function App() {
 
             <div className="zen-kpi-grid">
               <ZenKpiCard icon="🛒" titulo={tx('Vendido Hoje','Vendido Hoy','Sold Today')} valor={valoresTopoVisiveis ? fmt(faturamentoHojeBRL) : '*****'} detalhe={`${vendasHoje.length} ${tx('vendas realizadas','ventas realizadas','sales completed')}`} tone="teal" trailing={<button onClick={() => setValoresTopoVisiveis(!valoresTopoVisiveis)} style={{border:0,background:'transparent',color:'inherit',cursor:'pointer',fontSize:18}}>{valoresTopoVisiveis ? '◉' : '○'}</button>} />
-              <ZenKpiCard icon="👥" titulo={tx('FIADO NA PRAÇA','FIADO A COBRAR','PENDING CREDIT')} valor={valoresTopoVisiveis ? fmt(totalFiadoAbertoBRL) : '*****'} detalhe={totalFiadoAbertoBRL > 0 ? tx('Valores pendentes de clientes','Valores pendientes','Customer balances due') : tx('Nenhum valor pendente','Sin valores pendientes','No pending balance')} tone="purple" trailing="▥" />
+              <ZenKpiCard icon="👥"
+                titulo={tx('FIADO NA PRAÇA','FIADO A COBRAR','PENDING CREDIT')}
+                valor={!valoresTopoVisiveis?'*****':resumoFiadoNativo.possuiPendencias
+                  ? (resumoFiadoNativo.valorNativoComprovado>0
+                    ? `${fiadoNominal(resumoFiadoNativo.valorNativoComprovado)} + ${resumoFiadoNativo.clientesComDivida} ${tx('contas a conferir','cuentas por verificar','accounts to verify')}`
+                    : `${resumoFiadoNativo.clientesComDivida} ${tx('clientes com dívida','clientes con deuda','customers owing')}`)
+                  : fiadoNominal(resumoFiadoNativo.valorNativoComprovado)}
+                detalhe={!valoresTopoVisiveis?'':resumoFiadoNativo.possuiPendencias
+                  ? `${tx('Saldo histórico separado, sem conversão','Saldo histórico separado, sin conversión','Historical debt separate, no conversion')}: ${fmt(resumoFiadoNativo.legadoContabilBRL,'BRL')}`
+                  : tx('Saldo nominal na moeda padrão','Saldo nominal en moneda predeterminada','Nominal debt in default currency')}
+                tone="purple" trailing="▥" />
               <ZenKpiCard icon="↻" titulo={tx('SINCRONIZAÇÃO','SINCRONIZACIÓN','SYNC')} valor={statusSincronizacao === 'SINCRONIZADO' ? 'Online' : statusSincronizacao === 'SALVANDO' ? tx('Salvando...','Guardando...','Saving...') : statusSincronizacao === 'ERRO' ? tx('Erro','Error','Error') : statusSincronizacao === 'OFFLINE' ? 'Offline' : tx('Pendente','Pendiente','Pending')} detalhe={tx('Dados atualizados em tempo real','Datos actualizados en tiempo real','Realtime data status')} tone="cyan" trailing="◯" />
             </div>
 
