@@ -130,3 +130,17 @@ test('sem cotação PYG confirmada não registra despesa em guaranis',async()=>{
  expect(screen.getByText(/Valor ou cotação inválidos/)).toBeTruthy();
  expect(commit).not.toHaveBeenCalled();
 });
+
+test('editar descrição de despesa PYG com câmbio novo preserva taxa histórica',async()=>{
+ const exp={id:'DPYG',descricao:'Frete',status:'pendente',categoria:'Outros',
+   moedaOrigem:'PYG',valorOriginal:25000,taxaCambioAplicada:1150,valorBRL:21.74};
+ const commit=vi.fn(async({changes})=>({cloudOk:true,values:{despesas:changes[0].value}}));
+ montar([exp],commit,{moedaPadrao:'PYG',taxasCambio:{BRL:1,PYG:1100,USD:0.2,EUR:0.18}});
+ fireEvent.click(screen.getByRole('button',{name:'Editar'}));
+ fireEvent.change(screen.getByDisplayValue('Frete'),{target:{value:'Frete corrigido'}});
+ fireEvent.click(screen.getByRole('button',{name:/Salvar alterações/}));
+ await waitFor(()=>expect(commit).toHaveBeenCalledTimes(1));
+ expect(commit.mock.calls[0][0].changes[0].value[0])
+   .toMatchObject({descricao:'Frete corrigido',moedaOrigem:'PYG',valorOriginal:25000,
+     taxaCambioAplicada:1150,valorBRL:21.74});
+});
