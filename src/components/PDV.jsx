@@ -1,4 +1,4 @@
-import { produtoParaFormularioMonetario, registrarValoresProduto, valorProdutoBRL, projetarProdutoMonetario, quantiaOriginalProduto, atualizarCotacaoPrecoItemPDV, recuperarPrecoVisivelRascunhoPDV } from '../core/productMoney.js';
+import { produtoParaFormularioMonetario, registrarValoresProduto, valorProdutoBRL, projetarProdutoMonetario, quantiaOriginalProduto, atualizarCotacaoPrecoItemPDV, recuperarPrecoVisivelRascunhoPDV, precoExibicaoProduto, textoPrecoExibicaoProduto } from '../core/productMoney.js';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { normalizarProduto, normalizarCliente } from '../data';
 import { aplicarVendaAoEstoque, obterEstoqueProduto, preverBaixaEstoqueProduto } from '../core/inventory';
@@ -435,6 +435,20 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     return valorProdutoBRL(prod,'precoBRL',converterParaBRL);
   };
 
+  const campoPrecoPorPerfil = (prod,cliente) =>
+    cliente?.perfilPreco === 'preco2' && prod?.habilitarPreco2 && Number(prod?.preco2BRL)>0 ? 'preco2BRL' : 'precoBRL';
+  const precoNativoCatalogo = (prod,cliente) =>
+    precoExibicaoProduto(prod,campoPrecoPorPerfil(prod,cliente),moeda,converterParaBRL,converterDeBRL);
+  const textoNativoCatalogo = (prod,cliente) =>
+    textoPrecoExibicaoProduto(prod,campoPrecoPorPerfil(prod,cliente),moeda,converterParaBRL,converterDeBRL);
+  const formatarPrecoNativoCatalogo = (prod,cliente) => {
+    const valor = precoNativoCatalogo(prod,cliente);
+    return new Intl.NumberFormat(moeda==='PYG'?'es-PY':moeda==='USD'?'en-US':'pt-BR', {
+      style:'currency',currency:moeda,minimumFractionDigits:moeda==='PYG'?0:2,
+      maximumFractionDigits:moeda==='PYG'?0:2
+    }).format(valor);
+  };
+
   const obterProdutoCatalogoSeguro = (item, contexto = 'consulta do PDV') => {
     const indice = localizarIndiceProdutoUnico(produtos || [], { id: item.produtoOriginalId ?? item.id, sku: item.produtoOriginalSku ?? item.sku }, contexto);
     return indice >= 0 ? produtos[indice] : item;
@@ -457,7 +471,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       const novosItens = itensVenda.map(item => {
         const prodOriginal = obterProdutoCatalogoSeguro(item, 'reprecificação por cliente');
         const novoPrecoBRL = aplicarPrecoPorPerfilCliente(prodOriginal, cli);
-        return { ...item, precoPraticadoBRL: novoPrecoBRL, precoTexto: converterDeBRL(novoPrecoBRL, moeda).toFixed(moeda==='PYG'?0:2) };
+        return { ...item, precoPraticadoBRL: novoPrecoBRL, precoTexto: textoNativoCatalogo(prodOriginal,cli) };
       });
       setClienteSelecionadoPDV(cli); setNomeClienteVulso(cli.nome); setFocoInputCliente(false);
       setItensVenda(novosItens);
@@ -468,7 +482,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     try {
       const novosItens = itensVenda.map(item => {
         const prodOriginal = obterProdutoCatalogoSeguro(item, 'retorno ao preço de balcão');
-        return { ...item, precoPraticadoBRL: valorProdutoBRL(prodOriginal,'precoBRL',converterParaBRL), precoTexto: converterDeBRL(valorProdutoBRL(prodOriginal,'precoBRL',converterParaBRL), moeda).toFixed(moeda==='PYG'?0:2) };
+        return { ...item, precoPraticadoBRL: valorProdutoBRL(prodOriginal,'precoBRL',converterParaBRL), precoTexto: textoNativoCatalogo(prodOriginal,null) };
       });
       setClienteSelecionadoPDV(null); setNomeClienteVulso('');
       setItensVenda(novosItens);
@@ -505,7 +519,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
             produtoOriginalSku: prodOriginal.sku,
             qtd: '1',
             precoPraticadoBRL: precoBase,
-            precoTexto: converterDeBRL(precoBase, moeda).toFixed(moeda==='PYG'?0:2)
+            precoTexto: textoNativoCatalogo(prodOriginal,clienteSelecionadoPDV)
           }];
         });
       }
@@ -738,7 +752,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
         produtoOriginalSku: itemParaAdicionar.sku,
         qtd: String(qtdNum),
         precoPraticadoBRL: precoBase,
-        precoTexto: converterDeBRL(precoBase, moeda).toFixed(moeda==='PYG'?0:2)
+        precoTexto: textoNativoCatalogo(itemParaAdicionar,clienteSelecionadoPDV)
       }]);
     }
     setItemParaAdicionar(null); setTermoBusca('');
@@ -1808,7 +1822,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                   return (
                     <div key={prod.id} onClick={() => { setItemParaAdicionar(prod); setQtdDigitadaRapida('1'); }} onMouseEnter={() => setIndiceFocoBusca(index)} style={{ padding: '14px 20px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', backgroundColor: estaFocado ? '#1e1b4b' : 'transparent' }}>
                       <div><div style={{ fontWeight: 700, color: '#f8fafc', fontSize: '15px' }}>{prod.nome} {ehEncomendaUsoUnico(prod) && <span style={{ color: '#fbbf24', fontSize: '11px' }}>({tx('Encomenda', 'Especial', 'Order')})</span>}</div><div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>SKU: {prod.sku} {tx("• Estoque:","• Existencias:")} <strong style={{ color: '#38bdf8' }}>{prod.estoque} {prod.unidadeMedida}</strong></div></div>
-                      <div style={{ color: '#34d399', fontWeight: 900, fontSize: '16px' }}>{fmt(aplicarPrecoPorPerfilCliente(prod, clienteSelecionadoPDV))}</div>
+                      <div style={{ color: '#34d399', fontWeight: 900, fontSize: '16px' }}>{formatarPrecoNativoCatalogo(prod, clienteSelecionadoPDV)}</div>
                     </div>
                   );
                 }) : <div style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>{tx('Nenhum produto localizado', 'Ningún producto', 'No products found')}</div>}
