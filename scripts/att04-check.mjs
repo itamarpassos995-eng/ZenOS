@@ -64,7 +64,12 @@ ok('Compra de estoque é marcada como ativo e não afeta resultado', () => {
 });
 ok('Compra imediata aparece como conta paga', () => assert.match(compras, /status:\s*pagamentoImediato\s*\?\s*'paga'\s*:\s*'pendente'/));
 ok('Compra em dinheiro gera saída de gaveta quando há turno aberto', () => assert.match(compras, /tipo:\s*'saida_compra'/));
-ok('Lucro líquido exclui mercadoria para revenda das despesas operacionais', () => assert.match(app, /d\.afetaResultado !== false[\s\S]*d\.naturezaContabil !== 'estoque_ativo'/));
+ok('Lucro líquido exclui compras e inclui somente variação cambial realizada', () => {
+  const core=fs.readFileSync(new URL('../src/core/expenseFxResult.js',import.meta.url),'utf8');
+  assert.match(core,/d\.afetaResultado===false/);
+  assert.match(core,/d\.naturezaContabil==='estoque_ativo'/);
+  assert.match(app,/apurarDespesasEVariacaoCambial\(despesas/);
+});
 ok('Saldo físico do caixa desconta compra em dinheiro', () => assert.match(app, /saidasComprasDinheiroSessaoBRL/));
 ok('Comissões possuem período personalizado', () => assert.match(comissoes, /Período personalizado/));
 ok('Comissões possuem navegação mês anterior e seguinte', () => assert.match(comissoes, /deslocarMesYYYYMM\(filtroMes, -1\)[\s\S]*deslocarMesYYYYMM\(filtroMes, 1\)/));
