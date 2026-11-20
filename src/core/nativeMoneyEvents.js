@@ -56,13 +56,16 @@ export function validarPagamentoObrigacaoNativa({
   const quitacaoNaOrigem = pago.valorOriginal/pago.taxaCambioAplicada*taxaOrigem;
   const unidades = moedaObrigacao==='PYG' ? 1 : 100;
   const nominalCalculado=Math.round(quitacaoNaOrigem*unidades)/unidades;
-  if (nominalCalculado!==divida.valor)
+  const residuoOrigem=quitacaoNaOrigem-divida.valor;
+  if (nominalCalculado!==divida.valor ||
+      (moedaFisica===moedaObrigacao && Math.abs(residuoOrigem)>1e-8))
     return {ok:false,erro:'Pagamento não quita exatamente o valor na moeda contratual. Confirme valor, diferença ou troco.',
-      diferencaOrigem:Math.round((nominalCalculado-divida.valor)*unidades)/unidades};
+      diferencaOrigem:residuoOrigem};
   if (!Number.isFinite(valorContabilHistoricoBRL) || valorContabilHistoricoBRL<=0)
     return {ok:false,erro:'Equivalente contábil histórico ausente.'};
   return {...pago,moedaObrigacao,valorObrigacaoOriginal:divida.valor,
     valorContabilHistoricoBRL,valorContabilDataPagamentoBRL:pago.valorConvertidoBRL,
     diferencaCambialBRL:arredondarBRL(pago.valorConvertidoBRL-valorContabilHistoricoBRL),
-    taxaOrigemAtual:taxaOrigem};
+    taxaOrigemAtual:taxaOrigem,
+    residuoArredondamentoOrigem:residuoOrigem};
 }
