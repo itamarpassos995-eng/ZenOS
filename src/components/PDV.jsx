@@ -23,6 +23,7 @@ import { getOperationalSnapshot } from '../core/operationalRepository';
 import { autoriaDoDocumento, autoriaDoOperador, resolverAutoriaVenda } from '../core/salesAttribution';
 import { indexarProdutosPDV, indexarClientesPDV, buscarProdutosPDV, buscarClientesPDV } from '../core/pdvSearch';
 import { apurarTotalContratualPDV, cotarRecebimentoPDV } from '../core/pdvNativeCheckout.js';
+import { adicionarCreditoNativoCliente } from '../core/nativeCustomerCredit.js';
 
 export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizados,
   pedidoPrivadoSolicitado, onPedidoPrivadoRecebido, perfilLoja, taxasCambio = {}, registrarFinanceiro, commitOperacaoCritica, commitVendaCritica, recarregarDadosPDV, vouchers = [], setVouchers, userId, produtos, setProdutos, clientes, setClientes, moeda, moedaPadrao = 'BRL', fmt, t, tx, converterDeBRL, converterParaBRL, historicoVendas, setHistoricoVendas, patenteUsuario, idioma, regrasDesconto, vendedores = [], operadorAtivo, sessaoAtiva }) {
@@ -1169,11 +1170,20 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
         valorFiadoOperacao = valorFiado;
 
         if (valorFiado > 0 && clienteSelecionadoPDV) {
-          novosClientes = (clientes || []).map(c =>
-            String(c.id) === String(clienteSelecionadoPDV.id)
-              ? { ...c, saldoDevedorBRL: (parseFloat(c.saldoDevedorBRL) || 0) + valorFiado }
-              : c
-          );
+          const pagamentosFiado = pagamentosLancados.filter(p => p.formaId === 'crediario');
+          const creditoNativoComprovado = contratoNativoPDV.ok &&
+            pagamentosFiado.every(p => p.moedaOrigem === moedaPadrao);
+          novosClientes = (clientes || []).map(c => {
+            if(String(c.id)!==String(clienteSelecionadoPDV.id))return c;
+            const contratado = creditoNativoComprovado
+              ? adicionarCreditoNativoCliente({cliente:c,vendaId,
+                  moedaDocumento:moedaPadrao,pagamentosFiado,
+                  taxasConfirmadas:taxasDoCheckoutRef.current||taxasCambio,
+                  registradaEm:instanteVenda.toISOString()})
+              : c;
+            return {...contratado,saldoDevedorBRL:Math.round(
+              (Number(c.saldoDevedorBRL||0)+valorFiado)*100)/100};
+          });
         }
       }
 
@@ -1268,6 +1278,12 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
               saldoClienteAntes: clienteAntes,
               saldoClienteDepois: clienteDepois,
               observacao: `Venda fiada ${vendaId}`,
+              ...(contratoNativoPDV.ok ? {detalhes:{
+                moedaDocumento:moedaPadrao,
+                valorFiadoOriginal:pagamentosFiado.reduce((acc,p)=>acc+Number(p.valorOriginal||0),0),
+                valorFiadoHistoricoBRL:valorFiadoTotal,
+                taxaContratoPorBRL:moedaPadrao==='BRL'?1:Number((taxasDoCheckoutRef.current||taxasCambio)?.[moedaPadrao])
+              }} : {}),
             });
           }
 
