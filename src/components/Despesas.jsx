@@ -4,8 +4,11 @@ import {db} from '../firebase';
 import {doc,getDocFromServer} from 'firebase/firestore';
 import {getOperationalSnapshot} from '../core/operationalRepository';
 import {avaliarPagamentoExistente} from '../core/expensePaymentReconcile';
+import {criarSnapshotMonetario,validarLiquidacaoMultimoeda,validarPagamentoObrigacaoNativa} from '../core/nativeMoneyEvents.js';
+import {interpretarValorMonetario} from '../core/cashMoneyInput.js';
+import {formatarDinheiroNativo} from '../core/cashHistoryDisplay.js';
 
-export default function Despesas({ userId, commitOperacaoNegocio, registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, saldoSessaoFisicoBRL = 0, operadorAtivo, despesas, setDespesas, fmt, tx, patenteUsuario, moeda, converterParaBRL, converterDeBRL }) {
+export default function Despesas({ userId, commitOperacaoNegocio, registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, saldoSessaoFisicoBRL = 0, operadorAtivo, despesas, setDespesas, fmt, tx, patenteUsuario, moeda, moedaPadrao='BRL', taxasCambio={}, converterParaBRL, converterDeBRL }) {
   const [modalAberto, setModalAberto] = useState(false);
   const [despesaEmEdicao, setDespesaEmEdicao] = useState(null);
   const [filtroStatus, setFiltroStatus] = useState('pendente'); // pendente, paga, todas
@@ -14,6 +17,9 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
   const [descricao, setDescricao] = useState('');
   const [categoria, setCategoria] = useState('Fornecedor');
   const [valorInput, setValorInput] = useState('');
+  const [moedaDespesa,setMoedaDespesa] = useState('BRL');
+  const [moedaPagamento,setMoedaPagamento] = useState('');
+  const [valorPagamento,setValorPagamento] = useState('');
   const [dataVencimento, setDataVencimento] = useState(new Date().toISOString().split('T')[0]);
 
   // Pagamento states
@@ -45,6 +51,7 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
     setDescricao('');
     setCategoria('Fornecedor');
     setValorInput('');
+    setMoedaDespesa(moedaPadrao);
     setDataVencimento(new Date().toISOString().split('T')[0]);
     setModalAberto(true);
   };
@@ -56,8 +63,9 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
     setDespesaEmEdicao(despesa);
     setDescricao(despesa.descricao||'');
     setCategoria(despesa.categoria||'Outros');
-    const valorExibido=typeof converterDeBRL==='function' ? converterDeBRL(Number(despesa.valorBRL)||0,moeda) : Number(despesa.valorBRL)||0;
-    setValorInput(Number(valorExibido).toFixed(moeda==='PYG'?0:2));
+    const temOrigem = !!despesa.moedaOrigem && Number.isFinite(despesa.valorOriginal);
+    setMoedaDespesa(temOrigem ? despesa.moedaOrigem : 'BRL');
+    setValorInput(String(temOrigem ? despesa.valorOriginal : despesa.valorBRL));
     setDataVencimento(despesa.dataVencimento||new Date().toISOString().slice(0,10));
     setModalAberto(true);
   };
@@ -68,8 +76,27 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
       return avisarZen('warning',tx("Edição bloqueada","Edición bloqueada"),tx("Esta despesa não pode ser editada diretamente por ter pagamento ou vínculo com compra.","Este gasto no puede editarse directamente porque tiene un pago o un vínculo con una compra."));
 
     if (!descricao.trim()) return avisarZen('warning',tx('Descrição obrigatória','Descripción obligatoria','Description required'),tx('Informe a descrição da despesa.','Informe la descripción del gasto.','Enter the expense description.'));
-    const valBRL = converterParaBRL(parseFloat(valorInput.replace(',', '.')) || 0, moeda);
-    if (valBRL <= 0) return avisarZen('warning',tx('Valor inválido','Valor inválido','Invalid amount'),tx('Informe um valor válido maior que zero.','Informe un valor válido mayor que cero.','Enter a valid amount greater than zero.'));
+    const legadoNaoComprovado = !!despesaEmEdicao &&
+      (!despesaEmEdicao.moedaOrigem || !Number.isFinite(despesaEmEdicao.valorOriginal));
+    const digitado = interpretarValorMonetario(valorInput,moedaDespesa);
+    if (!digitado.ok || digitado.valor <= 0) return avisarZen('warning',tx('Valor original inválido','Importe original inválido','Invalid original amount'),digitado.erro||'Valor deve ser maior que zero.');
+    // Metadata-only editing cannot revalue a historical expense with today's FX.
+    const semAlteracaoMonetaria = !!despesaEmEdicao &&
+      despesaEmEdicao.moedaOrigem===moedaDespesa && digitado.valor===despesaEmEdicao.valorOriginal &&
+      Number.isFinite(despesaEmEdicao.valorBRL) &&
+      Number.isFinite(despesaEmEdicao.taxaCambioAplicada) && despesaEmEdicao.taxaCambioAplicada>0;
+    if (legadoNaoComprovado && (moedaDespesa!=='BRL'||digitado.valor!==despesaEmEdicao.valorBRL)) {
+      return avisarZen('warning',tx('Valor legado protegido','Importe antiguo protegido','Legacy amount protected'),
+        tx('Somente descrição, categoria e vencimento podem mudar sem prova da moeda original.','Sin prueba de moneda original solo pueden cambiar los datos administrativos.','Only metadata may change until the original currency is verified.'));
+    }
+    const snapshot = legadoNaoComprovado
+      ? {ok:true,valorConvertidoBRL:despesaEmEdicao.valorBRL}
+      : semAlteracaoMonetaria
+        ? {ok:true,moedaOrigem:despesaEmEdicao.moedaOrigem,valorOriginal:despesaEmEdicao.valorOriginal,
+           taxaCambioAplicada:despesaEmEdicao.taxaCambioAplicada,valorConvertidoBRL:despesaEmEdicao.valorBRL}
+        : criarSnapshotMonetario({valorOriginal:digitado.valor,moedaOrigem:moedaDespesa,taxasCambio});
+    if (!snapshot.ok) return avisarZen('warning',tx('Valor ou cotação inválidos','Importe o cotización inválidos','Invalid amount or exchange rate'),snapshot.erro);
+    const valBRL = snapshot.valorConvertidoBRL;
 
     const novaDespesa = {
       ...(despesaEmEdicao || {}),
@@ -77,6 +104,8 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
       descricao,
       categoria,
       valorBRL: valBRL,
+      ...(!legadoNaoComprovado ? {moedaOrigem:snapshot.moedaOrigem,
+        valorOriginal:snapshot.valorOriginal,taxaCambioAplicada:snapshot.taxaCambioAplicada} : {}),
       dataVencimento,
       status: despesaEmEdicao ? despesaEmEdicao.status : 'pendente',
       dataPagamento: despesaEmEdicao ? despesaEmEdicao.dataPagamento : null,
@@ -92,7 +121,8 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
       if (typeof commitOperacaoNegocio === 'function') {
         const confirmado = await commitOperacaoNegocio({
           changes:[{ field:'despesas', value:listaProposta, storageSuffix:'despesas' }],
-          guards:despesaEmEdicao?[{type:'entity_unchanged',field:'despesas',entityId:despesaEmEdicao.id,expected:despesaEmEdicao}]:[],
+          guards:[...(despesaEmEdicao?[{type:'entity_unchanged',field:'despesas',entityId:despesaEmEdicao.id,expected:despesaEmEdicao}]:[]),
+            ...(!legadoNaoComprovado && !semAlteracaoMonetaria && moedaDespesa!=='BRL' ? [{type:'money_exchange_rates_match',taxas:{...taxasCambio}}] : [])],
         });
         if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou a despesa.');
         confirmadas = confirmado.values?.despesas || listaProposta;
@@ -111,6 +141,8 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
   const abrirPagamento = (despesa) => {
     setDespesaParaPagar(despesa);
     setFormaPagamento('Dinheiro / Caixa');
+    setMoedaPagamento('');
+    setValorPagamento('');
     setModalPagamentoAberto(true);
   };
 
@@ -162,12 +194,27 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
     try{
     const dinheiro = String(formaPagamento || '').toLowerCase().includes('dinheiro');
     const valor = Number(despesaParaPagar?.valorBRL || 0);
+    const obrigacaoNativaComprovada = !!despesaParaPagar?.moedaOrigem &&
+      Number.isFinite(despesaParaPagar?.valorOriginal) && despesaParaPagar.valorOriginal>0;
+    const pagamentoNativo = obrigacaoNativaComprovada
+      ? validarPagamentoObrigacaoNativa({valorObrigacaoOriginal:despesaParaPagar.valorOriginal,
+          moedaObrigacao:despesaParaPagar.moedaOrigem,valorFisico:valorPagamento,
+          moedaFisica:moedaPagamento,taxasCambio,valorContabilHistoricoBRL:valor})
+      : validarLiquidacaoMultimoeda({valorDevidoBRL:valor,valorFisico:valorPagamento,
+          moedaFisica:moedaPagamento,taxasCambio});
+    if (!pagamentoNativo.ok) return avisarZen('danger',tx('Pagamento sem valor confirmado','Pago sin importe confirmado','Payment without verified amount'),pagamentoNativo.erro);
+    if (dinheiro && !['BRL','PYG','USD','EUR'].includes(pagamentoNativo.moedaOrigem))
+      return avisarZen('danger',tx('Moeda inválida','Moneda inválida','Invalid currency'),tx('Selecione a moeda realmente entregue.','Seleccione la moneda realmente entregada.','Select the actual paid currency.'));
     if (dinheiro && !sessaoAtiva) return setModalZen({ variante:'danger', titulo:tx('Caixa fechado','Caja cerrada','Register closed'), mensagem:tx('Para pagar uma despesa em dinheiro é necessário um turno de caixa aberto.','Para pagar un gasto en efectivo es necesario un turno de caja abierto.','An open cash shift is required to pay an expense in cash.'), apenasConfirmar:true });
-    if (dinheiro && valor > Number(saldoSessaoFisicoBRL || 0) + 0.001) return setModalZen({ variante:'danger', titulo:tx('Saldo insuficiente na gaveta','Saldo insuficiente en caja','Insufficient drawer balance'), mensagem:tx('Saldo insuficiente para esta saída. O saldo esperado permanece oculto até o fechamento cego.','Saldo insuficiente para esta salida. El saldo esperado permanece oculto hasta el cierre ciego.','Insufficient balance for this payment. The expected balance remains hidden until blind closeout.'), detalhes:[`${tx('Despesa:','Gasto:','Expense:')} ${fmt(valor,'BRL')}`], apenasConfirmar:true });
+    if (dinheiro && pagamentoNativo.moedaOrigem==='BRL' && valor > Number(saldoSessaoFisicoBRL || 0) + 0.001) return setModalZen({ variante:'danger', titulo:tx('Saldo insuficiente na gaveta','Saldo insuficiente en caja','Insufficient drawer balance'), mensagem:tx('Saldo insuficiente para esta saída. O saldo esperado permanece oculto até o fechamento cego.','Saldo insuficiente para esta salida. El saldo esperado permanece oculto hasta el cierre ciego.','Insufficient balance for this payment. The expected balance remains hidden until blind closeout.'), detalhes:[`${tx('Despesa:','Gasto:','Expense:')} ${fmt(valor,'BRL')}`], apenasConfirmar:true });
 
     const createdAt = new Date().toISOString();
-    const despesasPropostas = despesas.map(d => d.id === despesaParaPagar.id ? { ...d, status:'paga', dataPagamento:createdAt, formaPagamento } : d);
-    const mov = dinheiro ? { id:`MOV-DESP-${despesaParaPagar.id}`, sessaoId:sessaoAtiva.id, createdAt, dataHora:new Date(createdAt).toLocaleString('pt-BR'), tipo: despesaParaPagar?.naturezaContabil === 'estoque_ativo' ? 'saida_compra' : 'saida_despesa', direcao:'saida', afetaGaveta:true, valorBRL:valor, detalhesMoedas:{BRL:valor}, descricao:despesaParaPagar.descricao, despesaId:despesaParaPagar.id, operador:operadorAtivo?.nome||'Administrador' } : null;
+    const despesasPropostas = despesas.map(d => d.id === despesaParaPagar.id ? { ...d, status:'paga', dataPagamento:createdAt, formaPagamento,
+      pagamentoMoedaOrigem:pagamentoNativo.moedaOrigem,pagamentoValorOriginal:pagamentoNativo.valorOriginal,
+      pagamentoTaxaCambioAplicada:pagamentoNativo.taxaCambioAplicada,
+      ...(obrigacaoNativaComprovada ? {diferencaCambialBRL:pagamentoNativo.diferencaCambialBRL,
+       residuoArredondamentoOrigem:pagamentoNativo.residuoArredondamentoOrigem} : {}) } : d);
+    const mov = dinheiro ? { id:`MOV-DESP-${despesaParaPagar.id}`, sessaoId:sessaoAtiva.id, createdAt, dataHora:new Date(createdAt).toLocaleString('pt-BR'), tipo: despesaParaPagar?.naturezaContabil === 'estoque_ativo' ? 'saida_compra' : 'saida_despesa', direcao:'saida', afetaGaveta:true, valorBRL:valor, detalhesMoedas:{[pagamentoNativo.moedaOrigem]:pagamentoNativo.valorOriginal}, detalhesMoedasNativas:{[pagamentoNativo.moedaOrigem]:pagamentoNativo.valorOriginal}, moedaOrigem:pagamentoNativo.moedaOrigem, valorOriginal:pagamentoNativo.valorOriginal, taxaCambioAplicada:pagamentoNativo.taxaCambioAplicada, taxasCambioMovimento:{...taxasCambio}, descricao:despesaParaPagar.descricao, despesaId:despesaParaPagar.id, operador:operadorAtivo?.nome||'Administrador' } : null;
     const caixaProposto = mov ? [mov, ...(caixaMovimentos || [])] : caixaMovimentos;
     const financeiro = {
       id: `DESPESA-${despesaParaPagar.id}`,
@@ -182,11 +229,44 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
       direcao: 'saida',
       sessaoId: dinheiro ? sessaoAtiva?.id : null,
       observacao: despesaParaPagar.descricao,
-      detalhes: { categoria: despesaParaPagar.categoria, naturezaContabil: despesaParaPagar.naturezaContabil || null },
+      detalhes: { categoria: despesaParaPagar.categoria, naturezaContabil: despesaParaPagar.naturezaContabil || null,
+        moedaOrigem:pagamentoNativo.moedaOrigem,valorOriginal:pagamentoNativo.valorOriginal,taxaCambioAplicada:pagamentoNativo.taxaCambioAplicada,
+        ...(obrigacaoNativaComprovada ? {moedaObrigacao:pagamentoNativo.moedaObrigacao,valorObrigacaoOriginal:pagamentoNativo.valorObrigacaoOriginal,
+          valorContabilHistoricoBRL:pagamentoNativo.valorContabilHistoricoBRL,valorContabilDataPagamentoBRL:pagamentoNativo.valorContabilDataPagamentoBRL,
+          diferencaCambialBRL:pagamentoNativo.diferencaCambialBRL,residuoArredondamentoOrigem:pagamentoNativo.residuoArredondamentoOrigem} : {}) },
       operadorId:operadorAtivo?.id || 'admin',
       operadorNome:operadorAtivo?.nome || 'Administrador',
     };
 
+    // Variação cambial realizada: lançamento independente, sem nova saída física.
+    // O pagamento principal conserva o valor contábil histórico da obrigação.
+    const variacaoBRL = obrigacaoNativaComprovada ? pagamentoNativo.diferencaCambialBRL : 0;
+    const ajusteCambial = despesaParaPagar?.afetaResultado !== false &&
+      despesaParaPagar?.naturezaContabil !== 'estoque_ativo' &&
+      Math.abs(variacaoBRL) >= 0.01 ? {
+        id:`AJUSTE-CAMBIO-DESPESA-${despesaParaPagar.id}`,
+        tipo:'variacao_cambial_realizada',
+        origem:'pagamento_despesa',
+        referenciaId:despesaParaPagar.id,
+        valor:Math.abs(variacaoBRL),
+        formaPagamento:'ajuste_contabil_sem_caixa',
+        createdAt,
+        afetaCaixaFisico:false,
+        afetaResultado:true,
+        direcao:variacaoBRL>0?'saida':'entrada',
+        sessaoId:null,
+        observacao:'Diferença entre BRL histórico da despesa e equivalente BRL do pagamento confirmado',
+        detalhes:{moedaObrigacao:pagamentoNativo.moedaObrigacao,
+          valorObrigacaoOriginal:pagamentoNativo.valorObrigacaoOriginal,
+          moedaPagamento:pagamentoNativo.moedaOrigem,
+          valorPagamentoOriginal:pagamentoNativo.valorOriginal,
+          taxaCambioAplicada:pagamentoNativo.taxaCambioAplicada,
+          valorContabilHistoricoBRL:pagamentoNativo.valorContabilHistoricoBRL,
+          valorContabilDataPagamentoBRL:pagamentoNativo.valorContabilDataPagamentoBRL,
+          diferencaCambialBRL:variacaoBRL},
+        operadorId:operadorAtivo?.id||'admin',
+        operadorNome:operadorAtivo?.nome||'Administrador',
+      } : null;
     try {
       let confirmadas = despesasPropostas;
       let caixaConfirmado = caixaProposto;
@@ -195,9 +275,16 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
         if (mov) changes.push({ field:'caixaMovimentos', value:caixaProposto, storageSuffix:'caixa_movs' });
         const guards = dinheiro ? [
           { type:'cash_session_open', sessionId:sessaoAtiva.id },
-          { type:'cash_balance_at_least', sessionId:sessaoAtiva.id, amount:valor, message:'O saldo físico do caixa mudou em outro terminal. O pagamento foi bloqueado.' },
+          ...(pagamentoNativo.moedaOrigem==='BRL' ? [{ type:'cash_balance_at_least', sessionId:sessaoAtiva.id, amount:valor, message:'O saldo físico do caixa mudou em outro terminal. O pagamento foi bloqueado.' }] : []),
+          { type:'cash_native_balance_at_least', sessionId:sessaoAtiva.id,
+            valoresNativos:{[pagamentoNativo.moedaOrigem]:pagamentoNativo.valorOriginal},taxas:{...taxasCambio} },
         ] : [];
-        const confirmado = await commitOperacaoNegocio({ changes, financialEntries:[financeiro], guards });
+        guards.push({type:'entity_field_equals',field:'despesas',entityId:despesaParaPagar.id,entityKey:'id',
+          property:'status',expected:'pendente',message:'Despesa já paga ou alterada em outro terminal.'});
+        if (pagamentoNativo.moedaOrigem!=='BRL' || (obrigacaoNativaComprovada && despesaParaPagar.moedaOrigem!=='BRL'))
+          guards.push({type:'money_exchange_rates_match',taxas:{...taxasCambio}});
+        const confirmado = await commitOperacaoNegocio({ changes, financialEntries:ajusteCambial?[financeiro,ajusteCambial]:[financeiro], guards,
+          operationKey:'despesa-pagamento:'+String(despesaParaPagar.id) });
         if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou o pagamento.');
         confirmadas = confirmado.values?.despesas || despesasPropostas;
         caixaConfirmado = confirmado.values?.caixaMovimentos || caixaProposto;
@@ -357,7 +444,13 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
                     <span style={{ backgroundColor: '#020617', border: '1px solid #334155', color: '#94a3b8', padding: '4px 8px', borderRadius: '6px', fontSize: '11px' }}>{d.categoria}</span>
                   </td>
                   <td style={{ padding: '16px 12px', textAlign: 'right', fontWeight: 900, color: d.status === 'paga' ? '#64748b' : '#f43f5e', fontSize: '15px' }}>
-                    {fmt(d.valorBRL, 'BRL')}
+                    {d.moedaOrigem && Number.isFinite(d.valorOriginal)
+                      ? formatarDinheiroNativo(d.valorOriginal,d.moedaOrigem)
+                      : `${fmt(d.valorBRL,'BRL')} (BRL contábil)`}
+                    {d.moedaOrigem && Number.isFinite(d.valorOriginal) &&
+                      <div style={{fontSize:10,color:'#94a3b8',marginTop:3}}>
+                        {tx('Equivalente registrado','Equivalente registrado','Recorded equivalent')}: {fmt(d.valorBRL,'BRL')}
+                      </div>}
                   </td>
                   <td style={{ padding: '16px 12px', textAlign: 'center' }}>
                     {d.status === 'paga' 
@@ -402,8 +495,11 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx("Valor (","Importe (")}{moeda})</label>
-                  <input type="text" value={valorInput} onChange={e => setValorInput(e.target.value)} placeholder="0.00" style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #f43f5e', borderRadius: '8px', color: '#fb7185', fontWeight: 900, fontSize: '16px', padding: '12px', outline: 'none', marginTop: '4px', boxSizing: 'border-box' }} />
+                  <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{despesaEmEdicao && (!despesaEmEdicao.moedaOrigem || !Number.isFinite(despesaEmEdicao.valorOriginal))
+                    ? tx('Valor BRL contábil (origem pendente)','Importe BRL contable (origen pendiente)','Accounting BRL (source unverified)')
+                    : tx('Valor na moeda original','Importe en moneda original','Amount in original currency')} ({moedaDespesa})</label>
+                  <select value={moedaDespesa} onChange={e=>{setMoedaDespesa(e.target.value);setValorInput('');}} disabled={!!despesaEmEdicao} style={{width:'100%',padding:9,marginTop:6,background:'#020617',color:'#fff',border:'1px solid #334155',borderRadius:8}}>{['BRL','PYG','USD','EUR'].map(c=><option value={c} key={c}>{c}</option>)}</select>
+                  <input type="text" value={valorInput} disabled={!!despesaEmEdicao && (!despesaEmEdicao.moedaOrigem || !Number.isFinite(despesaEmEdicao.valorOriginal))} onChange={e => setValorInput(e.target.value)} placeholder="0.00" style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #f43f5e', borderRadius: '8px', color: '#fb7185', fontWeight: 900, fontSize: '16px', padding: '12px', outline: 'none', marginTop: '4px', boxSizing: 'border-box' }} />
                 </div>
                 <div>
                   <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Data de Vencimento','Fecha de Vencimiento','Due Date')}</label>
@@ -437,7 +533,9 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
             <h3 style={{ fontSize: '18px', fontWeight: 900, margin: '0 0 16px 0', color: '#34d399' }}>{tx('Baixar Pagamento','Registrar Pago','Post Payment')}</h3>
             <div style={{ backgroundColor: '#020617', padding: '16px', borderRadius: '12px', marginBottom: '20px', border: '1px solid #1e293b' }}>
               <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '4px' }}>{despesaParaPagar.descricao}</div>
-              <div style={{ fontSize: '24px', fontWeight: 900, color: '#f8fafc' }}>{fmt(despesaParaPagar.valorBRL, 'BRL')}</div>
+              <div style={{ fontSize: '24px', fontWeight: 900, color: '#f8fafc' }}>{despesaParaPagar.moedaOrigem && Number.isFinite(despesaParaPagar.valorOriginal)
+                    ? formatarDinheiroNativo(despesaParaPagar.valorOriginal,despesaParaPagar.moedaOrigem)
+                    : `${fmt(despesaParaPagar.valorBRL,'BRL')} (BRL contábil)`}</div>
             </div>
             
             <label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800 }}>{tx('De onde saiu o dinheiro?','¿De dónde salió el dinero?','Where did the money come from?')}</label>
@@ -447,6 +545,23 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
               <option value="Cartão Corporativo">💳 {tx('Cartão Corporativo','Tarjeta Corporativa','Corporate Card')}</option>
             </select>
 
+            <label style={{fontSize:11,color:'#cbd5e1'}}>{tx('Moeda efetivamente paga','Moneda realmente pagada','Actual payment currency')}</label>
+            <select value={moedaPagamento} onChange={e=>{setMoedaPagamento(e.target.value);setValorPagamento('');}} style={{width:'100%',padding:11,marginTop:6,marginBottom:12,background:'#020617',color:'#fff',border:'1px solid #334155',borderRadius:8}}><option value="">{tx('Selecione a moeda','Seleccione moneda','Select currency')}</option>{['BRL','PYG','USD','EUR'].map(c=><option key={c} value={c}>{c}</option>)}</select>
+            <label style={{fontSize:11,color:'#cbd5e1'}}>{tx('Valor efetivamente pago','Importe realmente pagado','Actual amount paid')}</label>
+            <input value={valorPagamento} onChange={e=>setValorPagamento(e.target.value)} inputMode="decimal" placeholder="0" style={{width:'100%',boxSizing:'border-box',padding:11,marginTop:6,marginBottom:14,background:'#020617',color:'#fff',border:'1px solid #334155',borderRadius:8}}/>
+            {moedaPagamento && valorPagamento && (() => {
+              const parcial=despesaParaPagar.moedaOrigem && Number.isFinite(despesaParaPagar.valorOriginal)
+                ? validarPagamentoObrigacaoNativa({valorObrigacaoOriginal:despesaParaPagar.valorOriginal,
+                    moedaObrigacao:despesaParaPagar.moedaOrigem,valorFisico:valorPagamento,
+                    moedaFisica:moedaPagamento,taxasCambio,valorContabilHistoricoBRL:Number(despesaParaPagar.valorBRL)})
+                : validarLiquidacaoMultimoeda({valorDevidoBRL:Number(despesaParaPagar.valorBRL),
+                    valorFisico:valorPagamento,moedaFisica:moedaPagamento,taxasCambio});
+              return <div role="status" style={{fontSize:11,color:parcial.ok?'#34d399':'#fbbf24',marginBottom:12}}>
+                {parcial.ok
+                  ? `${tx('Valor validado','Importe validado','Verified amount')}: ${parcial.valorOriginal} ${parcial.moedaOrigem} · ${tx('Cotação aplicada','Cotización aplicada','Applied rate')}: ${parcial.taxaCambioAplicada} · ${fmt(parcial.valorConvertidoBRL,'BRL')}`
+                  : parcial.erro}
+              </div>;
+            })()}
             <div style={{ display: 'flex', gap: '12px' }}>
               <button onClick={() => setModalPagamentoAberto(false)} style={{ flex: 1, backgroundColor: '#020617', border: '1px solid #1e293b', color: '#94a3b8', padding: '12px', borderRadius: '10px', fontWeight: 800, cursor: 'pointer' }}>{tx('Cancelar','Cancelar','Cancel')}</button>
               <button onClick={confirmarPagamento} style={{ flex: 2, background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', color: '#ffffff', padding: '12px', borderRadius: '10px', fontWeight: 900, cursor: 'pointer' }}>{tx('Confirmar Pago','Confirmar Pago','Confirm Paid')}</button>

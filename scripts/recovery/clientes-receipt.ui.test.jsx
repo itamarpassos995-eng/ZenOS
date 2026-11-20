@@ -21,7 +21,7 @@ const lancamento={
  referenciaId:venda.id,formaPagamento:'crediario',valor:799.70,
  saldoClienteAntes:850,saldoClienteDepois:1649.70,
 };
-const setup=({historicoVendas=[venda],livroFinanceiro=[lancamento]}={})=>{
+const setup=({historicoVendas=[venda],livroFinanceiro=[lancamento],forma='pix',valor='50',moedaPadrao='BRL',taxasCambio={},sessaoAtiva=null}={})=>{
  const commit=vi.fn(async ({changes})=>({
   cloudOk:true,
   values:Object.fromEntries(changes.map(c=>[c.field,c.value])),
@@ -30,15 +30,15 @@ const setup=({historicoVendas=[venda],livroFinanceiro=[lancamento]}={})=>{
   clientes:[base],setClientes:vi.fn(),historicoVendas,livroFinanceiro,
   commitOperacaoNegocio:commit,
   caixaMovimentos:[],setCaixaMovimentos:vi.fn(),
-  sessaoAtiva:null,operadorAtivo:{id:'admin',nome:'Admin'},
-  moeda:'BRL',fmt:n=>'R$ '+Number(n||0).toFixed(2),
+  sessaoAtiva,operadorAtivo:{id:'admin',nome:'Admin'},
+  moeda:'BRL',moedaPadrao,taxasCambio,fmt:n=>'R$ '+Number(n||0).toFixed(2),
   t:k=>traducoes.pt[k]||k,tx:pt=>pt,
   converterDeBRL:v=>v,converterParaBRL:v=>v,
  };
  render(<Clientes {...props}/>);
  fireEvent.click(screen.getByRole('button',{name:'Receber Conta'}));
- fireEvent.change(screen.getByRole('combobox'),{target:{value:'pix'}});
- fireEvent.change(screen.getByPlaceholderText('0.00'),{target:{value:'50'}});
+ fireEvent.change(screen.getByRole('combobox'),{target:{value:forma}});
+ fireEvent.change(screen.getByPlaceholderText('0.00'),{target:{value:valor}});
  fireEvent.click(screen.getByRole('button',{name:'Baixar e Quitar'}));
  return {commit,props};
 };
@@ -59,5 +59,29 @@ test('nome histórico diferente com MESMO ID: recebe conta, sem reatribuir dívi
 test('ID da venda diferente do ID financeiro: impede baixa',async()=>{
  const {commit}=setup({historicoVendas:[{...venda,clienteId:'OUTRO-CLIENTE'}]});
  await waitFor(()=>expect(screen.getByText(/Conta com vínculo financeiro inconsistente/)).toBeTruthy());
+ expect(commit).not.toHaveBeenCalled();
+});
+
+test('recebimento de 1100 PYG baixa apenas R$ 1 contábil, registra gaveta PYG e trava taxa',async()=>{
+ const {commit}=setup({forma:'dinheiro_pyg',valor:'1100',moedaPadrao:'PYG',
+  taxasCambio:{BRL:1,PYG:1100,USD:0.2,EUR:0.18},sessaoAtiva:{id:'cx1',status:'aberta'}});
+ await waitFor(()=>expect(commit).toHaveBeenCalledTimes(1));
+ const args=commit.mock.calls[0][0];
+ expect(args.guards).toEqual(expect.arrayContaining([
+  expect.objectContaining({type:'money_exchange_rates_match',taxas:expect.objectContaining({PYG:1100})}),
+  expect.objectContaining({type:'client_receipt_snapshot',balanceBRL:4999.70}),
+  expect.objectContaining({type:'cash_session_open',sessionId:'cx1'})
+ ]));
+ expect(args.financialEntries[0]).toMatchObject({valor:1,detalhes:{
+  moedaOrigem:'PYG',valorOriginal:1100,taxaCambioAplicada:1100}});
+ expect(args.changes.find(c=>c.field==='clientes').value[0].saldoDevedorBRL).toBeCloseTo(4998.70);
+ expect(args.changes.find(c=>c.field==='caixaMovimentos').value[0]).toMatchObject({
+  detalhesMoedasNativas:{PYG:1100},moedaOrigem:'PYG',valorOriginal:1100,taxaCambioAplicada:1100
+ });
+});
+test('cotação PYG ausente impede baixa e não inventa BRL recebido',async()=>{
+ const {commit}=setup({forma:'dinheiro_pyg',valor:'1100',moedaPadrao:'PYG',
+  taxasCambio:{BRL:1,PYG:0},sessaoAtiva:{id:'cx1',status:'aberta'}});
+ await waitFor(()=>expect(screen.getByText(/Valor ou câmbio não comprovado/)).toBeTruthy());
  expect(commit).not.toHaveBeenCalled();
 });

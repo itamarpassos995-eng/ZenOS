@@ -14,6 +14,7 @@ import { calcularResumoSessao } from '../core/cashSession';
 import { formatarEquivalenciaBRL, moedasAtivasRecibo } from '../core/receiptCurrency';
 import { apresentarVendaHistorica } from '../core/defaultCurrencyPresentation.js';
 import { formatarDinheiroNativo } from '../core/cashHistoryDisplay.js';
+import { validarReembolsoVendaNativa, calcularValorReembolsoNativo } from '../core/nativeMoneyEvents.js';
 
 export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoesCaixa = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, saldoSessaoFisicoBRL = 0, perfilLoja, vouchers = [], setVouchers, userId, operadorAtivo, historicoVendas, historicoVendasCompleto, setHistoricoVendas, produtos, setProdutos, clientes, setClientes, fmt, t, tx, patenteUsuario, moeda, converterDeBRL }) {
   const [vendaExpandida, setVendaExpandida] = useState(null);
@@ -25,6 +26,8 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
   const [vendaSendoDevolvida, setVendaSendoDevolvida] = useState(null);
   const [itensParaDevolver, setItensParaDevolver] = useState({});
   const [metodoReembolso, setMetodoReembolso] = useState('dinheiro');
+  const [moedaFisicaReembolso,setMoedaFisicaReembolso] = useState('');
+  const [valorFisicoReembolso,setValorFisicoReembolso] = useState('');
   const [modalZen, setModalZen] = useState(null);
   const [mostrarVouchers, setMostrarVouchers] = useState(false);
   const [sessaoReembolsoId, setSessaoReembolsoId] = useState('');
@@ -91,6 +94,8 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
     });
     setItensParaDevolver(itensIniciais);
     setMetodoReembolso('dinheiro');
+    setMoedaFisicaReembolso('');
+    setValorFisicoReembolso('');
     const caixaAtual = caixasAbertos.find(x => String(x.sessao.id) === String(sessaoAtiva?.id) && Number(x.resumo.saldoEsperado || 0) > 0);
     const caixaPreferido = caixaAtual || caixasAbertos.find(x => Number(x.resumo.saldoEsperado || 0) > 0) || caixasAbertos[0] || null;
     setSessaoReembolsoId(caixaPreferido?.sessao?.id || '');
@@ -114,6 +119,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
   };
 
   const calcularTotalDevolucaoBRL = () => calcularValorDevolucaoAtual(vendaSendoDevolvida || {}, itensParaDevolver);
+  const previaReembolsoNativo = calcularValorReembolsoNativo(vendaSendoDevolvida,calcularTotalDevolucaoBRL());
 
   const arquivarDocumentoNaoFaturado = async venda => {
     if (patenteUsuario !== 'gerencia') return avisarZen({variante:'danger',titulo:tx("Acesso negado","Acceso denegado"),mensagem:tx("Somente a gerência pode retirar pré-pedidos e orçamentos do histórico.","Solo la gerencia puede retirar prepedidos y presupuestos del historial.")});
@@ -148,6 +154,14 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
     try {
     const totalEstornoBRL = calcularTotalDevolucaoBRL();
     const custoEstornoBRL = calcularCustoDevolucaoAtual(itensParaDevolver);
+    const dinheiroFisico = metodoReembolso === 'dinheiro';
+    const pagamentoFisico = dinheiroFisico ? validarReembolsoVendaNativa({venda:vendaSendoDevolvida,
+      valorEstornoBRL:totalEstornoBRL,valorFisico:valorFisicoReembolso,
+      moedaFisica:moedaFisicaReembolso,taxasCambio}) : null;
+    if (dinheiroFisico && !pagamentoFisico?.ok) {
+      return avisarZen({variante:'danger',titulo:tx('Valor físico da devolução inválido','Importe físico del reembolso inválido','Invalid physical refund amount'),
+        mensagem:pagamentoFisico?.erro || tx('Informe moeda e valor físico do reembolso','Indique la moneda y el importe físico del reembolso','Enter actual refund currency and amount')});
+    }
     if (totalEstornoBRL <= 0) return avisarZen({ variante:'warning', titulo:tx("Nenhum item selecionado","Ningún artículo seleccionado"), mensagem:tx('Selecione pelo menos 1 item para devolver.', 'Seleccione al menos 1 ítem.', 'Select at least 1 item.') });
 
     if (metodoReembolso === 'credito_fiado' && !vendaSendoDevolvida?.clienteId) {
@@ -156,7 +170,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
     if (metodoReembolso === 'dinheiro' && !caixaReembolsoSelecionado) {
       return avisarZen({ variante:'danger', titulo:tx('Nenhum caixa disponível','Ninguna caja disponible','No register available'), mensagem:tx('Para devolver em dinheiro, selecione um turno de caixa aberto. Se não houver caixa com saldo, use Pix/Banco ou Voucher.','Para devolver en efectivo, seleccione un turno de caja abierto. Si no hay caja con saldo, use Pix/Banco o Voucher.','For a cash refund, select an open register shift. If no register has balance, use Pix/Bank or Voucher.') });
     }
-    if (metodoReembolso === 'dinheiro' && totalEstornoBRL > Number(caixaReembolsoSelecionado?.resumo?.saldoEsperado || 0) + 0.001) {
+    if (dinheiroFisico && pagamentoFisico?.moedaOrigem==='BRL' && totalEstornoBRL > Number(caixaReembolsoSelecionado?.resumo?.saldoEsperado || 0) + 0.001) {
       return avisarZen({
         variante:'danger',
         titulo:tx('Saldo insuficiente no caixa selecionado','Saldo insuficiente en la caja seleccionada','Insufficient balance in selected register'),
@@ -181,7 +195,9 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
       mensagem:`Total a devolver: ${fmt(totalEstornoBRL, 'BRL')}`,
       detalhes:[
         `Forma de reembolso: ${metodoLabel}`,
-        ...(metodoReembolso === 'dinheiro' ? [`Caixa de origem: ${caixaReembolsoSelecionado?.sessao?.operadorNome || '—'}`] : []),
+        ...(dinheiroFisico ? [`Caixa de origem: ${caixaReembolsoSelecionado?.sessao?.operadorNome || '—'}`,
+          `Dinheiro físico: ${pagamentoFisico.valorOriginal} ${pagamentoFisico.moedaOrigem}`,
+          `Taxa aplicada: ${pagamentoFisico.taxaCambioAplicada}`] : []),
         `Venda: ${vendaSendoDevolvida?.id || '—'}`,
         'Esta ação ficará registrada no histórico da venda.'
       ],
@@ -192,7 +208,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
     if (metodoReembolso === 'dinheiro') {
       const sessaoAtualizada = (sessoesCaixa || []).find(s => String(s.id) === String(sessaoReembolsoId) && s.status === 'aberta');
       const resumoAtualizado = sessaoAtualizada ? calcularResumoSessao({ sessao: sessaoAtualizada, historicoVendas, caixaMovimentos }) : null;
-      if (!resumoAtualizado || totalEstornoBRL > Number(resumoAtualizado.saldoEsperado || 0) + 0.001) {
+      if (!resumoAtualizado || (pagamentoFisico?.moedaOrigem==='BRL' && totalEstornoBRL > Number(resumoAtualizado.saldoEsperado || 0) + 0.001)) {
         return avisarZen({ variante:'danger', titulo:tx('Saldo do caixa mudou','El saldo de caja cambió','Register balance changed'), mensagem:tx('O caixa selecionado não possui mais saldo físico suficiente para esta devolução.','La caja seleccionada ya no posee saldo físico suficiente para esta devolución.','The selected register no longer has enough physical cash for this return.'), detalhes:[`Disponível agora: ${fmt(resumoAtualizado?.saldoEsperado || 0,'BRL')}`, `Devolução: ${fmt(totalEstornoBRL,'BRL')}`, tx("Selecione outro caixa com saldo ou use Pix/Banco ou Voucher.","Seleccione otra caja con saldo o utilice Pix/Banco o Vale.")] });
       }
     }
@@ -201,6 +217,9 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
       vendaId: vendaSendoDevolvida?.id || null,
       metodoReembolso,
       sessaoReembolsoId: metodoReembolso === 'dinheiro' ? sessaoReembolsoId : null,
+      moedaFisicaReembolso: dinheiroFisico ? pagamentoFisico.moedaOrigem : null,
+      valorFisicoReembolso: dinheiroFisico ? pagamentoFisico.valorOriginal : null,
+      taxaCambioAplicada: dinheiroFisico ? pagamentoFisico.taxaCambioAplicada : null,
       itens: Object.entries(itensParaDevolver || {}).filter(([,d]) => Number(d?.qtdSendoDevolvidaAgora || 0) > 0).map(([id,d]) => [id, Number(d.qtdSendoDevolvidaAgora || 0)]),
     });
     if (devolucaoOperacaoRef.current.assinatura !== assinaturaDevolucao || !devolucaoOperacaoRef.current.id) {
@@ -328,6 +347,14 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
             valorBRL: totalEstornoBRL,
             custoBRL: custoEstornoBRL,
             metodoReembolso,
+            ...(dinheiroFisico ? {moedaOrigem:pagamentoFisico.moedaOrigem,
+              valorOriginal:pagamentoFisico.valorOriginal,taxaCambioAplicada:pagamentoFisico.taxaCambioAplicada,
+              ...(pagamentoFisico.valorDevolvidoContratoOriginal != null ? {
+                moedaVendaOriginal:pagamentoFisico.moedaVendaOriginal,
+                valorDevolvidoContratoOriginal:pagamentoFisico.valorDevolvidoContratoOriginal,
+                diferencaCambialBRL:pagamentoFisico.diferencaCambialBRL,
+                residuoArredondamentoOrigem:pagamentoFisico.residuoArredondamentoOrigem
+              } : {})} : {}),
             voucherCodigo,
             itens: itensEvento,
           }
@@ -359,6 +386,14 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
       observacao: `Devolução da venda ${vendaSendoDevolvida?.id || '—'} • ${metodoLabel}`,
       detalhes: {
         vendaId: vendaSendoDevolvida?.id || null,
+        ...(dinheiroFisico ? {moedaOrigem:pagamentoFisico.moedaOrigem,
+          valorOriginal:pagamentoFisico.valorOriginal,taxaCambioAplicada:pagamentoFisico.taxaCambioAplicada,
+              ...(pagamentoFisico.valorDevolvidoContratoOriginal != null ? {
+                moedaVendaOriginal:pagamentoFisico.moedaVendaOriginal,
+                valorDevolvidoContratoOriginal:pagamentoFisico.valorDevolvidoContratoOriginal,
+                diferencaCambialBRL:pagamentoFisico.diferencaCambialBRL,
+                residuoArredondamentoOrigem:pagamentoFisico.residuoArredondamentoOrigem
+              } : {})} : {}),
         voucherCodigo,
         caixaOperadorId: metodoReembolso === 'dinheiro' ? caixaReembolsoSelecionado?.sessao?.operadorId || null : null,
         caixaOperadorNome: metodoReembolso === 'dinheiro' ? caixaReembolsoSelecionado?.sessao?.operadorNome || null : null,
@@ -367,6 +402,31 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
       operadorNome: operadorAtivo?.nome || 'Administrador',
     };
 
+    const diferencaCambialDevolucao = dinheiroFisico && Number.isFinite(pagamentoFisico?.diferencaCambialBRL)
+      ? pagamentoFisico.diferencaCambialBRL : 0;
+    const ajusteCambialDevolucao = Math.abs(diferencaCambialDevolucao)>=0.01 ? {
+      id:`AJUSTE-CAMBIO-DEVOLUCAO-${devolucaoId}`,
+      tipo:'variacao_cambial_devolucao',
+      origem:'historico_vendas',
+      referenciaId:devolucaoId,
+      valor:Math.abs(diferencaCambialDevolucao),
+      formaPagamento:'ajuste_contabil_sem_caixa',
+      createdAt:devolucaoCreatedAt,
+      afetaCaixaFisico:false,
+      afetaResultado:true,
+      direcao:diferencaCambialDevolucao>0?'saida':'entrada',
+      sessaoId:null,
+      observacao:'Diferença realizada entre devolução histórica e desembolso físico',
+      detalhes:{vendaId:vendaSendoDevolvida?.id,
+        moedaVendaOriginal:pagamentoFisico.moedaVendaOriginal,
+        valorDevolvidoContratoOriginal:pagamentoFisico.valorDevolvidoContratoOriginal,
+        moedaFisica:pagamentoFisico.moedaOrigem,
+        valorFisico:pagamentoFisico.valorOriginal,
+        taxaCambioAplicada:pagamentoFisico.taxaCambioAplicada,
+        diferencaCambialBRL:diferencaCambialDevolucao},
+      operadorId:operadorAtivo?.id||'admin',
+      operadorNome:operadorAtivo?.nome||'Administrador',
+    } : null;
     const mov = metodoReembolso === 'dinheiro' ? {
       id: `MOV-${devolucaoId}`,
       sessaoId: caixaReembolsoSelecionado.sessao.id,
@@ -376,7 +436,17 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
       direcao: 'saida',
       afetaGaveta: true,
       valorBRL: totalEstornoBRL,
-      detalhesMoedas: { BRL: totalEstornoBRL },
+      detalhesMoedas: {[pagamentoFisico.moedaOrigem]: pagamentoFisico.valorOriginal},
+      detalhesMoedasNativas: {[pagamentoFisico.moedaOrigem]: pagamentoFisico.valorOriginal},
+      moedaOrigem: pagamentoFisico.moedaOrigem,
+      valorOriginal: pagamentoFisico.valorOriginal,
+      taxaCambioAplicada: pagamentoFisico.taxaCambioAplicada,
+      ...(pagamentoFisico.valorDevolvidoContratoOriginal != null ? {
+        moedaVendaOriginal:pagamentoFisico.moedaVendaOriginal,
+        valorDevolvidoContratoOriginal:pagamentoFisico.valorDevolvidoContratoOriginal,
+        diferencaCambialBRL:pagamentoFisico.diferencaCambialBRL
+      } : {}),
+      taxasCambioMovimento: {...taxasCambio},
       descricao: `Devolução ${vendaSendoDevolvida?.id || devolucaoId}`,
       operador: operadorAtivo?.nome || 'Administrador',
       caixaOperadorId: caixaReembolsoSelecionado?.sessao?.operadorId || null,
@@ -400,15 +470,18 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
         const guardItems = Object.entries(itensParaDevolver || {})
           .filter(([,dados]) => Number(dados?.qtdSendoDevolvidaAgora || 0) > 0)
           .map(([itemId,dados]) => ({ itemId, produtoOriginalId:dados?.produtoOriginalId, quantity:Number(dados?.qtdSendoDevolvidaAgora || 0), name:dados?.nome }));
-        const guards = [{ type:'sale_return_capacity', saleId:vendaSendoDevolvida?.id, items:guardItems }];
+        const guards = [{ type:'sale_return_capacity', saleId:vendaSendoDevolvida?.id, items:guardItems },
+          ...(dinheiroFisico && (pagamentoFisico.moedaOrigem!=='BRL' || pagamentoFisico.moedaVendaOriginal && pagamentoFisico.moedaVendaOriginal!=='BRL') ? [{type:'money_exchange_rates_match',taxas:{...taxasCambio}}] : [])];
         if (metodoReembolso === 'dinheiro' && caixaReembolsoSelecionado?.sessao?.id) {
           guards.push({ type:'cash_session_open', sessionId:caixaReembolsoSelecionado.sessao.id });
-          guards.push({ type:'cash_balance_at_least', sessionId:caixaReembolsoSelecionado.sessao.id, amount:totalEstornoBRL, message:'O saldo físico do caixa mudou em outro terminal. A devolução em dinheiro foi bloqueada.' });
+          if (pagamentoFisico.moedaOrigem==='BRL') guards.push({ type:'cash_balance_at_least', sessionId:caixaReembolsoSelecionado.sessao.id, amount:totalEstornoBRL, message:'O saldo físico do caixa mudou em outro terminal. A devolução em dinheiro foi bloqueada.' });
+          guards.push({type:'cash_native_balance_at_least',sessionId:caixaReembolsoSelecionado.sessao.id,
+            valoresNativos:{[pagamentoFisico.moedaOrigem]:pagamentoFisico.valorOriginal},taxas:{...taxasCambio}});
         }
         if (metodoReembolso === 'credito_fiado' && vendaSendoDevolvida?.clienteId) guards.push({ type:'numeric_at_least', field:'clientes', entityId:vendaSendoDevolvida.clienteId, entityKey:'id', property:'saldoDevedorBRL', amount:totalEstornoBRL, message:'O saldo devedor do cliente mudou em outro terminal. Atualize antes de devolver como crédito de fiado.' });
         const confirmado = await commitOperacaoNegocio({
           changes,
-          financialEntries:[financeiroDevolucao],
+          financialEntries:ajusteCambialDevolucao?[financeiroDevolucao,ajusteCambialDevolucao]:[financeiroDevolucao],
           stockEvents:eventosEstoque,
           guards,
           operationKey:`devolucao:${devolucaoId}`,
@@ -618,7 +691,9 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
                           </table>
                           {Array.isArray(venda.devolucoes) && venda.devolucoes.length > 0 && <div style={{marginTop:14,borderTop:'1px solid #1e293b',paddingTop:12}}>
                             <div style={{fontSize:11,fontWeight:900,color:'#fbbf24',textTransform:'uppercase',marginBottom:8}}>{tx('Devoluções / Vouchers desta venda','Devoluciones / Vouchers de esta venta','Returns / Vouchers from this sale')}</div>
-                            {venda.devolucoes.map(dev => <div key={dev.id} style={{display:'flex',gap:12,flexWrap:'wrap',fontSize:11,color:'#cbd5e1',padding:'6px 0'}}><span>{dev.createdAt?new Date(dev.createdAt).toLocaleString('pt-BR'):dev.id}</span><strong style={{color:'#fb7185'}}>{fmt(dev.valorBRL||0,'BRL')}</strong><span>{dev.metodoReembolso==='voucher'?tx("Voucher","Vale"):dev.metodoReembolso==='credito_fiado'?tx("Abate no fiado","Descuento en cuenta corriente"):dev.metodoReembolso==='pix'?tx("Pix / Banco","Pix / Banco"):tx("Dinheiro da Gaveta","Efectivo del cajón")}</span>{dev.voucherCodigo && <span style={{color:'#c4b5fd',fontWeight:900}}>🎟️ {dev.voucherCodigo}</span>}</div>)}
+                            {venda.devolucoes.map(dev => <div key={dev.id} style={{display:'flex',gap:12,flexWrap:'wrap',fontSize:11,color:'#cbd5e1',padding:'6px 0'}}><span>{dev.createdAt?new Date(dev.createdAt).toLocaleString('pt-BR'):dev.id}</span><strong style={{color:'#fb7185'}}>{dev.moedaOrigem && Number.isFinite(dev.valorOriginal)
+                              ? formatarDinheiroNativo(dev.valorOriginal,dev.moedaOrigem)
+                              : `${fmt(dev.valorBRL||0,'BRL')} (BRL contábil)`}</strong><span>{dev.metodoReembolso==='voucher'?tx("Voucher","Vale"):dev.metodoReembolso==='credito_fiado'?tx("Abate no fiado","Descuento en cuenta corriente"):dev.metodoReembolso==='pix'?tx("Pix / Banco","Pix / Banco"):tx("Dinheiro da Gaveta","Efectivo del cajón")}</span>{dev.voucherCodigo && <span style={{color:'#c4b5fd',fontWeight:900}}>🎟️ {dev.voucherCodigo}</span>}</div>)}
                           </div>}
                         </div>
                       </td>
@@ -683,6 +758,14 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
                         <option value="">{tx('Selecione um caixa aberto','Seleccione una caja abierta','Select an open register')}</option>
                         {caixasAbertos.map(({sessao,resumo}) => <option key={sessao.id} value={sessao.id}>{sessao.operadorNome} {tx("• disponível","• disponible")} {fmt(resumo.saldoEsperado || 0,'BRL')}</option>)}
                       </select>
+                      <label style={{display:'block',fontSize:11,fontWeight:800,color:'#e2e8f0',marginTop:12}}>{tx('Moeda realmente entregue','Moneda realmente entregada','Currency actually handed out')}</label>
+                      <select value={moedaFisicaReembolso} onChange={e=>{setMoedaFisicaReembolso(e.target.value);setValorFisicoReembolso('');}} style={{width:'100%',padding:10,borderRadius:8,background:'#020617',color:'#fff',border:'1px solid #6366f1'}}>
+                        <option value="">{tx('Selecione a moeda','Seleccione la moneda','Select currency')}</option>
+                        {['BRL','PYG','USD','EUR'].map(c=><option key={c} value={c}>{c}</option>)}
+                      </select>
+                      <label style={{display:'block',fontSize:11,fontWeight:800,color:'#e2e8f0',marginTop:12}}>{tx('Valor físico efetivamente devolvido','Importe físico realmente devuelto','Actual cash amount refunded')}</label>
+                      <input value={valorFisicoReembolso} onChange={e=>setValorFisicoReembolso(e.target.value)} inputMode="decimal" placeholder={moedaFisicaReembolso==='PYG'?'25000':'0,00'} style={{width:'100%',boxSizing:'border-box',padding:10,borderRadius:8,background:'#020617',color:'#fff',border:'1px solid #6366f1'}} />
+                      <small style={{color:'#fbbf24',display:'block',marginTop:8}}>{tx('O valor físico deve conferir com a devolução. Cotação inválida ou saldo não comprovado bloqueia a saída.','El importe físico debe coincidir con el reembolso. La cotización o el saldo inválidos impiden la salida.','Cash must match refund. Invalid rates or unverified balance block payout.')}</small>
                       {caixasAbertos.length === 0 && <div style={{fontSize:10,color:'#fb7185',marginTop:6}}>{tx('Nenhum turno de caixa está aberto. Use Pix/Banco ou Voucher.','Ningún turno de caja está abierto. Use Pix/Banco o Voucher.','No cash shift is open. Use Pix/Bank or Voucher.')}</div>}
                     </div>
                   )}
@@ -693,7 +776,10 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
               </div>
               <div style={{ backgroundColor: 'rgba(244, 63, 94, 0.1)', border: '1px solid rgba(244, 63, 94, 0.3)', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <span style={{ fontSize: '11px', fontWeight: 800, color: '#f43f5e', textTransform: 'uppercase' }}>{tx('3. Confirmação Final do Estorno', '3. Confirmación de Devolución', '3. Refund Confirmation')}</span>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}><span style={{ fontSize: '14px', color: '#cbd5e1' }}>{tx('Total a Devolver:','Total a Devolver:','Total to Return:')}</span><span style={{ fontSize: '28px', fontWeight: 900, color: '#f43f5e' }}>{fmt(calcularTotalDevolucaoBRL())}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}><span style={{ fontSize: '14px', color: '#cbd5e1' }}>{tx('Total a Devolver:','Total a Devolver:','Total to Return:')}</span><span style={{ fontSize: '28px', fontWeight: 900, color: '#f43f5e' }}>{previaReembolsoNativo.ok
+                  ? formatarDinheiroNativo(previaReembolsoNativo.valorOriginal,previaReembolsoNativo.moedaOrigem)
+                  : `${fmt(calcularTotalDevolucaoBRL(),'BRL')} (BRL contábil)`}</span></div>
+                <span style={{fontSize:11,color:'#94a3b8'}}>{tx('Equivalente contábil histórico','Equivalente contable histórico','Historical accounting equivalent')}: {fmt(calcularTotalDevolucaoBRL(),'BRL')}</span>
                 <button onClick={confirmarDevolucao} disabled={processandoDevolucao || calcularTotalDevolucaoBRL() === 0} style={{ padding: '16px', background: (processandoDevolucao || calcularTotalDevolucaoBRL() === 0) ? '#334155' : 'linear-gradient(135deg, #e11d48, #be123c)', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: (processandoDevolucao || calcularTotalDevolucaoBRL() === 0) ? 'not-allowed' : 'pointer' }}>{processandoDevolucao ? tx("Confirmando...","Confirmando...") : tx('Confirmar Estorno / Devolução', 'Confirmar Devolución', 'Confirm Refund')}</button>
               </div>
             </div>
