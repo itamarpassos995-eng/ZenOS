@@ -14,7 +14,7 @@ import { calcularResumoSessao } from '../core/cashSession';
 import { formatarEquivalenciaBRL, moedasAtivasRecibo } from '../core/receiptCurrency';
 import { apresentarVendaHistorica } from '../core/defaultCurrencyPresentation.js';
 import { formatarDinheiroNativo } from '../core/cashHistoryDisplay.js';
-import { validarLiquidacaoMultimoeda } from '../core/nativeMoneyEvents.js';
+import { validarReembolsoVendaNativa } from '../core/nativeMoneyEvents.js';
 
 export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoesCaixa = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, saldoSessaoFisicoBRL = 0, perfilLoja, vouchers = [], setVouchers, userId, operadorAtivo, historicoVendas, historicoVendasCompleto, setHistoricoVendas, produtos, setProdutos, clientes, setClientes, fmt, t, tx, patenteUsuario, moeda, converterDeBRL }) {
   const [vendaExpandida, setVendaExpandida] = useState(null);
@@ -154,8 +154,9 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
     const totalEstornoBRL = calcularTotalDevolucaoBRL();
     const custoEstornoBRL = calcularCustoDevolucaoAtual(itensParaDevolver);
     const dinheiroFisico = metodoReembolso === 'dinheiro';
-    const pagamentoFisico = dinheiroFisico ? validarLiquidacaoMultimoeda({valorDevidoBRL:totalEstornoBRL,
-      valorFisico:valorFisicoReembolso,moedaFisica:moedaFisicaReembolso,taxasCambio}) : null;
+    const pagamentoFisico = dinheiroFisico ? validarReembolsoVendaNativa({venda:vendaSendoDevolvida,
+      valorEstornoBRL:totalEstornoBRL,valorFisico:valorFisicoReembolso,
+      moedaFisica:moedaFisicaReembolso,taxasCambio}) : null;
     if (dinheiroFisico && !pagamentoFisico?.ok) {
       return avisarZen({variante:'danger',titulo:tx('Valor físico da devolução inválido','Importe físico del reembolso inválido','Invalid physical refund amount'),
         mensagem:pagamentoFisico?.erro || tx('Informe moeda e valor físico do reembolso','Indique la moneda y el importe físico del reembolso','Enter actual refund currency and amount')});
@@ -346,7 +347,13 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
             custoBRL: custoEstornoBRL,
             metodoReembolso,
             ...(dinheiroFisico ? {moedaOrigem:pagamentoFisico.moedaOrigem,
-              valorOriginal:pagamentoFisico.valorOriginal,taxaCambioAplicada:pagamentoFisico.taxaCambioAplicada} : {}),
+              valorOriginal:pagamentoFisico.valorOriginal,taxaCambioAplicada:pagamentoFisico.taxaCambioAplicada,
+              ...(pagamentoFisico.valorDevolvidoContratoOriginal != null ? {
+                moedaVendaOriginal:pagamentoFisico.moedaVendaOriginal,
+                valorDevolvidoContratoOriginal:pagamentoFisico.valorDevolvidoContratoOriginal,
+                diferencaCambialBRL:pagamentoFisico.diferencaCambialBRL,
+                residuoArredondamentoOrigem:pagamentoFisico.residuoArredondamentoOrigem
+              } : {})} : {}),
             voucherCodigo,
             itens: itensEvento,
           }
@@ -379,7 +386,13 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
       detalhes: {
         vendaId: vendaSendoDevolvida?.id || null,
         ...(dinheiroFisico ? {moedaOrigem:pagamentoFisico.moedaOrigem,
-          valorOriginal:pagamentoFisico.valorOriginal,taxaCambioAplicada:pagamentoFisico.taxaCambioAplicada} : {}),
+          valorOriginal:pagamentoFisico.valorOriginal,taxaCambioAplicada:pagamentoFisico.taxaCambioAplicada,
+              ...(pagamentoFisico.valorDevolvidoContratoOriginal != null ? {
+                moedaVendaOriginal:pagamentoFisico.moedaVendaOriginal,
+                valorDevolvidoContratoOriginal:pagamentoFisico.valorDevolvidoContratoOriginal,
+                diferencaCambialBRL:pagamentoFisico.diferencaCambialBRL,
+                residuoArredondamentoOrigem:pagamentoFisico.residuoArredondamentoOrigem
+              } : {})} : {}),
         voucherCodigo,
         caixaOperadorId: metodoReembolso === 'dinheiro' ? caixaReembolsoSelecionado?.sessao?.operadorId || null : null,
         caixaOperadorNome: metodoReembolso === 'dinheiro' ? caixaReembolsoSelecionado?.sessao?.operadorNome || null : null,
@@ -388,6 +401,31 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
       operadorNome: operadorAtivo?.nome || 'Administrador',
     };
 
+    const diferencaCambialDevolucao = dinheiroFisico && Number.isFinite(pagamentoFisico?.diferencaCambialBRL)
+      ? pagamentoFisico.diferencaCambialBRL : 0;
+    const ajusteCambialDevolucao = Math.abs(diferencaCambialDevolucao)>=0.01 ? {
+      id:`AJUSTE-CAMBIO-DEVOLUCAO-${devolucaoId}`,
+      tipo:'variacao_cambial_devolucao',
+      origem:'historico_vendas',
+      referenciaId:devolucaoId,
+      valor:Math.abs(diferencaCambialDevolucao),
+      formaPagamento:'ajuste_contabil_sem_caixa',
+      createdAt:devolucaoCreatedAt,
+      afetaCaixaFisico:false,
+      afetaResultado:true,
+      direcao:diferencaCambialDevolucao>0?'saida':'entrada',
+      sessaoId:null,
+      observacao:'Diferença realizada entre devolução histórica e desembolso físico',
+      detalhes:{vendaId:vendaSendoDevolvida?.id,
+        moedaVendaOriginal:pagamentoFisico.moedaVendaOriginal,
+        valorDevolvidoContratoOriginal:pagamentoFisico.valorDevolvidoContratoOriginal,
+        moedaFisica:pagamentoFisico.moedaOrigem,
+        valorFisico:pagamentoFisico.valorOriginal,
+        taxaCambioAplicada:pagamentoFisico.taxaCambioAplicada,
+        diferencaCambialBRL:diferencaCambialDevolucao},
+      operadorId:operadorAtivo?.id||'admin',
+      operadorNome:operadorAtivo?.nome||'Administrador',
+    } : null;
     const mov = metodoReembolso === 'dinheiro' ? {
       id: `MOV-${devolucaoId}`,
       sessaoId: caixaReembolsoSelecionado.sessao.id,
@@ -402,6 +440,11 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
       moedaOrigem: pagamentoFisico.moedaOrigem,
       valorOriginal: pagamentoFisico.valorOriginal,
       taxaCambioAplicada: pagamentoFisico.taxaCambioAplicada,
+      ...(pagamentoFisico.valorDevolvidoContratoOriginal != null ? {
+        moedaVendaOriginal:pagamentoFisico.moedaVendaOriginal,
+        valorDevolvidoContratoOriginal:pagamentoFisico.valorDevolvidoContratoOriginal,
+        diferencaCambialBRL:pagamentoFisico.diferencaCambialBRL
+      } : {}),
       taxasCambioMovimento: {...taxasCambio},
       descricao: `Devolução ${vendaSendoDevolvida?.id || devolucaoId}`,
       operador: operadorAtivo?.nome || 'Administrador',
@@ -437,7 +480,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
         if (metodoReembolso === 'credito_fiado' && vendaSendoDevolvida?.clienteId) guards.push({ type:'numeric_at_least', field:'clientes', entityId:vendaSendoDevolvida.clienteId, entityKey:'id', property:'saldoDevedorBRL', amount:totalEstornoBRL, message:'O saldo devedor do cliente mudou em outro terminal. Atualize antes de devolver como crédito de fiado.' });
         const confirmado = await commitOperacaoNegocio({
           changes,
-          financialEntries:[financeiroDevolucao],
+          financialEntries:ajusteCambialDevolucao?[financeiroDevolucao,ajusteCambialDevolucao]:[financeiroDevolucao],
           stockEvents:eventosEstoque,
           guards,
           operationKey:`devolucao:${devolucaoId}`,
