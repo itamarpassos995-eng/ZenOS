@@ -3,6 +3,7 @@ import ZenOSUpdateWelcome from './components/ZenOSUpdateWelcome.jsx';
 import {financialPeriod,withinFinancialPeriod} from './core/financialPeriod.js';
 import { projetarProdutoMonetario } from './core/productMoney.js';
 import { resumirFiadoLojaNativo } from './core/nativeCustomerCredit.js';
+import { resumirVendasNativas } from './core/nativeSalesSummary.js';
 import { useUiLanguage } from './core/useUiLanguage.js';
 import {getOperationalSnapshot,getOperationalAccessSnapshot,subscribeOperationalSnapshot,clearOperationalSession} from './core/operationalRepository.js';
 import {verificarMovimentoCaixaNoServidor} from './core/cashMovementReadOnly.js';
@@ -1185,6 +1186,9 @@ export default function App() {
     [historicoVendas, operadorAtivo?.id, patenteUsuario, diaLocalAtual]);
   const faturamentoHojeBRL = useMemo(() => vendasHoje.reduce((acc, v) =>
     acc + obterFinanceiroVenda(v).totalLiquidoBRL, 0), [vendasHoje]);
+  const resumoVendasHojeNativas = useMemo(() => resumirVendasNativas(
+    vendasHoje,moedaPadrao,v=>obterFinanceiroVenda(v).totalLiquidoBRL
+  ),[vendasHoje,moedaPadrao]);
   // Um único percurso financeiro substitui três varreduras completas por render.
   const financeiroHistorico = useMemo(() => vendasValidas.reduce((acc, venda) => {
     const financeiro = obterFinanceiroVenda(venda);
@@ -2155,7 +2159,16 @@ export default function App() {
             <ZenHero operador={operadorAtivo?.nome || tx('Administrador (Gerência)','Administrador (Gerencia)','Administrator (Management)')} patente={patenteUsuario} idioma={idioma} tx={tx} />
 
             <div className="zen-kpi-grid">
-              <ZenKpiCard icon="🛒" titulo={tx('Vendido Hoje','Vendido Hoy','Sold Today')} valor={valoresTopoVisiveis ? fmt(faturamentoHojeBRL) : '*****'} detalhe={`${vendasHoje.length} ${tx('vendas realizadas','ventas realizadas','sales completed')}`} tone="teal" trailing={<button onClick={() => setValoresTopoVisiveis(!valoresTopoVisiveis)} style={{border:0,background:'transparent',color:'inherit',cursor:'pointer',fontSize:18}}>{valoresTopoVisiveis ? '◉' : '○'}</button>} />
+              <ZenKpiCard icon="🛒" titulo={tx('Vendido Hoje','Vendido Hoy','Sold Today')}
+                valor={!valoresTopoVisiveis?'*****':resumoVendasHojeNativas.parcial
+                  ? (resumoVendasHojeNativas.documentosNativos>0
+                    ? `${fiadoNominal(resumoVendasHojeNativas.valorNativoComprovado)} + ${resumoVendasHojeNativas.documentosPendentes} ${tx('documentos a conferir','documentos por verificar','documents to review')}`
+                    : `${vendasHoje.length} ${tx('vendas','ventas','sales')}`)
+                  : fiadoNominal(resumoVendasHojeNativas.valorNativoComprovado)}
+                detalhe={resumoVendasHojeNativas.parcial
+                  ? `${tx('Histórico sem moeda comprovada','Histórico sin moneda comprobada','History without verified currency')}: ${fmt(resumoVendasHojeNativas.legadoContabilBRL,'BRL')}`
+                  : `${vendasHoje.length} ${tx('vendas realizadas','ventas realizadas','sales completed')}`}
+                tone="teal" trailing={<button onClick={() => setValoresTopoVisiveis(!valoresTopoVisiveis)} style={{border:0,background:'transparent',color:'inherit',cursor:'pointer',fontSize:18}}>{valoresTopoVisiveis ? '◉' : '○'}</button>} />
               <ZenKpiCard icon="👥"
                 titulo={tx('FIADO NA PRAÇA','FIADO A COBRAR','PENDING CREDIT')}
                 valor={!valoresTopoVisiveis?'*****':resumoFiadoNativo.possuiPendencias
