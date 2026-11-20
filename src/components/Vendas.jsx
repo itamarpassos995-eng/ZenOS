@@ -471,7 +471,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
           .filter(([,dados]) => Number(dados?.qtdSendoDevolvidaAgora || 0) > 0)
           .map(([itemId,dados]) => ({ itemId, produtoOriginalId:dados?.produtoOriginalId, quantity:Number(dados?.qtdSendoDevolvidaAgora || 0), name:dados?.nome }));
         const guards = [{ type:'sale_return_capacity', saleId:vendaSendoDevolvida?.id, items:guardItems },
-          ...(dinheiroFisico ? [{type:'money_exchange_rates_match',taxas:{...taxasCambio}}] : [])];
+          ...(dinheiroFisico && (pagamentoFisico.moedaOrigem!=='BRL' || pagamentoFisico.moedaVendaOriginal && pagamentoFisico.moedaVendaOriginal!=='BRL') ? [{type:'money_exchange_rates_match',taxas:{...taxasCambio}}] : [])];
         if (metodoReembolso === 'dinheiro' && caixaReembolsoSelecionado?.sessao?.id) {
           guards.push({ type:'cash_session_open', sessionId:caixaReembolsoSelecionado.sessao.id });
           if (pagamentoFisico.moedaOrigem==='BRL') guards.push({ type:'cash_balance_at_least', sessionId:caixaReembolsoSelecionado.sessao.id, amount:totalEstornoBRL, message:'O saldo físico do caixa mudou em outro terminal. A devolução em dinheiro foi bloqueada.' });
