@@ -101,12 +101,20 @@ test('editar despesa paga preserva registro e exige fluxo financeiro',async()=>{
  expect(commit).not.toHaveBeenCalled();
 });
 
-test('despesa legada sem moeda original é preservada e não revalorizada pelo câmbio atual',async()=>{
+test('despesa legada sem origem permite apenas edição administrativa, sem câmbio nem alteração de valor',async()=>{
  const expense={id:'LEGADO',descricao:'Despesa antiga',status:'pendente',valorBRL:500};
- const commit=vi.fn();montar([expense],commit);
+ const commit=vi.fn(async({changes})=>({cloudOk:true,values:{despesas:changes[0].value}}));
+ montar([expense],commit,{moedaPadrao:'PYG',taxasCambio:{BRL:1,PYG:1100}});
  fireEvent.click(screen.getByRole('button',{name:'Editar'}));
- expect(screen.getByText(/Despesa legada exige conferência/)).toBeTruthy();
- expect(commit).not.toHaveBeenCalled();
+ expect(screen.getByText(/Valor BRL contábil/)).toBeTruthy();
+ const input=screen.getByDisplayValue('500');
+ expect(input.disabled).toBe(true);
+ fireEvent.change(screen.getByDisplayValue('Despesa antiga'),{target:{value:'Descrição corrigida'}});
+ fireEvent.click(screen.getByRole('button',{name:/Salvar alterações/}));
+ await waitFor(()=>expect(commit).toHaveBeenCalledTimes(1));
+ expect(commit.mock.calls[0][0].changes[0].value[0])
+  .toMatchObject({descricao:'Descrição corrigida',valorBRL:500});
+ expect(commit.mock.calls[0][0].changes[0].value[0].moedaOrigem).toBeUndefined();
 });
 
 test('nova despesa PYG conserva guaranis e taxa na criação sem reprecificar depois',async()=>{
