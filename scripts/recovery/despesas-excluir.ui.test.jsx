@@ -3,14 +3,14 @@ import {test,expect,vi,afterEach} from 'vitest';
 import {render,screen,fireEvent,cleanup,waitFor} from '@testing-library/react';
 import Despesas from '../../src/components/Despesas.jsx';
 afterEach(cleanup);
-const montar=(lista,commit)=>{
+const montar=(lista,commit,config={})=>{
  const setDespesas=vi.fn();
  render(<Despesas despesas={lista} setDespesas={setDespesas}
   commitOperacaoNegocio={commit} registrarFinanceiro={vi.fn()}
   caixaMovimentos={[]} setCaixaMovimentos={vi.fn()}
   sessaoAtiva={{id:'cx-1',status:'aberta'}} saldoSessaoFisicoBRL={1000}
   operadorAtivo={{id:'adm-1',nome:'Admin'}} patenteUsuario="gerencia"
-  moeda="BRL" converterParaBRL={v=>v} fmt={v=>String(v)} tx={pt=>pt}/>);
+  moeda="BRL" moedaPadrao={config.moedaPadrao||"BRL"} taxasCambio={config.taxasCambio||{BRL:1,PYG:1100,USD:0.2,EUR:0.18}} converterParaBRL={v=>v} fmt={v=>String(v)} tx={pt=>pt}/>);
  return {setDespesas};
 };
 const confirmado=vi.fn(async({changes})=>({cloudOk:true,values:{despesas:changes[0].value}}));
@@ -106,5 +106,27 @@ test('despesa legada sem moeda original é preservada e não revalorizada pelo c
  const commit=vi.fn();montar([expense],commit);
  fireEvent.click(screen.getByRole('button',{name:'Editar'}));
  expect(screen.getByText(/Despesa legada exige conferência/)).toBeTruthy();
+ expect(commit).not.toHaveBeenCalled();
+});
+
+test('nova despesa PYG conserva guaranis e taxa na criação sem reprecificar depois',async()=>{
+ const commit=vi.fn(async({changes})=>({cloudOk:true,values:{despesas:changes[0].value}}));
+ const {setDespesas}=montar([],commit,{moedaPadrao:'PYG',taxasCambio:{BRL:1,PYG:1100,USD:0.2,EUR:0.18}});
+ fireEvent.click(screen.getByRole('button',{name:/Lançar Nova Despesa/}));
+ fireEvent.change(screen.getByPlaceholderText(/Pagamento Fornecedor/),{target:{value:'Material de limpeza'}});
+ fireEvent.change(screen.getByText('Valor na moeda original').parentElement.querySelector('input'),{target:{value:'25000'}});
+ fireEvent.click(screen.getByRole('button',{name:/Registrar Despesa no Sistema/}));
+ await waitFor(()=>expect(commit).toHaveBeenCalledTimes(1));
+ const registro=commit.mock.calls[0][0].changes[0].value[0];
+ expect(registro).toMatchObject({moedaOrigem:'PYG',valorOriginal:25000,taxaCambioAplicada:1100,valorBRL:22.73});
+ expect(setDespesas).toHaveBeenCalled();
+});
+test('sem cotação PYG confirmada não registra despesa em guaranis',async()=>{
+ const commit=vi.fn();montar([],commit,{moedaPadrao:'PYG',taxasCambio:{BRL:1,PYG:0}});
+ fireEvent.click(screen.getByRole('button',{name:/Lançar Nova Despesa/}));
+ fireEvent.change(screen.getByPlaceholderText(/Pagamento Fornecedor/),{target:{value:'Internet'}});
+ fireEvent.change(screen.getByText('Valor na moeda original').parentElement.querySelector('input'),{target:{value:'25000'}});
+ fireEvent.click(screen.getByRole('button',{name:/Registrar Despesa no Sistema/}));
+ expect(screen.getByText(/Valor ou cotação inválidos/)).toBeTruthy();
  expect(commit).not.toHaveBeenCalled();
 });
