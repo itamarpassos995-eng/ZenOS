@@ -341,7 +341,13 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
 
   const abrirWhatsApp = (cli) => {
     if (!cli.telefone) return setModalZen({ variante:'warning', titulo:tx('Telefone não cadastrado','Teléfono no registrado','Phone not registered'), mensagem:tx('Este cliente não possui telefone/WhatsApp cadastrado.','Este cliente no posee teléfono/WhatsApp registrado.','This customer has no phone/WhatsApp registered.'), apenasConfirmar:true });
-    const msg = encodeURIComponent(`${tx('Olá','Hola','Hello')}, ${cli.nome}! ${tx('O saldo da sua conta é de','El saldo de su cuenta es de','Your account balance is')} R$ ${(cli.saldoDevedorBRL || 0).toFixed(2)}.`);
+    const saldo=saldoLegadoClienteBRL(cli),contas=contasAbertasClienteNativo(cli);
+    const partes=[];
+    if(saldo>0.005)partes.push(`R$ ${saldo.toFixed(2)} (${tx('saldo histórico a conferir','saldo histórico por verificar','legacy balance to verify')})`);
+    for(const conta of contas)partes.push(formatarNativoCliente(
+      conta.obrigacao.valorOriginal-(conta.recebimentos||[]).reduce((a,r)=>a+Number(r.valorAmortizadoOriginal||0),0),
+      conta.obrigacao.moedaDocumento));
+    const msg=encodeURIComponent(`${tx('Olá','Hola','Hello')}, ${cli.nome}! ${tx('Saldos registrados:','Saldos registrados:','Recorded balances:')} ${partes.join(' · ')}.`);
     window.open(`https://wa.me/${cli.telefone.replace(/\D/g, '')}?text=${msg}`, '_blank');
   };
 
@@ -596,18 +602,59 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
             <h3 style={{ fontSize: '18px', fontWeight: 900, margin: '0 0 6px 0', color: '#34d399' }}>{tx('Receber Conta de Cliente','Cobrar Cuenta del Cliente','Receive Customer Payment')}</h3>
             <div style={{ fontSize: '14px', fontWeight: 700, color: '#f8fafc', marginBottom: '16px' }}>{clienteReceberFiado.nome}</div>
             
+            {(contasDoClienteEmAberto.length>0) && (
+              <div style={{marginBottom:16}}>
+                <label style={{fontSize:11,color:'#cbd5e1',fontWeight:800}}>
+                  {tx('Dívida a receber','Deuda que se cobra','Debt to collect')}
+                </label>
+                <select value={contaFiadoSelecionadaId}
+                  onChange={e=>{
+                    const id=e.target.value;setContaFiadoSelecionadaId(id);
+                    const conta=contasDoClienteEmAberto.find(c=>c.obrigacao.id===id);
+                    const moneda=conta?.obrigacao.moedaDocumento||'BRL';
+                    setFormaAmortizacaoSel('dinheiro_'+moneda.toLowerCase());
+                    setValorAmortizacaoInput(String(conta?cotarValorRecebimento(conta,moneda)??'':Math.max(0,legadoBRLCliente)));
+                  }}
+                  style={{width:'100%',marginTop:6,padding:12,background:'#020617',color:'#f8fafc',
+                    border:'1px solid #334155',borderRadius:8}}>
+                  {legadoBRLCliente>0.005 && <option value="LEGADO_BRL">
+                    {tx('Saldo histórico em BRL (origem pendente)','Saldo histórico en BRL (origen pendiente)','Legacy BRL balance (source pending)')}
+                  </option>}
+                  {contasDoClienteEmAberto.map(conta=>(
+                    <option key={conta.obrigacao.id} value={conta.obrigacao.id}>
+                      {conta.obrigacao.id} · {conta.obrigacao.moedaDocumento} · {conta.obrigacao.valorOriginal}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div style={{ backgroundColor: '#020617', padding: '16px', borderRadius: '12px', marginBottom: '20px', border: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase' }}>{tx('Dívida Atual:','Deuda Actual:','Current Debt:')}</div>
-                <div style={{ fontSize: '18px', fontWeight: 900, color: '#fb7185' }}>{fmt(clienteReceberFiado.saldoDevedorBRL, moeda)}</div>
+                <div style={{ fontSize: '18px', fontWeight: 900, color: '#fb7185' }}>{contaFiadoEmFoco
+                  ? formatarNativoCliente(
+                      contaFiadoEmFoco.obrigacao.valorOriginal-
+                        (contaFiadoEmFoco.recebimentos||[]).reduce((a,p)=>a+Number(p.valorAmortizadoOriginal||0),0),
+                      contaFiadoEmFoco.obrigacao.moedaDocumento)
+                  : `${fmt(Math.max(0,legadoBRLCliente),'BRL')} · ${tx('histórico contábil','histórico contable','accounting legacy')}`}</div>
               </div>
             </div>
             
-            <label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800 }}>{tx("Valor a Receber / Quitar (","Importe a cobrar / liquidar (")}{moeda}):</label>
+            <label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800 }}>{tx('Valor efetivamente recebido','Importe realmente recibido','Actual received amount')} ({catalogoFormas.find(f=>f.id===formaAmortizacaoSel)?.moedaOrigem||'BRL'}):</label>
             <input type="text" ref={inputValorAmortizacaoRef} value={valorAmortizacaoInput} onChange={e => setValorAmortizacaoInput(e.target.value)} placeholder="0.00" onFocus={e=>e.target.select()} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #10b981', borderRadius: '12px', color: '#34d399', fontSize: '24px', fontWeight: 900, textAlign: 'center', padding: '14px', outline: 'none', marginTop: '8px', marginBottom: '16px', boxSizing: 'border-box' }} autoFocus />
 
             <label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800 }}>{tx('Forma de Recebimento:','Forma de Cobro:','Payment Method:')}</label>
-            <select value={formaAmortizacaoSel} onChange={e => setFormaAmortizacaoSel(e.target.value)} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '12px', outline: 'none', marginTop: '6px', marginBottom: '24px', boxSizing: 'border-box' }}>
+            <select value={formaAmortizacaoSel} onChange={e => {
+              const id=e.target.value;
+              setFormaAmortizacaoSel(id);
+              const moedaReceber=catalogoFormas.find(f=>f.id===id)?.moedaOrigem||'BRL';
+              const valor=contaFiadoEmFoco
+                ? cotarValorRecebimento(contaFiadoEmFoco,moedaReceber)
+                : (moedaReceber==='BRL'?Math.max(0,legadoBRLCliente)
+                  : Math.round(Math.max(0,legadoBRLCliente)*Number(taxasCambio?.[moedaReceber]||0)*(moedaReceber==='PYG'?1:100))/
+                    (moedaReceber==='PYG'?1:100));
+              setValorAmortizacaoInput(Number.isFinite(valor)?String(valor):'');
+            }} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '12px', outline: 'none', marginTop: '6px', marginBottom: '24px', boxSizing: 'border-box' }}>
               {catalogoFormas.map(f => (
                 <option key={f.id} value={f.id}>
                   {f.icone} {f.rotulo}
