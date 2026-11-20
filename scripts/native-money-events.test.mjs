@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import {criarSnapshotMonetario,validarLiquidacaoMultimoeda} from '../src/core/nativeMoneyEvents.js';
+import {criarSnapshotMonetario,validarLiquidacaoMultimoeda,validarPagamentoObrigacaoNativa} from '../src/core/nativeMoneyEvents.js';
 import {calcularConciliacaoFisicaMultimoeda} from '../src/core/cashReconciliation.js';
 
 const taxas={BRL:1,PYG:1100,USD:0.2,EUR:0.18};
@@ -52,4 +52,36 @@ test('diferença de um centavo nunca é liquidada sem registro de ajuste',()=>{
  const req={valorDevidoBRL:10,valorFisico:'10,01',moedaFisica:'BRL',taxasCambio:taxas};
  assert.equal(validarLiquidacaoMultimoeda(req).ok,false);
  assert.equal(validarLiquidacaoMultimoeda({...req,valorFisico:'9,99'}).ok,false);
+});
+
+test('despesa PYG não é reprecificada ao pagar PYG após mudança de 1150 para 1100',()=>{
+ const r=validarPagamentoObrigacaoNativa({valorObrigacaoOriginal:25000,moedaObrigacao:'PYG',
+   valorFisico:'25000',moedaFisica:'PYG',taxasCambio:taxas,valorContabilHistoricoBRL:21.74});
+ assert.equal(r.ok,true);
+ assert.equal(r.valorObrigacaoOriginal,25000);
+ assert.equal(r.valorOriginal,25000);
+ assert.equal(r.taxaCambioAplicada,1100);
+ assert.equal(r.valorContabilHistoricoBRL,21.74);
+ assert.equal(r.valorContabilDataPagamentoBRL,22.73);
+ assert.equal(r.diferencaCambialBRL,0.99);
+});
+test('despesa PYG quitada em BRL arredonda apenas os centavos da moeda paga',()=>{
+ const r=validarPagamentoObrigacaoNativa({valorObrigacaoOriginal:25000,moedaObrigacao:'PYG',
+   valorFisico:'22,73',moedaFisica:'BRL',taxasCambio:taxas,valorContabilHistoricoBRL:21.74});
+ assert.equal(r.ok,true);
+ assert.equal(r.valorOriginal,22.73);
+ assert.equal(r.valorPagamentoEsperado,22.73);
+ assert.ok(Math.abs(r.residuoArredondamentoOrigem)>0);
+});
+test('pagamento PYG incorreto não reprecifica dívida nem quita diferença arbitrária',()=>{
+ const r=validarPagamentoObrigacaoNativa({valorObrigacaoOriginal:25000,moedaObrigacao:'PYG',
+   valorFisico:'25001',moedaFisica:'PYG',taxasCambio:taxas,valorContabilHistoricoBRL:21.74});
+ assert.equal(r.ok,false);
+ assert.equal(r.valorPagamentoEsperado,25000);
+});
+test('sem moeda contratual original ou cotação não há quitação automática',()=>{
+ assert.equal(validarPagamentoObrigacaoNativa({valorObrigacaoOriginal:25000,moedaObrigacao:'XYZ',
+   valorFisico:'25000',moedaFisica:'PYG',taxasCambio:taxas,valorContabilHistoricoBRL:21.74}).ok,false);
+ assert.equal(validarPagamentoObrigacaoNativa({valorObrigacaoOriginal:25000,moedaObrigacao:'PYG',
+   valorFisico:'25000',moedaFisica:'PYG',taxasCambio:{},valorContabilHistoricoBRL:21.74}).ok,false);
 });
