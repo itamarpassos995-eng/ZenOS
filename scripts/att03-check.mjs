@@ -122,8 +122,10 @@ const pdv = fs.readFileSync(new URL('../src/components/PDV.jsx', import.meta.url
 const mesas = fs.readFileSync(new URL('../src/components/Mesas.jsx', import.meta.url), 'utf8');
 const comissoes = fs.readFileSync(new URL('../src/components/Comissoes.jsx', import.meta.url), 'utf8');
 
-check('Card Vendido Hoje usa faturamentoHojeBRL', () => {
-  assert.match(app, /Vendido Hoje[\s\S]*?fmt\(faturamentoHojeBRL\)/);
+check('Card Vendido Hoje respeita total nativo comprovado, sem câmbio corrente', () => {
+  assert.match(app,/resumirVendasNativas\(\s*vendasHoje,moedaPadrao/);
+  assert.match(app,/Vendido Hoje[\s\S]*?resumoVendasHojeNativas\.valorNativoComprovado/);
+  assert.doesNotMatch(app,/Vendido Hoje[\s\S]{0,700}?fmt\(faturamentoHojeBRL\)/);
 });
 
 check('App preserva faturamento total separado do Vendido Hoje', () => {

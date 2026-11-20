@@ -5,8 +5,10 @@ import ZenShareButton from './ZenShareButton';
 import { formaEhDinheiro, lancamentosDoCliente } from '../core/financialLedger';
 import { interpretarValorMonetario } from '../core/cashMoneyInput';
 import { auditarVinculosFiado, encontrarConflitosIdsRecebimento } from '../core/clientCreditLinkAudit';
+import { contasAbertasClienteNativo, saldoLegadoClienteBRL, receberCreditoNativoCliente } from '../core/nativeCustomerCredit.js';
+import { converterMoedaConfirmada } from '../core/monetaryContract.js';
 
-export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, historicoVendas = [], setClientes, moeda, fmt, t, tx = (pt) => pt, converterDeBRL, converterParaBRL }) {
+export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, historicoVendas = [], setClientes, moeda, moedaPadrao='BRL', taxasCambio={}, fmt, t, tx = (pt) => pt, converterDeBRL, converterParaBRL }) {
   const [filtroPaisCliente, setFiltroPaisCliente] = useState('todos');
   const [buscaClienteTexto, setBuscaClienteTexto] = useState('');
   
@@ -18,6 +20,7 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
   const [clienteReceberFiado, setClienteReceberFiado] = useState(null);
   const [valorAmortizacaoInput, setValorAmortizacaoInput] = useState('');
   const [formaAmortizacaoSel, setFormaAmortizacaoSel] = useState('dinheiro_brl');
+  const [contaFiadoSelecionadaId, setContaFiadoSelecionadaId] = useState('LEGADO_BRL');
   const [clienteExtrato, setClienteExtrato] = useState(null);
   const [comprovanteFiado, setComprovanteFiado] = useState(null);
   const recebimentoEmAndamentoRef = useRef(false);
@@ -151,10 +154,31 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
   });
 
   // FLUXO DE RECEBER CONTA / FIADO
+  const contasDoClienteEmAberto = contasAbertasClienteNativo(clienteReceberFiado);
+  const legadoBRLCliente = clienteReceberFiado ? saldoLegadoClienteBRL(clienteReceberFiado) : 0;
+  const contaFiadoEmFoco = contasDoClienteEmAberto.find(c => c.obrigacao.id===contaFiadoSelecionadaId) || null;
+  const formatarNativoCliente = (valor,moedaOrigem) => new Intl.NumberFormat('pt-BR',{
+    style:'currency',currency:moedaOrigem,minimumFractionDigits:moedaOrigem==='PYG'?0:2,
+    maximumFractionDigits:moedaOrigem==='PYG'?0:2}).format(valor);
+  const cotarValorRecebimento = (conta,moedaPaga) => {
+    try {
+      const saldo=conta?.obrigacao?.valorOriginal-
+        (conta?.recebimentos||[]).reduce((a,r)=>a+Number(r.valorAmortizadoOriginal||0),0);
+      return converterMoedaConfirmada({valor:saldo,moedaOrigem:conta.obrigacao.moedaDocumento,
+        moedaDestino:moedaPaga,taxasConfirmadas:taxasCambio});
+    }catch(_){return null;}
+  };
   const abrirRecebimentoFiado = (cli) => {
+    const contas=contasAbertasClienteNativo(cli);
+    const legado=saldoLegadoClienteBRL(cli);
+    const primeira=legado>0.005?null:contas[0]||null;
+    const moedaInicial=primeira?.obrigacao.moedaDocumento||'BRL';
     setClienteReceberFiado(cli);
-    setValorAmortizacaoInput(cli.saldoDevedorBRL > 0 ? String(cli.saldoDevedorBRL) : '');
-    setFormaAmortizacaoSel('dinheiro_brl');
+    setContaFiadoSelecionadaId(primeira?primeira.obrigacao.id:'LEGADO_BRL');
+    setFormaAmortizacaoSel('dinheiro_'+moedaInicial.toLowerCase());
+    setValorAmortizacaoInput(String(primeira
+      ? cotarValorRecebimento(primeira,moedaInicial)
+      : Math.max(0,legado)));
     setModalReceberFiadoAberto(true);
   };
 
@@ -184,25 +208,56 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
     }
     const formaCfg = catalogoFormas.find(f => f.id === formaAmortizacaoSel) || catalogoFormas[0];
     const leitura = interpretarValorMonetario(valorAmortizacaoInput, formaCfg.moedaOrigem);
-    if (!leitura.ok) return setModalZen({ variante:'warning', titulo:tx("Valor monetário inválido","Importe monetario inválido"), mensagem:leitura.erro, apenasConfirmar:true });
-    const valorOriginal = leitura.valor;
-    const valBRL = converterParaBRL(valorOriginal, formaCfg.moedaOrigem || moeda);
-    if (valBRL <= 0) return setModalZen({ variante:'warning', titulo:tx('Valor inválido','Valor inválido','Invalid amount'), mensagem:tx('Informe um valor válido para recebimento.','Informe un valor válido para el cobro.','Enter a valid amount to receive.'), apenasConfirmar:true });
-
-    const saldoAntes = Number(clienteReceberFiado?.saldoDevedorBRL || 0);
-    if (valBRL > saldoAntes + 0.001) {
-      return setModalZen({ variante:'warning', titulo:tx('Valor acima da dívida','Valor superior a la deuda','Amount exceeds debt'), mensagem:`A dívida atual é ${fmt(saldoAntes, 'BRL')}. O recebimento não pode ultrapassar esse saldo.`, apenasConfirmar:true });
+    if (!leitura.ok || leitura.valor<=0) return setModalZen({variante:'warning',
+      titulo:tx('Valor monetário inválido','Importe monetario inválido','Invalid amount'),
+      mensagem:leitura.erro||tx('Informe valor maior que zero.','Ingrese un importe mayor que cero.','Enter amount above zero.'),
+      apenasConfirmar:true});
+    const valorOriginal=leitura.valor;
+    const recebimentoId=`REC-${Date.now()}`;
+    const createdAt=new Date().toISOString();
+    const contasAtuais=contasAbertasClienteNativo(clienteAtual);
+    const contaAtual=contasAtuais.find(c=>c.obrigacao.id===contaFiadoSelecionadaId)||null;
+    let resultadoNativo=null;
+    if(contaFiadoSelecionadaId!=='LEGADO_BRL'){
+      if(!contaAtual)return setModalZen({variante:'warning',titulo:tx('Dívida alterada','Deuda modificada','Debt changed'),
+        mensagem:tx('Atualize a conta antes de receber.','Actualice la cuenta antes de cobrar.','Refresh account before payment.'),
+        apenasConfirmar:true});
+      try{
+        resultadoNativo=receberCreditoNativoCliente({cliente:clienteAtual,
+          contaId:contaAtual.obrigacao.id,recebimentoId,moedaPagamento:formaCfg.moedaOrigem,
+          valorPagamentoOriginal:valorOriginal,taxasConfirmadas:taxasCambio,registradaEm:createdAt});
+      }catch(error){
+        return setModalZen({variante:'warning',titulo:tx('Recebimento não confirmado','Cobro no confirmado','Payment not verified'),
+          mensagem:error.message,apenasConfirmar:true});
+      }
     }
-
-    const dinheiroFisico = formaEhDinheiro(formaAmortizacaoSel);
-    if (dinheiroFisico && !sessaoAtiva) {
-      return setModalZen({ variante:'danger', titulo:tx('Caixa fechado','Caja cerrada','Register closed'), mensagem:tx('Para receber fiado em dinheiro, abra primeiro o turno de caixa do operador.','Para recibir crédito en efectivo, abra primero el turno de caja del operador.','To receive customer credit in cash, first open the operator cash shift.'), apenasConfirmar:true });
-    }
-
-    const saldoDepois = Math.max(0, saldoAntes - valBRL);
-    const recebimentoId = `REC-${Date.now()}`;
-    const createdAt = new Date().toISOString();
-    const clientesPropostos = clientes.map(c => c.id === clienteReceberFiado.id ? { ...c, saldoDevedorBRL: saldoDepois } : c);
+    const taxaReceber=formaCfg.moedaOrigem==='BRL'?1:Number(taxasCambio?.[formaCfg.moedaOrigem]);
+    if(!(taxaReceber>0))return setModalZen({variante:'warning',
+      titulo:tx('Cotação inválida','Cotización inválida','Invalid quote'),
+      mensagem:tx('Confira a taxa antes de receber.','Revise la cotización antes de cobrar.','Verify quote before payment.'),
+      apenasConfirmar:true});
+    const valBRL=resultadoNativo
+      ? resultadoNativo.liquidacao.equivalentePagamentoNaDataBRL
+      : Math.round((valorOriginal/taxaReceber)*100)/100;
+    if(!(valBRL>0))return setModalZen({variante:'warning',titulo:tx('Valor inválido','Importe inválido','Invalid amount'),
+      mensagem:tx('Informe valor válido.','Ingrese importe válido.','Enter valid amount.'),apenasConfirmar:true});
+    const saldoAntes=Number(clienteAtual.saldoDevedorBRL||0);
+    const legadoDisponivelBRL=saldoLegadoClienteBRL(clienteAtual);
+    if(!resultadoNativo && (legadoDisponivelBRL<=0 || valBRL>legadoDisponivelBRL+0.001))
+      return setModalZen({variante:'warning',titulo:tx('Valor acima do saldo histórico','Importe superior al saldo histórico','Amount exceeds legacy balance'),
+        mensagem:tx('O saldo antigo não pode ser confundido com a dívida nativa. Confira a origem antes de cobrar.',
+          'El saldo anterior no puede confundirse con la deuda nativa.','Legacy balance cannot be confused with native debt.'),
+        apenasConfirmar:true});
+    const dinheiroFisico=formaEhDinheiro(formaAmortizacaoSel);
+    if(dinheiroFisico&&!sessaoAtiva)
+      return setModalZen({variante:'danger',titulo:tx('Caixa fechado','Caja cerrada','Register closed'),
+        mensagem:tx('Abra o turno antes de receber dinheiro.','Abra la caja antes de cobrar.','Open cash shift before payment.'),
+        apenasConfirmar:true});
+    const saldoDepois=resultadoNativo
+      ? resultadoNativo.cliente.saldoDevedorBRL
+      : Math.max(0,Math.round((saldoAntes-valBRL)*100)/100);
+    const clientesPropostos=clientes.map(c=>String(c.id)===String(clienteAtual.id)
+      ? (resultadoNativo?resultadoNativo.cliente:{...c,saldoDevedorBRL:saldoDepois}):c);
     const mov = dinheiroFisico ? {
       id: `MOV-${recebimentoId}`,
       sessaoId: sessaoAtiva.id,
@@ -214,7 +269,7 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
       valorBRL: valBRL,
       detalhesMoedas: { [formaCfg.moedaOrigem || 'BRL']: valorOriginal },
       detalhesMoedasNativas: { [formaCfg.moedaOrigem || 'BRL']: valorOriginal },
-      taxaCambioAplicada: valorOriginal > 0 && valBRL > 0 ? valorOriginal / valBRL : null,
+      taxaCambioAplicada: taxaReceber,
       descricao: `Recebimento fiado • ${clienteReceberFiado.nome}`,
       clienteId: clienteReceberFiado.id,
       operador: operadorAtivo?.nome || 'Administrador',
@@ -227,7 +282,12 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
       referenciaId: recebimentoId,
       valor: valBRL,
       formaPagamento: formaAmortizacaoSel,
-      detalhes: {moedaOrigem:formaCfg.moedaOrigem,valorOriginal,taxaCambioAplicada:valorOriginal/valBRL},
+      detalhes: {moedaOrigem:formaCfg.moedaOrigem,valorOriginal,taxaCambioAplicada:taxaReceber,
+        ...(resultadoNativo ? {contaNativaId:contaAtual.obrigacao.id,
+          moedaObrigacao:resultadoNativo.liquidacao.moedaObrigacao,
+          valorAmortizadoOriginal:resultadoNativo.liquidacao.valorAmortizadoOriginal,
+          valorContabilHistoricoAmortizadoBRL:resultadoNativo.liquidacao.valorContabilHistoricoAmortizadoBRL,
+          diferencaCambialRealizadaBRL:resultadoNativo.liquidacao.diferencaCambialRealizadaBRL}: {})},
       createdAt,
       afetaCaixaFisico: dinheiroFisico,
       afetaResultado: false,
@@ -253,6 +313,7 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
           changes, financialEntries:[financeiro],
           guards: [
             { type:'client_receipt_snapshot', clientId:clienteAtual.id, clientName:clienteAtual.nome, balanceBRL:saldoAntes },
+            ...(resultadoNativo?[{type:'entity_unchanged',field:'clientes',entityId:clienteAtual.id,expected:clienteAtual}]:[]),
             ...(dinheiroFisico ? [{ type:'cash_session_open', sessionId:sessaoAtiva.id }] : []),
           ],
           operationKey: 'recebimento-fiado:' + recebimentoId,
@@ -280,7 +341,13 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
 
   const abrirWhatsApp = (cli) => {
     if (!cli.telefone) return setModalZen({ variante:'warning', titulo:tx('Telefone não cadastrado','Teléfono no registrado','Phone not registered'), mensagem:tx('Este cliente não possui telefone/WhatsApp cadastrado.','Este cliente no posee teléfono/WhatsApp registrado.','This customer has no phone/WhatsApp registered.'), apenasConfirmar:true });
-    const msg = encodeURIComponent(`${tx('Olá','Hola','Hello')}, ${cli.nome}! ${tx('O saldo da sua conta é de','El saldo de su cuenta es de','Your account balance is')} R$ ${(cli.saldoDevedorBRL || 0).toFixed(2)}.`);
+    const saldo=saldoLegadoClienteBRL(cli),contas=contasAbertasClienteNativo(cli);
+    const partes=[];
+    if(saldo>0.005)partes.push(`R$ ${saldo.toFixed(2)} (${tx('saldo histórico a conferir','saldo histórico por verificar','legacy balance to verify')})`);
+    for(const conta of contas)partes.push(formatarNativoCliente(
+      conta.obrigacao.valorOriginal-(conta.recebimentos||[]).reduce((a,r)=>a+Number(r.valorAmortizadoOriginal||0),0),
+      conta.obrigacao.moedaDocumento));
+    const msg=encodeURIComponent(`${tx('Olá','Hola','Hello')}, ${cli.nome}! ${tx('Saldos registrados:','Saldos registrados:','Recorded balances:')} ${partes.join(' · ')}.`);
     window.open(`https://wa.me/${cli.telefone.replace(/\D/g, '')}?text=${msg}`, '_blank');
   };
 
@@ -535,18 +602,59 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
             <h3 style={{ fontSize: '18px', fontWeight: 900, margin: '0 0 6px 0', color: '#34d399' }}>{tx('Receber Conta de Cliente','Cobrar Cuenta del Cliente','Receive Customer Payment')}</h3>
             <div style={{ fontSize: '14px', fontWeight: 700, color: '#f8fafc', marginBottom: '16px' }}>{clienteReceberFiado.nome}</div>
             
+            {(contasDoClienteEmAberto.length>0) && (
+              <div style={{marginBottom:16}}>
+                <label style={{fontSize:11,color:'#cbd5e1',fontWeight:800}}>
+                  {tx('Dívida a receber','Deuda que se cobra','Debt to collect')}
+                </label>
+                <select value={contaFiadoSelecionadaId}
+                  onChange={e=>{
+                    const id=e.target.value;setContaFiadoSelecionadaId(id);
+                    const conta=contasDoClienteEmAberto.find(c=>c.obrigacao.id===id);
+                    const moneda=conta?.obrigacao.moedaDocumento||'BRL';
+                    setFormaAmortizacaoSel('dinheiro_'+moneda.toLowerCase());
+                    setValorAmortizacaoInput(String(conta?cotarValorRecebimento(conta,moneda)??'':Math.max(0,legadoBRLCliente)));
+                  }}
+                  style={{width:'100%',marginTop:6,padding:12,background:'#020617',color:'#f8fafc',
+                    border:'1px solid #334155',borderRadius:8}}>
+                  {legadoBRLCliente>0.005 && <option value="LEGADO_BRL">
+                    {tx('Saldo histórico em BRL (origem pendente)','Saldo histórico en BRL (origen pendiente)','Legacy BRL balance (source pending)')}
+                  </option>}
+                  {contasDoClienteEmAberto.map(conta=>(
+                    <option key={conta.obrigacao.id} value={conta.obrigacao.id}>
+                      {conta.obrigacao.id} · {conta.obrigacao.moedaDocumento} · {conta.obrigacao.valorOriginal}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div style={{ backgroundColor: '#020617', padding: '16px', borderRadius: '12px', marginBottom: '20px', border: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase' }}>{tx('Dívida Atual:','Deuda Actual:','Current Debt:')}</div>
-                <div style={{ fontSize: '18px', fontWeight: 900, color: '#fb7185' }}>{fmt(clienteReceberFiado.saldoDevedorBRL, moeda)}</div>
+                <div style={{ fontSize: '18px', fontWeight: 900, color: '#fb7185' }}>{contaFiadoEmFoco
+                  ? formatarNativoCliente(
+                      contaFiadoEmFoco.obrigacao.valorOriginal-
+                        (contaFiadoEmFoco.recebimentos||[]).reduce((a,p)=>a+Number(p.valorAmortizadoOriginal||0),0),
+                      contaFiadoEmFoco.obrigacao.moedaDocumento)
+                  : `${fmt(Math.max(0,legadoBRLCliente),'BRL')} · ${tx('histórico contábil','histórico contable','accounting legacy')}`}</div>
               </div>
             </div>
             
-            <label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800 }}>{tx("Valor a Receber / Quitar (","Importe a cobrar / liquidar (")}{moeda}):</label>
+            <label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800 }}>{tx('Valor efetivamente recebido','Importe realmente recibido','Actual received amount')} ({catalogoFormas.find(f=>f.id===formaAmortizacaoSel)?.moedaOrigem||'BRL'}):</label>
             <input type="text" ref={inputValorAmortizacaoRef} value={valorAmortizacaoInput} onChange={e => setValorAmortizacaoInput(e.target.value)} placeholder="0.00" onFocus={e=>e.target.select()} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #10b981', borderRadius: '12px', color: '#34d399', fontSize: '24px', fontWeight: 900, textAlign: 'center', padding: '14px', outline: 'none', marginTop: '8px', marginBottom: '16px', boxSizing: 'border-box' }} autoFocus />
 
             <label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800 }}>{tx('Forma de Recebimento:','Forma de Cobro:','Payment Method:')}</label>
-            <select value={formaAmortizacaoSel} onChange={e => setFormaAmortizacaoSel(e.target.value)} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '12px', outline: 'none', marginTop: '6px', marginBottom: '24px', boxSizing: 'border-box' }}>
+            <select value={formaAmortizacaoSel} onChange={e => {
+              const id=e.target.value;
+              setFormaAmortizacaoSel(id);
+              const moedaReceber=catalogoFormas.find(f=>f.id===id)?.moedaOrigem||'BRL';
+              const valor=contaFiadoEmFoco
+                ? cotarValorRecebimento(contaFiadoEmFoco,moedaReceber)
+                : (moedaReceber==='BRL'?Math.max(0,legadoBRLCliente)
+                  : Math.round(Math.max(0,legadoBRLCliente)*Number(taxasCambio?.[moedaReceber]||0)*(moedaReceber==='PYG'?1:100))/
+                    (moedaReceber==='PYG'?1:100));
+              setValorAmortizacaoInput(Number.isFinite(valor)?String(valor):'');
+            }} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '12px', outline: 'none', marginTop: '6px', marginBottom: '24px', boxSizing: 'border-box' }}>
               {catalogoFormas.map(f => (
                 <option key={f.id} value={f.id}>
                   {f.icone} {f.rotulo}

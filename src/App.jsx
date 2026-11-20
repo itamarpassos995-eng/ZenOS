@@ -2,6 +2,8 @@ import {operadorConfirmadoTerminal} from './core/terminalAccess.js';
 import ZenOSUpdateWelcome from './components/ZenOSUpdateWelcome.jsx';
 import {financialPeriod,withinFinancialPeriod} from './core/financialPeriod.js';
 import { projetarProdutoMonetario } from './core/productMoney.js';
+import { resumirFiadoLojaNativo } from './core/nativeCustomerCredit.js';
+import { resumirVendasNativas } from './core/nativeSalesSummary.js';
 import { useUiLanguage } from './core/useUiLanguage.js';
 import {getOperationalSnapshot,getOperationalAccessSnapshot,subscribeOperationalSnapshot,clearOperationalSession} from './core/operationalRepository.js';
 import {verificarMovimentoCaixaNoServidor} from './core/cashMovementReadOnly.js';
@@ -188,6 +190,9 @@ export default function App() {
   const [idioma, setIdioma] = useUiLanguage(zenosStorage);
   const [moeda, setMoeda] = useState('BRL');
   const [moedaPadrao, setMoedaPadrao] = useState('BRL');
+  const moedaPadraoAnteriorRef = useRef('BRL');
+  const moedaPadraoInicialCarregadaRef = useRef(false);
+  const moedaEscolhaManualRef = useRef(false);
   const [salvandoMoedaPadrao, setSalvandoMoedaPadrao] = useState(false);
   
   const [mostrarPainelExecutivo, setMostrarPainelExecutivo] = useState(false);
@@ -557,6 +562,9 @@ export default function App() {
         setUsuarioAutenticado(user.email);
         // ATT 08.1: isolamento absoluto por conta. Nenhum perfil/regra/câmbio da sessão anterior permanece em RAM.
         const perfilCacheUsuario = lerPerfilLojaLocal(user.uid);
+        moedaPadraoAnteriorRef.current='BRL';
+        moedaPadraoInicialCarregadaRef.current=false;
+        moedaEscolhaManualRef.current=false;
         setMoeda('BRL'); setMoedaPadrao('BRL');
         setPerfilLoja(perfilCacheUsuario);
         setPerfilRapidoRascunho(perfilCacheUsuario);
@@ -807,8 +815,15 @@ export default function App() {
         }
         const config = snap.data() || {};
         const moedaConfig = ['BRL','PYG','USD','EUR'].includes(config.moedaPadrao) ? config.moedaPadrao : 'BRL';
+        const primeiraConfiguracao=!moedaPadraoInicialCarregadaRef.current;
+        const anterior=moedaPadraoAnteriorRef.current;
+        setMoeda(prev=>{
+          if(moedaEscolhaManualRef.current)return prev;
+          return primeiraConfiguracao || prev===anterior ? moedaConfig : prev;
+        });
+        moedaPadraoAnteriorRef.current=moedaConfig;
+        moedaPadraoInicialCarregadaRef.current=true;
         setMoedaPadrao(moedaConfig);
-        setMoeda(prev => prev === moedaPadrao ? moedaConfig : prev);
         const pf = normalizarPerfilLoja(config.perfilLoja || {});
         setPerfilLoja(prev => syncValuesEqual(prev, pf) ? prev : pf);
         setPerfilRapidoRascunho(prev => syncValuesEqual(prev, pf) ? prev : pf);
@@ -959,6 +974,9 @@ export default function App() {
     try {
       await setDoc(doc(db,'lojas',userId,'dados','configuracoes'),
         {moedaPadrao:moeda,updatedAtClient:new Date().toISOString(),updatedAtServer:serverTimestamp()}, {merge:true});
+      moedaPadraoAnteriorRef.current=moeda;
+      moedaPadraoInicialCarregadaRef.current=true;
+      moedaEscolhaManualRef.current=false;
       setMoedaPadrao(moeda);
       notifyPersistenceStatus({status:'SINCRONIZADO',field:'configuracoes'});
     } catch (error) {
@@ -1168,6 +1186,9 @@ export default function App() {
     [historicoVendas, operadorAtivo?.id, patenteUsuario, diaLocalAtual]);
   const faturamentoHojeBRL = useMemo(() => vendasHoje.reduce((acc, v) =>
     acc + obterFinanceiroVenda(v).totalLiquidoBRL, 0), [vendasHoje]);
+  const resumoVendasHojeNativas = useMemo(() => resumirVendasNativas(
+    vendasHoje,moedaPadrao,v=>obterFinanceiroVenda(v).totalLiquidoBRL
+  ),[vendasHoje,moedaPadrao]);
   // Um único percurso financeiro substitui três varreduras completas por render.
   const financeiroHistorico = useMemo(() => vendasValidas.reduce((acc, venda) => {
     const financeiro = obterFinanceiroVenda(venda);
@@ -1191,6 +1212,10 @@ export default function App() {
   const despesasPagasBRL = useMemo(() => despesas.filter(d => withinFinancialPeriod(d,intervaloFinanceiro,{payment:true}) && (d.status === 'paga' || (d.status === 'excluida' && d.financeiroMantido === true)) && d.afetaResultado !== false && d.naturezaContabil !== 'estoque_ativo' && d.categoria !== 'Mercadoria para Revenda').reduce((acc,d)=>acc+(Number(d.valorBRL)||0),0), [despesas,intervaloFinanceiro]);
   const lucroLiquidoRealBRL = lucroBrutoBRL - despesasPagasBRL;
   const totalFiadoAbertoBRL = useMemo(() => clientes.reduce((acc, c) => acc + (parseFloat(c.saldoDevedorBRL) || 0), 0), [clientes]);
+  const resumoFiadoNativo = useMemo(() => resumirFiadoLojaNativo(clientes,moedaPadrao),[clientes,moedaPadrao]);
+  const fiadoNominal = valor => new Intl.NumberFormat(moedasConfig[moedaPadrao]?.locale||'pt-BR',{
+    style:'currency',currency:moedaPadrao,maximumFractionDigits:moedaPadrao==='PYG'?0:2
+  }).format(valor);
 
   const gerarCurvaABC = () => {
     const mapa = {};
@@ -2113,7 +2138,7 @@ export default function App() {
           idioma,
           setIdioma,
           moeda,
-          setMoeda,
+          setMoeda: novaMoeda => {moedaEscolhaManualRef.current=true;setMoeda(novaMoeda);},
           moedaPadrao,
           onSalvarMoedaPadrao: temPermissao('admin') || patenteUsuario === 'gerencia' ? salvarMoedaPadrao : undefined,
           salvandoMoedaPadrao,
@@ -2134,8 +2159,27 @@ export default function App() {
             <ZenHero operador={operadorAtivo?.nome || tx('Administrador (Gerência)','Administrador (Gerencia)','Administrator (Management)')} patente={patenteUsuario} idioma={idioma} tx={tx} />
 
             <div className="zen-kpi-grid">
-              <ZenKpiCard icon="🛒" titulo={tx('Vendido Hoje','Vendido Hoy','Sold Today')} valor={valoresTopoVisiveis ? fmt(faturamentoHojeBRL) : '*****'} detalhe={`${vendasHoje.length} ${tx('vendas realizadas','ventas realizadas','sales completed')}`} tone="teal" trailing={<button onClick={() => setValoresTopoVisiveis(!valoresTopoVisiveis)} style={{border:0,background:'transparent',color:'inherit',cursor:'pointer',fontSize:18}}>{valoresTopoVisiveis ? '◉' : '○'}</button>} />
-              <ZenKpiCard icon="👥" titulo={tx('FIADO NA PRAÇA','FIADO A COBRAR','PENDING CREDIT')} valor={valoresTopoVisiveis ? fmt(totalFiadoAbertoBRL) : '*****'} detalhe={totalFiadoAbertoBRL > 0 ? tx('Valores pendentes de clientes','Valores pendientes','Customer balances due') : tx('Nenhum valor pendente','Sin valores pendientes','No pending balance')} tone="purple" trailing="▥" />
+              <ZenKpiCard icon="🛒" titulo={tx('Vendido Hoje','Vendido Hoy','Sold Today')}
+                valor={!valoresTopoVisiveis?'*****':resumoVendasHojeNativas.parcial
+                  ? (resumoVendasHojeNativas.documentosNativos>0
+                    ? `${fiadoNominal(resumoVendasHojeNativas.valorNativoComprovado)} + ${resumoVendasHojeNativas.documentosPendentes} ${tx('documentos a conferir','documentos por verificar','documents to review')}`
+                    : `${vendasHoje.length} ${tx('vendas','ventas','sales')}`)
+                  : fiadoNominal(resumoVendasHojeNativas.valorNativoComprovado)}
+                detalhe={resumoVendasHojeNativas.parcial
+                  ? `${tx('Histórico sem moeda comprovada','Histórico sin moneda comprobada','History without verified currency')}: ${fmt(resumoVendasHojeNativas.legadoContabilBRL,'BRL')}`
+                  : `${vendasHoje.length} ${tx('vendas realizadas','ventas realizadas','sales completed')}`}
+                tone="teal" trailing={<button onClick={() => setValoresTopoVisiveis(!valoresTopoVisiveis)} style={{border:0,background:'transparent',color:'inherit',cursor:'pointer',fontSize:18}}>{valoresTopoVisiveis ? '◉' : '○'}</button>} />
+              <ZenKpiCard icon="👥"
+                titulo={tx('FIADO NA PRAÇA','FIADO A COBRAR','PENDING CREDIT')}
+                valor={!valoresTopoVisiveis?'*****':resumoFiadoNativo.possuiPendencias
+                  ? (resumoFiadoNativo.valorNativoComprovado>0
+                    ? `${fiadoNominal(resumoFiadoNativo.valorNativoComprovado)} + ${resumoFiadoNativo.clientesComDivida} ${tx('contas a conferir','cuentas por verificar','accounts to verify')}`
+                    : `${resumoFiadoNativo.clientesComDivida} ${tx('clientes com dívida','clientes con deuda','customers owing')}`)
+                  : fiadoNominal(resumoFiadoNativo.valorNativoComprovado)}
+                detalhe={!valoresTopoVisiveis?'':resumoFiadoNativo.possuiPendencias
+                  ? `${tx('Saldo histórico separado, sem conversão','Saldo histórico separado, sin conversión','Historical debt separate, no conversion')}: ${fmt(resumoFiadoNativo.legadoContabilBRL,'BRL')}`
+                  : tx('Saldo nominal na moeda padrão','Saldo nominal en moneda predeterminada','Nominal debt in default currency')}
+                tone="purple" trailing="▥" />
               <ZenKpiCard icon="↻" titulo={tx('SINCRONIZAÇÃO','SINCRONIZACIÓN','SYNC')} valor={statusSincronizacao === 'SINCRONIZADO' ? 'Online' : statusSincronizacao === 'SALVANDO' ? tx('Salvando...','Guardando...','Saving...') : statusSincronizacao === 'ERRO' ? tx('Erro','Error','Error') : statusSincronizacao === 'OFFLINE' ? 'Offline' : tx('Pendente','Pendiente','Pending')} detalhe={tx('Dados atualizados em tempo real','Datos actualizados en tiempo real','Realtime data status')} tone="cyan" trailing="◯" />
             </div>
 
@@ -2240,7 +2284,7 @@ export default function App() {
         {ecraAtual === 'inteligencia' && <EstoqueInteligente converterParaBRL={converterParaBRL} produtos={produtos} fmt={fmt} tx={tx} />}
         {ecraAtual === 'comissoes' && <Comissoes commitOperacaoNegocio={commitVendaCritica} historicoVendas={historicoVisivelParaOperador} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} operadorAtivo={operadorAtivo} regrasDesconto={regrasDesconto} regrasComissao={regrasComissao} setRegrasComissao={setRegrasComissao} />}
         {ecraAtual === 'dashboardMobile' && <DashboardMobile historicoVendas={historicoVendas} despesas={despesas} clientes={clientes} produtos={produtos} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} regrasDesconto={regrasDesconto} />}
-        {ecraAtual === 'clientes' && (livroFinanceiroConfirmado && livroFinanceiroAtivadoParaLoja === String(userId) ? <Clientes perfilLoja={perfilLoja} commitOperacaoNegocio={commitVendaCritica} livroFinanceiro={livroFinanceiro} historicoVendas={historicoVendas} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} operadorAtivo={operadorAtivo} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} /> : <div role="status" style={{padding:24,color:'#cbd5e1'}}>{tx("Conferindo histórico financeiro completo no servidor antes de liberar contas e fiado…","Verificando el historial financiero completo en el servidor antes de habilitar cuentas y créditos…")}</div>)}
+        {ecraAtual === 'clientes' && (livroFinanceiroConfirmado && livroFinanceiroAtivadoParaLoja === String(userId) ? <Clientes moedaPadrao={moedaPadrao} taxasCambio={taxasCambio} perfilLoja={perfilLoja} commitOperacaoNegocio={commitVendaCritica} livroFinanceiro={livroFinanceiro} historicoVendas={historicoVendas} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} operadorAtivo={operadorAtivo} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} /> : <div role="status" style={{padding:24,color:'#cbd5e1'}}>{tx("Conferindo histórico financeiro completo no servidor antes de liberar contas e fiado…","Verificando el historial financiero completo en el servidor antes de habilitar cuentas y créditos…")}</div>)}
         {ecraAtual === 'vendas' && <Vendas commitOperacaoNegocio={commitVendaCritica} taxasCambio={taxasCambio} sessoesCaixa={sessoesCaixa} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} saldoSessaoFisicoBRL={saldoSessaoFisicoBRL} perfilLoja={perfilLoja} vouchers={vouchers} setVouchers={setVouchers} userId={userId} operadorAtivo={operadorAtivo} historicoVendas={historicoVisivelParaOperador} historicoVendasCompleto={historicoVendas} setHistoricoVendas={setHistoricoVendas} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} fmt={fmt} t={t} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterDeBRL={converterDeBRL} />}
         {ecraAtual === 'commerce-solicitar' && temPermissao('admin') && <React.Suspense fallback={<div role="status" style={{padding:20,color:'#bdd5df'}}>{tx('Preparando Minha Loja Online…','Preparando Mi Tienda Online…','Preparing My Online Store…')}</div>}><CommerceSolicitacao converterParaBRL={converterParaBRL} moedaPadrao={moedaPadrao} taxasCambio={taxasCambio} key={String(userId)+':'+String(operadorAtivo?.id)} lojaId={userId} perfilLoja={perfilLoja} tx={tx} produtos={produtos} /></React.Suspense>}
         {ecraAtual === 'fiscal' && <FiscalErrorBoundary resetKey={`${userId || ''}:${perfilLoja?.pais || ''}:${resultadoFilaFiscal.erro || ''}`} onVoltar={() => navegarPara('hub')} tx={tx}><Fiscal lojaId={userId} perfilLoja={perfilLoja} filaFiscal={resultadoFilaFiscal.fila} erroFila={resultadoFilaFiscal.erro} clientes={clientes} ambiente="homologacao" onVerVenda={() => navegarPara('vendas')} tx={tx} idioma={idioma} /></FiscalErrorBoundary>}

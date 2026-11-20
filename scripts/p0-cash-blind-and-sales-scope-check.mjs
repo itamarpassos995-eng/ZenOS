@@ -26,8 +26,10 @@ assert.equal(buscar('op-2').length,1);
 const read=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
 const app=read('src/App.jsx');
 assert.match(app,/const vendasHoje = (?:filtrarVendasHojeVisiveis\(|useMemo\(\(\) => filtrarVendasHojeVisiveis\()/);
-assert.match(app,/fmt\(faturamentoHojeBRL\)/);
-assert.match(app,/\$\{vendasHoje.length\} \$\{tx\('vendas realizadas'/);
+assert.match(app,/resumirVendasNativas\(\s*vendasHoje,moedaPadrao/);
+assert.match(app,/resumoVendasHojeNativas\.valorNativoComprovado/);
+assert.doesNotMatch(app,/Vendido Hoje[\s\S]{0,700}?fmt\(faturamentoHojeBRL\)/);
+assert.match(app,/vendasHoje\.length/);
 assert.match(app,/zen-status-badge[\s\S]{0,140}tx\('ABERTO','ABIERTO','OPEN'\)/);
 assert.doesNotMatch(app,/fmt\(saldoSessaoFisicoBRL\)/);
 for(const path of ['src/components/Despesas.jsx','src/components/PDVCompras.jsx']){
