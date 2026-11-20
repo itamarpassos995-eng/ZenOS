@@ -1822,7 +1822,11 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                   return (
                     <div key={prod.id} onClick={() => { setItemParaAdicionar(prod); setQtdDigitadaRapida('1'); }} onMouseEnter={() => setIndiceFocoBusca(index)} style={{ padding: '14px 20px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', backgroundColor: estaFocado ? '#1e1b4b' : 'transparent' }}>
                       <div><div style={{ fontWeight: 700, color: '#f8fafc', fontSize: '15px' }}>{prod.nome} {ehEncomendaUsoUnico(prod) && <span style={{ color: '#fbbf24', fontSize: '11px' }}>({tx('Encomenda', 'Especial', 'Order')})</span>}</div><div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>SKU: {prod.sku} {tx("• Estoque:","• Existencias:")} <strong style={{ color: '#38bdf8' }}>{prod.estoque} {prod.unidadeMedida}</strong></div></div>
-                      <div style={{ color: '#34d399', fontWeight: 900, fontSize: '16px' }}>{formatarPrecoNativoCatalogo(prod, clienteSelecionadoPDV)}</div>
+                      <div style={{textAlign:'right'}}>
+                        <div style={{ color: '#34d399', fontWeight: 900, fontSize: '16px' }}>{formatarPrecoNativoCatalogo(prod, clienteSelecionadoPDV)}</div>
+                        {!quantiaOriginalProduto(prod,campoPrecoPorPerfil(prod,clienteSelecionadoPDV)) && moeda !== 'BRL' &&
+                          <div style={{color:'#fbbf24',fontSize:10}}>{tx('Conversão provisória: origem não comprovada','Conversión provisoria: origen no comprobado','Provisional conversion: native origin unverified')}</div>}
+                      </div>
                     </div>
                   );
                 }) : <div style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>{tx('Nenhum produto localizado', 'Ningún producto', 'No products found')}</div>}
