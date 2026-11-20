@@ -1205,7 +1205,7 @@ export default function App() {
   const despesasPagasBRL = useMemo(() => despesas.filter(d => withinFinancialPeriod(d,intervaloFinanceiro,{payment:true}) && (d.status === 'paga' || (d.status === 'excluida' && d.financeiroMantido === true)) && d.afetaResultado !== false && d.naturezaContabil !== 'estoque_ativo' && d.categoria !== 'Mercadoria para Revenda').reduce((acc,d)=>acc+(Number(d.valorBRL)||0),0), [despesas,intervaloFinanceiro]);
   const lucroLiquidoRealBRL = lucroBrutoBRL - despesasPagasBRL;
   const totalFiadoAbertoBRL = useMemo(() => clientes.reduce((acc, c) => acc + (parseFloat(c.saldoDevedorBRL) || 0), 0), [clientes]);
-  const fiadoPainelMoedaPadrao = useMemo(() => apurarFiadoMoedaPadrao(clientes,moedaPadrao),[clientes,moedaPadrao]);
+  const fiadoPainelMoedaPadrao = useMemo(() => apurarFiadoMoedaPadrao(clientes,moedaPadrao,historicoVendas,livroFinanceiro),[clientes,moedaPadrao,historicoVendas,livroFinanceiro]);
 
   const gerarCurvaABC = () => {
     const mapa = {};
