@@ -87,6 +87,7 @@ import { converterValoresFisicosParaBRL, interpretarValorMonetario } from './cor
 import { formatarValorNativoCaixa } from './core/cashHistoryDisplay.js';
 import { calcularConciliacaoFisicaMultimoeda } from './core/cashReconciliation';
 import { obterComposicaoHistoricaCaixa, formatarDinheiroNativo } from './core/cashHistoryDisplay';
+import { apresentarMovimentoNaMoedaPadrao } from './core/defaultCurrencyPresentation.js';
 import { normalizarRegrasComissao, REGRAS_COMISSAO_PADRAO } from './core/commissionEngine';
 import { normalizarRegrasMargem } from './core/profitability';
 import { patenteEfetivaOperador } from './core/accessControl';
@@ -2142,7 +2143,7 @@ export default function App() {
 
             <div className="zen-kpi-grid">
               <ZenKpiCard icon="🛒" titulo={tx('Vendido Hoje','Vendido Hoy','Sold Today')} valor={valoresTopoVisiveis ? (vendidoHojeNativo.ok ? formatarValorNativo(vendidoHojeNativo.total,moedaPadrao) : (vendidoHojeNativo.confirmadas > 0 ? `${formatarValorNativo(vendidoHojeNativo.subtotalConfirmado,moedaPadrao)} ${tx('(parcial)','(parcial)','(partial)')}` : tx('Total pendente de conferência','Total pendiente de verificación','Total awaiting verification'))) : '*****'} detalhe={vendidoHojeNativo.pendentes > 0 ? `${vendidoHojeNativo.confirmadas} ${tx('vendas confirmadas','ventas confirmadas','verified sales')} · ${vendidoHojeNativo.pendentes} ${tx('sem moeda/valor original comprovado','sin moneda/valor original comprobado','without verified native price')}` : vendidoHojeNativo.outrasMoedas > 0 ? `${vendasHoje.length - vendidoHojeNativo.outrasMoedas} ${tx('vendas na moeda padrão','ventas en moneda predeterminada','sales in default currency')} · ${vendidoHojeNativo.outrasMoedas} ${tx('em outras moedas (separadas)','en otras monedas (separadas)','in other currencies (separate)')}` : `${vendasHoje.length} ${tx('vendas realizadas','ventas realizadas','sales completed')}`} tone="teal" trailing={<button onClick={() => setValoresTopoVisiveis(!valoresTopoVisiveis)} style={{border:0,background:'transparent',color:'inherit',cursor:'pointer',fontSize:18}}>{valoresTopoVisiveis ? '◉' : '○'}</button>} />
-              <ZenKpiCard icon="👥" titulo={tx('FIADO NA PRAÇA','FIADO A COBRAR','PENDING CREDIT')} valor={valoresTopoVisiveis ? fmt(totalFiadoAbertoBRL) : '*****'} detalhe={totalFiadoAbertoBRL > 0 ? tx('Valores pendentes de clientes','Valores pendientes','Customer balances due') : tx('Nenhum valor pendente','Sin valores pendientes','No pending balance')} tone="purple" trailing="▥" />
+              <ZenKpiCard icon="👥" titulo={tx('FIADO NA PRAÇA','FIADO A COBRAR','PENDING CREDIT')} valor={valoresTopoVisiveis ? fmt(totalFiadoAbertoBRL,'BRL') : '*****'} detalhe={totalFiadoAbertoBRL > 0 ? tx('Equivalente contábil BRL · valor nativo a conferir','Equivalente contable BRL · importe nativo por verificar','Accounting BRL · native amount unverified') : tx('Nenhum valor pendente','Sin valores pendientes','No pending balance')} tone="purple" trailing="▥" />
               <ZenKpiCard icon="↻" titulo={tx('SINCRONIZAÇÃO','SINCRONIZACIÓN','SYNC')} valor={statusSincronizacao === 'SINCRONIZADO' ? 'Online' : statusSincronizacao === 'SALVANDO' ? tx('Salvando...','Guardando...','Saving...') : statusSincronizacao === 'ERRO' ? tx('Erro','Error','Error') : statusSincronizacao === 'OFFLINE' ? 'Offline' : tx('Pendente','Pendiente','Pending')} detalhe={tx('Dados atualizados em tempo real','Datos actualizados en tiempo real','Realtime data status')} tone="cyan" trailing="◯" />
             </div>
 
@@ -2162,7 +2163,8 @@ export default function App() {
                         <button onClick={() => { setTipoMovCaixa('fechamento'); setModalCaixaAberto(true); }}>🔒 {tx('Encerrar Turno','Cerrar Turno','Close Shift')}</button>
                       </div>
                       <div className="zen-movements">{movsSessao.length === 0 ? <div className="zen-movement"><span>{tx('Nenhuma movimentação neste turno.','Ningún movimiento en este turno.','No movements in this shift.')}</span></div> : movsSessao.slice(0,6).map(m => {
-                        const composicao = obterComposicaoHistoricaCaixa(m);
+                        const apresentacao = apresentarMovimentoNaMoedaPadrao(m,moedaPadrao);
+                        const composicao = apresentacao.composicao;
                         return <div className="zen-movement" key={m.id}>
                           <div style={{display:'flex',flexDirection:'column',gap:4,minWidth:0}}>
                             <span>{m.tipo === 'suprimento' ? tx('Entrada','Entrada','Cash In') : tx('Saída','Salida','Cash Out')} • {m.descricao}</span>
@@ -2173,8 +2175,12 @@ export default function App() {
                               : <small style={{color:'#fbbf24'}}>{tx('Movimentação histórica — composição monetária não disponível.','Movimiento histórico — composición monetaria no disponible.','Historical movement — currency breakdown unavailable.')}</small>}
                           </div>
                           <div style={{textAlign:'right',minWidth:95}}>
-                            <strong>{m.tipo === 'suprimento' ? '+' : '-'}{Number.isFinite(composicao.equivalenteBRL) ? fmt(composicao.equivalenteBRL,'BRL') : fmt(m.valorBRL,'BRL')}</strong>
-                            <div style={{fontSize:10,color:'#94a3b8'}}>{tx('Equivalente registrado BRL','Equivalente registrado BRL','Recorded BRL equivalent')}</div>
+                            <strong>{apresentacao.moedaPrincipal
+                              ? `${m.tipo === 'suprimento' ? '+' : '-'}${formatarDinheiroNativo(apresentacao.valorPrincipal,apresentacao.moedaPrincipal,idioma)}`
+                              : apresentacao.pendente
+                                ? tx('Moeda não comprovada','Moneda no comprobada','Currency unverified')
+                                : tx('Movimento multimoeda','Movimiento multimoneda','Multi-currency movement')}</strong>
+                            <div style={{fontSize:10,color:'#94a3b8'}}>{tx('Equivalente contábil registrado:','Equivalente contable registrado:','Recorded accounting equivalent:')} {Number.isFinite(Number(m.valorBRL)) ? fmt(Number(m.valorBRL),'BRL') : '—'}</div>
                           </div>
                         </div>;
                       })}</div>
@@ -2204,12 +2210,12 @@ export default function App() {
                     </div>
                   </div>
                   <div className="zen-exec-grid">
-                    <div className="zen-exec-stat"><span>{tx('Faturamento Real','Facturación Real','Actual Revenue')}</span><strong>{auditoriaPainelFinanceiro.confiavel ? fmt(faturamentoTotalBRL) : tx('Em auditoria','En auditoría','Under audit')}</strong></div>
-                    <div className="zen-exec-stat"><span>CMV</span><strong>{auditoriaPainelFinanceiro.confiavel ? fmt(cmvTotalBRL) : tx('Em auditoria','En auditoría','Under audit')}</strong></div>
-                    <div className="zen-exec-stat"><span>{tx('Lucro Bruto','Ganancia Bruta','Gross Profit')}</span><strong style={{color:'#38bdf8'}}>{auditoriaPainelFinanceiro.confiavel ? fmt(lucroBrutoBRL) : tx('Em auditoria','En auditoría','Under audit')}</strong></div>
-                    <div className="zen-exec-stat"><span>{tx('Despesas Pagas','Gastos Pagados','Paid Expenses')}</span><strong style={{color:'#fbbf24'}}>{fmt(despesasPagasBRL)}</strong></div>
-                    <div className="zen-exec-stat"><span>{tx('Lucro Líquido','Ganancia Neta','Net Profit')}</span><strong style={{color:'#34d399'}}>{auditoriaPainelFinanceiro.confiavel ? fmt(lucroLiquidoRealBRL) : tx('Em auditoria','En auditoría','Under audit')}</strong></div>
-                    <div className="zen-exec-stat"><span>{tx('Fiado em aberto · saldo total','Crédito pendiente · saldo total','Outstanding credit · total balance')}</span><strong style={{color:'#fb7185'}}>{fmt(totalFiadoAbertoBRL)}</strong></div>
+                    <div className="zen-exec-stat"><span>{tx('Faturamento Real · BRL contábil','Facturación real · BRL contable','Revenue · accounting BRL')}</span><strong>{auditoriaPainelFinanceiro.confiavel ? fmt(faturamentoTotalBRL,'BRL') : tx('Em auditoria','En auditoría','Under audit')}</strong></div>
+                    <div className="zen-exec-stat"><span>CMV · BRL</span><strong>{auditoriaPainelFinanceiro.confiavel ? fmt(cmvTotalBRL,'BRL') : tx('Em auditoria','En auditoría','Under audit')}</strong></div>
+                    <div className="zen-exec-stat"><span>{tx('Lucro Bruto · BRL contábil','Ganancia bruta · BRL contable','Gross profit · accounting BRL')}</span><strong style={{color:'#38bdf8'}}>{auditoriaPainelFinanceiro.confiavel ? fmt(lucroBrutoBRL,'BRL') : tx('Em auditoria','En auditoría','Under audit')}</strong></div>
+                    <div className="zen-exec-stat"><span>{tx('Despesas Pagas · BRL contábil','Gastos pagados · BRL contable','Paid expenses · accounting BRL')}</span><strong style={{color:'#fbbf24'}}>{fmt(despesasPagasBRL,'BRL')}</strong></div>
+                    <div className="zen-exec-stat"><span>{tx('Lucro Líquido · BRL contábil','Ganancia neta · BRL contable','Net profit · accounting BRL')}</span><strong style={{color:'#34d399'}}>{auditoriaPainelFinanceiro.confiavel ? fmt(lucroLiquidoRealBRL,'BRL') : tx('Em auditoria','En auditoría','Under audit')}</strong></div>
+                    <div className="zen-exec-stat"><span>{tx('Fiado em aberto · BRL contábil','Crédito pendiente · BRL contable','Outstanding credit · accounting BRL')}</span><strong style={{color:'#fb7185'}}>{fmt(totalFiadoAbertoBRL,'BRL')}</strong></div>
                   </div>
                   <div className="zen-abc-list">{curvaABC.slice(0,5).map((item,index)=><div className="zen-abc-row" key={`${item.sku}-${index}`}><b>{index+1}</b><span>{item.nome}</span><strong>{fmt(item.faturamentoBRL,'BRL')}</strong></div>)}</div>
                 </div>}
