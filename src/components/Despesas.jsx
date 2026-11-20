@@ -5,6 +5,7 @@ import {doc,getDocFromServer} from 'firebase/firestore';
 import {getOperationalSnapshot} from '../core/operationalRepository';
 import {avaliarPagamentoExistente} from '../core/expensePaymentReconcile';
 import {criarSnapshotMonetario,validarLiquidacaoMultimoeda} from '../core/nativeMoneyEvents.js';
+import {interpretarValorMonetario} from '../core/cashMoneyInput.js';
 import {formatarDinheiroNativo} from '../core/cashHistoryDisplay.js';
 
 export default function Despesas({ userId, commitOperacaoNegocio, registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, saldoSessaoFisicoBRL = 0, operadorAtivo, despesas, setDespesas, fmt, tx, patenteUsuario, moeda, moedaPadrao='BRL', taxasCambio={}, converterParaBRL, converterDeBRL }) {
@@ -78,7 +79,17 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
       return avisarZen('warning',tx("Edição bloqueada","Edición bloqueada"),tx("Esta despesa não pode ser editada diretamente por ter pagamento ou vínculo com compra.","Este gasto no puede editarse directamente porque tiene un pago o un vínculo con una compra."));
 
     if (!descricao.trim()) return avisarZen('warning',tx('Descrição obrigatória','Descripción obligatoria','Description required'),tx('Informe a descrição da despesa.','Informe la descripción del gasto.','Enter the expense description.'));
-    const snapshot = criarSnapshotMonetario({valorOriginal:valorInput,moedaOrigem:moedaDespesa,taxasCambio});
+    const digitado = interpretarValorMonetario(valorInput,moedaDespesa);
+    if (!digitado.ok || digitado.valor <= 0) return avisarZen('warning',tx('Valor original inválido','Importe original inválido','Invalid original amount'),digitado.erro||'Valor deve ser maior que zero.');
+    // Metadata-only editing cannot revalue a historical expense with today's FX.
+    const semAlteracaoMonetaria = !!despesaEmEdicao &&
+      despesaEmEdicao.moedaOrigem===moedaDespesa && digitado.valor===despesaEmEdicao.valorOriginal &&
+      Number.isFinite(despesaEmEdicao.valorBRL) &&
+      Number.isFinite(despesaEmEdicao.taxaCambioAplicada) && despesaEmEdicao.taxaCambioAplicada>0;
+    const snapshot = semAlteracaoMonetaria
+      ? {ok:true,moedaOrigem:despesaEmEdicao.moedaOrigem,valorOriginal:despesaEmEdicao.valorOriginal,
+         taxaCambioAplicada:despesaEmEdicao.taxaCambioAplicada,valorConvertidoBRL:despesaEmEdicao.valorBRL}
+      : criarSnapshotMonetario({valorOriginal:digitado.valor,moedaOrigem:moedaDespesa,taxasCambio});
     if (!snapshot.ok) return avisarZen('warning',tx('Valor ou cotação inválidos','Importe o cotización inválidos','Invalid amount or exchange rate'),snapshot.erro);
     const valBRL = snapshot.valorConvertidoBRL;
 
