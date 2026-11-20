@@ -65,6 +65,14 @@ test('nenhum arquivo de persistência Firestore nem regras foi modificado',()=>{
    assert.ok(changed.includes('scripts/card-multicurrency.test.mjs'),
     'Alteração de conciliação exige teste multimoeda dedicado');
  }
+ const allowedNativeCreditCard='src/core/defaultCurrencyCreditCard.js';
+ if(changed.includes(allowedNativeCreditCard)){
+   const source=read(allowedNativeCreditCard);
+   assert.doesNotMatch(source,/firebase\/firestore|\bonSnapshot\s*\(|\bgetDocs(?:FromServer)?\s*\(|\bgetDoc(?:FromServer)?\s*\(|\brunTransaction\s*\(/,
+     'Resumo de fiado precisa ser cálculo puro sem acesso ao banco');
+   assert.ok(changed.includes('scripts/default-currency-credit-card.test.mjs'),
+     'Alteração do fiado exige teste de moeda original e conciliação');
+ }
  const allowedCashMoney='src/core/cashMoneyInput.js';
  if(changed.includes(allowedCashMoney)){
    const source=read(allowedCashMoney);
@@ -117,7 +125,7 @@ test('nenhum arquivo de persistência Firestore nem regras foi modificado',()=>{
    /(^|\/)firestore[^/]*\.rules$/.test(path)||
    /^src\/firebase[^/]*\.[jt]s$/.test(path)||
    /^functions\//.test(path)||
-   (/^src\/core\//.test(path)&&!uiOnlyCore.has(path)&&path!==allowedFinancialCore&&path!==allowedCashGuard&&path!==allowedReadOnlyAudit&&path!==allowedCashHistory&&path!==allowedInventory&&path!==allowedCardSettlement&&path!==allowedCashMoney&&!correctionModules.has(path)&&path!=='src/core/operationalRepository.js'&&path!=='src/core/operationalCache.js'&&path!=='src/core/financialPeriod.js'&&path!=='src/core/terminalAccess.js')
+   (/^src\/core\//.test(path)&&!uiOnlyCore.has(path)&&path!==allowedFinancialCore&&path!==allowedCashGuard&&path!==allowedReadOnlyAudit&&path!==allowedCashHistory&&path!==allowedInventory&&path!==allowedCardSettlement&&path!==allowedCashMoney&&path!==allowedNativeCreditCard&&!correctionModules.has(path)&&path!=='src/core/operationalRepository.js'&&path!=='src/core/operationalCache.js'&&path!=='src/core/financialPeriod.js'&&path!=='src/core/terminalAccess.js')
  );
  assert.deepEqual(protectedPaths,[],'A mudança visual não pode alterar persistência nem regras');
 });
