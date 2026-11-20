@@ -279,8 +279,11 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
           { type:'cash_native_balance_at_least', sessionId:sessaoAtiva.id,
             valoresNativos:{[pagamentoNativo.moedaOrigem]:pagamentoNativo.valorOriginal},taxas:{...taxasCambio} },
         ] : [];
+        guards.push({type:'entity_field_equals',field:'despesas',entityId:despesaParaPagar.id,entityKey:'id',
+          property:'status',expected:'pendente',message:'Despesa já paga ou alterada em outro terminal.'});
         guards.push({type:'money_exchange_rates_match',taxas:{...taxasCambio}});
-        const confirmado = await commitOperacaoNegocio({ changes, financialEntries:ajusteCambial?[financeiro,ajusteCambial]:[financeiro], guards });
+        const confirmado = await commitOperacaoNegocio({ changes, financialEntries:ajusteCambial?[financeiro,ajusteCambial]:[financeiro], guards,
+          operationKey:'despesa-pagamento:'+String(despesaParaPagar.id) });
         if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou o pagamento.');
         confirmadas = confirmado.values?.despesas || despesasPropostas;
         caixaConfirmado = confirmado.values?.caixaMovimentos || caixaProposto;
