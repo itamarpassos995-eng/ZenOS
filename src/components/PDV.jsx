@@ -22,6 +22,7 @@ import { lerRascunhoPDV, salvarRascunhoPDV, apagarRascunhoPDVProtegido, salvarRa
 import { getOperationalSnapshot } from '../core/operationalRepository';
 import { autoriaDoDocumento, autoriaDoOperador, resolverAutoriaVenda } from '../core/salesAttribution';
 import { indexarProdutosPDV, indexarClientesPDV, buscarProdutosPDV, buscarClientesPDV } from '../core/pdvSearch';
+import { apurarTotalContratualPDV, cotarRecebimentoPDV } from '../core/pdvNativeCheckout.js';
 
 export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizados,
   pedidoPrivadoSolicitado, onPedidoPrivadoRecebido, perfilLoja, taxasCambio = {}, registrarFinanceiro, commitOperacaoCritica, commitVendaCritica, recarregarDadosPDV, vouchers = [], setVouchers, userId, produtos, setProdutos, clientes, setClientes, moeda, moedaPadrao = 'BRL', fmt, t, tx, converterDeBRL, converterParaBRL, historicoVendas, setHistoricoVendas, patenteUsuario, idioma, regrasDesconto, vendedores = [], operadorAtivo, sessaoAtiva }) {
@@ -108,6 +109,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   }, [taxasCambio, moeda, moedaPadrao, rascunhoHidratado, pagamentosLancados.length, userId, avisoRascunhoRecuperado]);
 
   const [formaSelecionada, setFormaSelecionada] = useState('dinheiro_brl');
+  const taxasDoCheckoutRef = useRef(null);
   const [valorLancamentoInput, setValorLancamentoInput] = useState('');
   const [voucherCodigoInput, setVoucherCodigoInput] = useState('');
   const [moedaTrocoEscolhida, setMoedaTrocoEscolhida] = useState('BRL');
@@ -804,11 +806,36 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
 
   const subtotalBrutoBRL = useMemo(() => itensVenda.reduce((acc, item) =>
     acc + (Math.max(0, parseInt(item.qtd) || 0) * (item.precoPraticadoBRL || 0)), 0), [itensVenda]);
+  const contratoNativoPDV = useMemo(() => apurarTotalContratualPDV({
+    itens:itensVenda,moedaPadrao,desconto:String(descontoTexto || '0').replace(',', '.')
+  }),[itensVenda,moedaPadrao,descontoTexto]);
+  const formatarContratoNativo = (valor,moedaNativa=moedaPadrao) =>
+    new Intl.NumberFormat(idioma==='es'?'es-PY':'pt-BR',{
+      style:'currency',currency:moedaNativa,
+      minimumFractionDigits:moedaNativa==='PYG'?0:2,
+      maximumFractionDigits:moedaNativa==='PYG'?0:2
+    }).format(valor);
+  const cotarPendenteNaMoeda = (moedaRecebimento) => {
+    if (contratoNativoPDV.ok && pagamentosLancados.length===0) {
+      const cotacao=cotarRecebimentoPDV({contrato:contratoNativoPDV,
+        moedaRecebimento,taxasConfirmadas:taxasDoCheckoutRef.current || taxasCambio});
+      return cotacao.ok?cotacao.valorReceber:null;
+    }
+    const pendenteBRL=Math.max(0,totalFinalBRL-pagamentosLancados.reduce(
+      (acc,p)=>acc+(Number(p.valorConvertidoBRL)||0),0));
+    const valor=converterDeBRL(pendenteBRL,moedaRecebimento);
+    return Number.isFinite(valor)&&valor>=0?
+      (moedaRecebimento==='PYG'?Math.ceil(valor):Math.round(valor*100)/100):null;
+  };
   const custoTotalBRL = useMemo(() => itensVendaComCustoAtual(itensVenda).reduce((acc, item) =>
     acc + (Math.max(0, parseInt(item.qtd) || 0) * (item.custoBRL || 0)), 0), [itensVenda, produtos]);
-  const descBRL = converterParaBRL(parseFloat(String(descontoTexto).replace(',', '.')) || 0, moeda);
-
-  const totalFinalBRL = Math.max(0, subtotalBrutoBRL - descBRL);
+  const taxasDoContrato=modalFechamentoAberto && taxasDoCheckoutRef.current ? taxasDoCheckoutRef.current : taxasCambio;
+  const descBRL = contratoNativoPDV.ok
+    ? (moedaPadrao==='BRL'?contratoNativoPDV.descontoOriginal:contratoNativoPDV.descontoOriginal/Number(taxasDoContrato?.[moedaPadrao]))
+    : converterParaBRL(parseFloat(String(descontoTexto).replace(',', '.')) || 0, moeda);
+  const totalFinalBRL = contratoNativoPDV.ok
+    ? (moedaPadrao==='BRL'?contratoNativoPDV.totalOriginal:contratoNativoPDV.totalOriginal/Number(taxasDoContrato?.[moedaPadrao]))
+    : Math.max(0, subtotalBrutoBRL - descBRL);
   const lucroEstimadoBRL = totalFinalBRL - custoTotalBRL;
   const margemLucroReal = totalFinalBRL > 0 ? (lucroEstimadoBRL / totalFinalBRL) * 100 : 0;
 
@@ -848,7 +875,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     ]),
     { id: 'voucher', rotulo: 'Voucher', moedaOrigem: 'BRL', icone: '🎟️' },
     { id: 'cheque', rotulo: 'Cheque', moedaOrigem: 'BRL', icone: '📝' },
-    { id: 'crediario', rotulo: tx('Crediário / Fiado', 'Fiado / Crédito', 'Store Credit'), moedaOrigem: 'BRL', icone: '📒' }
+    { id: 'crediario', rotulo: tx('Crediário / Fiado', 'Fiado / Crédito', 'Store Credit'), moedaOrigem: contratoNativoPDV.ok?moedaPadrao:'BRL', icone: '📒' }
   ];
 
   const totalPagoConvertidoBRL = pagamentosLancados.reduce((acc, p) => acc + (p.valorConvertidoBRL || 0), 0);
@@ -871,9 +898,14 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     if(itensVenda.some(i=>i.precoEntradaInvalida))return mostrarZen('warning',tx('Valor inválido','Importe inválido','Invalid amount'),tx('Confira os preços digitados e a moeda.','Revise los precios ingresados y la moneda.','Check entered prices and currency.'));
     if (itensVenda.length === 0 || totalFinalBRL <= 0) return mostrarZen('warning', tx("Venda vazia","Venta vacía"), tx('Adicione produtos à venda.', 'Añada productos.', 'Add products.'));
     setPagamentosLancados([]);
-    setFormaSelecionada(moeda === 'PYG' ? 'dinheiro_pyg' : moeda === 'USD' ? 'dinheiro_usd' : moeda === 'EUR' ? 'dinheiro_eur' : 'dinheiro_brl');
-    setMoedaTrocoEscolhida(moeda);
-    setValorLancamentoInput(moeda === 'PYG' ? String(Math.round(converterDeBRL(totalFinalBRL, moeda))) : converterDeBRL(totalFinalBRL, moeda).toFixed(moeda==='PYG'?0:2));
+    const moedaInicial=contratoNativoPDV.ok?moedaPadrao:moeda;
+    taxasDoCheckoutRef.current={...taxasCambio};
+    const cotado=cotarPendenteNaMoeda(moedaInicial);
+    if(cotado==null)return mostrarZen('danger',tx('Cotação não comprovada','Cotización no confirmada','Exchange quote unverified'),
+      tx('Confira as taxas antes de receber.','Compruebe las tasas antes de cobrar.','Verify the rates before collecting payment.'));
+    setFormaSelecionada(moedaInicial==='PYG'?'dinheiro_pyg':moedaInicial==='USD'?'dinheiro_usd':moedaInicial==='EUR'?'dinheiro_eur':'dinheiro_brl');
+    setMoedaTrocoEscolhida(moedaInicial);
+    setValorLancamentoInput(String(cotado));
     setVendaSucesso(false);
     setModalFechamentoAberto(true);
   };
@@ -932,8 +964,16 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       if (!voucherSelecionado) return setModalZen({variante:'danger',titulo:tx('Voucher inválido','Voucher inválido','Invalid voucher'),mensagem:tx('Código não encontrado, já utilizado ou sem saldo.','Código no encontrado, ya utilizado o sin saldo.','Code not found, already used, or has no balance.'),apenasConfirmar:true});
       if (valorNum > Number(voucherSelecionado.saldoBRL || 0) + 0.001) return setModalZen({variante:'warning',titulo:tx('Saldo insuficiente no voucher','Saldo insuficiente en el voucher','Insufficient voucher balance'),mensagem:`${tx('Saldo disponível:','Saldo disponible:','Available balance:')} ${fmt(voucherSelecionado.saldoBRL, 'BRL')}`,apenasConfirmar:true});
     }
-    const valorBRL = converterParaBRL(valorNum, configForma.moedaOrigem);
+    const taxasPagamento=taxasDoCheckoutRef.current||taxasCambio;
+    const taxaPagamento=configForma.moedaOrigem==='BRL'?1:Number(taxasPagamento?.[configForma.moedaOrigem]);
+    if(!(taxaPagamento>0))return mostrarZen('danger',tx('Cotação inválida','Cotización inválida','Invalid exchange quote'),
+      tx('Confira a cotação antes de receber.','Compruebe la cotización antes de cobrar.','Verify exchange quote before payment.'));
+    const valorBRL=valorNum/taxaPagamento;
     if (!Number.isFinite(valorBRL) || valorBRL <= 0) return mostrarZen('danger', tx("Valor inválido","Importe inválido"), tx("Verifique a moeda e a cotação.","Revise la moneda y la cotización."));
+    if (pagamentosLancados.length>0 && taxasDoCheckoutRef.current &&
+        JSON.stringify(taxasDoCheckoutRef.current)!==JSON.stringify(taxasCambio))
+      return mostrarZen('warning',tx('Câmbio alterado','Cambio modificado','Exchange rate changed'),
+        tx('Confira o câmbio antes de continuar o recebimento.','Compruebe el cambio antes de continuar el cobro.','Review exchange rates before continuing.'));
     const recebidoProposto = totalPagoConvertidoBRL + valorBRL;
     const dinheiroProposto = totalDinheiroBRL + (configForma.id.startsWith('dinheiro') ? valorBRL : 0);
     if (validarComposicaoPagamento({ totalBRL: totalFinalBRL, recebidoBRL: recebidoProposto, recebidoDinheiroBRL: dinheiroProposto }).excessoEletronico) {
@@ -966,16 +1006,15 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       moedaOrigem: configForma.moedaOrigem,
       valorOriginal: valorNum,
       valorConvertidoBRL: Math.round(valorBRL * 100) / 100,
-      taxaCambioAplicada: Number(taxasCambio[configForma.moedaOrigem] || 1),
+      taxaCambioAplicada: taxaPagamento,
       voucherCodigo: voucherSelecionado?.codigo || null
     }];
     setPagamentosLancados(novaLista);
     const novoSaldo = Math.max(0, totalFinalBRL - novaLista.reduce((acc, p) => acc + p.valorConvertidoBRL, 0));
-    setValorLancamentoInput(novoSaldo > 0 ? (
-      configForma.moedaOrigem === 'PYG'
-        ? String(Math.ceil(converterDeBRL(novoSaldo, 'PYG')))
-        : converterDeBRL(novoSaldo, configForma.moedaOrigem).toFixed(2)
-    ) : '');
+    const taxaSeguinte=configForma.moedaOrigem==='BRL'?1:Number(taxasPagamento?.[configForma.moedaOrigem]);
+    setValorLancamentoInput(novoSaldo>0 && taxaSeguinte>0
+      ? String(configForma.moedaOrigem==='PYG'?Math.ceil(novoSaldo*taxaSeguinte):Math.round(novoSaldo*taxaSeguinte*100)/100)
+      : '');
     if (configForma.id === 'voucher') setVoucherCodigoInput('');
   };
 
@@ -985,6 +1024,15 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     operacaoEmAndamentoRef.current = true;
     setProcessandoTransacao(true);
     try {
+      if (contratoNativoPDV.ok && pagamentosLancados.length>0 &&
+          taxasDoCheckoutRef.current &&
+          JSON.stringify(taxasDoCheckoutRef.current)!==JSON.stringify(taxasCambio)) {
+        mostrarZen('warning',tx('Câmbio alterado','Cambio modificado','Exchange rate changed'),
+          tx('A cotação mudou durante o fechamento. Confira os pagamentos antes de finalizar.',
+            'La cotización cambió durante el cierre. Compruebe los pagos antes de finalizar.',
+            'Exchange rate changed during checkout. Review payments before finalizing.'));
+        return;
+      }
       let documentoOrigemConfirmado = null;
       if(tipoFinalizacao==='venda' && prePedidoEmAbertoId){
         // Um rascunho de outro operador pode ficar ligado a um pré-pedido
@@ -1139,7 +1187,9 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       if (tipoFinalizacao === 'venda') {
         itensDocumento = itensDocumento.map(item => ({
           ...item,
-          precoNaVenda:{valor:converterDeBRL(Number(item.precoPraticadoBRL||0),moeda),moeda},
+          precoNaVenda:contratoNativoPDV.ok
+            ? {...(item.precoDigitadoOriginal||item.precoOrigemPDV)}
+            : {valor:converterDeBRL(Number(item.precoPraticadoBRL||0),moeda),moeda},
           custoNaVendaBRL: Number.isFinite(Number(item.custoBRL)) && Number(item.custoBRL) >= 0 ? Number(item.custoBRL) : 0,
         }));
       }
@@ -1158,8 +1208,8 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
         ...(tipoFinalizacao === 'venda' ? { finalizadoPorId: idSeguro, finalizadoPorNome: nomeSeguro } : {}),
         sessaoId: tipoFinalizacao === 'venda' ? sessaoAtiva?.id || null : null,
         itens: itensDocumento,
-        moedaDocumento:moeda,
-        totalOriginal:converterDeBRL(totalFinalBRL,moeda),
+        moedaDocumento:contratoNativoPDV.ok?moedaPadrao:moeda,
+        totalOriginal:contratoNativoPDV.ok?contratoNativoPDV.totalOriginal:converterDeBRL(totalFinalBRL,moeda),
 
         totalBRL: totalFinalBRL,
         lucroBRL: tipoFinalizacao === 'venda' ? totalFinalBRL - cmvVendaBRL : lucroEstimadoBRL,
@@ -1852,7 +1902,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
             <input type="checkbox" checked={clienteQuerFiscal} disabled={processandoTransacao || vendaSucesso} onChange={(e) => setClienteQuerFiscal(e.target.checked)} style={{ width: '18px', height: '18px', flexShrink: 0, accentColor: '#38bdf8' }} />
             <span>{tx('Cliente quer nota fiscal / factura legal', 'Cliente solicita factura legal / nota fiscal', 'Customer requests a fiscal document')}<small style={{ display: 'block', color: '#64748b', marginTop: '3px' }}>{tx('Somente registra a solicitação. Não emite documento.', 'Solo registra la solicitud. No emite documentos.', 'Records the request only. Does not issue a document.')}</small></span>
           </label>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#cbd5e1' }}><span>{t('subtotal')}</span><span style={{ fontWeight: 700, color: '#fff' }}>{fmt(subtotalBrutoBRL)}</span></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#cbd5e1' }}><span>{t('subtotal')}</span><span style={{ fontWeight: 700, color: '#fff' }}>{contratoNativoPDV.ok?formatarContratoNativo(contratoNativoPDV.subtotalOriginal):fmt(subtotalBrutoBRL)}</span></div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px', color: '#cbd5e1' }}>
             <span>{t('descontoGlobal')}</span>
             <input type="text" value={descontoTexto} onChange={(e) => setDescontoTexto(e.target.value)} onFocus={(e) => e.target.select()} style={{ width: '75px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', padding: '6px 8px', color: '#fbbf24', fontWeight: 800, fontSize: '14px', textAlign: 'right', outline: 'none' }} />
@@ -1860,8 +1910,13 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
           <div style={{ height: '1px', backgroundColor: '#1e293b', margin: '4px 0' }}></div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '14px', fontWeight: 700, color: '#94a3b8' }}>{t('totalPagar')}</span>
-            <span style={{ fontSize: '28px', fontWeight: 900, color: '#34d399', letterSpacing: '-1px' }}>{fmt(totalFinalBRL)}</span>
+            <span style={{ fontSize: '28px', fontWeight: 900, color: '#34d399', letterSpacing: '-1px' }}>{contratoNativoPDV.ok?formatarContratoNativo(contratoNativoPDV.totalOriginal):fmt(totalFinalBRL)}</span>
           </div>
+          {contratoNativoPDV.ok && moeda !== moedaPadrao && (
+            <div style={{fontSize:12,textAlign:'right',color:'#94a3b8'}}>
+              {tx('Equivalente visual','Equivalente visual','Display equivalent')}: {fmt(totalFinalBRL,moeda)}
+            </div>
+          )}
         </div>
 
         <div style={{ backgroundColor: bgSemafaro, border: `1px solid ${borderSemafaro}`, borderRadius: '16px', padding: '20px' }}>
@@ -2097,7 +2152,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', padding: '16px', gap: '12px', marginBottom: '20px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800 }}>{tx('Total', 'Total', 'Total')}</span>
-                    <div style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff' }}>{fmt(totalFinalBRL, 'BRL')}</div>
+                    <div style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff' }}>{contratoNativoPDV.ok?formatarContratoNativo(contratoNativoPDV.totalOriginal):fmt(totalFinalBRL,'BRL')}</div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800 }}>{tx('Pago', 'Pagado', 'Paid')}</span>
@@ -2126,13 +2181,10 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                     onChange={e => {
                       const novaForma = e.target.value;
                       setFormaSelecionada(novaForma);
-                      const pendenteBRL = Math.max(0, totalFinalBRL - totalPagoConvertidoBRL);
-                      const conf = catalogoFormas.find(f => f.id === novaForma) || catalogoFormas[0];
-                      setValorLancamentoInput(pendenteBRL > 0 ? (
-                        conf.moedaOrigem === 'PYG'
-                          ? String(Math.ceil(converterDeBRL(pendenteBRL, 'PYG')))
-                          : converterDeBRL(pendenteBRL, conf.moedaOrigem).toFixed(2)
-                      ) : '');
+
+                       const conf=catalogoFormas.find(f => f.id === novaForma) || catalogoFormas[0];
+                       const somenteReceber=cotarPendenteNaMoeda(conf.moedaOrigem);
+                       setValorLancamentoInput(somenteReceber==null?'':String(somenteReceber));
                     }}
                     style={{ padding: '14px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '12px', color: '#f8fafc', fontSize: '14px', fontWeight: 800, outline: 'none', cursor: 'pointer', width: '100%', boxSizing: 'border-box' }}
                   >
