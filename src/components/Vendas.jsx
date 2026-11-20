@@ -12,6 +12,8 @@ import ZenShareButton from './ZenShareButton';
 import { normalizarPerfilLoja, larguraCssRecibo } from '../core/storeProfile';
 import { calcularResumoSessao } from '../core/cashSession';
 import { formatarEquivalenciaBRL, moedasAtivasRecibo } from '../core/receiptCurrency';
+import { apresentarVendaHistorica } from '../core/defaultCurrencyPresentation.js';
+import { formatarDinheiroNativo } from '../core/cashHistoryDisplay.js';
 
 export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoesCaixa = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, saldoSessaoFisicoBRL = 0, perfilLoja, vouchers = [], setVouchers, userId, operadorAtivo, historicoVendas, historicoVendasCompleto, setHistoricoVendas, produtos, setProdutos, clientes, setClientes, fmt, t, tx, patenteUsuario, moeda, converterDeBRL }) {
   const [vendaExpandida, setVendaExpandida] = useState(null);
@@ -481,21 +483,25 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
             <div style={{ marginBottom: '8px', fontSize: '11px' }}><strong>{tx('Comanda:','Comanda:','Tab:')}</strong> {cupomParaImprimir.id}<br/><strong>{tx('Cliente:','Cliente:','Customer:')}</strong> {cupomParaImprimir.clienteNome || tx("Consumidor Balcão","Consumidor de mostrador")}</div>
             <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '11px' }}>
-              <thead><tr><th style={{ paddingBottom: '4px' }}>{tx('Qtd','Cant.','Qty')}</th><th style={{ paddingBottom: '4px' }}>{tx('Item','Ítem','Item')}</th><th style={{ textAlign: 'right', paddingBottom: '4px' }}>{tx('Vl.Un','Val.Un','Unit Price')}</th><th style={{ textAlign: 'right', paddingBottom: '4px' }}>{tx('Total','Total','Total')}</th></tr></thead>
+              <thead><tr><th style={{ paddingBottom: '4px' }}>{tx('Qtd','Cant.','Qty')}</th><th style={{ paddingBottom: '4px' }}>{tx('Item','Ítem','Item')}</th><th style={{ textAlign: 'right', paddingBottom: '4px' }}>{tx('Vl.Un (BRL contábil)','Val.Un (BRL contable)','Unit price (accounting BRL)')}</th><th style={{ textAlign: 'right', paddingBottom: '4px' }}>{tx('Total','Total','Total')}</th></tr></thead>
               <tbody>
                 {cupomParaImprimir.itens.map((it, idx) => (
-                  <tr key={idx}><td style={{ verticalAlign: 'top', paddingRight: '4px' }}>{it.qtd}</td><td style={{ verticalAlign: 'top' }}>{(it.nome || '').substring(0, 16)}</td><td style={{ textAlign: 'right', verticalAlign: 'top' }}>{fmt(it.precoPraticadoBRL || 0)}</td><td style={{ textAlign: 'right', verticalAlign: 'top' }}>{fmt((it.precoPraticadoBRL || 0) * (parseInt(it.qtd) || 1))}</td></tr>
+                  <tr key={idx}><td style={{ verticalAlign: 'top', paddingRight: '4px' }}>{it.qtd}</td><td style={{ verticalAlign: 'top' }}>{(it.nome || '').substring(0, 16)}</td><td style={{ textAlign: 'right', verticalAlign: 'top' }}>{fmt(it.precoPraticadoBRL || 0,'BRL')}</td><td style={{ textAlign: 'right', verticalAlign: 'top' }}>{fmt((it.precoPraticadoBRL || 0) * (parseInt(it.qtd) || 1),'BRL')}</td></tr>
                 ))}
               </tbody>
             </table>
             <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '14px' }}><span>{tx('TOTAL','TOTAL','TOTAL')}</span><span>{fmt(cupomParaImprimir.totalBRL)}</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '14px' }}><span>{tx('TOTAL','TOTAL','TOTAL')}</span><span>{apresentarVendaHistorica(cupomParaImprimir).comprovada
+                  ? formatarDinheiroNativo(apresentarVendaHistorica(cupomParaImprimir).valor,apresentarVendaHistorica(cupomParaImprimir).moeda)
+                  : `${fmt(cupomParaImprimir.totalBRL,'BRL')} (BRL contábil)`}</span></div>
             <div style={{marginTop:6,fontSize:'10px'}}>
               {moedasReimpressao.map(codigo => <div key={codigo} style={{display:'flex',justifyContent:'space-between'}}><span>Total {codigo}</span><span>{formatarEquivalenciaBRL(cupomParaImprimir.totalBRL || 0, codigo, cotacoesReimpressao)}</span></div>)}
             </div>
             <div style={{ marginTop: '10px', fontSize: '11px' }}><strong>{tx('Pagamentos:','Pagos:','Payments:')}</strong><br/>
               {cupomParaImprimir.pagamentos && cupomParaImprimir.pagamentos.length > 0 ? (
-                cupomParaImprimir.pagamentos.map((p, idx) => (<div key={idx} style={{ display: 'flex', justifyContent: 'space-between' }}><span>{p.rotulo}</span><span>{fmt(p.valorConvertidoBRL || p.valorOriginal || 0)}</span></div>))
+                cupomParaImprimir.pagamentos.map((p, idx) => (<div key={idx} style={{ display: 'flex', justifyContent: 'space-between' }}><span>{p.rotulo}</span><span>{p.moedaOrigem && typeof p.valorOriginal==='number' && Number.isFinite(p.valorOriginal)
+                    ? formatarDinheiroNativo(p.valorOriginal,p.moedaOrigem)
+                    : `${fmt(Number(p.valorConvertidoBRL)||0,'BRL')} (BRL contábil)`}</span></div>))
               ) : (<div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{cupomParaImprimir.detalhesPagamento || tx('Dinheiro','Efectivo','Cash')}</span></div>)}
             </div>
             <div style={{ borderBottom: '1px dashed #000', margin: '10px 0' }}></div>
@@ -542,7 +548,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
               <th style={{ padding: '16px 12px' }}>{tx('Comanda', 'Recibo', 'Order')}</th>
               <th style={{ padding: '16px 12px' }}>{tx('Cliente', 'Cliente', 'Client')}</th>
               <th style={{ padding: '16px 12px' }}>{tx('Meio de Pgto', 'Medio de Pago', 'Payment Method')}</th>
-              <th style={{ padding: '16px 12px', textAlign: 'right' }}>{tx('Total (R$)','Total (R$)','Total (R$)')}</th>
+              <th style={{ padding: '16px 12px', textAlign: 'right' }}>{tx('Total na moeda registrada','Total en moneda registrada','Total in recorded currency')}</th>
               <th style={{ padding: '16px 12px', textAlign: 'center' }}>{tx('Status','Estado','Status')}</th>
               <th style={{ padding: '16px 20px', textAlign: 'right' }}>{tx('Ações', 'Acciones', 'Actions')}</th>
             </tr>
@@ -558,7 +564,9 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
                     <td style={{ padding: '16px 12px', fontWeight: 800, color: '#38bdf8' }}>{venda.id}</td>
                     <td style={{ padding: '16px 12px', color: '#f8fafc', fontWeight: 700 }}>{venda.clienteNome}</td>
                     <td style={{ padding: '16px 12px', color: '#94a3b8', fontSize: '11px' }}>{venda.detalhesPagamento}</td>
-                    <td style={{ padding: '16px 12px', textAlign: 'right', fontWeight: 900, color: venda.estado === 'cancelada' ? '#64748b' : '#34d399', fontSize: '15px' }}>{fmt(obterFinanceiroVenda(venda).totalLiquidoBRL, 'BRL')}</td>
+                    <td style={{ padding: '16px 12px', textAlign: 'right', fontWeight: 900, color: venda.estado === 'cancelada' ? '#64748b' : '#34d399', fontSize: '15px' }}>{apresentarVendaHistorica(venda).comprovada
+                       ? formatarDinheiroNativo(apresentarVendaHistorica(venda).valor,apresentarVendaHistorica(venda).moeda)
+                       : `${fmt(obterFinanceiroVenda(venda).totalLiquidoBRL,'BRL')} (BRL contábil)`}</td>
                     <td style={{ padding: '16px 12px', textAlign: 'center' }}>
                       {venda.estado === 'cancelada' ? <span style={{ backgroundColor: 'rgba(244, 63, 94, 0.1)', color: '#f43f5e', border: '1px solid #f43f5e', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>{tx('Cancelada Total', 'Cancelada', 'Canceled')}</span>
                       : ehDocumentoPendente(venda) ? <span style={{background:'rgba(59,130,246,.1)',color:'#93c5fd',border:'1px solid #2563eb',padding:'4px 10px',borderRadius:6,fontSize:11,fontWeight:800}}>{venda.tipoDocumento==='pre_pedido'?tx("Pré-pedido","Pedido anticipado"):tx("Orçamento","Presupuesto")}</span>
