@@ -89,6 +89,7 @@ import { calcularConciliacaoFisicaMultimoeda } from './core/cashReconciliation';
 import { obterComposicaoHistoricaCaixa, formatarDinheiroNativo } from './core/cashHistoryDisplay';
 import { apresentarMovimentoNaMoedaPadrao } from './core/defaultCurrencyPresentation.js';
 import { apurarFiadoMoedaPadrao } from './core/defaultCurrencyCreditCard.js';
+import { resolverMoedaExibidaAoCarregarConfiguracao } from './core/storeDefaultCurrency.js';
 import { normalizarRegrasComissao, REGRAS_COMISSAO_PADRAO } from './core/commissionEngine';
 import { normalizarRegrasMargem } from './core/profitability';
 import { patenteEfetivaOperador } from './core/accessControl';
@@ -829,10 +830,10 @@ export default function App() {
         const primeiraConfigDaSessao = !moedaPadraoInicialCarregadaRef.current;
         const padraoAnterior = moedaPadraoAnteriorRef.current;
         const escolhaManual = moedaEscolhaManualRef.current;
-        setMoeda(prev => {
-          if (primeiraConfigDaSessao) return escolhaManual ? prev : moedaConfig;
-          return !escolhaManual && prev===padraoAnterior ? moedaConfig : prev;
-        });
+        setMoeda(prev => resolverMoedaExibidaAoCarregarConfiguracao({
+          visivelAtual:prev, padraoAnterior, padraoSalvo:moedaConfig,
+          primeiraConfiguracao:primeiraConfigDaSessao, escolhaManual
+        }));
         moedaPadraoAnteriorRef.current = moedaConfig;
         moedaPadraoInicialCarregadaRef.current = true;
         setMoedaPadrao(moedaConfig);
