@@ -5,9 +5,8 @@ import ZenShareButton from './ZenShareButton';
 import { formaEhDinheiro, lancamentosDoCliente } from '../core/financialLedger';
 import { interpretarValorMonetario } from '../core/cashMoneyInput';
 import { auditarVinculosFiado, encontrarConflitosIdsRecebimento } from '../core/clientCreditLinkAudit';
-import { criarSnapshotMonetario } from '../core/nativeMoneyEvents.js';
 
-export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, historicoVendas = [], setClientes, moeda, moedaPadrao='BRL', taxasCambio={}, fmt, t, tx = (pt) => pt, converterDeBRL, converterParaBRL }) {
+export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, historicoVendas = [], setClientes, moeda, fmt, t, tx = (pt) => pt, converterDeBRL, converterParaBRL }) {
   const [filtroPaisCliente, setFiltroPaisCliente] = useState('todos');
   const [buscaClienteTexto, setBuscaClienteTexto] = useState('');
   
@@ -154,9 +153,8 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
   // FLUXO DE RECEBER CONTA / FIADO
   const abrirRecebimentoFiado = (cli) => {
     setClienteReceberFiado(cli);
-    // A dívida BRL contábil não comprova uma quantia física PYG.
-    setValorAmortizacaoInput(moedaPadrao==='BRL' && cli.saldoDevedorBRL > 0 ? String(cli.saldoDevedorBRL) : '');
-    setFormaAmortizacaoSel(['BRL','PYG','USD','EUR'].includes(moedaPadrao) ? 'dinheiro_'+moedaPadrao.toLowerCase() : 'dinheiro_brl');
+    setValorAmortizacaoInput(cli.saldoDevedorBRL > 0 ? String(cli.saldoDevedorBRL) : '');
+    setFormaAmortizacaoSel('dinheiro_brl');
     setModalReceberFiadoAberto(true);
   };
 
@@ -185,10 +183,10 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
         detalhes:conflitosVinculo.slice(0,3).map(c=>`Venda ${c.vendaId}: ID na venda ${c.clienteIdVenda} / ID no financeiro ${c.clienteIdFinanceiro}`),apenasConfirmar:true});
     }
     const formaCfg = catalogoFormas.find(f => f.id === formaAmortizacaoSel) || catalogoFormas[0];
-    const leitura = criarSnapshotMonetario({valorOriginal:valorAmortizacaoInput,moedaOrigem:formaCfg.moedaOrigem,taxasCambio});
-    if (!leitura.ok) return setModalZen({ variante:'warning', titulo:tx("Valor ou câmbio não comprovado","Importe o cambio no verificado","Amount or exchange rate unverified"), mensagem:leitura.erro, apenasConfirmar:true });
-    const valorOriginal = leitura.valorOriginal;
-    const valBRL = leitura.valorConvertidoBRL;
+    const leitura = interpretarValorMonetario(valorAmortizacaoInput, formaCfg.moedaOrigem);
+    if (!leitura.ok) return setModalZen({ variante:'warning', titulo:tx("Valor monetário inválido","Importe monetario inválido"), mensagem:leitura.erro, apenasConfirmar:true });
+    const valorOriginal = leitura.valor;
+    const valBRL = converterParaBRL(valorOriginal, formaCfg.moedaOrigem || moeda);
     if (valBRL <= 0) return setModalZen({ variante:'warning', titulo:tx('Valor inválido','Valor inválido','Invalid amount'), mensagem:tx('Informe um valor válido para recebimento.','Informe un valor válido para el cobro.','Enter a valid amount to receive.'), apenasConfirmar:true });
 
     const saldoAntes = Number(clienteReceberFiado?.saldoDevedorBRL || 0);
@@ -216,10 +214,7 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
       valorBRL: valBRL,
       detalhesMoedas: { [formaCfg.moedaOrigem || 'BRL']: valorOriginal },
       detalhesMoedasNativas: { [formaCfg.moedaOrigem || 'BRL']: valorOriginal },
-      taxaCambioAplicada: leitura.taxaCambioAplicada,
-      moedaOrigem: leitura.moedaOrigem,
-      valorOriginal,
-      taxasCambioMovimento: {...taxasCambio},
+      taxaCambioAplicada: valorOriginal > 0 && valBRL > 0 ? valorOriginal / valBRL : null,
       descricao: `Recebimento fiado • ${clienteReceberFiado.nome}`,
       clienteId: clienteReceberFiado.id,
       operador: operadorAtivo?.nome || 'Administrador',
@@ -232,7 +227,7 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
       referenciaId: recebimentoId,
       valor: valBRL,
       formaPagamento: formaAmortizacaoSel,
-      detalhes: {moedaOrigem:formaCfg.moedaOrigem,valorOriginal,taxaCambioAplicada:leitura.taxaCambioAplicada},
+      detalhes: {moedaOrigem:formaCfg.moedaOrigem,valorOriginal,taxaCambioAplicada:valorOriginal/valBRL},
       createdAt,
       afetaCaixaFisico: dinheiroFisico,
       afetaResultado: false,
@@ -258,7 +253,6 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
           changes, financialEntries:[financeiro],
           guards: [
             { type:'client_receipt_snapshot', clientId:clienteAtual.id, clientName:clienteAtual.nome, balanceBRL:saldoAntes },
-            ...(formaCfg.moedaOrigem!=='BRL' ? [{type:'money_exchange_rates_match',taxas:{...taxasCambio}}] : []),
             ...(dinheiroFisico ? [{ type:'cash_session_open', sessionId:sessaoAtiva.id }] : []),
           ],
           operationKey: 'recebimento-fiado:' + recebimentoId,
@@ -286,7 +280,7 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
 
   const abrirWhatsApp = (cli) => {
     if (!cli.telefone) return setModalZen({ variante:'warning', titulo:tx('Telefone não cadastrado','Teléfono no registrado','Phone not registered'), mensagem:tx('Este cliente não possui telefone/WhatsApp cadastrado.','Este cliente no posee teléfono/WhatsApp registrado.','This customer has no phone/WhatsApp registered.'), apenasConfirmar:true });
-    const msg = encodeURIComponent(`${tx('Olá','Hola','Hello')}, ${cli.nome}! ${tx('O saldo contábil registrado da sua conta é de','El saldo contable registrado de su cuenta es de','Your recorded accounting balance is')} R$ ${(cli.saldoDevedorBRL || 0).toFixed(2)}.`);
+    const msg = encodeURIComponent(`${tx('Olá','Hola','Hello')}, ${cli.nome}! ${tx('O saldo da sua conta é de','El saldo de su cuenta es de','Your account balance is')} R$ ${(cli.saldoDevedorBRL || 0).toFixed(2)}.`);
     window.open(`https://wa.me/${cli.telefone.replace(/\D/g, '')}?text=${msg}`, '_blank');
   };
 
@@ -543,16 +537,16 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
             
             <div style={{ backgroundColor: '#020617', padding: '16px', borderRadius: '12px', marginBottom: '20px', border: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase' }}>{tx('Saldo contábil registrado (BRL):','Saldo contable registrado (BRL):','Recorded accounting balance (BRL):')}</div>
-                <div style={{ fontSize: '18px', fontWeight: 900, color: '#fb7185' }}>{fmt(clienteReceberFiado.saldoDevedorBRL, 'BRL')}</div>
+                <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase' }}>{tx('Dívida Atual:','Deuda Actual:','Current Debt:')}</div>
+                <div style={{ fontSize: '18px', fontWeight: 900, color: '#fb7185' }}>{fmt(clienteReceberFiado.saldoDevedorBRL, moeda)}</div>
               </div>
             </div>
             
-            <label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800 }}>{tx('Valor efetivamente recebido','Importe realmente recibido','Actual received amount')} ({catalogoFormas.find(f=>f.id===formaAmortizacaoSel)?.moedaOrigem || 'BRL'}):</label>
+            <label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800 }}>{tx("Valor a Receber / Quitar (","Importe a cobrar / liquidar (")}{moeda}):</label>
             <input type="text" ref={inputValorAmortizacaoRef} value={valorAmortizacaoInput} onChange={e => setValorAmortizacaoInput(e.target.value)} placeholder="0.00" onFocus={e=>e.target.select()} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #10b981', borderRadius: '12px', color: '#34d399', fontSize: '24px', fontWeight: 900, textAlign: 'center', padding: '14px', outline: 'none', marginTop: '8px', marginBottom: '16px', boxSizing: 'border-box' }} autoFocus />
 
             <label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800 }}>{tx('Forma de Recebimento:','Forma de Cobro:','Payment Method:')}</label>
-            <select value={formaAmortizacaoSel} onChange={e => {setFormaAmortizacaoSel(e.target.value);setValorAmortizacaoInput('');}} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '12px', outline: 'none', marginTop: '6px', marginBottom: '24px', boxSizing: 'border-box' }}>
+            <select value={formaAmortizacaoSel} onChange={e => setFormaAmortizacaoSel(e.target.value)} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff', padding: '12px', outline: 'none', marginTop: '6px', marginBottom: '24px', boxSizing: 'border-box' }}>
               {catalogoFormas.map(f => (
                 <option key={f.id} value={f.id}>
                   {f.icone} {f.rotulo}
