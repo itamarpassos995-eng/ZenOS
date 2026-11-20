@@ -1902,7 +1902,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
             <input type="checkbox" checked={clienteQuerFiscal} disabled={processandoTransacao || vendaSucesso} onChange={(e) => setClienteQuerFiscal(e.target.checked)} style={{ width: '18px', height: '18px', flexShrink: 0, accentColor: '#38bdf8' }} />
             <span>{tx('Cliente quer nota fiscal / factura legal', 'Cliente solicita factura legal / nota fiscal', 'Customer requests a fiscal document')}<small style={{ display: 'block', color: '#64748b', marginTop: '3px' }}>{tx('Somente registra a solicitação. Não emite documento.', 'Solo registra la solicitud. No emite documentos.', 'Records the request only. Does not issue a document.')}</small></span>
           </label>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#cbd5e1' }}><span>{t('subtotal')}</span><span style={{ fontWeight: 700, color: '#fff' }}>{fmt(subtotalBrutoBRL)}</span></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: '#cbd5e1' }}><span>{t('subtotal')}</span><span style={{ fontWeight: 700, color: '#fff' }}>{contratoNativoPDV.ok?formatarContratoNativo(contratoNativoPDV.subtotalOriginal):fmt(subtotalBrutoBRL)}</span></div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px', color: '#cbd5e1' }}>
             <span>{t('descontoGlobal')}</span>
             <input type="text" value={descontoTexto} onChange={(e) => setDescontoTexto(e.target.value)} onFocus={(e) => e.target.select()} style={{ width: '75px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', padding: '6px 8px', color: '#fbbf24', fontWeight: 800, fontSize: '14px', textAlign: 'right', outline: 'none' }} />
@@ -1910,8 +1910,13 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
           <div style={{ height: '1px', backgroundColor: '#1e293b', margin: '4px 0' }}></div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '14px', fontWeight: 700, color: '#94a3b8' }}>{t('totalPagar')}</span>
-            <span style={{ fontSize: '28px', fontWeight: 900, color: '#34d399', letterSpacing: '-1px' }}>{fmt(totalFinalBRL)}</span>
+            <span style={{ fontSize: '28px', fontWeight: 900, color: '#34d399', letterSpacing: '-1px' }}>{contratoNativoPDV.ok?formatarContratoNativo(contratoNativoPDV.totalOriginal):fmt(totalFinalBRL)}</span>
           </div>
+          {contratoNativoPDV.ok && moeda !== moedaPadrao && (
+            <div style={{fontSize:12,textAlign:'right',color:'#94a3b8'}}>
+              {tx('Equivalente visual','Equivalente visual','Display equivalent')}: {fmt(totalFinalBRL,moeda)}
+            </div>
+          )}
         </div>
 
         <div style={{ backgroundColor: bgSemafaro, border: `1px solid ${borderSemafaro}`, borderRadius: '16px', padding: '20px' }}>
@@ -2147,7 +2152,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', padding: '16px', gap: '12px', marginBottom: '20px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800 }}>{tx('Total', 'Total', 'Total')}</span>
-                    <div style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff' }}>{fmt(totalFinalBRL, 'BRL')}</div>
+                    <div style={{ fontSize: '18px', fontWeight: 900, color: '#ffffff' }}>{contratoNativoPDV.ok?formatarContratoNativo(contratoNativoPDV.totalOriginal):fmt(totalFinalBRL,'BRL')}</div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800 }}>{tx('Pago', 'Pagado', 'Paid')}</span>
