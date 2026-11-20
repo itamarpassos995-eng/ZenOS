@@ -1220,6 +1220,8 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
         sessaoId: tipoFinalizacao === 'venda' ? sessaoAtiva?.id || null : null,
         itens: itensDocumento,
         moedaDocumento:contratoNativoPDV.ok?moedaPadrao:moeda,
+        ...(contratoNativoPDV.ok ? {versaoMonetaria:1,origemPreco:'preco_nativo_documentado',
+          cotacaoContabilDocumento: {...(taxasDoCheckoutRef.current||taxasCambio)}} : {}),
         totalOriginal:contratoNativoPDV.ok?contratoNativoPDV.totalOriginal:converterDeBRL(totalFinalBRL,moeda),
 
         totalBRL: totalFinalBRL,
