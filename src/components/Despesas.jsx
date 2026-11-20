@@ -394,7 +394,13 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
                     <span style={{ backgroundColor: '#020617', border: '1px solid #334155', color: '#94a3b8', padding: '4px 8px', borderRadius: '6px', fontSize: '11px' }}>{d.categoria}</span>
                   </td>
                   <td style={{ padding: '16px 12px', textAlign: 'right', fontWeight: 900, color: d.status === 'paga' ? '#64748b' : '#f43f5e', fontSize: '15px' }}>
-                    {fmt(d.valorBRL, 'BRL')}
+                    {d.moedaOrigem && Number.isFinite(d.valorOriginal)
+                      ? formatarDinheiroNativo(d.valorOriginal,d.moedaOrigem)
+                      : `${fmt(d.valorBRL,'BRL')} (BRL contábil)`}
+                    {d.moedaOrigem && Number.isFinite(d.valorOriginal) &&
+                      <div style={{fontSize:10,color:'#94a3b8',marginTop:3}}>
+                        {tx('Equivalente registrado','Equivalente registrado','Recorded equivalent')}: {fmt(d.valorBRL,'BRL')}
+                      </div>}
                   </td>
                   <td style={{ padding: '16px 12px', textAlign: 'center' }}>
                     {d.status === 'paga' 
@@ -475,7 +481,9 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
             <h3 style={{ fontSize: '18px', fontWeight: 900, margin: '0 0 16px 0', color: '#34d399' }}>{tx('Baixar Pagamento','Registrar Pago','Post Payment')}</h3>
             <div style={{ backgroundColor: '#020617', padding: '16px', borderRadius: '12px', marginBottom: '20px', border: '1px solid #1e293b' }}>
               <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '4px' }}>{despesaParaPagar.descricao}</div>
-              <div style={{ fontSize: '24px', fontWeight: 900, color: '#f8fafc' }}>{fmt(despesaParaPagar.valorBRL, 'BRL')}</div>
+              <div style={{ fontSize: '24px', fontWeight: 900, color: '#f8fafc' }}>{despesaParaPagar.moedaOrigem && Number.isFinite(despesaParaPagar.valorOriginal)
+                    ? formatarDinheiroNativo(despesaParaPagar.valorOriginal,despesaParaPagar.moedaOrigem)
+                    : `${fmt(despesaParaPagar.valorBRL,'BRL')} (BRL contábil)`}</div>
             </div>
             
             <label style={{ fontSize: '11px', color: '#cbd5e1', fontWeight: 800 }}>{tx('De onde saiu o dinheiro?','¿De dónde salió el dinero?','Where did the money come from?')}</label>
@@ -489,6 +497,15 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
             <select value={moedaPagamento} onChange={e=>{setMoedaPagamento(e.target.value);setValorPagamento('');}} style={{width:'100%',padding:11,marginTop:6,marginBottom:12,background:'#020617',color:'#fff',border:'1px solid #334155',borderRadius:8}}><option value="">{tx('Selecione a moeda','Seleccione moneda','Select currency')}</option>{['BRL','PYG','USD','EUR'].map(c=><option key={c} value={c}>{c}</option>)}</select>
             <label style={{fontSize:11,color:'#cbd5e1'}}>{tx('Valor efetivamente pago','Importe realmente pagado','Actual amount paid')}</label>
             <input value={valorPagamento} onChange={e=>setValorPagamento(e.target.value)} inputMode="decimal" placeholder="0" style={{width:'100%',boxSizing:'border-box',padding:11,marginTop:6,marginBottom:14,background:'#020617',color:'#fff',border:'1px solid #334155',borderRadius:8}}/>
+            {moedaPagamento && valorPagamento && (() => {
+              const parcial=validarLiquidacaoMultimoeda({valorDevidoBRL:Number(despesaParaPagar.valorBRL),
+                valorFisico:valorPagamento,moedaFisica:moedaPagamento,taxasCambio});
+              return <div role="status" style={{fontSize:11,color:parcial.ok?'#34d399':'#fbbf24',marginBottom:12}}>
+                {parcial.ok
+                  ? `${tx('Valor validado','Importe validado','Verified amount')}: ${parcial.valorOriginal} ${parcial.moedaOrigem} · ${tx('Cotação aplicada','Cotización aplicada','Applied rate')}: ${parcial.taxaCambioAplicada} · ${fmt(parcial.valorConvertidoBRL,'BRL')}`
+                  : parcial.erro}
+              </div>;
+            })()}
             <div style={{ display: 'flex', gap: '12px' }}>
               <button onClick={() => setModalPagamentoAberto(false)} style={{ flex: 1, backgroundColor: '#020617', border: '1px solid #1e293b', color: '#94a3b8', padding: '12px', borderRadius: '10px', fontWeight: 800, cursor: 'pointer' }}>{tx('Cancelar','Cancelar','Cancel')}</button>
               <button onClick={confirmarPagamento} style={{ flex: 2, background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none', color: '#ffffff', padding: '12px', borderRadius: '10px', fontWeight: 900, cursor: 'pointer' }}>{tx('Confirmar Pago','Confirmar Pago','Confirm Paid')}</button>
