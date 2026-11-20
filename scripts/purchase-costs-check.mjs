@@ -154,7 +154,7 @@ assert.ok(
   /const financeiro = obterFinanceiroVenda\(venda\);[\s\S]{0,250}acc\.cmv \+= financeiro\.cmvLiquidoBRL/.test(app),
   'O painel deve calcular CMV líquido via obterFinanceiroVenda',
 );
-assert.match(app, /<span>CMV<\/span>/);
+assert.match(app, /CMV · BRL contábil/);
 
 console.log('Compra, rateio, custo médio, snapshots, CMV, margem, comissão, devolução, painel e compatibilidade: 15/15 grupos aprovados.');
 
