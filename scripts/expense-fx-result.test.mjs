@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {apurarDespesasEVariacaoCambial} from '../src/core/expenseFxResult.js';
+import {apurarDespesasEVariacaoCambial,apurarVariacaoCambialDevolucoes} from '../src/core/expenseFxResult.js';
 
 test('perda FX de 0,99 em PYG afeta resultado uma única vez, sem alterar preço nativo',()=>{
  const d={id:'d',status:'paga',valorBRL:21.74,moedaOrigem:'PYG',valorOriginal:25000,
@@ -36,4 +36,16 @@ test('painel incorpora diferença apenas do pagamento no período',()=>{
  const app=readFileSync(new URL('../src/App.jsx',import.meta.url),'utf8');
  assert.match(app,/apurarDespesasEVariacaoCambial\(despesas/);
  assert.match(app,/const despesasPagasBRL = apuracaoDespesas\.despesaRealizadaBRL/);
+});
+
+test('FX de devolução afeta resultado sem modificar o valor nominal da venda',()=>{
+ const vendas=[{id:'v',moedaDocumento:'PYG',totalOriginal:25000,devolucoes:[
+   {id:'a',createdAt:'2026-11-20',valorBRL:21.74,moedaVendaOriginal:'PYG',
+    valorDevolvidoContratoOriginal:25000,diferencaCambialBRL:0.99}]}];
+ const atual=apurarVariacaoCambialDevolucoes(vendas,d=>d.createdAt==='2026-11-20');
+ assert.deepEqual(atual,{variacaoCambialBRL:0.99,quantidade:1});
+ assert.equal(vendas[0].totalOriginal,25000);
+ assert.equal(apurarVariacaoCambialDevolucoes(vendas,d=>d.createdAt==='2026-11-19').variacaoCambialBRL,0);
+ const app=readFileSync(new URL('../src/App.jsx',import.meta.url),'utf8');
+ assert.match(app,/lucroBrutoBRL - despesasPagasBRL - apuracaoCambioDevolucoes\.variacaoCambialBRL/);
 });
