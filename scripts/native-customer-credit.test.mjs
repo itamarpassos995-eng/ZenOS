@@ -32,7 +32,10 @@ test('cliente antigo pode ter legado BRL separado de dívida nativa sem converte
 test('recebimentos repetidos e valores incorretos são bloqueados',()=>{
  const c=preparar();
  assert.throws(()=>receberCreditoNativoCliente({cliente:c,contaId:'V1',recebimentoId:'X',moedaPagamento:'BRL',
-  valorPagamentoOriginal:25,taxasConfirmadas:b,registradaEm:data}),/divergente/);
+  valorPagamentoOriginal:28,taxasConfirmadas:b,registradaEm:data}),/excede saldo/);
+ const parcial=receberCreditoNativoCliente({cliente:c,contaId:'V1',recebimentoId:'PARCIAL',moedaPagamento:'BRL',
+  valorPagamentoOriginal:25,taxasConfirmadas:b,registradaEm:data});
+ assert.equal(parcial.depois.saldoNativo,2500);
  const r=receberCreditoNativoCliente({cliente:c,contaId:'V1',recebimentoId:'REC',moedaPagamento:'PYG',
   valorPagamentoOriginal:10000,taxasConfirmadas:b,registradaEm:data});
  assert.throws(()=>receberCreditoNativoCliente({cliente:r.cliente,contaId:'V1',recebimentoId:'REC',moedaPagamento:'PYG',
