@@ -205,7 +205,7 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
     if (dinheiro && !['BRL','PYG','USD','EUR'].includes(pagamentoNativo.moedaOrigem))
       return avisarZen('danger',tx('Moeda inválida','Moneda inválida','Invalid currency'),tx('Selecione a moeda realmente entregue.','Seleccione la moneda realmente entregada.','Select the actual paid currency.'));
     if (dinheiro && !sessaoAtiva) return setModalZen({ variante:'danger', titulo:tx('Caixa fechado','Caja cerrada','Register closed'), mensagem:tx('Para pagar uma despesa em dinheiro é necessário um turno de caixa aberto.','Para pagar un gasto en efectivo es necesario un turno de caja abierto.','An open cash shift is required to pay an expense in cash.'), apenasConfirmar:true });
-    if (dinheiro && valor > Number(saldoSessaoFisicoBRL || 0) + 0.001) return setModalZen({ variante:'danger', titulo:tx('Saldo insuficiente na gaveta','Saldo insuficiente en caja','Insufficient drawer balance'), mensagem:tx('Saldo insuficiente para esta saída. O saldo esperado permanece oculto até o fechamento cego.','Saldo insuficiente para esta salida. El saldo esperado permanece oculto hasta el cierre ciego.','Insufficient balance for this payment. The expected balance remains hidden until blind closeout.'), detalhes:[`${tx('Despesa:','Gasto:','Expense:')} ${fmt(valor,'BRL')}`], apenasConfirmar:true });
+    if (dinheiro && pagamentoNativo.moedaOrigem==='BRL' && valor > Number(saldoSessaoFisicoBRL || 0) + 0.001) return setModalZen({ variante:'danger', titulo:tx('Saldo insuficiente na gaveta','Saldo insuficiente en caja','Insufficient drawer balance'), mensagem:tx('Saldo insuficiente para esta saída. O saldo esperado permanece oculto até o fechamento cego.','Saldo insuficiente para esta salida. El saldo esperado permanece oculto hasta el cierre ciego.','Insufficient balance for this payment. The expected balance remains hidden until blind closeout.'), detalhes:[`${tx('Despesa:','Gasto:','Expense:')} ${fmt(valor,'BRL')}`], apenasConfirmar:true });
 
     const createdAt = new Date().toISOString();
     const despesasPropostas = despesas.map(d => d.id === despesaParaPagar.id ? { ...d, status:'paga', dataPagamento:createdAt, formaPagamento,
@@ -274,7 +274,7 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
         if (mov) changes.push({ field:'caixaMovimentos', value:caixaProposto, storageSuffix:'caixa_movs' });
         const guards = dinheiro ? [
           { type:'cash_session_open', sessionId:sessaoAtiva.id },
-          { type:'cash_balance_at_least', sessionId:sessaoAtiva.id, amount:valor, message:'O saldo físico do caixa mudou em outro terminal. O pagamento foi bloqueado.' },
+          ...(pagamentoNativo.moedaOrigem==='BRL' ? [{ type:'cash_balance_at_least', sessionId:sessaoAtiva.id, amount:valor, message:'O saldo físico do caixa mudou em outro terminal. O pagamento foi bloqueado.' }] : []),
           { type:'cash_native_balance_at_least', sessionId:sessaoAtiva.id,
             valoresNativos:{[pagamentoNativo.moedaOrigem]:pagamentoNativo.valorOriginal},taxas:{...taxasCambio} },
         ] : [];
