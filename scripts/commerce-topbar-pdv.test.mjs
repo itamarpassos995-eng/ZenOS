@@ -53,6 +53,20 @@ test('nenhum arquivo de persistência Firestore nem regras foi modificado',()=>{
  const uiOnlyCore=new Set(['src/core/uiLanguage.js','src/core/useUiLanguage.js','src/core/fiscalErrorUi.js']);
  // Exceção pontual: este PR corrige a reconciliação física multimoeda.
  // O módulo permanece puro e não pode passar a consultar Firestore.
+ const nativeMoneyModules=new Map([
+  ['src/core/monetaryContract.js','scripts/monetary-contract.test.mjs'],
+  ['src/core/nativeCustomerCredit.js','scripts/native-customer-credit.test.mjs'],
+  ['src/core/nativeSalesSummary.js','scripts/native-sales-summary.test.mjs'],
+  ['src/core/pdvNativeCheckout.js','scripts/pdv-native-checkout.test.mjs']
+ ]);
+ for(const [modulePath,regressionPath] of nativeMoneyModules){
+  if(!changed.includes(modulePath))continue;
+  assert.doesNotMatch(read(modulePath),
+    /firebase\/firestore|\bonSnapshot\s*\(|\bgetDocs(?:FromServer)?\s*\(|\bgetDoc(?:FromServer)?\s*\(|\brunTransaction\s*\(/,
+    'Motor monetário nativo deve ser puro e não pode consultar Firebase');
+  assert.ok(changed.includes(regressionPath),
+    'Toda alteração monetária nativa exige teste próprio: '+modulePath);
+ }
  const allowedFinancialCore='src/core/cashReconciliation.js';
  const allowedCashGuard='src/core/productionSync.js';
  const allowedReadOnlyAudit='src/core/financialAudit.js';
@@ -114,7 +128,7 @@ test('nenhum arquivo de persistência Firestore nem regras foi modificado',()=>{
    /(^|\/)firestore[^/]*\.rules$/.test(path)||
    /^src\/firebase[^/]*\.[jt]s$/.test(path)||
    /^functions\//.test(path)||
-   (/^src\/core\//.test(path)&&!uiOnlyCore.has(path)&&path!==allowedFinancialCore&&path!==allowedCashGuard&&path!==allowedReadOnlyAudit&&path!==allowedCashHistory&&path!==allowedInventory&&path!==allowedCardSettlement&&path!==allowedCashMoney&&!correctionModules.has(path)&&path!=='src/core/operationalRepository.js'&&path!=='src/core/operationalCache.js'&&path!=='src/core/financialPeriod.js'&&path!=='src/core/terminalAccess.js')
+   (/^src\/core\//.test(path)&&!uiOnlyCore.has(path)&&path!==allowedFinancialCore&&path!==allowedCashGuard&&path!==allowedReadOnlyAudit&&path!==allowedCashHistory&&path!==allowedInventory&&path!==allowedCardSettlement&&path!==allowedCashMoney&&!nativeMoneyModules.has(path)&&!correctionModules.has(path)&&path!=='src/core/operationalRepository.js'&&path!=='src/core/operationalCache.js'&&path!=='src/core/financialPeriod.js'&&path!=='src/core/terminalAccess.js')
  );
  assert.deepEqual(protectedPaths,[],'A mudança visual não pode alterar persistência nem regras');
 });
