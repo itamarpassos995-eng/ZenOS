@@ -79,38 +79,42 @@ export function validarPagamentoObrigacaoNativa({
  * currency rounding drift across separate returns. No native identity is
  * inferred for legacy documents.
  */
-export function validarReembolsoVendaNativa({
-  venda, valorEstornoBRL, moedaFisica, valorFisico, taxasCambio
-}) {
-  if (!Number.isFinite(valorEstornoBRL) || valorEstornoBRL <= 0)
+export function calcularValorReembolsoNativo(venda,valorEstornoBRL) {
+  if (!Number.isFinite(valorEstornoBRL) || valorEstornoBRL<=0)
     return {ok:false,erro:'Valor de devolução inválido.'};
-  const moedaOriginal = venda?.moedaDocumento;
-  const valorOriginal = venda?.totalOriginal;
-  const totalBrutoBRL = obterFinanceiroVenda(venda||{}).totalBrutoBRL;
-  if (!MOEDAS_CAIXA.includes(moedaOriginal) || typeof valorOriginal!=='number' ||
+  const moedaOrigem=venda?.moedaDocumento;
+  const valorOriginal=venda?.totalOriginal;
+  const financeiro=obterFinanceiroVenda(venda||{});
+  const totalBrutoBRL=financeiro.totalBrutoBRL;
+  if (!MOEDAS_CAIXA.includes(moedaOrigem) || typeof valorOriginal!=='number' ||
       !Number.isFinite(valorOriginal) || valorOriginal<=0 ||
-      !Number.isFinite(totalBrutoBRL) || totalBrutoBRL<=0) {
-    // An undocumented old sale has ONLY its confirmed BRL ledger obligation.
-    // The operator still explicitly chooses actual payout currency; no source
-    // PYG amount can be reconstructed from the current exchange rate.
-    return validarLiquidacaoMultimoeda({
-      valorDevidoBRL:valorEstornoBRL,valorFisico,moedaFisica,taxasCambio});
-  }
-  const devolvidoAnteriorBRL=obterFinanceiroVenda(venda||{}).valorDevolvidoBRL;
+      !Number.isFinite(totalBrutoBRL) || totalBrutoBRL<=0)
+    return {ok:false,erro:'Moeda original da venda não comprovada.'};
+  const devolvidoAnteriorBRL=financeiro.valorDevolvidoBRL;
   if (!Number.isFinite(devolvidoAnteriorBRL)||devolvidoAnteriorBRL<0||
       devolvidoAnteriorBRL+valorEstornoBRL>totalBrutoBRL+0.011)
     return {ok:false,erro:'Devolução supera o saldo original da venda.'};
-  const fator = moedaOriginal==='PYG' ? 1 : 100;
-  const quotaAntiga = Math.round(valorOriginal * Math.min(1,devolvidoAnteriorBRL/totalBrutoBRL)*fator)/fator;
-  const quotaNova = Math.round(valorOriginal * Math.min(1,(devolvidoAnteriorBRL+valorEstornoBRL)/totalBrutoBRL)*fator)/fator;
-  const valorContratualDevolver = Math.round((quotaNova-quotaAntiga)*fator)/fator;
-  if (valorContratualDevolver <= 0)
-    return {ok:false,erro:'Devolução nativa não representável para esta parcela.'};
+  const fator=moedaOrigem==='PYG'?1:100;
+  const quotaAntiga=Math.round(valorOriginal*Math.min(1,devolvidoAnteriorBRL/totalBrutoBRL)*fator)/fator;
+  const quotaNova=Math.round(valorOriginal*Math.min(1,(devolvidoAnteriorBRL+valorEstornoBRL)/totalBrutoBRL)*fator)/fator;
+  const valorNativo=Math.round((quotaNova-quotaAntiga)*fator)/fator;
+  if(valorNativo<=0)return {ok:false,erro:'Parcela da devolução não representável na moeda original.'};
+  return {ok:true,moedaOrigem,valorOriginal:valorNativo,valorContabilHistoricoBRL:valorEstornoBRL};
+}
+
+export function validarReembolsoVendaNativa({venda,valorEstornoBRL,moedaFisica,valorFisico,taxasCambio}) {
+  const nominal=calcularValorReembolsoNativo(venda,valorEstornoBRL);
+  if(!nominal.ok){
+    if(nominal.erro!=='Moeda original da venda não comprovada.')return nominal;
+    return validarLiquidacaoMultimoeda({
+      valorDevidoBRL:valorEstornoBRL,valorFisico,moedaFisica,taxasCambio
+    });
+  }
   const liquidacao=validarPagamentoObrigacaoNativa({
-    valorObrigacaoOriginal:valorContratualDevolver,moedaObrigacao:moedaOriginal,
+    valorObrigacaoOriginal:nominal.valorOriginal,moedaObrigacao:nominal.moedaOrigem,
     valorFisico,moedaFisica,taxasCambio,valorContabilHistoricoBRL:valorEstornoBRL
   });
-  if (!liquidacao.ok) return liquidacao;
-  return {...liquidacao,moedaVendaOriginal:moedaOriginal,
-    valorDevolvidoContratoOriginal:valorContratualDevolver};
+  if(!liquidacao.ok)return liquidacao;
+  return {...liquidacao,moedaVendaOriginal:nominal.moedaOrigem,
+    valorDevolvidoContratoOriginal:nominal.valorOriginal};
 }
