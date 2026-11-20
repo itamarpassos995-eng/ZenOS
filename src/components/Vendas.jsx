@@ -14,7 +14,7 @@ import { calcularResumoSessao } from '../core/cashSession';
 import { formatarEquivalenciaBRL, moedasAtivasRecibo } from '../core/receiptCurrency';
 import { apresentarVendaHistorica } from '../core/defaultCurrencyPresentation.js';
 import { formatarDinheiroNativo } from '../core/cashHistoryDisplay.js';
-import { validarReembolsoVendaNativa } from '../core/nativeMoneyEvents.js';
+import { validarReembolsoVendaNativa, calcularValorReembolsoNativo } from '../core/nativeMoneyEvents.js';
 
 export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoesCaixa = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, saldoSessaoFisicoBRL = 0, perfilLoja, vouchers = [], setVouchers, userId, operadorAtivo, historicoVendas, historicoVendasCompleto, setHistoricoVendas, produtos, setProdutos, clientes, setClientes, fmt, t, tx, patenteUsuario, moeda, converterDeBRL }) {
   const [vendaExpandida, setVendaExpandida] = useState(null);
@@ -119,6 +119,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
   };
 
   const calcularTotalDevolucaoBRL = () => calcularValorDevolucaoAtual(vendaSendoDevolvida || {}, itensParaDevolver);
+  const previaReembolsoNativo = calcularValorReembolsoNativo(vendaSendoDevolvida,calcularTotalDevolucaoBRL());
 
   const arquivarDocumentoNaoFaturado = async venda => {
     if (patenteUsuario !== 'gerencia') return avisarZen({variante:'danger',titulo:tx("Acesso negado","Acceso denegado"),mensagem:tx("Somente a gerência pode retirar pré-pedidos e orçamentos do histórico.","Solo la gerencia puede retirar prepedidos y presupuestos del historial.")});
@@ -775,7 +776,10 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
               </div>
               <div style={{ backgroundColor: 'rgba(244, 63, 94, 0.1)', border: '1px solid rgba(244, 63, 94, 0.3)', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <span style={{ fontSize: '11px', fontWeight: 800, color: '#f43f5e', textTransform: 'uppercase' }}>{tx('3. Confirmação Final do Estorno', '3. Confirmación de Devolución', '3. Refund Confirmation')}</span>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}><span style={{ fontSize: '14px', color: '#cbd5e1' }}>{tx('Total a Devolver:','Total a Devolver:','Total to Return:')}</span><span style={{ fontSize: '28px', fontWeight: 900, color: '#f43f5e' }}>{fmt(calcularTotalDevolucaoBRL())}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}><span style={{ fontSize: '14px', color: '#cbd5e1' }}>{tx('Total a Devolver:','Total a Devolver:','Total to Return:')}</span><span style={{ fontSize: '28px', fontWeight: 900, color: '#f43f5e' }}>{previaReembolsoNativo.ok
+                  ? formatarDinheiroNativo(previaReembolsoNativo.valorOriginal,previaReembolsoNativo.moedaOrigem)
+                  : `${fmt(calcularTotalDevolucaoBRL(),'BRL')} (BRL contábil)`}</span></div>
+                <span style={{fontSize:11,color:'#94a3b8'}}>{tx('Equivalente contábil histórico','Equivalente contable histórico','Historical accounting equivalent')}: {fmt(calcularTotalDevolucaoBRL(),'BRL')}</span>
                 <button onClick={confirmarDevolucao} disabled={processandoDevolucao || calcularTotalDevolucaoBRL() === 0} style={{ padding: '16px', background: (processandoDevolucao || calcularTotalDevolucaoBRL() === 0) ? '#334155' : 'linear-gradient(135deg, #e11d48, #be123c)', border: 'none', color: '#fff', borderRadius: '12px', fontWeight: 900, cursor: (processandoDevolucao || calcularTotalDevolucaoBRL() === 0) ? 'not-allowed' : 'pointer' }}>{processandoDevolucao ? tx("Confirmando...","Confirmando...") : tx('Confirmar Estorno / Devolução', 'Confirmar Devolución', 'Confirm Refund')}</button>
               </div>
             </div>
