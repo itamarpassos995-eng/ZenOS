@@ -24,6 +24,6 @@ test('retries do pagamento possuem chave idempotente estável para uma mesma des
 });
 test('guard FX é conferida na mesma transação do livro com cotação existente',()=>{
  const source=readFileSync(new URL('../src/core/productionSync.js',import.meta.url),'utf8');
- assert.match(source,/guard\.type === 'money_exchange_rates_match'/);
+ assert.match(source,/g\?\.type === 'money_exchange_rates_match'/);
  assert.match(source,/!taxasRemotas \|\| !exchangeRateSnapshotsEqual\(taxasRemotas, pagamentoCambio.taxas\)/);
 });
