@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {apresentarMovimentoNaMoedaPadrao,rotuloEquivalenteContabil} from '../src/core/defaultCurrencyPresentation.js';
+import {apresentarMovimentoNaMoedaPadrao,rotuloEquivalenteContabil,apresentarVendaHistorica} from '../src/core/defaultCurrencyPresentation.js';
 
 test('caixa em PYG mostra movimento nativo PYG, jamais recálculo pela taxa atual',()=>{
  const m={id:'a',tipo:'suprimento',valorBRL:25,detalhesMoedasNativas:{PYG:25000},taxasCambioMovimento:{PYG:1000}};
@@ -45,4 +45,26 @@ test('configuração salva não reverte seleção manual ao retomar aba',()=>{
  assert.match(app,/setMoeda\(prev => prev === moedaPadraoAnteriorRef\.current \? moedaConfig : prev\)/);
  assert.match(app,/moedaPadraoAnteriorRef\.current = moedaConfig/);
  assert.match(app,/moedaPadraoAnteriorRef\.current = moeda/);
+});
+
+test('venda PYG registrada não muda com a cotação atual nem ao imprimir segunda via',()=>{
+ const doc={moedaDocumento:'PYG',totalOriginal:25000,totalBRL:25,taxasCambio:{PYG:1000},pagamentos:[{moedaOrigem:'PYG',valorOriginal:25000}]};
+ const antes=JSON.stringify(doc);
+ assert.deepEqual(apresentarVendaHistorica(doc),{comprovada:true,moeda:'PYG',valor:25000});
+ doc.taxasCambio.PYG=1100;
+ assert.deepEqual(apresentarVendaHistorica(doc),{comprovada:true,moeda:'PYG',valor:25000});
+ assert.notEqual(JSON.stringify(doc),antes);
+});
+test('venda com reembolso parcial preserva moeda de origem sem cotação atual',()=>{
+ const doc={moedaDocumento:'PYG',totalOriginal:25000,totalBRL:25,totalLiquidoBRL:20};
+ assert.deepEqual(apresentarVendaHistorica(doc),{comprovada:true,moeda:'PYG',valor:20000});
+});
+test('recibo antigo sem moeda não recebe PYG inventado',()=>{
+ assert.deepEqual(apresentarVendaHistorica({totalBRL:25}),{comprovada:false,moeda:null,valor:null,motivo:'VALOR_NATIVO_NAO_REGISTRADO'});
+});
+test('histórico de vendas e segunda via priorizam valor e pagamentos nativos',()=>{
+ const vendas=readFileSync(new URL('../src/components/Vendas.jsx',import.meta.url),'utf8');
+ assert.match(vendas,/apresentarVendaHistorica\(cupomParaImprimir\)/);
+ assert.match(vendas,/apresentarVendaHistorica\(venda\)/);
+ assert.match(vendas,/formatarDinheiroNativo\(p.valorOriginal,p.moedaOrigem\)/);
 });
