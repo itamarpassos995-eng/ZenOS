@@ -190,6 +190,7 @@ export default function App() {
   const [idioma, setIdioma] = useUiLanguage(zenosStorage);
   const [moeda, setMoeda] = useState('BRL');
   const [moedaPadrao, setMoedaPadrao] = useState('BRL');
+  const moedaPadraoAnteriorRef = useRef('BRL');
   const [salvandoMoedaPadrao, setSalvandoMoedaPadrao] = useState(false);
   
   const [mostrarPainelExecutivo, setMostrarPainelExecutivo] = useState(false);
@@ -801,7 +802,7 @@ export default function App() {
           const pf = normalizarPerfilLoja({});
           setPerfilLoja(pf);
           setPerfilRapidoRascunho(pf);
-          setMoeda('BRL'); setMoedaPadrao('BRL');
+          setMoeda('BRL'); moedaPadraoAnteriorRef.current = 'BRL'; setMoedaPadrao('BRL');
           limparPerfilLojaLocal(userId);
           setTaxasCambio({ ...TAXAS_CAMBIO_PADRAO });
           setTaxasInput({ ...TAXAS_INPUT_PADRAO });
@@ -809,8 +810,11 @@ export default function App() {
         }
         const config = snap.data() || {};
         const moedaConfig = ['BRL','PYG','USD','EUR'].includes(config.moedaPadrao) ? config.moedaPadrao : 'BRL';
+        // Muda a moeda visível somente se ela ainda segue a anterior moeda padrão.
+        // Não força a moeda escolhida manualmente pelo operador ao atualizar a aba.
+        setMoeda(prev => prev === moedaPadraoAnteriorRef.current ? moedaConfig : prev);
+        moedaPadraoAnteriorRef.current = moedaConfig;
         setMoedaPadrao(moedaConfig);
-        setMoeda(prev => prev === moedaPadrao ? moedaConfig : prev);
         const pf = normalizarPerfilLoja(config.perfilLoja || {});
         setPerfilLoja(prev => syncValuesEqual(prev, pf) ? prev : pf);
         setPerfilRapidoRascunho(prev => syncValuesEqual(prev, pf) ? prev : pf);
@@ -961,6 +965,7 @@ export default function App() {
     try {
       await setDoc(doc(db,'lojas',userId,'dados','configuracoes'),
         {moedaPadrao:moeda,updatedAtClient:new Date().toISOString(),updatedAtServer:serverTimestamp()}, {merge:true});
+      moedaPadraoAnteriorRef.current = moeda;
       setMoedaPadrao(moeda);
       notifyPersistenceStatus({status:'SINCRONIZADO',field:'configuracoes'});
     } catch (error) {
