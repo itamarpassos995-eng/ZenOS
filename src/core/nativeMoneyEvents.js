@@ -1,3 +1,4 @@
+import { obterFinanceiroVenda } from './salesFinancials.js';
 import { interpretarValorMonetario, MOEDAS_CAIXA } from './cashMoneyInput.js';
 
 const arredondarBRL = valor => Math.round((valor + Number.EPSILON) * 100) / 100;
@@ -85,7 +86,7 @@ export function validarReembolsoVendaNativa({
     return {ok:false,erro:'Valor de devolução inválido.'};
   const moedaOriginal = venda?.moedaDocumento;
   const valorOriginal = venda?.totalOriginal;
-  const totalBrutoBRL = Number(venda?.totalBRL);
+  const totalBrutoBRL = obterFinanceiroVenda(venda||{}).totalBrutoBRL;
   if (!MOEDAS_CAIXA.includes(moedaOriginal) || typeof valorOriginal!=='number' ||
       !Number.isFinite(valorOriginal) || valorOriginal<=0 ||
       !Number.isFinite(totalBrutoBRL) || totalBrutoBRL<=0) {
@@ -95,7 +96,7 @@ export function validarReembolsoVendaNativa({
     return validarLiquidacaoMultimoeda({
       valorDevidoBRL:valorEstornoBRL,valorFisico,moedaFisica,taxasCambio});
   }
-  const devolvidoAnteriorBRL=Number(venda?.valorDevolvidoBRL || 0);
+  const devolvidoAnteriorBRL=obterFinanceiroVenda(venda||{}).valorDevolvidoBRL;
   if (!Number.isFinite(devolvidoAnteriorBRL)||devolvidoAnteriorBRL<0||
       devolvidoAnteriorBRL+valorEstornoBRL>totalBrutoBRL+0.011)
     return {ok:false,erro:'Devolução supera o saldo original da venda.'};
