@@ -478,10 +478,14 @@ export const persistV1BusinessOperationSafe = async ({
       // A cotação também pertence ao snapshot de fechamento: a transação
       // deve ser repetida se outro terminal atualizar a configuração.
       const fechamentoCambio = (guards || []).find(g => g?.type === 'cash_close_exchange_rates_match');
-      if (fechamentoCambio) {
+      const pagamentoCambio = (guards || []).find(g => g?.type === 'money_exchange_rates_match');
+      if (fechamentoCambio || pagamentoCambio) {
         const configSnap = await tx.get(doc(db, 'lojas', String(userId), 'dados', 'configuracoes'));
         const taxasRemotas = configSnap.exists() ? configSnap.data()?.taxasCambio : null;
-        if (taxasRemotas && !exchangeRateSnapshotsEqual(taxasRemotas, fechamentoCambio.taxas)) {
+        if (pagamentoCambio && (!taxasRemotas || !exchangeRateSnapshotsEqual(taxasRemotas, pagamentoCambio.taxas))) {
+          failGuard('A cotação mudou ou não foi confirmada no servidor. Confira os valores e confirme a operação novamente.', 'ZENOS_MONEY_FX_CHANGED');
+        }
+        if (fechamentoCambio && taxasRemotas && !exchangeRateSnapshotsEqual(taxasRemotas, fechamentoCambio.taxas)) {
           failGuard('A cotação mudou em outro terminal. Confira o câmbio e refaça o fechamento.', 'ZENOS_CASH_FX_CHANGED');
         }
       }
