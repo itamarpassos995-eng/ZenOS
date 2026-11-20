@@ -36,3 +36,33 @@ export function validarLiquidacaoMultimoeda({valorDevidoBRL,valorFisico,moedaFis
   if (diferenca !== 0) return {ok:false,erro:'Valor físico e obrigação contábil não conferem. Revise o câmbio, diferença e troco.',diferencaBRL:diferenca};
   return {...evento,diferencaBRL:diferenca};
 }
+
+/**
+ * Settle a nominal obligation in its native contractual currency.
+ * Current FX may price a DIFFERENT payment currency, never reprice the debt.
+ * The difference between historic book BRL and payment-date equivalent is
+ * returned explicitly as exchange variance, not silently written as profit.
+ */
+export function validarPagamentoObrigacaoNativa({
+  valorObrigacaoOriginal, moedaObrigacao, valorFisico,
+  moedaFisica, taxasCambio, valorContabilHistoricoBRL
+}) {
+  const divida=interpretarValorMonetario(valorObrigacaoOriginal,moedaObrigacao);
+  if (!divida.ok || divida.valor<=0) return {ok:false,erro:'Valor contratual da obrigação não comprovado.'};
+  const pago=criarSnapshotMonetario({valorOriginal:valorFisico,moedaOrigem:moedaFisica,taxasCambio});
+  if (!pago.ok) return pago;
+  const taxaOrigem=taxaEfetiva(moedaObrigacao,taxasCambio);
+  if (!Number.isFinite(taxaOrigem) || taxaOrigem<=0) return {ok:false,erro:'Cotação atual da moeda da dívida ausente ou inválida.'};
+  const quitacaoNaOrigem = pago.valorOriginal/pago.taxaCambioAplicada*taxaOrigem;
+  const unidades = moedaObrigacao==='PYG' ? 1 : 100;
+  const nominalCalculado=Math.round(quitacaoNaOrigem*unidades)/unidades;
+  if (nominalCalculado!==divida.valor)
+    return {ok:false,erro:'Pagamento não quita exatamente o valor na moeda contratual. Confirme valor, diferença ou troco.',
+      diferencaOrigem:Math.round((nominalCalculado-divida.valor)*unidades)/unidades};
+  if (!Number.isFinite(valorContabilHistoricoBRL) || valorContabilHistoricoBRL<=0)
+    return {ok:false,erro:'Equivalente contábil histórico ausente.'};
+  return {...pago,moedaObrigacao,valorObrigacaoOriginal:divida.valor,
+    valorContabilHistoricoBRL,valorContabilDataPagamentoBRL:pago.valorConvertidoBRL,
+    diferencaCambialBRL:arredondarBRL(pago.valorConvertidoBRL-valorContabilHistoricoBRL),
+    taxaOrigemAtual:taxaOrigem};
+}
