@@ -43,3 +43,14 @@ test('dashboard nunca exibe BRL como valor principal de fiado em loja PYG',()=>{
  assert.match(app,/fiadoPainelMoedaPadrao\.status==='confirmado'/);
  assert.doesNotMatch(app,/titulo=\{tx\('FIADO NA PRAÇA'[\s\S]{0,220}?valor=\{valoresTopoVisiveis \? fmt\(totalFiadoAbertoBRL,'BRL'\)/);
 });
+
+test('painel PYG com dívidas sem comprovação não mostra zero nem traço como valor principal',()=>{
+ const app=readFileSync(new URL('../src/App.jsx',import.meta.url),'utf8');
+ const inicio=app.indexOf('<ZenKpiCard icon="👥"');
+ const fim=app.indexOf('/>',inicio);
+ const painel=app.slice(inicio,fim);
+ assert.match(painel,/clientesComFiadoAberto/);
+ assert.match(painel,/Dívida existente; total nativo em conferência/);
+ assert.match(painel,/fmt\(totalFiadoAbertoBRL,'BRL'\)/);
+ assert.doesNotMatch(painel,/moedaPadrao==='PYG'\?'Gs\.'/);
+});
