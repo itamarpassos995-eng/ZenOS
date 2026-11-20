@@ -157,7 +157,7 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
   const contasDoClienteEmAberto = contasAbertasClienteNativo(clienteReceberFiado);
   const legadoBRLCliente = clienteReceberFiado ? saldoLegadoClienteBRL(clienteReceberFiado) : 0;
   const contaFiadoEmFoco = contasDoClienteEmAberto.find(c => c.obrigacao.id===contaFiadoSelecionadaId) || null;
-  const formatarNativoCliente = (valor,moedaOrigem) => new Intl.NumberFormat(idioma==='es'?'es-PY':'pt-BR',{
+  const formatarNativoCliente = (valor,moedaOrigem) => new Intl.NumberFormat('pt-BR',{
     style:'currency',currency:moedaOrigem,minimumFractionDigits:moedaOrigem==='PYG'?0:2,
     maximumFractionDigits:moedaOrigem==='PYG'?0:2}).format(valor);
   const cotarValorRecebimento = (conta,moedaPaga) => {
@@ -208,25 +208,56 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
     }
     const formaCfg = catalogoFormas.find(f => f.id === formaAmortizacaoSel) || catalogoFormas[0];
     const leitura = interpretarValorMonetario(valorAmortizacaoInput, formaCfg.moedaOrigem);
-    if (!leitura.ok) return setModalZen({ variante:'warning', titulo:tx("Valor monetário inválido","Importe monetario inválido"), mensagem:leitura.erro, apenasConfirmar:true });
-    const valorOriginal = leitura.valor;
-    const valBRL = converterParaBRL(valorOriginal, formaCfg.moedaOrigem || moeda);
-    if (valBRL <= 0) return setModalZen({ variante:'warning', titulo:tx('Valor inválido','Valor inválido','Invalid amount'), mensagem:tx('Informe um valor válido para recebimento.','Informe un valor válido para el cobro.','Enter a valid amount to receive.'), apenasConfirmar:true });
-
-    const saldoAntes = Number(clienteReceberFiado?.saldoDevedorBRL || 0);
-    if (valBRL > saldoAntes + 0.001) {
-      return setModalZen({ variante:'warning', titulo:tx('Valor acima da dívida','Valor superior a la deuda','Amount exceeds debt'), mensagem:`A dívida atual é ${fmt(saldoAntes, 'BRL')}. O recebimento não pode ultrapassar esse saldo.`, apenasConfirmar:true });
+    if (!leitura.ok || leitura.valor<=0) return setModalZen({variante:'warning',
+      titulo:tx('Valor monetário inválido','Importe monetario inválido','Invalid amount'),
+      mensagem:leitura.erro||tx('Informe valor maior que zero.','Ingrese un importe mayor que cero.','Enter amount above zero.'),
+      apenasConfirmar:true});
+    const valorOriginal=leitura.valor;
+    const recebimentoId=`REC-${Date.now()}`;
+    const createdAt=new Date().toISOString();
+    const contasAtuais=contasAbertasClienteNativo(clienteAtual);
+    const contaAtual=contasAtuais.find(c=>c.obrigacao.id===contaFiadoSelecionadaId)||null;
+    let resultadoNativo=null;
+    if(contaFiadoSelecionadaId!=='LEGADO_BRL'){
+      if(!contaAtual)return setModalZen({variante:'warning',titulo:tx('Dívida alterada','Deuda modificada','Debt changed'),
+        mensagem:tx('Atualize a conta antes de receber.','Actualice la cuenta antes de cobrar.','Refresh account before payment.'),
+        apenasConfirmar:true});
+      try{
+        resultadoNativo=receberCreditoNativoCliente({cliente:clienteAtual,
+          contaId:contaAtual.obrigacao.id,recebimentoId,moedaPagamento:formaCfg.moedaOrigem,
+          valorPagamentoOriginal:valorOriginal,taxasConfirmadas:taxasCambio,registradaEm:createdAt});
+      }catch(error){
+        return setModalZen({variante:'warning',titulo:tx('Recebimento não confirmado','Cobro no confirmado','Payment not verified'),
+          mensagem:error.message,apenasConfirmar:true});
+      }
     }
-
-    const dinheiroFisico = formaEhDinheiro(formaAmortizacaoSel);
-    if (dinheiroFisico && !sessaoAtiva) {
-      return setModalZen({ variante:'danger', titulo:tx('Caixa fechado','Caja cerrada','Register closed'), mensagem:tx('Para receber fiado em dinheiro, abra primeiro o turno de caixa do operador.','Para recibir crédito en efectivo, abra primero el turno de caja del operador.','To receive customer credit in cash, first open the operator cash shift.'), apenasConfirmar:true });
-    }
-
-    const saldoDepois = Math.max(0, saldoAntes - valBRL);
-    const recebimentoId = `REC-${Date.now()}`;
-    const createdAt = new Date().toISOString();
-    const clientesPropostos = clientes.map(c => c.id === clienteReceberFiado.id ? { ...c, saldoDevedorBRL: saldoDepois } : c);
+    const taxaReceber=formaCfg.moedaOrigem==='BRL'?1:Number(taxasCambio?.[formaCfg.moedaOrigem]);
+    if(!(taxaReceber>0))return setModalZen({variante:'warning',
+      titulo:tx('Cotação inválida','Cotización inválida','Invalid quote'),
+      mensagem:tx('Confira a taxa antes de receber.','Revise la cotización antes de cobrar.','Verify quote before payment.'),
+      apenasConfirmar:true});
+    const valBRL=resultadoNativo
+      ? resultadoNativo.liquidacao.equivalentePagamentoNaDataBRL
+      : Math.round((valorOriginal/taxaReceber)*100)/100;
+    if(!(valBRL>0))return setModalZen({variante:'warning',titulo:tx('Valor inválido','Importe inválido','Invalid amount'),
+      mensagem:tx('Informe valor válido.','Ingrese importe válido.','Enter valid amount.'),apenasConfirmar:true});
+    const saldoAntes=Number(clienteAtual.saldoDevedorBRL||0);
+    const legadoDisponivelBRL=saldoLegadoClienteBRL(clienteAtual);
+    if(!resultadoNativo && (legadoDisponivelBRL<=0 || valBRL>legadoDisponivelBRL+0.001))
+      return setModalZen({variante:'warning',titulo:tx('Valor acima do saldo histórico','Importe superior al saldo histórico','Amount exceeds legacy balance'),
+        mensagem:tx('O saldo antigo não pode ser confundido com a dívida nativa. Confira a origem antes de cobrar.',
+          'El saldo anterior no puede confundirse con la deuda nativa.','Legacy balance cannot be confused with native debt.'),
+        apenasConfirmar:true});
+    const dinheiroFisico=formaEhDinheiro(formaAmortizacaoSel);
+    if(dinheiroFisico&&!sessaoAtiva)
+      return setModalZen({variante:'danger',titulo:tx('Caixa fechado','Caja cerrada','Register closed'),
+        mensagem:tx('Abra o turno antes de receber dinheiro.','Abra la caja antes de cobrar.','Open cash shift before payment.'),
+        apenasConfirmar:true});
+    const saldoDepois=resultadoNativo
+      ? resultadoNativo.cliente.saldoDevedorBRL
+      : Math.max(0,Math.round((saldoAntes-valBRL)*100)/100);
+    const clientesPropostos=clientes.map(c=>String(c.id)===String(clienteAtual.id)
+      ? (resultadoNativo?resultadoNativo.cliente:{...c,saldoDevedorBRL:saldoDepois}):c);
     const mov = dinheiroFisico ? {
       id: `MOV-${recebimentoId}`,
       sessaoId: sessaoAtiva.id,
@@ -238,7 +269,7 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
       valorBRL: valBRL,
       detalhesMoedas: { [formaCfg.moedaOrigem || 'BRL']: valorOriginal },
       detalhesMoedasNativas: { [formaCfg.moedaOrigem || 'BRL']: valorOriginal },
-      taxaCambioAplicada: valorOriginal > 0 && valBRL > 0 ? valorOriginal / valBRL : null,
+      taxaCambioAplicada: taxaReceber,
       descricao: `Recebimento fiado • ${clienteReceberFiado.nome}`,
       clienteId: clienteReceberFiado.id,
       operador: operadorAtivo?.nome || 'Administrador',
@@ -251,7 +282,12 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
       referenciaId: recebimentoId,
       valor: valBRL,
       formaPagamento: formaAmortizacaoSel,
-      detalhes: {moedaOrigem:formaCfg.moedaOrigem,valorOriginal,taxaCambioAplicada:valorOriginal/valBRL},
+      detalhes: {moedaOrigem:formaCfg.moedaOrigem,valorOriginal,taxaCambioAplicada:taxaReceber,
+        ...(resultadoNativo ? {contaNativaId:contaAtual.obrigacao.id,
+          moedaObrigacao:resultadoNativo.liquidacao.moedaObrigacao,
+          valorAmortizadoOriginal:resultadoNativo.liquidacao.valorAmortizadoOriginal,
+          valorContabilHistoricoAmortizadoBRL:resultadoNativo.liquidacao.valorContabilHistoricoAmortizadoBRL,
+          diferencaCambialRealizadaBRL:resultadoNativo.liquidacao.diferencaCambialRealizadaBRL}: {})},
       createdAt,
       afetaCaixaFisico: dinheiroFisico,
       afetaResultado: false,
@@ -277,6 +313,7 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
           changes, financialEntries:[financeiro],
           guards: [
             { type:'client_receipt_snapshot', clientId:clienteAtual.id, clientName:clienteAtual.nome, balanceBRL:saldoAntes },
+            ...(resultadoNativo?[{type:'entity_unchanged',field:'clientes',entityId:clienteAtual.id,expected:clienteAtual}]:[]),
             ...(dinheiroFisico ? [{ type:'cash_session_open', sessionId:sessaoAtiva.id }] : []),
           ],
           operationKey: 'recebimento-fiado:' + recebimentoId,
