@@ -5,8 +5,10 @@ import ZenShareButton from './ZenShareButton';
 import { formaEhDinheiro, lancamentosDoCliente } from '../core/financialLedger';
 import { interpretarValorMonetario } from '../core/cashMoneyInput';
 import { auditarVinculosFiado, encontrarConflitosIdsRecebimento } from '../core/clientCreditLinkAudit';
+import { contasAbertasClienteNativo, saldoLegadoClienteBRL, receberCreditoNativoCliente } from '../core/nativeCustomerCredit.js';
+import { converterMoedaConfirmada } from '../core/monetaryContract.js';
 
-export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, historicoVendas = [], setClientes, moeda, fmt, t, tx = (pt) => pt, converterDeBRL, converterParaBRL }) {
+export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, historicoVendas = [], setClientes, moeda, moedaPadrao='BRL', taxasCambio={}, fmt, t, tx = (pt) => pt, converterDeBRL, converterParaBRL }) {
   const [filtroPaisCliente, setFiltroPaisCliente] = useState('todos');
   const [buscaClienteTexto, setBuscaClienteTexto] = useState('');
   
@@ -18,6 +20,7 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
   const [clienteReceberFiado, setClienteReceberFiado] = useState(null);
   const [valorAmortizacaoInput, setValorAmortizacaoInput] = useState('');
   const [formaAmortizacaoSel, setFormaAmortizacaoSel] = useState('dinheiro_brl');
+  const [contaFiadoSelecionadaId, setContaFiadoSelecionadaId] = useState('LEGADO_BRL');
   const [clienteExtrato, setClienteExtrato] = useState(null);
   const [comprovanteFiado, setComprovanteFiado] = useState(null);
   const recebimentoEmAndamentoRef = useRef(false);
@@ -151,10 +154,31 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
   });
 
   // FLUXO DE RECEBER CONTA / FIADO
+  const contasDoClienteEmAberto = contasAbertasClienteNativo(clienteReceberFiado);
+  const legadoBRLCliente = clienteReceberFiado ? saldoLegadoClienteBRL(clienteReceberFiado) : 0;
+  const contaFiadoEmFoco = contasDoClienteEmAberto.find(c => c.obrigacao.id===contaFiadoSelecionadaId) || null;
+  const formatarNativoCliente = (valor,moedaOrigem) => new Intl.NumberFormat(idioma==='es'?'es-PY':'pt-BR',{
+    style:'currency',currency:moedaOrigem,minimumFractionDigits:moedaOrigem==='PYG'?0:2,
+    maximumFractionDigits:moedaOrigem==='PYG'?0:2}).format(valor);
+  const cotarValorRecebimento = (conta,moedaPaga) => {
+    try {
+      const saldo=conta?.obrigacao?.valorOriginal-
+        (conta?.recebimentos||[]).reduce((a,r)=>a+Number(r.valorAmortizadoOriginal||0),0);
+      return converterMoedaConfirmada({valor:saldo,moedaOrigem:conta.obrigacao.moedaDocumento,
+        moedaDestino:moedaPaga,taxasConfirmadas:taxasCambio});
+    }catch(_){return null;}
+  };
   const abrirRecebimentoFiado = (cli) => {
+    const contas=contasAbertasClienteNativo(cli);
+    const legado=saldoLegadoClienteBRL(cli);
+    const primeira=legado>0.005?null:contas[0]||null;
+    const moedaInicial=primeira?.obrigacao.moedaDocumento||'BRL';
     setClienteReceberFiado(cli);
-    setValorAmortizacaoInput(cli.saldoDevedorBRL > 0 ? String(cli.saldoDevedorBRL) : '');
-    setFormaAmortizacaoSel('dinheiro_brl');
+    setContaFiadoSelecionadaId(primeira?primeira.obrigacao.id:'LEGADO_BRL');
+    setFormaAmortizacaoSel('dinheiro_'+moedaInicial.toLowerCase());
+    setValorAmortizacaoInput(String(primeira
+      ? cotarValorRecebimento(primeira,moedaInicial)
+      : Math.max(0,legado)));
     setModalReceberFiadoAberto(true);
   };
 
