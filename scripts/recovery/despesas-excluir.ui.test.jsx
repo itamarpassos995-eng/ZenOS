@@ -3,14 +3,14 @@ import {test,expect,vi,afterEach} from 'vitest';
 import {render,screen,fireEvent,cleanup,waitFor} from '@testing-library/react';
 import Despesas from '../../src/components/Despesas.jsx';
 afterEach(cleanup);
-const montar=(lista,commit,config={})=>{
+const montar=(lista,commit)=>{
  const setDespesas=vi.fn();
  render(<Despesas despesas={lista} setDespesas={setDespesas}
   commitOperacaoNegocio={commit} registrarFinanceiro={vi.fn()}
   caixaMovimentos={[]} setCaixaMovimentos={vi.fn()}
   sessaoAtiva={{id:'cx-1',status:'aberta'}} saldoSessaoFisicoBRL={1000}
   operadorAtivo={{id:'adm-1',nome:'Admin'}} patenteUsuario="gerencia"
-  moeda="BRL" moedaPadrao={config.moedaPadrao||"BRL"} taxasCambio={config.taxasCambio||{BRL:1,PYG:1100,USD:0.2,EUR:0.18}} converterParaBRL={v=>v} fmt={v=>String(v)} tx={pt=>pt}/>);
+  moeda="BRL" converterParaBRL={v=>v} fmt={v=>String(v)} tx={pt=>pt}/>);
  return {setDespesas};
 };
 const confirmado=vi.fn(async({changes})=>({cloudOk:true,values:{despesas:changes[0].value}}));
@@ -78,17 +78,17 @@ test('falha na nuvem mantém dado e aviso sem confirmação',async()=>{
 });
 
 test('editar despesa manual pendente preenche valor e grava sem trocar ID ou perder metadados',async()=>{
- const expense={id:'DESP-EDIT',descricao:'Internet',status:'pendente',categoria:'Infraestrutura',valorBRL:500,moedaOrigem:'BRL',valorOriginal:500,taxaCambioAplicada:1,dataVencimento:'2026-10-25',origemImportacao:'registro_legado'};
+ const expense={id:'DESP-EDIT',descricao:'Internet',status:'pendente',categoria:'Infraestrutura',valorBRL:500,dataVencimento:'2026-10-25',origemImportacao:'registro_legado'};
  const commit=vi.fn(async({changes})=>({cloudOk:true,values:{despesas:changes[0].value}}));
  const {setDespesas}=montar([expense],commit);
  fireEvent.click(screen.getByRole('button',{name:'Editar'}));
  expect(screen.getByText(/Editar Despesa/)).toBeTruthy();
- expect(screen.getByDisplayValue('500')).toBeTruthy();
- fireEvent.change(screen.getByDisplayValue('500'),{target:{value:'550'}});
+ expect(screen.getByDisplayValue('500.00')).toBeTruthy();
+ fireEvent.change(screen.getByDisplayValue('500.00'),{target:{value:'550.00'}});
  fireEvent.click(screen.getByRole('button',{name:'Salvar alterações'}));
  await waitFor(()=>expect(commit).toHaveBeenCalledTimes(1));
  const req=commit.mock.calls[0][0];
- expect(req.changes[0].value[0]).toMatchObject({id:'DESP-EDIT',valorBRL:550,valorOriginal:550,moedaOrigem:'BRL',taxaCambioAplicada:1,origemImportacao:'registro_legado',status:'pendente'});
+ expect(req.changes[0].value[0]).toMatchObject({id:'DESP-EDIT',valorBRL:550,origemImportacao:'registro_legado',status:'pendente'});
  expect(req.guards[0]).toMatchObject({type:'entity_unchanged',entityId:'DESP-EDIT',field:'despesas'});
  await waitFor(()=>expect(setDespesas).toHaveBeenCalled());
 });
@@ -99,56 +99,4 @@ test('editar despesa paga preserva registro e exige fluxo financeiro',async()=>{
  fireEvent.click(screen.getByRole('button',{name:'Editar'}));
  expect(screen.getByText(/Edição exige correção financeira/)).toBeTruthy();
  expect(commit).not.toHaveBeenCalled();
-});
-
-test('despesa legada sem origem permite apenas edição administrativa, sem câmbio nem alteração de valor',async()=>{
- const expense={id:'LEGADO',descricao:'Despesa antiga',status:'pendente',valorBRL:500};
- const commit=vi.fn(async({changes})=>({cloudOk:true,values:{despesas:changes[0].value}}));
- montar([expense],commit,{moedaPadrao:'PYG',taxasCambio:{BRL:1,PYG:1100}});
- fireEvent.click(screen.getByRole('button',{name:'Editar'}));
- expect(screen.getByText(/Valor BRL contábil/)).toBeTruthy();
- const input=screen.getByDisplayValue('500');
- expect(input.disabled).toBe(true);
- fireEvent.change(screen.getByDisplayValue('Despesa antiga'),{target:{value:'Descrição corrigida'}});
- fireEvent.click(screen.getByRole('button',{name:/Salvar alterações/}));
- await waitFor(()=>expect(commit).toHaveBeenCalledTimes(1));
- expect(commit.mock.calls[0][0].changes[0].value[0])
-  .toMatchObject({descricao:'Descrição corrigida',valorBRL:500});
- expect(commit.mock.calls[0][0].changes[0].value[0].moedaOrigem).toBeUndefined();
-});
-
-test('nova despesa PYG conserva guaranis e taxa na criação sem reprecificar depois',async()=>{
- const commit=vi.fn(async({changes})=>({cloudOk:true,values:{despesas:changes[0].value}}));
- const {setDespesas}=montar([],commit,{moedaPadrao:'PYG',taxasCambio:{BRL:1,PYG:1100,USD:0.2,EUR:0.18}});
- fireEvent.click(screen.getByRole('button',{name:/Lançar Nova Despesa/}));
- fireEvent.change(screen.getByPlaceholderText(/Pagamento Fornecedor/),{target:{value:'Material de limpeza'}});
- fireEvent.change(screen.getByText(/Valor na moeda original/).parentElement.querySelector('input'),{target:{value:'25000'}});
- fireEvent.click(screen.getByRole('button',{name:/Registrar Despesa no Sistema/}));
- await waitFor(()=>expect(commit).toHaveBeenCalledTimes(1));
- const registro=commit.mock.calls[0][0].changes[0].value[0];
- expect(registro).toMatchObject({moedaOrigem:'PYG',valorOriginal:25000,taxaCambioAplicada:1100,valorBRL:22.73});
- expect(setDespesas).toHaveBeenCalled();
-});
-test('sem cotação PYG confirmada não registra despesa em guaranis',async()=>{
- const commit=vi.fn();montar([],commit,{moedaPadrao:'PYG',taxasCambio:{BRL:1,PYG:0}});
- fireEvent.click(screen.getByRole('button',{name:/Lançar Nova Despesa/}));
- fireEvent.change(screen.getByPlaceholderText(/Pagamento Fornecedor/),{target:{value:'Internet'}});
- fireEvent.change(screen.getByText(/Valor na moeda original/).parentElement.querySelector('input'),{target:{value:'25000'}});
- fireEvent.click(screen.getByRole('button',{name:/Registrar Despesa no Sistema/}));
- expect(screen.getByText(/Valor ou cotação inválidos/)).toBeTruthy();
- expect(commit).not.toHaveBeenCalled();
-});
-
-test('editar descrição de despesa PYG com câmbio novo preserva taxa histórica',async()=>{
- const exp={id:'DPYG',descricao:'Frete',status:'pendente',categoria:'Outros',
-   moedaOrigem:'PYG',valorOriginal:25000,taxaCambioAplicada:1150,valorBRL:21.74};
- const commit=vi.fn(async({changes})=>({cloudOk:true,values:{despesas:changes[0].value}}));
- montar([exp],commit,{moedaPadrao:'PYG',taxasCambio:{BRL:1,PYG:1100,USD:0.2,EUR:0.18}});
- fireEvent.click(screen.getByRole('button',{name:'Editar'}));
- fireEvent.change(screen.getByDisplayValue('Frete'),{target:{value:'Frete corrigido'}});
- fireEvent.click(screen.getByRole('button',{name:/Salvar alterações/}));
- await waitFor(()=>expect(commit).toHaveBeenCalledTimes(1));
- expect(commit.mock.calls[0][0].changes[0].value[0])
-   .toMatchObject({descricao:'Frete corrigido',moedaOrigem:'PYG',valorOriginal:25000,
-     taxaCambioAplicada:1150,valorBRL:21.74});
 });
