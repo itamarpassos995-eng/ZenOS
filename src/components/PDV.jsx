@@ -109,6 +109,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   }, [taxasCambio, moeda, moedaPadrao, rascunhoHidratado, pagamentosLancados.length, userId, avisoRascunhoRecuperado]);
 
   const [formaSelecionada, setFormaSelecionada] = useState('dinheiro_brl');
+  const taxasDoCheckoutRef = useRef(null);
   const [valorLancamentoInput, setValorLancamentoInput] = useState('');
   const [voucherCodigoInput, setVoucherCodigoInput] = useState('');
   const [moedaTrocoEscolhida, setMoedaTrocoEscolhida] = useState('BRL');
@@ -817,7 +818,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   const cotarPendenteNaMoeda = (moedaRecebimento) => {
     if (contratoNativoPDV.ok && pagamentosLancados.length===0) {
       const cotacao=cotarRecebimentoPDV({contrato:contratoNativoPDV,
-        moedaRecebimento,taxasConfirmadas:taxasCambio});
+        moedaRecebimento,taxasConfirmadas:taxasDoCheckoutRef.current || taxasCambio});
       return cotacao.ok?cotacao.valorReceber:null;
     }
     const pendenteBRL=Math.max(0,totalFinalBRL-pagamentosLancados.reduce(
@@ -828,11 +829,12 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   };
   const custoTotalBRL = useMemo(() => itensVendaComCustoAtual(itensVenda).reduce((acc, item) =>
     acc + (Math.max(0, parseInt(item.qtd) || 0) * (item.custoBRL || 0)), 0), [itensVenda, produtos]);
+  const taxasDoContrato=modalFechamentoAberto && taxasDoCheckoutRef.current ? taxasDoCheckoutRef.current : taxasCambio;
   const descBRL = contratoNativoPDV.ok
-    ? converterParaBRL(contratoNativoPDV.descontoOriginal,moedaPadrao)
+    ? (moedaPadrao==='BRL'?contratoNativoPDV.descontoOriginal:contratoNativoPDV.descontoOriginal/Number(taxasDoContrato?.[moedaPadrao]))
     : converterParaBRL(parseFloat(String(descontoTexto).replace(',', '.')) || 0, moeda);
   const totalFinalBRL = contratoNativoPDV.ok
-    ? converterParaBRL(contratoNativoPDV.totalOriginal,moedaPadrao)
+    ? (moedaPadrao==='BRL'?contratoNativoPDV.totalOriginal:contratoNativoPDV.totalOriginal/Number(taxasDoContrato?.[moedaPadrao]))
     : Math.max(0, subtotalBrutoBRL - descBRL);
   const lucroEstimadoBRL = totalFinalBRL - custoTotalBRL;
   const margemLucroReal = totalFinalBRL > 0 ? (lucroEstimadoBRL / totalFinalBRL) * 100 : 0;
@@ -900,6 +902,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     const cotado=cotarPendenteNaMoeda(moedaInicial);
     if(cotado==null)return mostrarZen('danger',tx('Cotação não comprovada','Cotización no confirmada','Exchange quote unverified'),
       tx('Confira as taxas antes de receber.','Compruebe las tasas antes de cobrar.','Verify the rates before collecting payment.'));
+    taxasDoCheckoutRef.current={...taxasCambio};
     setFormaSelecionada(moedaInicial==='PYG'?'dinheiro_pyg':moedaInicial==='USD'?'dinheiro_usd':moedaInicial==='EUR'?'dinheiro_eur':'dinheiro_brl');
     setMoedaTrocoEscolhida(moedaInicial);
     setValorLancamentoInput(String(cotado));
@@ -961,8 +964,16 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       if (!voucherSelecionado) return setModalZen({variante:'danger',titulo:tx('Voucher inválido','Voucher inválido','Invalid voucher'),mensagem:tx('Código não encontrado, já utilizado ou sem saldo.','Código no encontrado, ya utilizado o sin saldo.','Code not found, already used, or has no balance.'),apenasConfirmar:true});
       if (valorNum > Number(voucherSelecionado.saldoBRL || 0) + 0.001) return setModalZen({variante:'warning',titulo:tx('Saldo insuficiente no voucher','Saldo insuficiente en el voucher','Insufficient voucher balance'),mensagem:`${tx('Saldo disponível:','Saldo disponible:','Available balance:')} ${fmt(voucherSelecionado.saldoBRL, 'BRL')}`,apenasConfirmar:true});
     }
-    const valorBRL = converterParaBRL(valorNum, configForma.moedaOrigem);
+    const taxasPagamento=taxasDoCheckoutRef.current||taxasCambio;
+    const taxaPagamento=configForma.moedaOrigem==='BRL'?1:Number(taxasPagamento?.[configForma.moedaOrigem]);
+    if(!(taxaPagamento>0))return mostrarZen('danger',tx('Cotação inválida','Cotización inválida','Invalid exchange quote'),
+      tx('Confira a cotação antes de receber.','Compruebe la cotización antes de cobrar.','Verify exchange quote before payment.'));
+    const valorBRL=valorNum/taxaPagamento;
     if (!Number.isFinite(valorBRL) || valorBRL <= 0) return mostrarZen('danger', tx("Valor inválido","Importe inválido"), tx("Verifique a moeda e a cotação.","Revise la moneda y la cotización."));
+    if (pagamentosLancados.length>0 && taxasDoCheckoutRef.current &&
+        JSON.stringify(taxasDoCheckoutRef.current)!==JSON.stringify(taxasCambio))
+      return mostrarZen('warning',tx('Câmbio alterado','Cambio modificado','Exchange rate changed'),
+        tx('Confira o câmbio antes de continuar o recebimento.','Compruebe el cambio antes de continuar el cobro.','Review exchange rates before continuing.'));
     const recebidoProposto = totalPagoConvertidoBRL + valorBRL;
     const dinheiroProposto = totalDinheiroBRL + (configForma.id.startsWith('dinheiro') ? valorBRL : 0);
     if (validarComposicaoPagamento({ totalBRL: totalFinalBRL, recebidoBRL: recebidoProposto, recebidoDinheiroBRL: dinheiroProposto }).excessoEletronico) {
@@ -995,16 +1006,15 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       moedaOrigem: configForma.moedaOrigem,
       valorOriginal: valorNum,
       valorConvertidoBRL: Math.round(valorBRL * 100) / 100,
-      taxaCambioAplicada: Number(taxasCambio[configForma.moedaOrigem] || 1),
+      taxaCambioAplicada: taxaPagamento,
       voucherCodigo: voucherSelecionado?.codigo || null
     }];
     setPagamentosLancados(novaLista);
     const novoSaldo = Math.max(0, totalFinalBRL - novaLista.reduce((acc, p) => acc + p.valorConvertidoBRL, 0));
-    setValorLancamentoInput(novoSaldo > 0 ? (
-      configForma.moedaOrigem === 'PYG'
-        ? String(Math.ceil(converterDeBRL(novoSaldo, 'PYG')))
-        : converterDeBRL(novoSaldo, configForma.moedaOrigem).toFixed(2)
-    ) : '');
+    const taxaSeguinte=configForma.moedaOrigem==='BRL'?1:Number(taxasPagamento?.[configForma.moedaOrigem]);
+    setValorLancamentoInput(novoSaldo>0 && taxaSeguinte>0
+      ? String(configForma.moedaOrigem==='PYG'?Math.ceil(novoSaldo*taxaSeguinte):Math.round(novoSaldo*taxaSeguinte*100)/100)
+      : '');
     if (configForma.id === 'voucher') setVoucherCodigoInput('');
   };
 
@@ -1014,6 +1024,15 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     operacaoEmAndamentoRef.current = true;
     setProcessandoTransacao(true);
     try {
+      if (contratoNativoPDV.ok && pagamentosLancados.length>0 &&
+          taxasDoCheckoutRef.current &&
+          JSON.stringify(taxasDoCheckoutRef.current)!==JSON.stringify(taxasCambio)) {
+        mostrarZen('warning',tx('Câmbio alterado','Cambio modificado','Exchange rate changed'),
+          tx('A cotação mudou durante o fechamento. Confira os pagamentos antes de finalizar.',
+            'La cotización cambió durante el cierre. Compruebe los pagos antes de finalizar.',
+            'Exchange rate changed during checkout. Review payments before finalizing.'));
+        return;
+      }
       let documentoOrigemConfirmado = null;
       if(tipoFinalizacao==='venda' && prePedidoEmAbertoId){
         // Um rascunho de outro operador pode ficar ligado a um pré-pedido
@@ -2157,13 +2176,10 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                     onChange={e => {
                       const novaForma = e.target.value;
                       setFormaSelecionada(novaForma);
-                      const pendenteBRL = Math.max(0, totalFinalBRL - totalPagoConvertidoBRL);
-                      const conf = catalogoFormas.find(f => f.id === novaForma) || catalogoFormas[0];
-                      setValorLancamentoInput(pendenteBRL > 0 ? (
-                        conf.moedaOrigem === 'PYG'
-                          ? String(Math.ceil(converterDeBRL(pendenteBRL, 'PYG')))
-                          : converterDeBRL(pendenteBRL, conf.moedaOrigem).toFixed(2)
-                      ) : '');
+
+                       const conf=catalogoFormas.find(f => f.id === novaForma) || catalogoFormas[0];
+                       const somenteReceber=cotarPendenteNaMoeda(conf.moedaOrigem);
+                       setValorLancamentoInput(somenteReceber==null?'':String(somenteReceber));
                     }}
                     style={{ padding: '14px', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '12px', color: '#f8fafc', fontSize: '14px', fontWeight: 800, outline: 'none', cursor: 'pointer', width: '100%', boxSizing: 'border-box' }}
                   >
