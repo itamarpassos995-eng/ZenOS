@@ -258,7 +258,7 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
           changes, financialEntries:[financeiro],
           guards: [
             { type:'client_receipt_snapshot', clientId:clienteAtual.id, clientName:clienteAtual.nome, balanceBRL:saldoAntes },
-            {type:'money_exchange_rates_match',taxas:{...taxasCambio}},
+            ...(formaCfg.moedaOrigem!=='BRL' ? [{type:'money_exchange_rates_match',taxas:{...taxasCambio}}] : []),
             ...(dinheiroFisico ? [{ type:'cash_session_open', sessionId:sessaoAtiva.id }] : []),
           ],
           operationKey: 'recebimento-fiado:' + recebimentoId,
