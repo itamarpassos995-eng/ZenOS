@@ -22,6 +22,7 @@ const checks = emulator ? [
   'scripts/cash-multicurrency-p0-check.mjs',
   'scripts/product-cash-startup.test.mjs',
   'scripts/native-product-money.test.mjs',
+  'scripts/native-currency-contract.test.mjs',
   'scripts/native-money-events.test.mjs',
   'scripts/expense-fx-result.test.mjs',
   'scripts/expense-payment-guard.test.mjs',
