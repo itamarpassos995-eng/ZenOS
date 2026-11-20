@@ -47,3 +47,9 @@ test('Vendas exige escolha explícita, grava composição nativa e usa guarda no
  assert.match(src,/cash_native_balance_at_least/);
  assert.match(src,/taxaCambioAplicada: pagamentoFisico\.taxaCambioAplicada/);
 });
+
+test('diferença de um centavo nunca é liquidada sem registro de ajuste',()=>{
+ const req={valorDevidoBRL:10,valorFisico:'10,01',moedaFisica:'BRL',taxasCambio:taxas};
+ assert.equal(validarLiquidacaoMultimoeda(req).ok,false);
+ assert.equal(validarLiquidacaoMultimoeda({...req,valorFisico:'9,99'}).ok,false);
+});
