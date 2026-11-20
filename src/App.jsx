@@ -192,6 +192,8 @@ export default function App() {
   const [moeda, setMoeda] = useState('BRL');
   const [moedaPadrao, setMoedaPadrao] = useState('BRL');
   const moedaPadraoAnteriorRef = useRef('BRL');
+  const moedaPadraoInicialCarregadaRef = useRef(false);
+  const moedaEscolhaManualRef = useRef(false);
   const [salvandoMoedaPadrao, setSalvandoMoedaPadrao] = useState(false);
   
   const [mostrarPainelExecutivo, setMostrarPainelExecutivo] = useState(false);
@@ -561,6 +563,11 @@ export default function App() {
         setUsuarioAutenticado(user.email);
         // ATT 08.1: isolamento absoluto por conta. Nenhum perfil/regra/câmbio da sessão anterior permanece em RAM.
         const perfilCacheUsuario = lerPerfilLojaLocal(user.uid);
+        // Reiniciar referências ao mudar de conta ou restaurar sessão.
+        // Uma moeda padrão de sessão antiga não pode impedir a inicialização da loja atual.
+        moedaPadraoAnteriorRef.current='BRL';
+        moedaPadraoInicialCarregadaRef.current=false;
+        moedaEscolhaManualRef.current=false;
         setMoeda('BRL'); setMoedaPadrao('BRL');
         setPerfilLoja(perfilCacheUsuario);
         setPerfilRapidoRascunho(perfilCacheUsuario);
@@ -714,6 +721,9 @@ export default function App() {
       } else {
         // SEM USUÁRIO (DESLOGADO): Destrói os dados locais da memória RAM
         setUsuarioAutenticado(null); setUserId(null); setStatusLoja(null); setOperadorAtivo(null);
+        moedaPadraoAnteriorRef.current='BRL';
+        moedaPadraoInicialCarregadaRef.current=false;
+        moedaEscolhaManualRef.current=false;
         setMoeda('BRL'); setMoedaPadrao('BRL');
         setNuvemSincronizada(false);
         setFalhaBootstrapNuvem(null);
@@ -803,7 +813,10 @@ export default function App() {
           const pf = normalizarPerfilLoja({});
           setPerfilLoja(pf);
           setPerfilRapidoRascunho(pf);
-          setMoeda('BRL'); moedaPadraoAnteriorRef.current = 'BRL'; setMoedaPadrao('BRL');
+          if (!moedaEscolhaManualRef.current) setMoeda('BRL');
+          moedaPadraoAnteriorRef.current = 'BRL';
+          moedaPadraoInicialCarregadaRef.current = true;
+          setMoedaPadrao('BRL');
           limparPerfilLojaLocal(userId);
           setTaxasCambio({ ...TAXAS_CAMBIO_PADRAO });
           setTaxasInput({ ...TAXAS_INPUT_PADRAO });
@@ -811,10 +824,17 @@ export default function App() {
         }
         const config = snap.data() || {};
         const moedaConfig = ['BRL','PYG','USD','EUR'].includes(config.moedaPadrao) ? config.moedaPadrao : 'BRL';
-        // Muda a moeda visível somente se ela ainda segue a anterior moeda padrão.
-        // Não força a moeda escolhida manualmente pelo operador ao atualizar a aba.
-        setMoeda(prev => prev === moedaPadraoAnteriorRef.current ? moedaConfig : prev);
+        // A primeira resposta autoritativa SEMPRE inicializa a moeda visual da loja;
+        // em leituras posteriores respeita somente escolhas manuais da sessão.
+        const primeiraConfigDaSessao = !moedaPadraoInicialCarregadaRef.current;
+        const padraoAnterior = moedaPadraoAnteriorRef.current;
+        const escolhaManual = moedaEscolhaManualRef.current;
+        setMoeda(prev => {
+          if (primeiraConfigDaSessao) return escolhaManual ? prev : moedaConfig;
+          return !escolhaManual && prev===padraoAnterior ? moedaConfig : prev;
+        });
         moedaPadraoAnteriorRef.current = moedaConfig;
+        moedaPadraoInicialCarregadaRef.current = true;
         setMoedaPadrao(moedaConfig);
         const pf = normalizarPerfilLoja(config.perfilLoja || {});
         setPerfilLoja(prev => syncValuesEqual(prev, pf) ? prev : pf);
@@ -967,6 +987,8 @@ export default function App() {
       await setDoc(doc(db,'lojas',userId,'dados','configuracoes'),
         {moedaPadrao:moeda,updatedAtClient:new Date().toISOString(),updatedAtServer:serverTimestamp()}, {merge:true});
       moedaPadraoAnteriorRef.current = moeda;
+      moedaPadraoInicialCarregadaRef.current = true;
+      moedaEscolhaManualRef.current = false;
       setMoedaPadrao(moeda);
       notifyPersistenceStatus({status:'SINCRONIZADO',field:'configuracoes'});
     } catch (error) {
@@ -2128,7 +2150,11 @@ export default function App() {
           idioma,
           setIdioma,
           moeda,
-          setMoeda,
+          setMoeda: (novaMoeda) => {
+            // A seleção visual feita pelo operador não altera a configuração permanente.
+            moedaEscolhaManualRef.current = true;
+            setMoeda(novaMoeda);
+          },
           moedaPadrao,
           onSalvarMoedaPadrao: temPermissao('admin') || patenteUsuario === 'gerencia' ? salvarMoedaPadrao : undefined,
           salvandoMoedaPadrao,
