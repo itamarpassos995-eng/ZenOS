@@ -114,7 +114,7 @@ test('nova despesa PYG conserva guaranis e taxa na criação sem reprecificar de
  const {setDespesas}=montar([],commit,{moedaPadrao:'PYG',taxasCambio:{BRL:1,PYG:1100,USD:0.2,EUR:0.18}});
  fireEvent.click(screen.getByRole('button',{name:/Lançar Nova Despesa/}));
  fireEvent.change(screen.getByPlaceholderText(/Pagamento Fornecedor/),{target:{value:'Material de limpeza'}});
- fireEvent.change(screen.getByText('Valor na moeda original').parentElement.querySelector('input'),{target:{value:'25000'}});
+ fireEvent.change(screen.getByText(/Valor na moeda original/).parentElement.querySelector('input'),{target:{value:'25000'}});
  fireEvent.click(screen.getByRole('button',{name:/Registrar Despesa no Sistema/}));
  await waitFor(()=>expect(commit).toHaveBeenCalledTimes(1));
  const registro=commit.mock.calls[0][0].changes[0].value[0];
@@ -125,7 +125,7 @@ test('sem cotação PYG confirmada não registra despesa em guaranis',async()=>{
  const commit=vi.fn();montar([],commit,{moedaPadrao:'PYG',taxasCambio:{BRL:1,PYG:0}});
  fireEvent.click(screen.getByRole('button',{name:/Lançar Nova Despesa/}));
  fireEvent.change(screen.getByPlaceholderText(/Pagamento Fornecedor/),{target:{value:'Internet'}});
- fireEvent.change(screen.getByText('Valor na moeda original').parentElement.querySelector('input'),{target:{value:'25000'}});
+ fireEvent.change(screen.getByText(/Valor na moeda original/).parentElement.querySelector('input'),{target:{value:'25000'}});
  fireEvent.click(screen.getByRole('button',{name:/Registrar Despesa no Sistema/}));
  expect(screen.getByText(/Valor ou cotação inválidos/)).toBeTruthy();
  expect(commit).not.toHaveBeenCalled();
