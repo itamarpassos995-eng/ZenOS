@@ -58,6 +58,22 @@ export function textoPrecoExibicaoProduto(produto,field,moedaExibida,converterPa
  return valor.toFixed(moedaExibida==='PYG'?0:2);
 }
 
+/**
+ * When a customer's price tier changes, rebind the cart item's native source.
+ * Otherwise an FX refresh can silently restore the previous tier's amount.
+ * Never change the product catalog itself.
+ */
+export function reprecificarItemPDVPorPerfil(item,produto,campo,moedaExibida,converterParaBRL,converterDeBRL) {
+ if(!['precoBRL','preco2BRL','preco3BRL'].includes(campo))throw Error('Tabela de preço inválida');
+ const precoOrigemPDV=quantiaOriginalProduto(produto,campo);
+ const precoPraticadoBRL=valorProdutoBRL(produto,campo,converterParaBRL);
+ const precoTexto=textoPrecoExibicaoProduto(produto,campo,moedaExibida,converterParaBRL,converterDeBRL);
+ if(!Number.isFinite(precoPraticadoBRL)||precoPraticadoBRL<0)throw Error('Preço do produto inválido');
+ return {...item,precoPraticadoBRL,precoTexto,precoOrigemPDV,
+   precoDigitadoOriginal:null,precoEntradaInvalida:false,
+   snapshotMoedasProduto:produto?.valoresMonetarios||null};
+}
+
 export function projetarProdutoMonetario(produto,converterParaBRL){
  return {...produto,...Object.fromEntries(CAMPOS_MONETARIOS_PRODUTO.map(field=>[field,valorProdutoBRL(produto,field,converterParaBRL)]))};
 }
