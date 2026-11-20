@@ -85,3 +85,14 @@ test('sem moeda contratual original ou cotação não há quitação automática
  assert.equal(validarPagamentoObrigacaoNativa({valorObrigacaoOriginal:25000,moedaObrigacao:'PYG',
    valorFisico:'25000',moedaFisica:'PYG',taxasCambio:{},valorContabilHistoricoBRL:21.74}).ok,false);
 });
+
+test('reembolso PYG não depende de saldo equivalente BRL para retirar notas PYG',()=>{
+ const refund=readFileSync(new URL('../src/components/Vendas.jsx',import.meta.url),'utf8');
+ assert.match(refund,/pagamentoFisico\.moedaOrigem==='BRL'\) guards\.push\(\{ type:'cash_balance_at_least'/);
+ assert.match(refund,/cash_native_balance_at_least/);
+});
+test('despesa PYG não bloqueia retirada física pela cotação BRL do resumo',()=>{
+ const expense=readFileSync(new URL('../src/components/Despesas.jsx',import.meta.url),'utf8');
+ assert.match(expense,/pagamentoNativo\.moedaOrigem==='BRL' && valor > Number\(saldoSessaoFisicoBRL/);
+ assert.match(expense,/cash_native_balance_at_least/);
+});
