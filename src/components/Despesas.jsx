@@ -122,7 +122,7 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
         const confirmado = await commitOperacaoNegocio({
           changes:[{ field:'despesas', value:listaProposta, storageSuffix:'despesas' }],
           guards:[...(despesaEmEdicao?[{type:'entity_unchanged',field:'despesas',entityId:despesaEmEdicao.id,expected:despesaEmEdicao}]:[]),
-            ...(!legadoNaoComprovado && !semAlteracaoMonetaria ? [{type:'money_exchange_rates_match',taxas:{...taxasCambio}}] : [])],
+            ...(!legadoNaoComprovado && !semAlteracaoMonetaria && moedaDespesa!=='BRL' ? [{type:'money_exchange_rates_match',taxas:{...taxasCambio}}] : [])],
         });
         if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou a despesa.');
         confirmadas = confirmado.values?.despesas || listaProposta;
@@ -281,7 +281,8 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
         ] : [];
         guards.push({type:'entity_field_equals',field:'despesas',entityId:despesaParaPagar.id,entityKey:'id',
           property:'status',expected:'pendente',message:'Despesa já paga ou alterada em outro terminal.'});
-        guards.push({type:'money_exchange_rates_match',taxas:{...taxasCambio}});
+        if (pagamentoNativo.moedaOrigem!=='BRL' || (obrigacaoNativaComprovada && despesaParaPagar.moedaOrigem!=='BRL'))
+          guards.push({type:'money_exchange_rates_match',taxas:{...taxasCambio}});
         const confirmado = await commitOperacaoNegocio({ changes, financialEntries:ajusteCambial?[financeiro,ajusteCambial]:[financeiro], guards,
           operationKey:'despesa-pagamento:'+String(despesaParaPagar.id) });
         if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou o pagamento.');
