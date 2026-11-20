@@ -60,15 +60,12 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
     if(!despesa || despesa.status!=='pendente' || despesa.compraId || despesa.naturezaContabil==='estoque_ativo' || String(despesa.descricao||'').startsWith('Compra de Estoque - ')) {
       return avisarZen('warning',tx("Edição exige correção financeira","La edición requiere corrección financiera"),tx("Somente despesas manuais pendentes podem ser editadas. Para valores já pagos, use a remoção com ajuste do resultado, preservando o histórico.","Solo se pueden editar gastos manuales pendientes. Para importes ya pagados, utilice la eliminación con ajuste del resultado, conservando el historial."));
     }
-    if (!despesa.moedaOrigem || !Number.isFinite(despesa.valorOriginal)) {
-      return avisarZen('warning',tx('Despesa legada exige conferência','El gasto antiguo requiere revisión','Legacy expense needs review'),
-        tx('Sem moeda e valor originais comprovados, a edição poderia alterar o valor com a cotação atual. Preserve o registro e confira a origem.','Sin moneda e importe originales confirmados, la edición podría cambiar el valor con la cotización actual.','Without confirmed native amount and currency, editing could revalue this expense.'));
-    }
     setDespesaEmEdicao(despesa);
     setDescricao(despesa.descricao||'');
     setCategoria(despesa.categoria||'Outros');
-    setMoedaDespesa(despesa.moedaOrigem);
-    setValorInput(String(despesa.valorOriginal));
+    const temOrigem = !!despesa.moedaOrigem && Number.isFinite(despesa.valorOriginal);
+    setMoedaDespesa(temOrigem ? despesa.moedaOrigem : 'BRL');
+    setValorInput(String(temOrigem ? despesa.valorOriginal : despesa.valorBRL));
     setDataVencimento(despesa.dataVencimento||new Date().toISOString().slice(0,10));
     setModalAberto(true);
   };
@@ -79,6 +76,8 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
       return avisarZen('warning',tx("Edição bloqueada","Edición bloqueada"),tx("Esta despesa não pode ser editada diretamente por ter pagamento ou vínculo com compra.","Este gasto no puede editarse directamente porque tiene un pago o un vínculo con una compra."));
 
     if (!descricao.trim()) return avisarZen('warning',tx('Descrição obrigatória','Descripción obligatoria','Description required'),tx('Informe a descrição da despesa.','Informe la descripción del gasto.','Enter the expense description.'));
+    const legadoNaoComprovado = !!despesaEmEdicao &&
+      (!despesaEmEdicao.moedaOrigem || !Number.isFinite(despesaEmEdicao.valorOriginal));
     const digitado = interpretarValorMonetario(valorInput,moedaDespesa);
     if (!digitado.ok || digitado.valor <= 0) return avisarZen('warning',tx('Valor original inválido','Importe original inválido','Invalid original amount'),digitado.erro||'Valor deve ser maior que zero.');
     // Metadata-only editing cannot revalue a historical expense with today's FX.
@@ -86,10 +85,16 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
       despesaEmEdicao.moedaOrigem===moedaDespesa && digitado.valor===despesaEmEdicao.valorOriginal &&
       Number.isFinite(despesaEmEdicao.valorBRL) &&
       Number.isFinite(despesaEmEdicao.taxaCambioAplicada) && despesaEmEdicao.taxaCambioAplicada>0;
-    const snapshot = semAlteracaoMonetaria
-      ? {ok:true,moedaOrigem:despesaEmEdicao.moedaOrigem,valorOriginal:despesaEmEdicao.valorOriginal,
-         taxaCambioAplicada:despesaEmEdicao.taxaCambioAplicada,valorConvertidoBRL:despesaEmEdicao.valorBRL}
-      : criarSnapshotMonetario({valorOriginal:digitado.valor,moedaOrigem:moedaDespesa,taxasCambio});
+    if (legadoNaoComprovado && (moedaDespesa!=='BRL'||digitado.valor!==despesaEmEdicao.valorBRL)) {
+      return avisarZen('warning',tx('Valor legado protegido','Importe antiguo protegido','Legacy amount protected'),
+        tx('Somente descrição, categoria e vencimento podem mudar sem prova da moeda original.','Sin prueba de moneda original solo pueden cambiar los datos administrativos.','Only metadata may change until the original currency is verified.'));
+    }
+    const snapshot = legadoNaoComprovado
+      ? {ok:true,valorConvertidoBRL:despesaEmEdicao.valorBRL}
+      : semAlteracaoMonetaria
+        ? {ok:true,moedaOrigem:despesaEmEdicao.moedaOrigem,valorOriginal:despesaEmEdicao.valorOriginal,
+           taxaCambioAplicada:despesaEmEdicao.taxaCambioAplicada,valorConvertidoBRL:despesaEmEdicao.valorBRL}
+        : criarSnapshotMonetario({valorOriginal:digitado.valor,moedaOrigem:moedaDespesa,taxasCambio});
     if (!snapshot.ok) return avisarZen('warning',tx('Valor ou cotação inválidos','Importe o cotización inválidos','Invalid amount or exchange rate'),snapshot.erro);
     const valBRL = snapshot.valorConvertidoBRL;
 
@@ -99,9 +104,8 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
       descricao,
       categoria,
       valorBRL: valBRL,
-      moedaOrigem:snapshot.moedaOrigem,
-      valorOriginal:snapshot.valorOriginal,
-      taxaCambioAplicada:snapshot.taxaCambioAplicada,
+      ...(!legadoNaoComprovado ? {moedaOrigem:snapshot.moedaOrigem,
+        valorOriginal:snapshot.valorOriginal,taxaCambioAplicada:snapshot.taxaCambioAplicada} : {}),
       dataVencimento,
       status: despesaEmEdicao ? despesaEmEdicao.status : 'pendente',
       dataPagamento: despesaEmEdicao ? despesaEmEdicao.dataPagamento : null,
@@ -445,9 +449,11 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Valor na moeda original','Importe en moneda original','Amount in original currency')} ({moedaDespesa})</label>
+                  <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{despesaEmEdicao && (!despesaEmEdicao.moedaOrigem || !Number.isFinite(despesaEmEdicao.valorOriginal))
+                    ? tx('Valor BRL contábil (origem pendente)','Importe BRL contable (origen pendiente)','Accounting BRL (source unverified)')
+                    : tx('Valor na moeda original','Importe en moneda original','Amount in original currency')} ({moedaDespesa})</label>
                   <select value={moedaDespesa} onChange={e=>{setMoedaDespesa(e.target.value);setValorInput('');}} disabled={!!despesaEmEdicao} style={{width:'100%',padding:9,marginTop:6,background:'#020617',color:'#fff',border:'1px solid #334155',borderRadius:8}}>{['BRL','PYG','USD','EUR'].map(c=><option value={c} key={c}>{c}</option>)}</select>
-                  <input type="text" value={valorInput} onChange={e => setValorInput(e.target.value)} placeholder="0.00" style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #f43f5e', borderRadius: '8px', color: '#fb7185', fontWeight: 900, fontSize: '16px', padding: '12px', outline: 'none', marginTop: '4px', boxSizing: 'border-box' }} />
+                  <input type="text" value={valorInput} disabled={!!despesaEmEdicao && (!despesaEmEdicao.moedaOrigem || !Number.isFinite(despesaEmEdicao.valorOriginal))} onChange={e => setValorInput(e.target.value)} placeholder="0.00" style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #f43f5e', borderRadius: '8px', color: '#fb7185', fontWeight: 900, fontSize: '16px', padding: '12px', outline: 'none', marginTop: '4px', boxSizing: 'border-box' }} />
                 </div>
                 <div>
                   <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Data de Vencimento','Fecha de Vencimiento','Due Date')}</label>
