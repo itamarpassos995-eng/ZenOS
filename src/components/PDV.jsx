@@ -22,6 +22,7 @@ import { lerRascunhoPDV, salvarRascunhoPDV, apagarRascunhoPDVProtegido, salvarRa
 import { getOperationalSnapshot } from '../core/operationalRepository';
 import { autoriaDoDocumento, autoriaDoOperador, resolverAutoriaVenda } from '../core/salesAttribution';
 import { indexarProdutosPDV, indexarClientesPDV, buscarProdutosPDV, buscarClientesPDV } from '../core/pdvSearch';
+import { apurarTotalContratualPDV, cotarRecebimentoPDV } from '../core/pdvNativeCheckout.js';
 
 export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizados,
   pedidoPrivadoSolicitado, onPedidoPrivadoRecebido, perfilLoja, taxasCambio = {}, registrarFinanceiro, commitOperacaoCritica, commitVendaCritica, recarregarDadosPDV, vouchers = [], setVouchers, userId, produtos, setProdutos, clientes, setClientes, moeda, moedaPadrao = 'BRL', fmt, t, tx, converterDeBRL, converterParaBRL, historicoVendas, setHistoricoVendas, patenteUsuario, idioma, regrasDesconto, vendedores = [], operadorAtivo, sessaoAtiva }) {
@@ -804,11 +805,35 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
 
   const subtotalBrutoBRL = useMemo(() => itensVenda.reduce((acc, item) =>
     acc + (Math.max(0, parseInt(item.qtd) || 0) * (item.precoPraticadoBRL || 0)), 0), [itensVenda]);
+  const contratoNativoPDV = useMemo(() => apurarTotalContratualPDV({
+    itens:itensVenda,moedaPadrao,desconto:String(descontoTexto || '0').replace(',', '.')
+  }),[itensVenda,moedaPadrao,descontoTexto]);
+  const formatarContratoNativo = (valor,moedaNativa=moedaPadrao) =>
+    new Intl.NumberFormat(idioma==='es'?'es-PY':'pt-BR',{
+      style:'currency',currency:moedaNativa,
+      minimumFractionDigits:moedaNativa==='PYG'?0:2,
+      maximumFractionDigits:moedaNativa==='PYG'?0:2
+    }).format(valor);
+  const cotarPendenteNaMoeda = (moedaRecebimento) => {
+    if (contratoNativoPDV.ok && pagamentosLancados.length===0) {
+      const cotacao=cotarRecebimentoPDV({contrato:contratoNativoPDV,
+        moedaRecebimento,taxasConfirmadas:taxasCambio});
+      return cotacao.ok?cotacao.valorReceber:null;
+    }
+    const pendenteBRL=Math.max(0,totalFinalBRL-pagamentosLancados.reduce(
+      (acc,p)=>acc+(Number(p.valorConvertidoBRL)||0),0));
+    const valor=converterDeBRL(pendenteBRL,moedaRecebimento);
+    return Number.isFinite(valor)&&valor>=0?
+      (moedaRecebimento==='PYG'?Math.ceil(valor):Math.round(valor*100)/100):null;
+  };
   const custoTotalBRL = useMemo(() => itensVendaComCustoAtual(itensVenda).reduce((acc, item) =>
     acc + (Math.max(0, parseInt(item.qtd) || 0) * (item.custoBRL || 0)), 0), [itensVenda, produtos]);
-  const descBRL = converterParaBRL(parseFloat(String(descontoTexto).replace(',', '.')) || 0, moeda);
-
-  const totalFinalBRL = Math.max(0, subtotalBrutoBRL - descBRL);
+  const descBRL = contratoNativoPDV.ok
+    ? converterParaBRL(contratoNativoPDV.descontoOriginal,moedaPadrao)
+    : converterParaBRL(parseFloat(String(descontoTexto).replace(',', '.')) || 0, moeda);
+  const totalFinalBRL = contratoNativoPDV.ok
+    ? converterParaBRL(contratoNativoPDV.totalOriginal,moedaPadrao)
+    : Math.max(0, subtotalBrutoBRL - descBRL);
   const lucroEstimadoBRL = totalFinalBRL - custoTotalBRL;
   const margemLucroReal = totalFinalBRL > 0 ? (lucroEstimadoBRL / totalFinalBRL) * 100 : 0;
 
@@ -848,7 +873,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     ]),
     { id: 'voucher', rotulo: 'Voucher', moedaOrigem: 'BRL', icone: '🎟️' },
     { id: 'cheque', rotulo: 'Cheque', moedaOrigem: 'BRL', icone: '📝' },
-    { id: 'crediario', rotulo: tx('Crediário / Fiado', 'Fiado / Crédito', 'Store Credit'), moedaOrigem: 'BRL', icone: '📒' }
+    { id: 'crediario', rotulo: tx('Crediário / Fiado', 'Fiado / Crédito', 'Store Credit'), moedaOrigem: contratoNativoPDV.ok?moedaPadrao:'BRL', icone: '📒' }
   ];
 
   const totalPagoConvertidoBRL = pagamentosLancados.reduce((acc, p) => acc + (p.valorConvertidoBRL || 0), 0);
@@ -871,9 +896,13 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     if(itensVenda.some(i=>i.precoEntradaInvalida))return mostrarZen('warning',tx('Valor inválido','Importe inválido','Invalid amount'),tx('Confira os preços digitados e a moeda.','Revise los precios ingresados y la moneda.','Check entered prices and currency.'));
     if (itensVenda.length === 0 || totalFinalBRL <= 0) return mostrarZen('warning', tx("Venda vazia","Venta vacía"), tx('Adicione produtos à venda.', 'Añada productos.', 'Add products.'));
     setPagamentosLancados([]);
-    setFormaSelecionada(moeda === 'PYG' ? 'dinheiro_pyg' : moeda === 'USD' ? 'dinheiro_usd' : moeda === 'EUR' ? 'dinheiro_eur' : 'dinheiro_brl');
-    setMoedaTrocoEscolhida(moeda);
-    setValorLancamentoInput(moeda === 'PYG' ? String(Math.round(converterDeBRL(totalFinalBRL, moeda))) : converterDeBRL(totalFinalBRL, moeda).toFixed(moeda==='PYG'?0:2));
+    const moedaInicial=contratoNativoPDV.ok?moedaPadrao:moeda;
+    const cotado=cotarPendenteNaMoeda(moedaInicial);
+    if(cotado==null)return mostrarZen('danger',tx('Cotação não comprovada','Cotización no confirmada','Exchange quote unverified'),
+      tx('Confira as taxas antes de receber.','Compruebe las tasas antes de cobrar.','Verify the rates before collecting payment.'));
+    setFormaSelecionada(moedaInicial==='PYG'?'dinheiro_pyg':moedaInicial==='USD'?'dinheiro_usd':moedaInicial==='EUR'?'dinheiro_eur':'dinheiro_brl');
+    setMoedaTrocoEscolhida(moedaInicial);
+    setValorLancamentoInput(String(cotado));
     setVendaSucesso(false);
     setModalFechamentoAberto(true);
   };
@@ -1139,7 +1168,9 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       if (tipoFinalizacao === 'venda') {
         itensDocumento = itensDocumento.map(item => ({
           ...item,
-          precoNaVenda:{valor:converterDeBRL(Number(item.precoPraticadoBRL||0),moeda),moeda},
+          precoNaVenda:contratoNativoPDV.ok
+            ? {...(item.precoDigitadoOriginal||item.precoOrigemPDV)}
+            : {valor:converterDeBRL(Number(item.precoPraticadoBRL||0),moeda),moeda},
           custoNaVendaBRL: Number.isFinite(Number(item.custoBRL)) && Number(item.custoBRL) >= 0 ? Number(item.custoBRL) : 0,
         }));
       }
@@ -1158,8 +1189,8 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
         ...(tipoFinalizacao === 'venda' ? { finalizadoPorId: idSeguro, finalizadoPorNome: nomeSeguro } : {}),
         sessaoId: tipoFinalizacao === 'venda' ? sessaoAtiva?.id || null : null,
         itens: itensDocumento,
-        moedaDocumento:moeda,
-        totalOriginal:converterDeBRL(totalFinalBRL,moeda),
+        moedaDocumento:contratoNativoPDV.ok?moedaPadrao:moeda,
+        totalOriginal:contratoNativoPDV.ok?contratoNativoPDV.totalOriginal:converterDeBRL(totalFinalBRL,moeda),
 
         totalBRL: totalFinalBRL,
         lucroBRL: tipoFinalizacao === 'venda' ? totalFinalBRL - cmvVendaBRL : lucroEstimadoBRL,
