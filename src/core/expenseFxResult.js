@@ -26,3 +26,18 @@ export function apurarDespesasEVariacaoCambial(despesas=[], noPeriodo=()=>true) 
   return {despesasHistoricasBRL:round(custoHistoricoBRL),variacaoCambialBRL:round(variacaoCambialBRL),
     despesaRealizadaBRL:round(custoHistoricoBRL+variacaoCambialBRL),quantidadeComAjuste};
 }
+
+/** Realized refund FX differences are separate from sale price and cost. */
+export function apurarVariacaoCambialDevolucoes(vendas=[],noPeriodo=()=>true) {
+  let totalBRL=0, quantidade=0;
+  for(const venda of vendas){
+    for(const dev of venda?.devolucoes||[]){
+      if(!noPeriodo(dev) || !Object.prototype.hasOwnProperty.call(dev,'diferencaCambialBRL')) continue;
+      const fx=Number(dev.diferencaCambialBRL);
+      if(!Number.isFinite(fx)) continue;
+      totalBRL+=fx;
+      quantidade++;
+    }
+  }
+  return {variacaoCambialBRL:Math.round((totalBRL+Number.EPSILON)*100)/100,quantidade};
+}
