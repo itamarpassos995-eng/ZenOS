@@ -1,4 +1,4 @@
-import { apurarDespesasEVariacaoCambial } from './core/expenseFxResult.js';
+import { apurarDespesasEVariacaoCambial, apurarVariacaoCambialDevolucoes } from './core/expenseFxResult.js';
 import { apurarVendasNativasDoDia } from './utils/dailySalesNative.js';
 import {operadorConfirmadoTerminal} from './core/terminalAccess.js';
 import ZenOSUpdateWelcome from './components/ZenOSUpdateWelcome.jsx';
@@ -1204,7 +1204,12 @@ export default function App() {
   const lucroBrutoBRL = financeiroHistorico.lucro;
   const apuracaoDespesas = useMemo(() => apurarDespesasEVariacaoCambial(despesas, d => withinFinancialPeriod(d,intervaloFinanceiro,{payment:true})),[despesas,intervaloFinanceiro]);
   const despesasPagasBRL = apuracaoDespesas.despesaRealizadaBRL;
-  const lucroLiquidoRealBRL = lucroBrutoBRL - despesasPagasBRL;
+  const apuracaoCambioDevolucoes = useMemo(() => apurarVariacaoCambialDevolucoes(
+    historicoVendas, dev => withinFinancialPeriod(dev,intervaloFinanceiro)
+  ),[historicoVendas,intervaloFinanceiro]);
+  // Reduz lucro líquido somente pela diferença cambial realizada em devoluções,
+  // nunca pela cotação atual ou alteração retroativa do preço da venda.
+  const lucroLiquidoRealBRL = lucroBrutoBRL - despesasPagasBRL - apuracaoCambioDevolucoes.variacaoCambialBRL;
   const totalFiadoAbertoBRL = useMemo(() => clientes.reduce((acc, c) => acc + (parseFloat(c.saldoDevedorBRL) || 0), 0), [clientes]);
 
   const gerarCurvaABC = () => {
