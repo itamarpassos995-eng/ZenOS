@@ -848,7 +848,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     ]),
     { id: 'voucher', rotulo: 'Voucher', moedaOrigem: 'BRL', icone: '🎟️' },
     { id: 'cheque', rotulo: 'Cheque', moedaOrigem: 'BRL', icone: '📝' },
-    { id: 'crediario', rotulo: tx('Crediário / Fiado', 'Fiado / Crédito', 'Store Credit'), moedaOrigem: 'BRL', icone: '📒' }
+    { id: 'crediario', rotulo: tx('Crediário / Fiado', 'Fiado / Crédito', 'Store Credit'), moedaOrigem: moeda, icone: '📒' }
   ];
 
   const totalPagoConvertidoBRL = pagamentosLancados.reduce((acc, p) => acc + (p.valorConvertidoBRL || 0), 0);
