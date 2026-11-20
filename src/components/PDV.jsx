@@ -899,10 +899,10 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     if (itensVenda.length === 0 || totalFinalBRL <= 0) return mostrarZen('warning', tx("Venda vazia","Venta vacía"), tx('Adicione produtos à venda.', 'Añada productos.', 'Add products.'));
     setPagamentosLancados([]);
     const moedaInicial=contratoNativoPDV.ok?moedaPadrao:moeda;
+    taxasDoCheckoutRef.current={...taxasCambio};
     const cotado=cotarPendenteNaMoeda(moedaInicial);
     if(cotado==null)return mostrarZen('danger',tx('Cotação não comprovada','Cotización no confirmada','Exchange quote unverified'),
       tx('Confira as taxas antes de receber.','Compruebe las tasas antes de cobrar.','Verify the rates before collecting payment.'));
-    taxasDoCheckoutRef.current={...taxasCambio};
     setFormaSelecionada(moedaInicial==='PYG'?'dinheiro_pyg':moedaInicial==='USD'?'dinheiro_usd':moedaInicial==='EUR'?'dinheiro_eur':'dinheiro_brl');
     setMoedaTrocoEscolhida(moedaInicial);
     setValorLancamentoInput(String(cotado));
