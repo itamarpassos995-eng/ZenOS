@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import {criarSnapshotMonetario,validarLiquidacaoMultimoeda,validarPagamentoObrigacaoNativa} from '../src/core/nativeMoneyEvents.js';
+import {criarSnapshotMonetario,validarLiquidacaoMultimoeda,validarPagamentoObrigacaoNativa,validarReembolsoVendaNativa} from '../src/core/nativeMoneyEvents.js';
 import {calcularConciliacaoFisicaMultimoeda} from '../src/core/cashReconciliation.js';
 
 const taxas={BRL:1,PYG:1100,USD:0.2,EUR:0.18};
@@ -95,4 +95,32 @@ test('despesa PYG não bloqueia retirada física pela cotação BRL do resumo',(
  const expense=readFileSync(new URL('../src/components/Despesas.jsx',import.meta.url),'utf8');
  assert.match(expense,/pagamentoNativo\.moedaOrigem==='BRL' && valor > Number\(saldoSessaoFisicoBRL/);
  assert.match(expense,/cash_native_balance_at_least/);
+});
+
+test('reembolso Gs 25.000 permanece Gs 25.000 ao alterar câmbio 1150 para 1100',()=>{
+ const venda={moedaDocumento:'PYG',totalOriginal:25000,totalBRL:21.74,valorDevolvidoBRL:0};
+ const r=validarReembolsoVendaNativa({venda,valorEstornoBRL:21.74,moedaFisica:'PYG',valorFisico:'25000',taxasCambio:taxas});
+ assert.equal(r.ok,true);
+ assert.equal(r.moedaVendaOriginal,'PYG');
+ assert.equal(r.valorDevolvidoContratoOriginal,25000);
+ assert.equal(r.valorOriginal,25000);
+ assert.equal(r.diferencaCambialBRL,0.99);
+});
+test('devolução parcial usa diferença de quotas nativas, não câmbio do dia',()=>{
+ const venda={moedaDocumento:'PYG',totalOriginal:25000,totalBRL:21.74,valorDevolvidoBRL:10.87};
+ const r=validarReembolsoVendaNativa({venda,valorEstornoBRL:10.87,moedaFisica:'PYG',valorFisico:'12500',taxasCambio:taxas});
+ assert.equal(r.ok,true);
+ assert.equal(r.valorDevolvidoContratoOriginal,12500);
+});
+test('devolução PYG em BRL paga somente equivalente confirmado, sem alterar preço original',()=>{
+ const venda={moedaDocumento:'PYG',totalOriginal:25000,totalBRL:21.74};
+ const r=validarReembolsoVendaNativa({venda,valorEstornoBRL:21.74,moedaFisica:'BRL',valorFisico:'22,73',taxasCambio:taxas});
+ assert.equal(r.ok,true);
+ assert.equal(r.valorOriginal,22.73);
+ assert.equal(r.moedaVendaOriginal,'PYG');
+});
+test('valor diferente da obrigação original não deve ser devolvido silenciosamente',()=>{
+ const venda={moedaDocumento:'PYG',totalOriginal:25000,totalBRL:21.74};
+ const r=validarReembolsoVendaNativa({venda,valorEstornoBRL:21.74,moedaFisica:'PYG',valorFisico:'23900',taxasCambio:taxas});
+ assert.equal(r.ok,false);
 });
