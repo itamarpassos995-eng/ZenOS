@@ -67,8 +67,8 @@ test('painel sinaliza divergências, esconde indicadores não comprovados e não
  const app=readFileSync(new URL('../src/App.jsx',import.meta.url),'utf8');
  assert.match(app,/const auditoriaPainelFinanceiro = useMemo/);
  assert.match(app,/vendasValidas\.map\(auditarFinanceiroVenda\)/);
- assert.match(app,/auditoriaPainelFinanceiro\.confiavel \? fmt\(faturamentoTotalBRL\)/);
- assert.match(app,/auditoriaPainelFinanceiro\.confiavel \? fmt\(cmvTotalBRL\)/);
- assert.match(app,/auditoriaPainelFinanceiro\.confiavel \? fmt\(lucroLiquidoRealBRL\)/);
+ assert.match(app,/auditoriaPainelFinanceiro\.confiavel \? fmt\(faturamentoTotalBRL,'BRL'\)/);
+ assert.match(app,/auditoriaPainelFinanceiro\.confiavel \? fmt\(cmvTotalBRL,'BRL'\)/);
+ assert.match(app,/auditoriaPainelFinanceiro\.confiavel \? fmt\(lucroLiquidoRealBRL,'BRL'\)/);
  assert.match(app,/histórico não carregado|historial no cargado|historical reconciliation/);
 });
