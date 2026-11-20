@@ -26,6 +26,7 @@ const checks = emulator ? [
   'scripts/pdv-native-checkout.test.mjs',
   'scripts/native-customer-credit.test.mjs',
   'scripts/native-currency-integration.test.mjs',
+  'scripts/native-sales-summary.test.mjs',
   'scripts/p0-credit-reconciliation-check.mjs',
   'scripts/p0-client-receipt-check.mjs',
   'scripts/p0-fiado-link-audit-check.mjs',
