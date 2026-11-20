@@ -1,3 +1,4 @@
+import { apurarDespesasEVariacaoCambial } from './core/expenseFxResult.js';
 import { apurarVendasNativasDoDia } from './utils/dailySalesNative.js';
 import {operadorConfirmadoTerminal} from './core/terminalAccess.js';
 import ZenOSUpdateWelcome from './components/ZenOSUpdateWelcome.jsx';
@@ -1201,7 +1202,8 @@ export default function App() {
   const faturamentoTotalBRL = financeiroHistorico.total;
   const cmvTotalBRL = financeiroHistorico.cmv;
   const lucroBrutoBRL = financeiroHistorico.lucro;
-  const despesasPagasBRL = useMemo(() => despesas.filter(d => withinFinancialPeriod(d,intervaloFinanceiro,{payment:true}) && (d.status === 'paga' || (d.status === 'excluida' && d.financeiroMantido === true)) && d.afetaResultado !== false && d.naturezaContabil !== 'estoque_ativo' && d.categoria !== 'Mercadoria para Revenda').reduce((acc,d)=>acc+(Number(d.valorBRL)||0),0), [despesas,intervaloFinanceiro]);
+  const apuracaoDespesas = useMemo(() => apurarDespesasEVariacaoCambial(despesas, d => withinFinancialPeriod(d,intervaloFinanceiro,{payment:true})),[despesas,intervaloFinanceiro]);
+  const despesasPagasBRL = apuracaoDespesas.despesaRealizadaBRL;
   const lucroLiquidoRealBRL = lucroBrutoBRL - despesasPagasBRL;
   const totalFiadoAbertoBRL = useMemo(() => clientes.reduce((acc, c) => acc + (parseFloat(c.saldoDevedorBRL) || 0), 0), [clientes]);
 
