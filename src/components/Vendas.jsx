@@ -168,7 +168,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
     if (metodoReembolso === 'dinheiro' && !caixaReembolsoSelecionado) {
       return avisarZen({ variante:'danger', titulo:tx('Nenhum caixa disponível','Ninguna caja disponible','No register available'), mensagem:tx('Para devolver em dinheiro, selecione um turno de caixa aberto. Se não houver caixa com saldo, use Pix/Banco ou Voucher.','Para devolver en efectivo, seleccione un turno de caja abierto. Si no hay caja con saldo, use Pix/Banco o Voucher.','For a cash refund, select an open register shift. If no register has balance, use Pix/Bank or Voucher.') });
     }
-    if (dinheiroFisico && totalEstornoBRL > Number(caixaReembolsoSelecionado?.resumo?.saldoEsperado || 0) + 0.001) {
+    if (dinheiroFisico && pagamentoFisico?.moedaOrigem==='BRL' && totalEstornoBRL > Number(caixaReembolsoSelecionado?.resumo?.saldoEsperado || 0) + 0.001) {
       return avisarZen({
         variante:'danger',
         titulo:tx('Saldo insuficiente no caixa selecionado','Saldo insuficiente en la caja seleccionada','Insufficient balance in selected register'),
@@ -206,7 +206,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
     if (metodoReembolso === 'dinheiro') {
       const sessaoAtualizada = (sessoesCaixa || []).find(s => String(s.id) === String(sessaoReembolsoId) && s.status === 'aberta');
       const resumoAtualizado = sessaoAtualizada ? calcularResumoSessao({ sessao: sessaoAtualizada, historicoVendas, caixaMovimentos }) : null;
-      if (!resumoAtualizado || totalEstornoBRL > Number(resumoAtualizado.saldoEsperado || 0) + 0.001) {
+      if (!resumoAtualizado || (pagamentoFisico?.moedaOrigem==='BRL' && totalEstornoBRL > Number(resumoAtualizado.saldoEsperado || 0) + 0.001)) {
         return avisarZen({ variante:'danger', titulo:tx('Saldo do caixa mudou','El saldo de caja cambió','Register balance changed'), mensagem:tx('O caixa selecionado não possui mais saldo físico suficiente para esta devolução.','La caja seleccionada ya no posee saldo físico suficiente para esta devolución.','The selected register no longer has enough physical cash for this return.'), detalhes:[`Disponível agora: ${fmt(resumoAtualizado?.saldoEsperado || 0,'BRL')}`, `Devolução: ${fmt(totalEstornoBRL,'BRL')}`, tx("Selecione outro caixa com saldo ou use Pix/Banco ou Voucher.","Seleccione otra caja con saldo o utilice Pix/Banco o Vale.")] });
       }
     }
@@ -429,7 +429,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
         const guards = [{ type:'sale_return_capacity', saleId:vendaSendoDevolvida?.id, items:guardItems }];
         if (metodoReembolso === 'dinheiro' && caixaReembolsoSelecionado?.sessao?.id) {
           guards.push({ type:'cash_session_open', sessionId:caixaReembolsoSelecionado.sessao.id });
-          guards.push({ type:'cash_balance_at_least', sessionId:caixaReembolsoSelecionado.sessao.id, amount:totalEstornoBRL, message:'O saldo físico do caixa mudou em outro terminal. A devolução em dinheiro foi bloqueada.' });
+          if (pagamentoFisico.moedaOrigem==='BRL') guards.push({ type:'cash_balance_at_least', sessionId:caixaReembolsoSelecionado.sessao.id, amount:totalEstornoBRL, message:'O saldo físico do caixa mudou em outro terminal. A devolução em dinheiro foi bloqueada.' });
           guards.push({type:'cash_native_balance_at_least',sessionId:caixaReembolsoSelecionado.sessao.id,
             valoresNativos:{[pagamentoFisico.moedaOrigem]:pagamentoFisico.valorOriginal},taxas:{...taxasCambio}});
         }
