@@ -819,7 +819,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   const cotarPendenteNaMoeda = (moedaRecebimento) => {
     if (contratoNativoPDV.ok && pagamentosLancados.length===0) {
       const cotacao=cotarRecebimentoPDV({contrato:contratoNativoPDV,
-        moedaRecebimento,taxasConfirmadas:taxasDoCheckoutRef.current || taxasCambio});
+        moedaRecebimento,taxasConfirmadas:pagamentosLancados.length>0 && taxasDoCheckoutRef.current ? taxasDoCheckoutRef.current : taxasCambio});
       return cotacao.ok?cotacao.valorReceber:null;
     }
     const pendenteBRL=Math.max(0,totalFinalBRL-pagamentosLancados.reduce(
@@ -830,7 +830,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   };
   const custoTotalBRL = useMemo(() => itensVendaComCustoAtual(itensVenda).reduce((acc, item) =>
     acc + (Math.max(0, parseInt(item.qtd) || 0) * (item.custoBRL || 0)), 0), [itensVenda, produtos]);
-  const taxasDoContrato=modalFechamentoAberto && taxasDoCheckoutRef.current ? taxasDoCheckoutRef.current : taxasCambio;
+  const taxasDoContrato=modalFechamentoAberto && pagamentosLancados.length>0 && taxasDoCheckoutRef.current ? taxasDoCheckoutRef.current : taxasCambio;
   const descBRL = contratoNativoPDV.ok
     ? (moedaPadrao==='BRL'?contratoNativoPDV.descontoOriginal:contratoNativoPDV.descontoOriginal/Number(taxasDoContrato?.[moedaPadrao]))
     : converterParaBRL(parseFloat(String(descontoTexto).replace(',', '.')) || 0, moeda);
@@ -965,7 +965,8 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       if (!voucherSelecionado) return setModalZen({variante:'danger',titulo:tx('Voucher inválido','Voucher inválido','Invalid voucher'),mensagem:tx('Código não encontrado, já utilizado ou sem saldo.','Código no encontrado, ya utilizado o sin saldo.','Code not found, already used, or has no balance.'),apenasConfirmar:true});
       if (valorNum > Number(voucherSelecionado.saldoBRL || 0) + 0.001) return setModalZen({variante:'warning',titulo:tx('Saldo insuficiente no voucher','Saldo insuficiente en el voucher','Insufficient voucher balance'),mensagem:`${tx('Saldo disponível:','Saldo disponible:','Available balance:')} ${fmt(voucherSelecionado.saldoBRL, 'BRL')}`,apenasConfirmar:true});
     }
-    const taxasPagamento=taxasDoCheckoutRef.current||taxasCambio;
+    const taxasPagamento=pagamentosLancados.length>0 && taxasDoCheckoutRef.current ? taxasDoCheckoutRef.current : taxasCambio;
+    if(pagamentosLancados.length===0) taxasDoCheckoutRef.current={...taxasCambio};
     const taxaPagamento=configForma.moedaOrigem==='BRL'?1:Number(taxasPagamento?.[configForma.moedaOrigem]);
     if(!(taxaPagamento>0))return mostrarZen('danger',tx('Cotação inválida','Cotización inválida','Invalid exchange quote'),
       tx('Confira a cotação antes de receber.','Compruebe la cotización antes de cobrar.','Verify exchange quote before payment.'));
