@@ -42,7 +42,8 @@ test('indicadores históricos BRL não se apresentam como PYG nativo',()=>{
 });
 test('configuração salva não reverte seleção manual ao retomar aba',()=>{
  const app=readFileSync(new URL('../src/App.jsx',import.meta.url),'utf8');
- assert.match(app,/setMoeda\(prev => prev === moedaPadraoAnteriorRef\.current \? moedaConfig : prev\)/);
+ assert.match(app,/resolverMoedaExibidaAoCarregarConfiguracao\(/);
+ assert.match(app,/primeiraConfiguracao:primeiraConfigDaSessao, escolhaManual/);
  assert.match(app,/moedaPadraoAnteriorRef\.current = moedaConfig/);
  assert.match(app,/moedaPadraoAnteriorRef\.current = moeda/);
 });
