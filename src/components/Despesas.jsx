@@ -4,7 +4,7 @@ import {db} from '../firebase';
 import {doc,getDocFromServer} from 'firebase/firestore';
 import {getOperationalSnapshot} from '../core/operationalRepository';
 import {avaliarPagamentoExistente} from '../core/expensePaymentReconcile';
-import {criarSnapshotMonetario,validarLiquidacaoMultimoeda} from '../core/nativeMoneyEvents.js';
+import {criarSnapshotMonetario,validarLiquidacaoMultimoeda,validarPagamentoObrigacaoNativa} from '../core/nativeMoneyEvents.js';
 import {interpretarValorMonetario} from '../core/cashMoneyInput.js';
 import {formatarDinheiroNativo} from '../core/cashHistoryDisplay.js';
 
@@ -193,8 +193,14 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
     try{
     const dinheiro = String(formaPagamento || '').toLowerCase().includes('dinheiro');
     const valor = Number(despesaParaPagar?.valorBRL || 0);
-    const pagamentoNativo = validarLiquidacaoMultimoeda({valorDevidoBRL:valor,valorFisico:valorPagamento,
-      moedaFisica:moedaPagamento,taxasCambio});
+    const obrigacaoNativaComprovada = !!despesaParaPagar?.moedaOrigem &&
+      Number.isFinite(despesaParaPagar?.valorOriginal) && despesaParaPagar.valorOriginal>0;
+    const pagamentoNativo = obrigacaoNativaComprovada
+      ? validarPagamentoObrigacaoNativa({valorObrigacaoOriginal:despesaParaPagar.valorOriginal,
+          moedaObrigacao:despesaParaPagar.moedaOrigem,valorFisico:valorPagamento,
+          moedaFisica:moedaPagamento,taxasCambio,valorContabilHistoricoBRL:valor})
+      : validarLiquidacaoMultimoeda({valorDevidoBRL:valor,valorFisico:valorPagamento,
+          moedaFisica:moedaPagamento,taxasCambio});
     if (!pagamentoNativo.ok) return avisarZen('danger',tx('Pagamento sem valor confirmado','Pago sin importe confirmado','Payment without verified amount'),pagamentoNativo.erro);
     if (dinheiro && !['BRL','PYG','USD','EUR'].includes(pagamentoNativo.moedaOrigem))
       return avisarZen('danger',tx('Moeda inválida','Moneda inválida','Invalid currency'),tx('Selecione a moeda realmente entregue.','Seleccione la moneda realmente entregada.','Select the actual paid currency.'));
@@ -204,7 +210,9 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
     const createdAt = new Date().toISOString();
     const despesasPropostas = despesas.map(d => d.id === despesaParaPagar.id ? { ...d, status:'paga', dataPagamento:createdAt, formaPagamento,
       pagamentoMoedaOrigem:pagamentoNativo.moedaOrigem,pagamentoValorOriginal:pagamentoNativo.valorOriginal,
-      pagamentoTaxaCambioAplicada:pagamentoNativo.taxaCambioAplicada } : d);
+      pagamentoTaxaCambioAplicada:pagamentoNativo.taxaCambioAplicada,
+      ...(obrigacaoNativaComprovada ? {diferencaCambialBRL:pagamentoNativo.diferencaCambialBRL,
+       residuoArredondamentoOrigem:pagamentoNativo.residuoArredondamentoOrigem} : {}) } : d);
     const mov = dinheiro ? { id:`MOV-DESP-${despesaParaPagar.id}`, sessaoId:sessaoAtiva.id, createdAt, dataHora:new Date(createdAt).toLocaleString('pt-BR'), tipo: despesaParaPagar?.naturezaContabil === 'estoque_ativo' ? 'saida_compra' : 'saida_despesa', direcao:'saida', afetaGaveta:true, valorBRL:valor, detalhesMoedas:{[pagamentoNativo.moedaOrigem]:pagamentoNativo.valorOriginal}, detalhesMoedasNativas:{[pagamentoNativo.moedaOrigem]:pagamentoNativo.valorOriginal}, moedaOrigem:pagamentoNativo.moedaOrigem, valorOriginal:pagamentoNativo.valorOriginal, taxaCambioAplicada:pagamentoNativo.taxaCambioAplicada, taxasCambioMovimento:{...taxasCambio}, descricao:despesaParaPagar.descricao, despesaId:despesaParaPagar.id, operador:operadorAtivo?.nome||'Administrador' } : null;
     const caixaProposto = mov ? [mov, ...(caixaMovimentos || [])] : caixaMovimentos;
     const financeiro = {
@@ -221,7 +229,10 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
       sessaoId: dinheiro ? sessaoAtiva?.id : null,
       observacao: despesaParaPagar.descricao,
       detalhes: { categoria: despesaParaPagar.categoria, naturezaContabil: despesaParaPagar.naturezaContabil || null,
-        moedaOrigem:pagamentoNativo.moedaOrigem,valorOriginal:pagamentoNativo.valorOriginal,taxaCambioAplicada:pagamentoNativo.taxaCambioAplicada },
+        moedaOrigem:pagamentoNativo.moedaOrigem,valorOriginal:pagamentoNativo.valorOriginal,taxaCambioAplicada:pagamentoNativo.taxaCambioAplicada,
+        ...(obrigacaoNativaComprovada ? {moedaObrigacao:pagamentoNativo.moedaObrigacao,valorObrigacaoOriginal:pagamentoNativo.valorObrigacaoOriginal,
+          valorContabilHistoricoBRL:pagamentoNativo.valorContabilHistoricoBRL,valorContabilDataPagamentoBRL:pagamentoNativo.valorContabilDataPagamentoBRL,
+          diferencaCambialBRL:pagamentoNativo.diferencaCambialBRL,residuoArredondamentoOrigem:pagamentoNativo.residuoArredondamentoOrigem} : {}) },
       operadorId:operadorAtivo?.id || 'admin',
       operadorNome:operadorAtivo?.nome || 'Administrador',
     };
@@ -504,8 +515,12 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
             <label style={{fontSize:11,color:'#cbd5e1'}}>{tx('Valor efetivamente pago','Importe realmente pagado','Actual amount paid')}</label>
             <input value={valorPagamento} onChange={e=>setValorPagamento(e.target.value)} inputMode="decimal" placeholder="0" style={{width:'100%',boxSizing:'border-box',padding:11,marginTop:6,marginBottom:14,background:'#020617',color:'#fff',border:'1px solid #334155',borderRadius:8}}/>
             {moedaPagamento && valorPagamento && (() => {
-              const parcial=validarLiquidacaoMultimoeda({valorDevidoBRL:Number(despesaParaPagar.valorBRL),
-                valorFisico:valorPagamento,moedaFisica:moedaPagamento,taxasCambio});
+              const parcial=despesaParaPagar.moedaOrigem && Number.isFinite(despesaParaPagar.valorOriginal)
+                ? validarPagamentoObrigacaoNativa({valorObrigacaoOriginal:despesaParaPagar.valorOriginal,
+                    moedaObrigacao:despesaParaPagar.moedaOrigem,valorFisico:valorPagamento,
+                    moedaFisica:moedaPagamento,taxasCambio,valorContabilHistoricoBRL:Number(despesaParaPagar.valorBRL)})
+                : validarLiquidacaoMultimoeda({valorDevidoBRL:Number(despesaParaPagar.valorBRL),
+                    valorFisico:valorPagamento,moedaFisica:moedaPagamento,taxasCambio});
               return <div role="status" style={{fontSize:11,color:parcial.ok?'#34d399':'#fbbf24',marginBottom:12}}>
                 {parcial.ok
                   ? `${tx('Valor validado','Importe validado','Verified amount')}: ${parcial.valorOriginal} ${parcial.moedaOrigem} · ${tx('Cotação aplicada','Cotización aplicada','Applied rate')}: ${parcial.taxaCambioAplicada} · ${fmt(parcial.valorConvertidoBRL,'BRL')}`
