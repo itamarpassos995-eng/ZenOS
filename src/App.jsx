@@ -188,6 +188,9 @@ export default function App() {
   const [idioma, setIdioma] = useUiLanguage(zenosStorage);
   const [moeda, setMoeda] = useState('BRL');
   const [moedaPadrao, setMoedaPadrao] = useState('BRL');
+  const moedaPadraoAnteriorRef = useRef('BRL');
+  const moedaPadraoInicialCarregadaRef = useRef(false);
+  const moedaEscolhaManualRef = useRef(false);
   const [salvandoMoedaPadrao, setSalvandoMoedaPadrao] = useState(false);
   
   const [mostrarPainelExecutivo, setMostrarPainelExecutivo] = useState(false);
@@ -557,6 +560,9 @@ export default function App() {
         setUsuarioAutenticado(user.email);
         // ATT 08.1: isolamento absoluto por conta. Nenhum perfil/regra/câmbio da sessão anterior permanece em RAM.
         const perfilCacheUsuario = lerPerfilLojaLocal(user.uid);
+        moedaPadraoAnteriorRef.current='BRL';
+        moedaPadraoInicialCarregadaRef.current=false;
+        moedaEscolhaManualRef.current=false;
         setMoeda('BRL'); setMoedaPadrao('BRL');
         setPerfilLoja(perfilCacheUsuario);
         setPerfilRapidoRascunho(perfilCacheUsuario);
@@ -807,8 +813,15 @@ export default function App() {
         }
         const config = snap.data() || {};
         const moedaConfig = ['BRL','PYG','USD','EUR'].includes(config.moedaPadrao) ? config.moedaPadrao : 'BRL';
+        const primeiraConfiguracao=!moedaPadraoInicialCarregadaRef.current;
+        const anterior=moedaPadraoAnteriorRef.current;
+        setMoeda(prev=>{
+          if(moedaEscolhaManualRef.current)return prev;
+          return primeiraConfiguracao || prev===anterior ? moedaConfig : prev;
+        });
+        moedaPadraoAnteriorRef.current=moedaConfig;
+        moedaPadraoInicialCarregadaRef.current=true;
         setMoedaPadrao(moedaConfig);
-        setMoeda(prev => prev === moedaPadrao ? moedaConfig : prev);
         const pf = normalizarPerfilLoja(config.perfilLoja || {});
         setPerfilLoja(prev => syncValuesEqual(prev, pf) ? prev : pf);
         setPerfilRapidoRascunho(prev => syncValuesEqual(prev, pf) ? prev : pf);
@@ -959,6 +972,9 @@ export default function App() {
     try {
       await setDoc(doc(db,'lojas',userId,'dados','configuracoes'),
         {moedaPadrao:moeda,updatedAtClient:new Date().toISOString(),updatedAtServer:serverTimestamp()}, {merge:true});
+      moedaPadraoAnteriorRef.current=moeda;
+      moedaPadraoInicialCarregadaRef.current=true;
+      moedaEscolhaManualRef.current=false;
       setMoedaPadrao(moeda);
       notifyPersistenceStatus({status:'SINCRONIZADO',field:'configuracoes'});
     } catch (error) {
@@ -2113,7 +2129,7 @@ export default function App() {
           idioma,
           setIdioma,
           moeda,
-          setMoeda,
+          setMoeda: novaMoeda => {moedaEscolhaManualRef.current=true;setMoeda(novaMoeda);},
           moedaPadrao,
           onSalvarMoedaPadrao: temPermissao('admin') || patenteUsuario === 'gerencia' ? salvarMoedaPadrao : undefined,
           salvandoMoedaPadrao,
@@ -2240,7 +2256,7 @@ export default function App() {
         {ecraAtual === 'inteligencia' && <EstoqueInteligente converterParaBRL={converterParaBRL} produtos={produtos} fmt={fmt} tx={tx} />}
         {ecraAtual === 'comissoes' && <Comissoes commitOperacaoNegocio={commitVendaCritica} historicoVendas={historicoVisivelParaOperador} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} operadorAtivo={operadorAtivo} regrasDesconto={regrasDesconto} regrasComissao={regrasComissao} setRegrasComissao={setRegrasComissao} />}
         {ecraAtual === 'dashboardMobile' && <DashboardMobile historicoVendas={historicoVendas} despesas={despesas} clientes={clientes} produtos={produtos} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} regrasDesconto={regrasDesconto} />}
-        {ecraAtual === 'clientes' && (livroFinanceiroConfirmado && livroFinanceiroAtivadoParaLoja === String(userId) ? <Clientes perfilLoja={perfilLoja} commitOperacaoNegocio={commitVendaCritica} livroFinanceiro={livroFinanceiro} historicoVendas={historicoVendas} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} operadorAtivo={operadorAtivo} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} /> : <div role="status" style={{padding:24,color:'#cbd5e1'}}>{tx("Conferindo histórico financeiro completo no servidor antes de liberar contas e fiado…","Verificando el historial financiero completo en el servidor antes de habilitar cuentas y créditos…")}</div>)}
+        {ecraAtual === 'clientes' && (livroFinanceiroConfirmado && livroFinanceiroAtivadoParaLoja === String(userId) ? <Clientes moedaPadrao={moedaPadrao} taxasCambio={taxasCambio} perfilLoja={perfilLoja} commitOperacaoNegocio={commitVendaCritica} livroFinanceiro={livroFinanceiro} historicoVendas={historicoVendas} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} operadorAtivo={operadorAtivo} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} /> : <div role="status" style={{padding:24,color:'#cbd5e1'}}>{tx("Conferindo histórico financeiro completo no servidor antes de liberar contas e fiado…","Verificando el historial financiero completo en el servidor antes de habilitar cuentas y créditos…")}</div>)}
         {ecraAtual === 'vendas' && <Vendas commitOperacaoNegocio={commitVendaCritica} taxasCambio={taxasCambio} sessoesCaixa={sessoesCaixa} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} saldoSessaoFisicoBRL={saldoSessaoFisicoBRL} perfilLoja={perfilLoja} vouchers={vouchers} setVouchers={setVouchers} userId={userId} operadorAtivo={operadorAtivo} historicoVendas={historicoVisivelParaOperador} historicoVendasCompleto={historicoVendas} setHistoricoVendas={setHistoricoVendas} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} fmt={fmt} t={t} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterDeBRL={converterDeBRL} />}
         {ecraAtual === 'commerce-solicitar' && temPermissao('admin') && <React.Suspense fallback={<div role="status" style={{padding:20,color:'#bdd5df'}}>{tx('Preparando Minha Loja Online…','Preparando Mi Tienda Online…','Preparing My Online Store…')}</div>}><CommerceSolicitacao converterParaBRL={converterParaBRL} moedaPadrao={moedaPadrao} taxasCambio={taxasCambio} key={String(userId)+':'+String(operadorAtivo?.id)} lojaId={userId} perfilLoja={perfilLoja} tx={tx} produtos={produtos} /></React.Suspense>}
         {ecraAtual === 'fiscal' && <FiscalErrorBoundary resetKey={`${userId || ''}:${perfilLoja?.pais || ''}:${resultadoFilaFiscal.erro || ''}`} onVoltar={() => navegarPara('hub')} tx={tx}><Fiscal lojaId={userId} perfilLoja={perfilLoja} filaFiscal={resultadoFilaFiscal.fila} erroFila={resultadoFilaFiscal.erro} clientes={clientes} ambiente="homologacao" onVerVenda={() => navegarPara('vendas')} tx={tx} idioma={idioma} /></FiscalErrorBoundary>}
