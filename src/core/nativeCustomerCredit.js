@@ -66,9 +66,10 @@ export function resumirFiadoLojaNativo(clientes=[],moedaPadrao='BRL'){
   const totais={BRL:0,PYG:0,USD:0,EUR:0};
   let legadoContabilBRL=0,clientesComDivida=0,contasComprovadas=0;
   for(const cliente of clientes){
-    if(!(cliente?.saldoDevedorBRL>0))continue;
+    const abertas=efetivas(cliente);
+    if(!(Number(cliente?.saldoDevedorBRL||0)>0) && !abertas.length)continue;
     clientesComDivida++;
-    for(const conta of efetivas(cliente)){
+    for(const conta of abertas){
       const saldo=apurarSaldoNativo(conta.obrigacao,conta.recebimentos);
       totais[saldo.moeda]+=saldo.saldoNativo;
       contasComprovadas++;
