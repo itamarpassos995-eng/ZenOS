@@ -60,3 +60,24 @@ export function receberCreditoNativoCliente({cliente,contaId,recebimentoId,moeda
       liquidacao.valorContabilHistoricoAmortizadoBRL))};
   return {cliente:atualizado,liquidacao,antes:saldo,depois:apurarSaldoNativo(atual.obrigacao,atual.recebimentos)};
 }
+
+/** Read-only. Preserve visible legacy debts; never translate them with today's FX. */
+export function resumirFiadoLojaNativo(clientes=[],moedaPadrao='BRL'){
+  const totais={BRL:0,PYG:0,USD:0,EUR:0};
+  let legadoContabilBRL=0,clientesComDivida=0,contasComprovadas=0;
+  for(const cliente of clientes){
+    if(!(cliente?.saldoDevedorBRL>0))continue;
+    clientesComDivida++;
+    for(const conta of efetivas(cliente)){
+      const saldo=apurarSaldoNativo(conta.obrigacao,conta.recebimentos);
+      totais[saldo.moeda]+=saldo.saldoNativo;
+      contasComprovadas++;
+    }
+    legadoContabilBRL+=Math.max(0,saldoLegadoClienteBRL(cliente));
+  }
+  const escala=moedaPadrao==='PYG'?1:100;
+  return {moedaPadrao,valorNativoComprovado:Math.round((totais[moedaPadrao]||0)*escala)/escala,
+    totaisPorMoeda:totais,legadoContabilBRL:Math.round(legadoContabilBRL*100)/100,
+    clientesComDivida,contasComprovadas,
+    possuiPendencias:legadoContabilBRL>0.005 || Object.entries(totais).some(([m,v])=>m!==moedaPadrao&&v>0)};
+}
