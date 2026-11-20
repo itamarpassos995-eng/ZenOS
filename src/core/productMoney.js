@@ -6,7 +6,7 @@ export function produtoParaFormularioMonetario(produto, moeda, converterDeBRL) {
   return {...Object.fromEntries(fields.map(field=>{
     const original=quantiaOriginalProduto(produto,field);
     const codigo=field==='custoBRL'?moedaCusto:moedaPreco;
-    const valor=original?original.valor*converterDeBRL(1,codigo)/converterDeBRL(1,original.moeda):converterDeBRL(Number(produto[field]||0),codigo);
+    const valor=original?(original.moeda===codigo?original.valor:original.valor*converterDeBRL(1,codigo)/converterDeBRL(1,original.moeda)):converterDeBRL(Number(produto[field]||0),codigo);
     return [field,Number(valor).toFixed(codigo==='PYG'?0:2)];
   })),moedaCusto,moedaPreco};
 }
@@ -40,6 +40,24 @@ export function valorProdutoBRL(produto,field,converterParaBRL=v=>v){
  if(!Number.isFinite(valor)||valor<0)throw Error('Cotação indisponível para '+original.moeda);
  return valor;
 }
+/**
+ * Read-only catalog display. A verified native price wins over all FX
+ * projections when the operator is viewing that SAME currency.
+ * Legacy BRL-only records cannot be silently assumed to have PYG origins.
+ */
+export function precoExibicaoProduto(produto,field,moedaExibida,converterParaBRL,converterDeBRL){
+ const original=quantiaOriginalProduto(produto,field);
+ if(original?.moeda===moedaExibida)return original.valor;
+ const equivalente=valorProdutoBRL(produto,field,converterParaBRL);
+ const exibido=Number(converterDeBRL(equivalente,moedaExibida));
+ if(!Number.isFinite(exibido)||exibido<0)throw Error('Cotação inválida no preço exibido');
+ return exibido;
+}
+export function textoPrecoExibicaoProduto(produto,field,moedaExibida,converterParaBRL,converterDeBRL){
+ const valor=precoExibicaoProduto(produto,field,moedaExibida,converterParaBRL,converterDeBRL);
+ return valor.toFixed(moedaExibida==='PYG'?0:2);
+}
+
 export function projetarProdutoMonetario(produto,converterParaBRL){
  return {...produto,...Object.fromEntries(CAMPOS_MONETARIOS_PRODUTO.map(field=>[field,valorProdutoBRL(produto,field,converterParaBRL)]))};
 }
@@ -86,7 +104,7 @@ export function atualizarCotacaoPrecoItemPDV(item, moedaExibicao, converterParaB
   const parsed = interpretarValorMonetario(origem.valor, origem.moeda);
   if (!parsed.ok || !(Number(converterParaBRL(1, origem.moeda)) > 0)) return item;
   const valorBRL = Number(converterParaBRL(parsed.valor, origem.moeda));
-  const exibido = Number(converterDeBRL(valorBRL, moedaExibicao));
+  const exibido = origem.moeda === moedaExibicao ? parsed.valor : Number(converterDeBRL(valorBRL, moedaExibicao));
   if (!Number.isFinite(valorBRL) || !Number.isFinite(exibido) || valorBRL < 0 || exibido < 0) return item;
   const precoTexto = exibido.toFixed(moedaExibicao === 'PYG' ? 0 : 2);
   if (item.precoPraticadoBRL === valorBRL && item.precoTexto === precoTexto) return item;
