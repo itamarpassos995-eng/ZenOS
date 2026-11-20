@@ -70,3 +70,46 @@ export function validarPagamentoObrigacaoNativa({
     residuoArredondamentoOrigem:residuoOrigem,
     valorPagamentoEsperado};
 }
+
+/**
+ * A refund of a verified native sale owes the original contractual currency,
+ * not the BRL equivalent at today's exchange rate. Partial returns allocate
+ * the nominal amount from cumulative BRL return proportions, preventing
+ * currency rounding drift across separate returns. No native identity is
+ * inferred for legacy documents.
+ */
+export function validarReembolsoVendaNativa({
+  venda, valorEstornoBRL, moedaFisica, valorFisico, taxasCambio
+}) {
+  if (!Number.isFinite(valorEstornoBRL) || valorEstornoBRL <= 0)
+    return {ok:false,erro:'Valor de devolução inválido.'};
+  const moedaOriginal = venda?.moedaDocumento;
+  const valorOriginal = venda?.totalOriginal;
+  const totalBrutoBRL = Number(venda?.totalBRL);
+  if (!MOEDAS_CAIXA.includes(moedaOriginal) || typeof valorOriginal!=='number' ||
+      !Number.isFinite(valorOriginal) || valorOriginal<=0 ||
+      !Number.isFinite(totalBrutoBRL) || totalBrutoBRL<=0) {
+    // An undocumented old sale has ONLY its confirmed BRL ledger obligation.
+    // The operator still explicitly chooses actual payout currency; no source
+    // PYG amount can be reconstructed from the current exchange rate.
+    return validarLiquidacaoMultimoeda({
+      valorDevidoBRL:valorEstornoBRL,valorFisico,moedaFisica,taxasCambio});
+  }
+  const devolvidoAnteriorBRL=Number(venda?.valorDevolvidoBRL || 0);
+  if (!Number.isFinite(devolvidoAnteriorBRL)||devolvidoAnteriorBRL<0||
+      devolvidoAnteriorBRL+valorEstornoBRL>totalBrutoBRL+0.011)
+    return {ok:false,erro:'Devolução supera o saldo original da venda.'};
+  const fator = moedaOriginal==='PYG' ? 1 : 100;
+  const quotaAntiga = Math.round(valorOriginal * Math.min(1,devolvidoAnteriorBRL/totalBrutoBRL)*fator)/fator;
+  const quotaNova = Math.round(valorOriginal * Math.min(1,(devolvidoAnteriorBRL+valorEstornoBRL)/totalBrutoBRL)*fator)/fator;
+  const valorContratualDevolver = Math.round((quotaNova-quotaAntiga)*fator)/fator;
+  if (valorContratualDevolver <= 0)
+    return {ok:false,erro:'Devolução nativa não representável para esta parcela.'};
+  const liquidacao=validarPagamentoObrigacaoNativa({
+    valorObrigacaoOriginal:valorContratualDevolver,moedaObrigacao:moedaOriginal,
+    valorFisico,moedaFisica,taxasCambio,valorContabilHistoricoBRL:valorEstornoBRL
+  });
+  if (!liquidacao.ok) return liquidacao;
+  return {...liquidacao,moedaVendaOriginal:moedaOriginal,
+    valorDevolvidoContratoOriginal:valorContratualDevolver};
+}
