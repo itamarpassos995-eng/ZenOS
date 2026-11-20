@@ -237,6 +237,35 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
       operadorNome:operadorAtivo?.nome || 'Administrador',
     };
 
+    // Variação cambial realizada: lançamento independente, sem nova saída física.
+    // O pagamento principal conserva o valor contábil histórico da obrigação.
+    const variacaoBRL = obrigacaoNativaComprovada ? pagamentoNativo.diferencaCambialBRL : 0;
+    const ajusteCambial = despesaParaPagar?.afetaResultado !== false &&
+      despesaParaPagar?.naturezaContabil !== 'estoque_ativo' &&
+      Math.abs(variacaoBRL) >= 0.01 ? {
+        id:`AJUSTE-CAMBIO-DESPESA-${despesaParaPagar.id}`,
+        tipo:'variacao_cambial_realizada',
+        origem:'pagamento_despesa',
+        referenciaId:despesaParaPagar.id,
+        valor:Math.abs(variacaoBRL),
+        formaPagamento:'ajuste_contabil_sem_caixa',
+        createdAt,
+        afetaCaixaFisico:false,
+        afetaResultado:true,
+        direcao:variacaoBRL>0?'saida':'entrada',
+        sessaoId:null,
+        observacao:'Diferença entre BRL histórico da despesa e equivalente BRL do pagamento confirmado',
+        detalhes:{moedaObrigacao:pagamentoNativo.moedaObrigacao,
+          valorObrigacaoOriginal:pagamentoNativo.valorObrigacaoOriginal,
+          moedaPagamento:pagamentoNativo.moedaOrigem,
+          valorPagamentoOriginal:pagamentoNativo.valorOriginal,
+          taxaCambioAplicada:pagamentoNativo.taxaCambioAplicada,
+          valorContabilHistoricoBRL:pagamentoNativo.valorContabilHistoricoBRL,
+          valorContabilDataPagamentoBRL:pagamentoNativo.valorContabilDataPagamentoBRL,
+          diferencaCambialBRL:variacaoBRL},
+        operadorId:operadorAtivo?.id||'admin',
+        operadorNome:operadorAtivo?.nome||'Administrador',
+      } : null;
     try {
       let confirmadas = despesasPropostas;
       let caixaConfirmado = caixaProposto;
@@ -249,7 +278,7 @@ export default function Despesas({ userId, commitOperacaoNegocio, registrarFinan
           { type:'cash_native_balance_at_least', sessionId:sessaoAtiva.id,
             valoresNativos:{[pagamentoNativo.moedaOrigem]:pagamentoNativo.valorOriginal},taxas:{...taxasCambio} },
         ] : [];
-        const confirmado = await commitOperacaoNegocio({ changes, financialEntries:[financeiro], guards });
+        const confirmado = await commitOperacaoNegocio({ changes, financialEntries:ajusteCambial?[financeiro,ajusteCambial]:[financeiro], guards });
         if (!confirmado?.cloudOk) throw confirmado?.error || new Error('A nuvem não confirmou o pagamento.');
         confirmadas = confirmado.values?.despesas || despesasPropostas;
         caixaConfirmado = confirmado.values?.caixaMovimentos || caixaProposto;
