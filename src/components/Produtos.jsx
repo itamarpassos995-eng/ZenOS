@@ -1,5 +1,5 @@
 import { interpretarValorMonetario } from '../core/cashMoneyInput.js';
-import { produtoParaFormularioMonetario, registrarValoresProduto, valorProdutoBRL } from '../core/productMoney.js';
+import { produtoParaFormularioMonetario, registrarValoresProduto, valorProdutoBRL,apurarPrecoProdutoNativo,formatarPrecoProdutoNativo } from '../core/productMoney.js';
 import { ehEncomendaUsoUnico } from '../core/orderItems';
 import React, { useState, useRef } from 'react';
 import { normalizarProduto } from '../data';
@@ -21,7 +21,10 @@ import ZenModal from './ZenModal';
 import { calcularPrecoPorCustoEMargem, calcularMargemPorCustoEPreco, validarMargemPrecoVenda, MAX_MARGEM_PRECO_PCT } from '../core/pricing';
 import { validarCredencialGerencial } from '../core/accessControl';
 
-export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos, moeda, converterDeBRL = v=>v, converterParaBRL = v=>v, fmt, t, tx, fornecedoresGlobais = [], userId, operadorAtivo, planoLoja = 'basico', historicoVendas = [], historicoCompras = [], patenteUsuario, regrasDesconto, vendedores = [] }) {
+export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos, moeda, moedaPadrao='BRL', taxasCambio={}, converterDeBRL = v=>v, converterParaBRL = v=>v, fmt, t, tx, fornecedoresGlobais = [], userId, operadorAtivo, planoLoja = 'basico', historicoVendas = [], historicoCompras = [], patenteUsuario, regrasDesconto, vendedores = [] }) {
+  const rotuloNativoProduto=(prod,campo) => formatarPrecoProdutoNativo(
+    prod,campo,moedaPadrao,taxasCambio,moedaPadrao==='PYG'?'es-PY':'pt-BR') ||
+    tx('A conciliar','A conciliar','Reconciliation required');
   const [gruposCadastrados, setGruposCadastrados] = useState(['Tintas Acrílicas', 'Colorimetria & Pigmentos', 'Massas e Complementos', 'Serviços Especializados', 'Acessórios & Ferramentas']);
   const [filtroGrupo, setFiltroGrupo] = useState('todos');
   const [buscaProdutoTexto, setBuscaProdutoTexto] = useState('');
@@ -328,7 +331,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
     setSecaoFiscalExpandida(false);
     setCriandoNovoGrupo(false);
     setNovoGrupoTexto('');
-    setPaisRegulamentoFiscal(moeda === 'PYG' ? 'PY' : 'BR');
+    setPaisRegulamentoFiscal(moedaPadrao === 'PYG' ? 'PY' : 'BR');
     setHistoricoExpandido(false);
     setHistoricoMovimentos([]);
     // ID único por cadastro novo: evita colidir com um produto antigo/inativo de mesmo SKU+nome+grupo.
@@ -340,7 +343,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       estoqueVitrine: '0',
       estoqueGalpao: '0',
       localizacao: '',
-      moedaCusto:moeda,moedaPreco:moeda,
+      moedaCusto:moedaPadrao,moedaPreco:moedaPadrao,
       margemDesejada: '40'
     }));
     setModalProdutoAberto(true);
@@ -446,7 +449,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       if (!gruposCadastrados.includes(grupoFinal)) setGruposCadastrados([...gruposCadastrados, grupoFinal]);
     }
     let dinheiro;
-    try { dinheiro=registrarValoresProduto(formProduto,moeda,converterParaBRL,produtoEmEdicao,converterDeBRL); }
+    try { dinheiro=registrarValoresProduto(formProduto,moedaPadrao,converterParaBRL,produtoEmEdicao,converterDeBRL); }
     catch(error){return mostrarZen('warning',tx('Valor inválido','Importe inválido','Invalid amount'),error.message);}
     const {custoBRL:custo,precoBRL:preco}=dinheiro;
     const preco2=dinheiro.preco2BRL;
@@ -772,7 +775,11 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
                 <tr><td colSpan="10" style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>{tx('Nenhum produto encontrado.','Ningún producto encontrado.','No products found.')}</td></tr>
               ) : (
                 produtosListaFiltrada.map((prod) => {
-                  const custo = valorProdutoBRL(prod,'custoBRL',converterParaBRL); const preco = valorProdutoBRL(prod,'precoBRL',converterParaBRL); const margem = preco > 0 ? (((preco - custo) / preco) * 100).toFixed(1) : 0;
+                  const custoStatus=apurarPrecoProdutoNativo(prod,'custoBRL',moedaPadrao,taxasCambio);
+                  const precoStatus=apurarPrecoProdutoNativo(prod,'precoBRL',moedaPadrao,taxasCambio);
+                  const custo=custoStatus.valorMinor==null?null:Number(custoStatus.valorMinor);
+                  const preco=precoStatus.valorMinor==null?null:Number(precoStatus.valorMinor);
+                  const margem=custo!=null&&preco>0?(((preco-custo)/preco)*100).toFixed(1):'—';
                   const ehServico = prod.tipoItem === 'servico';
                   return (
                     <tr key={`${prod.id}-${prod.sku}`} style={{ borderBottom: '1px solid #1e293b' }}>
@@ -810,14 +817,14 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
                       <td style={{ padding: '16px 12px', textAlign: 'right', fontWeight: 700 }}>
                         <div style={{ display: 'grid', gridTemplateColumns: 'auto auto', justifyContent: 'end', alignItems: 'center', gap: '4px 6px', fontSize: '12px', lineHeight: '16px', whiteSpace: 'nowrap' }}>
                           <span title={tx('Último custo do fornecedor','Último costo del proveedor','Last supplier cost')} style={{ backgroundColor: 'rgba(168, 85, 247, 0.08)', border: '1px solid rgba(168, 85, 247, 0.2)', borderRadius: '4px', padding: '0 4px', fontSize: '9px', fontWeight: 800, color: '#c4b5fd', textAlign: 'center' }}>CF</span>
-                          <span style={{ color: '#c4b5fd' }}>{Number.isFinite(prod.ultimoCustoFornecedorBRL) && prod.ultimoCustoFornecedorBRL >= 0 ? fmt(prod.ultimoCustoFornecedorBRL) : '—'}</span>
+                          <span style={{ color: '#c4b5fd' }}>{prod.ultimoCustoFornecedorOriginal?.moeda&&prod.ultimoCustoFornecedorOriginal?.valor!=null ? new Intl.NumberFormat(moedaPadrao==='PYG'?'es-PY':'pt-BR',{style:'currency',currency:prod.ultimoCustoFornecedorOriginal.moeda,minimumFractionDigits:prod.ultimoCustoFornecedorOriginal.moeda==='PYG'?0:2,maximumFractionDigits:prod.ultimoCustoFornecedorOriginal.moeda==='PYG'?0:2}).format(Number(prod.ultimoCustoFornecedorOriginal.valor)) : tx('A conciliar','A conciliar','Reconcile')}</span>
                           <span title={tx('Custo médio/efetivo atual','Costo medio/efectivo actual','Current average/effective cost')} style={{ backgroundColor: 'rgba(34, 211, 238, 0.08)', border: '1px solid rgba(34, 211, 238, 0.2)', borderRadius: '4px', padding: '0 4px', fontSize: '9px', fontWeight: 800, color: '#67e8f9', textAlign: 'center' }}>CMV</span>
-                          <span style={{ color: '#67e8f9' }}>{fmt(custo)}</span>
+                          <span style={{ color: '#67e8f9' }}>{rotuloNativoProduto(prod,'custoBRL')}</span>
                         </div>
                       </td>
-                      <td style={{ padding: '16px 12px', textAlign: 'right', fontWeight: 900, color: '#34d399', fontSize: '15px' }}>{fmt(preco)}</td>
-                      <td style={{ padding: '16px 12px', textAlign: 'right', fontWeight: 700, color: prod.habilitarPreco2 ? '#38bdf8' : '#475569' }}>{prod.habilitarPreco2 && prod.preco2BRL > 0 ? fmt(valorProdutoBRL(prod,'preco2BRL',converterParaBRL)) : '—'}</td>
-                      <td style={{ padding: '16px 12px', textAlign: 'center' }}><span style={{ backgroundColor: margem >= 40 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)', color: margem >= 40 ? '#34d399' : '#fbbf24', border: `1px solid ${margem >= 40 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`, padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>{margem}%</span></td>
+                      <td style={{ padding: '16px 12px', textAlign: 'right', fontWeight: 900, color: '#34d399', fontSize: '15px' }}>{rotuloNativoProduto(prod,'precoBRL')}</td>
+                      <td style={{ padding: '16px 12px', textAlign: 'right', fontWeight: 700, color: prod.habilitarPreco2 ? '#38bdf8' : '#475569' }}>{prod.habilitarPreco2 && prod.preco2BRL > 0 ? rotuloNativoProduto(prod,'preco2BRL') : '—'}</td>
+                      <td style={{ padding: '16px 12px', textAlign: 'center' }}><span style={{ backgroundColor: margem >= 40 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)', color: margem >= 40 ? '#34d399' : '#fbbf24', border: `1px solid ${margem >= 40 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`, padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800 }}>{margem==='—'?'—':margem+'%'}</span></td>
                       <td style={{ padding: '16px 20px', textAlign: 'right' }}><div style={{display:'flex',gap:6,justifyContent:'flex-end'}}><button onClick={() => pedirExclusao(prod)} style={{background:'#2e0a16',border:'1px solid #7f1d1d',color:'#fb7185',padding:'7px 10px',borderRadius:8,fontSize:11,fontWeight:900,cursor:'pointer'}}>{prod.ativo===false?tx("Inativo","Inactivo"):tx("Inativar","Desactivar")}</button><button onClick={() => abrirEdicaoProduto(prod)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#38bdf8', padding: '6px 14px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>{tx('Editar','Editar','Edit')}</button></div></td>
                     </tr>
                   );

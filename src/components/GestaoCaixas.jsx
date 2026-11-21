@@ -5,6 +5,9 @@ import {db} from '../firebase';
 import {collection,query,where,orderBy,limit,startAfter,getDocsFromServer} from 'firebase/firestore';
 import {intervaloCaixa,filtrarTurnosCaixa,diferencaHistoricaCaixa,dataTurnoCaixa,turnoCaixaFechado} from '../core/cashAuditHistory.js';
 import {formatarDinheiroNativo} from '../core/cashHistoryDisplay.js';
+import {formatMoneyMinor,parseMoney} from '../core/nativeMoneyKernel.js';
+import {calcularConciliacaoFisicaMultimoeda} from '../core/cashReconciliation.js';
+import {calcularResumoSessaoNativa} from '../core/cashSession.js';
 import {calcularResumoSessao,vendasDaSessao} from '../core/cashSession';
 import {parseZenOSDate} from '../core/dates.js';
 import './GestaoCaixas.css';
@@ -12,7 +15,7 @@ import './GestaoCaixas.css';
 const moedas=['BRL','PYG','USD','EUR'];
 const originalDigitado=(valor,moeda)=>{if(valor==null||valor==='')return null;const parsed=interpretarValorMonetario(valor,moeda);return parsed.ok?parsed.valor:null;};
 const registrado=v=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v));
-export default function GestaoCaixas({userId,sessoesCaixa=[],historicoVendas=[],caixaMovimentos=[],operadores=[],perfilLoja={},tema='dark',idioma='pt',fmt,tx=pt=>pt}){
+export default function GestaoCaixas({userId,sessoesCaixa=[],historicoVendas=[],caixaMovimentos=[],operadores=[],perfilLoja={},tema='dark',idioma='pt',fmt,moedaPadrao='BRL',taxasCambio={},tx=pt=>pt}){
  const [periodo,setPeriodo]=useState('hoje'),[inicio,setInicio]=useState(''),[fim,setFim]=useState('');
  const [busca,setBusca]=useState(''),[estado,setEstado]=useState('todos'),[limiteHistorico,setLimiteHistorico]=useState(25);
  const [detalhe,setDetalhe]=useState(null),[erro,setErro]=useState(''),[carregando,setCarregando]=useState(false);
@@ -31,6 +34,18 @@ export default function GestaoCaixas({userId,sessoesCaixa=[],historicoVendas=[],
  },[detalhe]);
  const nativo=(v,m)=>registrado(v)?formatarDinheiroNativo(v,m,idioma):'—';
  const equivalente=v=>registrado(v)?fmt(Number(v),'BRL'):'—';
+ const caixaNativoFormatado = (sessao,contado=false) => {
+   const m=sessao?.moedaContratoCaixa||moedaPadrao;
+   const minor=contado
+     ? (sessao?.composicaoContadaNativa?.[m]!=null?parseMoney(Number(sessao.composicaoContadaNativa[m]).toFixed(m==='PYG'?0:2),m):null)
+     : sessao?.saldoSistemaNativoMinor;
+   return minor!=null?nativo(Number(formatMoneyMinor(minor,m)),m):
+     tx('Saldo a conciliar','Saldo por conciliar','Balance awaiting reconciliation');
+ };
+ const resumoNativoAberto = sessao => calcularResumoSessaoNativa({
+   moedaPadrao,conciliacaoFisica:calcularConciliacaoFisicaMultimoeda({sessao,historicoVendas,caixaMovimentos,
+     contagem:{},taxas:taxasCambio})
+ });
  const data=v=>{const d=parseZenOSDate(v);return d?d.toLocaleString(idioma==='es'?'es-PY':idioma==='en'?'en-US':'pt-BR'):'—';};
  const aberturaRegistrada=s=>typeof s.abertura==='string'&&s.abertura.trim()?s.abertura:data(dataTurnoCaixa(s));
  const fechamentoRegistrado=s=>typeof s.fechamentoLocal==='string'&&s.fechamentoLocal.trim()?s.fechamentoLocal:data(s.fechamento);
@@ -89,12 +104,12 @@ export default function GestaoCaixas({userId,sessoesCaixa=[],historicoVendas=[],
    </div>
    {periodo!=='todos'&&!intervalo&&<p role="alert" className="cash-audit__notice">{tx('Informe as duas datas para consultar o período.','Informe ambas fechas para consultar el período.','Enter both dates to find the period.')}</p>}
    <div className="cash-audit__table-wrap"><table><caption className="cash-audit__caption">{tx('Histórico de turnos','Historial de turnos','Shift history')} · {filtradas.length}</caption><thead><tr>{[tx('Operador / caixa','Operador / caja','Operator / register'),tx('Abertura e fechamento','Apertura y cierre','Opening and closing'),tx('Sistema / contado','Sistema / contado','Expected / counted'),tx('Conferência','Revisión','Review'),tx('Ações','Acciones','Actions')].map(label=><th key={label}>{label}</th>)}</tr></thead><tbody>
-    {filtradas.slice(0,limiteHistorico).map(s=><tr key={s.id}><td><strong>{operador(s)}</strong><small>{s.id}</small></td><td><span>{aberturaRegistrada(s)}</span><small>{turnoCaixaFechado(s)?fechamentoRegistrado(s):tx('Turno em andamento','Turno en curso','Shift in progress')}</small></td><td><span>{equivalente(s.saldoSistema)}</span><strong>{equivalente(s.saldoInformado)}</strong><small>{tx('Equivalentes registrados em BRL','Equivalentes registrados en BRL','Recorded BRL equivalents')}</small></td><td><span className={'cash-audit__status '+situacao(s).tom}>{situacao(s).texto}</span><small>{turnoCaixaFechado(s)?diferencaHistoricaCaixa(s).pendente?tx('Diferença indeterminada','Diferencia indeterminada','Undetermined difference'):equivalente(s.diferenca):'—'}</small></td><td><div className="cash-audit__actions"><button className="zen-action" onClick={()=>abrir(s)}>{tx('Consultar caixa','Consultar caja','View register')}</button>{turnoCaixaFechado(s)&&<button className="zen-action zen-action--primary" onClick={()=>abrir(s,true)}>{tx('Reimprimir','Reimprimir','Reprint')}</button>}</div></td></tr>)}
+    {filtradas.slice(0,limiteHistorico).map(s=><tr key={s.id}><td><strong>{operador(s)}</strong><small>{s.id}</small></td><td><span>{aberturaRegistrada(s)}</span><small>{turnoCaixaFechado(s)?fechamentoRegistrado(s):tx('Turno em andamento','Turno en curso','Shift in progress')}</small></td><td><span>{caixaNativoFormatado(s)}</span><strong>{caixaNativoFormatado(s,true)}</strong><small>{s.moedaContratoCaixa||moedaPadrao} · {tx('valores nativos','importes nativos','native amounts')}</small></td><td><span className={'cash-audit__status '+situacao(s).tom}>{situacao(s).texto}</span><small>{turnoCaixaFechado(s)?diferencaHistoricaCaixa(s).pendente?tx('Diferença indeterminada','Diferencia indeterminada','Undetermined difference'):equivalente(s.diferenca):'—'}</small></td><td><div className="cash-audit__actions"><button className="zen-action" onClick={()=>abrir(s)}>{tx('Consultar caixa','Consultar caja','View register')}</button>{turnoCaixaFechado(s)&&<button className="zen-action zen-action--primary" onClick={()=>abrir(s,true)}>{tx('Reimprimir','Reimprimir','Reprint')}</button>}</div></td></tr>)}
    </tbody></table></div>
    {!filtradas.length&&<div className="cash-audit__empty"><strong>{tx('Nenhum caixa neste filtro','Ninguna caja con este filtro','No registers match')}</strong><p>{tx('Experimente outro período ou selecione “Todos os caixas” para consultar o histórico completo disponível.','Pruebe otro período o seleccione “Todas las cajas” para consultar el historial disponible.','Try another period or All registers to browse available history.')}</p></div>}
    {limiteHistorico<filtradas.length&&<button className="zen-action" onClick={()=>setLimiteHistorico(n=>n+25)}>{tx('Mostrar mais caixas','Mostrar más cajas','Show more registers')}</button>}
   </section>
-  {abertas.length>0&&<section className="cash-audit__panel"><h2>{tx('Caixas em andamento','Cajas en curso','Open registers')}</h2><div className="cash-audit__open-grid">{abertas.map(s=>{const r=calcularResumoSessao({sessao:s,historicoVendas,caixaMovimentos});return <article key={s.id}><span className="cash-audit__status open">{tx('Aberto','Abierto','Open')}</span><h3>{operador(s)}</h3><p>{aberturaRegistrada(s)}</p><span>{tx('Saldo físico previsto','Saldo físico previsto','Expected physical balance')}</span><strong>{r?fmt(r.saldoEsperado):'—'}</strong><button className="zen-action" onClick={()=>abrir(s)}>{tx('Conferir movimentações','Revisar movimientos','Review movements')}</button></article>;})}</div></section>}
+  {abertas.length>0&&<section className="cash-audit__panel"><h2>{tx('Caixas em andamento','Cajas en curso','Open registers')}</h2><div className="cash-audit__open-grid">{abertas.map(s=>{const r=resumoNativoAberto(s);return <article key={s.id}><span className="cash-audit__status open">{tx('Aberto','Abierto','Open')}</span><h3>{operador(s)}</h3><p>{aberturaRegistrada(s)}</p><span>{tx('Saldo físico previsto','Saldo físico previsto','Expected physical balance')}</span><strong>{r?.status==='confirmado'?nativo(Number(formatMoneyMinor(r.saldoEsperadoMinor,moedaPadrao)),moedaPadrao):tx('Conciliação pendente','Conciliación pendiente','Reconciliation pending')}</strong><button className="zen-action" onClick={()=>abrir(s)}>{tx('Conferir movimentações','Revisar movimientos','Review movements')}</button></article>;})}</div></section>}
   <section className="cash-audit__panel"><div className="cash-audit__section-head"><div><h2>{tx('Livro financeiro do período','Libro financiero del período','Period financial ledger')}</h2><p>{tx('Consulta sob demanda, com até 100 lançamentos por página. O histórico dos caixas e a segunda via não dependem desta consulta.','Consulta bajo demanda, hasta 100 movimientos por página. El historial de cajas y las copias no dependen de esta consulta.','On-demand queries, up to 100 entries per page. Shift history and report copies do not require this query.')}</p></div><button className="zen-action zen-action--primary" disabled={carregando||!intervalo} onClick={()=>carregarLivro(false)}>{carregando?tx('Consultando…','Consultando…','Loading…'):tx('Consultar lançamentos do período','Consultar movimientos del período','Load period entries')}</button></div>
    {periodo==='todos'&&<p className="cash-audit__notice">{tx('Escolha um período para consultar o Livro Financeiro. “Todos os caixas” não baixa lançamentos de todos os anos.','Elija un período para consultar el Libro Financiero. “Todas las cajas” no descarga movimientos de todos los años.','Choose a period to query the ledger. All registers does not download entries from every year.')}</p>}
    {erro&&<p role="alert" className="cash-audit__notice">{erro}</p>}

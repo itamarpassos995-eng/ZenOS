@@ -179,3 +179,27 @@ export function calcularConciliacaoEletronicaSessao({ sessao, livroFinanceiro = 
     recebiveisPorMoeda,
   };
 }
+
+/**
+ * Sovereign cash summary: the ONLY trusted physical closing amount is the
+ * reconciled quantity of the store's own currency; other physical currencies
+ * remain segregated. No BRL-equivalent value can masquerade as native cash.
+ */
+export function calcularResumoSessaoNativa({moedaPadrao,conciliacaoFisica}) {
+ if(!['BRL','PYG','USD','EUR'].includes(moedaPadrao))throw Error('Moeda padrão inválida');
+ if(!conciliacaoFisica?.confiavel)return {
+   status:'pendente_conciliacao',moeda:moedaPadrao,saldoEsperadoMinor:null,
+   pendencias:conciliacaoFisica?.pendencias||['Conciliação ausente'],
+ };
+ const precision=moedaPadrao==='PYG'?1:100;
+ const valor=Number(conciliacaoFisica.esperado?.[moedaPadrao]);
+ if(!Number.isFinite(valor)||Math.abs(Math.round(valor*precision)-valor*precision)>1e-6)
+   return {status:'pendente_conciliacao',moeda:moedaPadrao,saldoEsperadoMinor:null,
+     pendencias:['Saldo físico com fração monetária inválida']};
+ return {status:'confirmado',moeda:moedaPadrao,
+   saldoEsperadoMinor:String(Math.round(valor*precision)),
+   saldosFisicos:conciliacaoFisica.esperado,
+   diferencasFisicas:conciliacaoFisica.diferencas,
+   pendencias:[],
+ };
+}

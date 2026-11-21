@@ -1,3 +1,4 @@
+import {parseMoney} from './nativeMoneyKernel.js';
 import { MOEDAS_CAIXA, interpretarValorMonetario, converterValoresFisicosParaBRL } from './cashMoneyInput.js';
 import { vendasDaSessao } from './cashSession.js';
 
@@ -135,5 +136,13 @@ export function calcularConciliacaoFisicaMultimoeda({ sessao, historicoVendas = 
     diferencaBRL: equivalenteEsperado.ok && equivalenteContado.ok
       ? Math.round((equivalenteContado.totalBRL - equivalenteEsperado.totalBRL) * 100) / 100 : null,
     quantidadeVendas: vendas.length, quantidadeMovimentos: movimentos.length,
+    // The physical cash composition is authoritative in each native currency;
+    // historical BRL equivalents above are read-only compatibility totals.
+    esperadoMinorPorMoeda:Object.fromEntries(MOEDAS_CAIXA.map(m=>[
+      m,parseMoney(Number(esperado[m]).toFixed(m==='PYG'?0:2),m)
+    ])),
+    contadoMinorPorMoeda:Object.fromEntries(MOEDAS_CAIXA.map(m=>[
+      m,parseMoney(Number(contados[m]).toFixed(m==='PYG'?0:2),m)
+    ])),
   };
 }

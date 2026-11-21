@@ -8,6 +8,7 @@ import { cloneSyncValue, mergeV1FieldThreeWay, syncValuesEqual } from './syncMer
 import { criarLancamentoFinanceiro } from './financialLedgerCore.js';
 import { calcularResumoSessao, assinaturaFinanceiraSessao } from './cashSession.js';
 import { calcularConciliacaoFisicaMultimoeda } from './cashReconciliation.js';
+import { validarCapacidadeCreditoNativa } from './nativeCreditGuard.js';
 
 // ATT 10.2: proteção local contra loops/eco. Os limites são deliberadamente
 // conservadores: uma operação real pode alterar muitos campos, mas deve gerar
@@ -234,6 +235,13 @@ const assertBusinessGuards = (data, guards = []) => {
           failGuard(`A quantidade disponível para devolução de "${requested.name || requested.itemId}" mudou em outro terminal.`, 'ZENOS_RETURN_QUANTITY_CONFLICT');
         }
       }
+    } else if (guard.type === 'client_credit_capacity_native') {
+      const cliente=findEntity(data?.clientes,guard.clientId,'id');
+      const resultado=validarCapacidadeCreditoNativa(cliente,guard.moeda,guard.amountMinor);
+      if(!resultado.ok)failGuard(
+        guard.message||'Saldo ou limite de crédito nativo não conciliado ou excedido.',
+        resultado.codigo||'ZENOS_NATIVE_CREDIT_CONFLICT'
+      );
     } else if (guard.type === 'client_credit_capacity') {
       const client = findEntity(data?.clientes, guard.clientId, 'id');
       if (!client) failGuard('O cliente não existe mais na nuvem.', 'ZENOS_CLIENT_NOT_FOUND');
