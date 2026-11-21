@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --mode homologacao",
     "dev:mobile": "vite --mode homologacao --host 0.0.0.0",
-    "build": "vite build",
+    "build": "node --test scripts/native-receivables.test.mjs scripts/default-currency-credit-card.test.mjs scripts/native-product-money.test.mjs && vite build",
     "preview": "vite preview",
     "test:att01": "node scripts/att01-static-check.mjs",
     "dev:test": "npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local \"npm run dev\"",

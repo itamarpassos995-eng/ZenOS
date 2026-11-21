@@ -1,5 +1,6 @@
-import { produtoParaFormularioMonetario, registrarValoresProduto, valorProdutoBRL, projetarProdutoMonetario, quantiaOriginalProduto, atualizarCotacaoPrecoItemPDV, recuperarPrecoVisivelRascunhoPDV } from '../core/productMoney.js';
+import { produtoParaFormularioMonetario, registrarValoresProduto, valorProdutoBRL, projetarProdutoMonetario, quantiaOriginalProduto, atualizarCotacaoPrecoItemPDV, recuperarPrecoVisivelRascunhoPDV, precoExibicaoProduto, textoPrecoExibicaoProduto, reprecificarItemPDVPorPerfil } from '../core/productMoney.js';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { adicionarTituloNativo } from '../core/nativeReceivables.js';
 import { normalizarProduto, normalizarCliente } from '../data';
 import { aplicarVendaAoEstoque, obterEstoqueProduto, preverBaixaEstoqueProduto } from '../core/inventory';
 import { db } from '../firebase';
@@ -435,6 +436,19 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     return valorProdutoBRL(prod,'precoBRL',converterParaBRL);
   };
 
+  const campoPrecoPorPerfil = (prod,cliente) =>
+    cliente?.perfilPreco === 'preco2' && prod?.habilitarPreco2 && Number(prod?.preco2BRL)>0 ? 'preco2BRL' : 'precoBRL';
+  const precoNativoCatalogo = (prod,cliente) =>
+    precoExibicaoProduto(prod,campoPrecoPorPerfil(prod,cliente),moeda,converterParaBRL,converterDeBRL);
+  const textoNativoCatalogo = (prod,cliente) =>
+    textoPrecoExibicaoProduto(prod,campoPrecoPorPerfil(prod,cliente),moeda,converterParaBRL,converterDeBRL);
+  const formatarPrecoNativoCatalogo = (prod,cliente) => {
+    const valor = precoNativoCatalogo(prod,cliente);
+    return new Intl.NumberFormat(moeda==='PYG'?'es-PY':moeda==='USD'?'en-US':'pt-BR', {
+      style:'currency',currency:moeda,minimumFractionDigits:moeda==='PYG'?0:2,
+      maximumFractionDigits:moeda==='PYG'?0:2
+    }).format(valor);
+  };
   const obterProdutoCatalogoSeguro = (item, contexto = 'consulta do PDV') => {
     const indice = localizarIndiceProdutoUnico(produtos || [], { id: item.produtoOriginalId ?? item.id, sku: item.produtoOriginalSku ?? item.sku }, contexto);
     return indice >= 0 ? produtos[indice] : item;
@@ -456,8 +470,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     try {
       const novosItens = itensVenda.map(item => {
         const prodOriginal = obterProdutoCatalogoSeguro(item, 'reprecificação por cliente');
-        const novoPrecoBRL = aplicarPrecoPorPerfilCliente(prodOriginal, cli);
-        return { ...item, precoPraticadoBRL: novoPrecoBRL, precoTexto: converterDeBRL(novoPrecoBRL, moeda).toFixed(moeda==='PYG'?0:2) };
+        return reprecificarItemPDVPorPerfil(item,prodOriginal,campoPrecoPorPerfil(prodOriginal,cli),moeda,converterParaBRL,converterDeBRL);
       });
       setClienteSelecionadoPDV(cli); setNomeClienteVulso(cli.nome); setFocoInputCliente(false);
       setItensVenda(novosItens);
@@ -468,7 +481,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     try {
       const novosItens = itensVenda.map(item => {
         const prodOriginal = obterProdutoCatalogoSeguro(item, 'retorno ao preço de balcão');
-        return { ...item, precoPraticadoBRL: valorProdutoBRL(prodOriginal,'precoBRL',converterParaBRL), precoTexto: converterDeBRL(valorProdutoBRL(prodOriginal,'precoBRL',converterParaBRL), moeda).toFixed(moeda==='PYG'?0:2) };
+        return reprecificarItemPDVPorPerfil(item,prodOriginal,'precoBRL',moeda,converterParaBRL,converterDeBRL);
       });
       setClienteSelecionadoPDV(null); setNomeClienteVulso('');
       setItensVenda(novosItens);
@@ -505,7 +518,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
             produtoOriginalSku: prodOriginal.sku,
             qtd: '1',
             precoPraticadoBRL: precoBase,
-            precoTexto: converterDeBRL(precoBase, moeda).toFixed(moeda==='PYG'?0:2)
+            precoTexto: textoNativoCatalogo(prodOriginal,clienteSelecionadoPDV)
           }];
         });
       }
@@ -546,7 +559,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
 
   const abrirCadastroProdutoPDV = () => {
     setProdutoEmEdicaoPDV(null);
-    setFormProdutoPDV(normalizarProduto({ id: gerarIdSeguro('PROD-BALCAO'), ativo: true, sku: gerarSkuProdutoBalcao('BALCAO'), usoUnicoEncomendado: false, classificacaoUso: 'estoque', estoque: 0, estoqueVitrine: 0, estoqueGalpao: 0 }));
+    setFormProdutoPDV(normalizarProduto({ moedaPreco:moedaPadrao,moedaCusto:moedaPadrao, id: gerarIdSeguro('PROD-BALCAO'), ativo: true, sku: gerarSkuProdutoBalcao('BALCAO'), usoUnicoEncomendado: false, classificacaoUso: 'estoque', estoque: 0, estoqueVitrine: 0, estoqueGalpao: 0 }));
     setModalProdutoPDVAberto(true);
   };
 
@@ -570,7 +583,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     }
     if (!formProdutoPDV.nome.trim()) return mostrarZen('warning', tx("Nome obrigatório","Nombre obligatorio"), tx('Informe o nome do produto.', 'Informe el nombre del producto.', 'Enter product name.'));
     let dinheiroProduto;
-    try { dinheiroProduto=registrarValoresProduto(formProdutoPDV,moeda,converterParaBRL,produtoEmEdicaoPDV,converterDeBRL); }
+    try { dinheiroProduto=registrarValoresProduto(formProdutoPDV,moedaPadrao,converterParaBRL,produtoEmEdicaoPDV,converterDeBRL); }
     catch(error){return mostrarZen('warning',tx('Valor inválido','Importe inválido','Invalid amount'),error.message);}
     const {custoBRL:custo,precoBRL:preco,preco2BRL:preco2,preco3BRL:preco3}=dinheiroProduto;
     // Os saldos do formulário são os valores reais digitados no cadastro rápido.
@@ -738,7 +751,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
         produtoOriginalSku: itemParaAdicionar.sku,
         qtd: String(qtdNum),
         precoPraticadoBRL: precoBase,
-        precoTexto: converterDeBRL(precoBase, moeda).toFixed(moeda==='PYG'?0:2)
+        precoTexto: textoNativoCatalogo(itemParaAdicionar,clienteSelecionadoPDV)
       }]);
     }
     setItemParaAdicionar(null); setTermoBusca('');
@@ -848,7 +861,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     ]),
     { id: 'voucher', rotulo: 'Voucher', moedaOrigem: 'BRL', icone: '🎟️' },
     { id: 'cheque', rotulo: 'Cheque', moedaOrigem: 'BRL', icone: '📝' },
-    { id: 'crediario', rotulo: tx('Crediário / Fiado', 'Fiado / Crédito', 'Store Credit'), moedaOrigem: 'BRL', icone: '📒' }
+    { id: 'crediario', rotulo: tx('Crediário / Fiado', 'Fiado / Crédito', 'Store Credit'), moedaOrigem: moedaPadrao, icone: '📒' }
   ];
 
   const totalPagoConvertidoBRL = pagamentosLancados.reduce((acc, p) => acc + (p.valorConvertidoBRL || 0), 0);
@@ -1049,6 +1062,25 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
         };
       }
       const vendaId = operacaoDocumentoRef.current.id;
+      // Preflight before any stock write: native contracts must be valid,
+      // idempotent and denominated in the store's contractual currency.
+      if(tipoFinalizacao==='venda' && pagamentosLancados.some(p=>p.formaId==='crediario')){
+        const fiados=pagamentosLancados.filter(p=>p.formaId==='crediario');
+        const c=(clientes||[]).find(cli=>String(cli.id)===String(clienteSelecionadoPDV?.id));
+        try{
+          if(!c||fiados.some(p=>p.moedaOrigem!==moedaPadrao))
+            throw new Error('Cliente e moeda nativa do fiado não conferem.');
+          adicionarTituloNativo(c,{
+            idVenda:vendaId,moedaObrigacao:moedaPadrao,
+            valorOriginal:fiados.reduce((a,p)=>a+Number(p.valorOriginal||0),0),
+            valorContabilBRL:fiados.reduce((a,p)=>a+Number(p.valorConvertidoBRL||0),0),
+          });
+        }catch(error){
+          mostrarZen('danger',tx('Fiado não confirmado','Crédito no confirmado','Credit not confirmed'),
+            error.message||tx('Contrato monetário inválido.','Contrato monetario inválido','Invalid monetary contract'));
+          return;
+        }
+      }
       // Mesmo ID/data em cada retry: não duplicar recibos financeiros após timeout.
       const instanteVenda = new Date(operacaoDocumentoRef.current.instante || new Date().toISOString());
       const rascunhoSeguro = await salvarRascunhoPDVProtegido(userId, operadorAtivo?.id, {
@@ -1117,15 +1149,22 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
           await registrarEventosEstoque({ db, userId, eventos: eventosEstoqueVenda });
         }
 
-        const valorFiado = pagamentosLancados.filter(p => p.formaId === 'crediario').reduce((acc, p) => acc + (parseFloat(p.valorConvertidoBRL) || 0), 0);
+        const pagamentosFiadosNativos = pagamentosLancados.filter(p => p.formaId === 'crediario');
+        const valorFiado = pagamentosFiadosNativos.reduce((acc,p)=>acc+(Number(p.valorConvertidoBRL)||0),0);
+        const valorFiadoNativo = pagamentosFiadosNativos.reduce((acc,p)=>acc+(Number(p.valorOriginal)||0),0);
         valorFiadoOperacao = valorFiado;
 
         if (valorFiado > 0 && clienteSelecionadoPDV) {
-          novosClientes = (clientes || []).map(c =>
-            String(c.id) === String(clienteSelecionadoPDV.id)
-              ? { ...c, saldoDevedorBRL: (parseFloat(c.saldoDevedorBRL) || 0) + valorFiado }
-              : c
-          );
+          if (pagamentosFiadosNativos.some(p=>p.moedaOrigem!==moedaPadrao))
+            throw new Error('Fiado exige a moeda contratual padrão da loja.');
+          novosClientes = (clientes || []).map(c => String(c.id) === String(clienteSelecionadoPDV.id)
+            ? adicionarTituloNativo({
+                ...c,saldoDevedorBRL:Math.round(((Number(c.saldoDevedorBRL)||0)+valorFiado)*100)/100,
+              },{
+                idVenda:vendaId,moedaObrigacao:moedaPadrao,valorOriginal:valorFiadoNativo,
+                valorContabilBRL:valorFiado,createdAt:instanteVenda.toISOString(),
+              })
+            : c);
         }
       }
 
@@ -1139,7 +1178,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       if (tipoFinalizacao === 'venda') {
         itensDocumento = itensDocumento.map(item => ({
           ...item,
-          precoNaVenda:{valor:converterDeBRL(Number(item.precoPraticadoBRL||0),moeda),moeda},
+          precoNaVenda:{valor:converterDeBRL(Number(item.precoPraticadoBRL||0),moedaPadrao),moeda:moedaPadrao},
           custoNaVendaBRL: Number.isFinite(Number(item.custoBRL)) && Number(item.custoBRL) >= 0 ? Number(item.custoBRL) : 0,
         }));
       }
@@ -1158,8 +1197,8 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
         ...(tipoFinalizacao === 'venda' ? { finalizadoPorId: idSeguro, finalizadoPorNome: nomeSeguro } : {}),
         sessaoId: tipoFinalizacao === 'venda' ? sessaoAtiva?.id || null : null,
         itens: itensDocumento,
-        moedaDocumento:moeda,
-        totalOriginal:converterDeBRL(totalFinalBRL,moeda),
+        moedaDocumento:moedaPadrao,
+        totalOriginal:moedaPadrao==='PYG'?Math.round(converterDeBRL(totalFinalBRL,moedaPadrao)):Math.round(converterDeBRL(totalFinalBRL,moedaPadrao)*100)/100,
 
         totalBRL: totalFinalBRL,
         lucroBRL: tipoFinalizacao === 'venda' ? totalFinalBRL - cmvVendaBRL : lucroEstimadoBRL,
@@ -1208,6 +1247,13 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
               referenciaId: vendaId,
               valor: valorFiadoTotal,
               formaPagamento: 'crediario',
+              detalhes: {
+                moedaOrigem:moedaPadrao,
+                valorOriginal:pagamentosFiado.reduce((a,p)=>a+(Number(p.valorOriginal)||0),0),
+                valorContabilRegistroBRL:valorFiadoTotal,
+                taxaCambioAplicada:Number(taxasCambio?.[moedaPadrao]||1),
+                idTitulo:vendaId,
+              },
               createdAt: novaVenda.createdAt,
               afetaCaixaFisico: false,
               afetaResultado: true,
@@ -1808,7 +1854,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                   return (
                     <div key={prod.id} onClick={() => { setItemParaAdicionar(prod); setQtdDigitadaRapida('1'); }} onMouseEnter={() => setIndiceFocoBusca(index)} style={{ padding: '14px 20px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', backgroundColor: estaFocado ? '#1e1b4b' : 'transparent' }}>
                       <div><div style={{ fontWeight: 700, color: '#f8fafc', fontSize: '15px' }}>{prod.nome} {ehEncomendaUsoUnico(prod) && <span style={{ color: '#fbbf24', fontSize: '11px' }}>({tx('Encomenda', 'Especial', 'Order')})</span>}</div><div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>SKU: {prod.sku} {tx("• Estoque:","• Existencias:")} <strong style={{ color: '#38bdf8' }}>{prod.estoque} {prod.unidadeMedida}</strong></div></div>
-                      <div style={{ color: '#34d399', fontWeight: 900, fontSize: '16px' }}>{fmt(aplicarPrecoPorPerfilCliente(prod, clienteSelecionadoPDV))}</div>
+                      <div style={{ color: '#34d399', fontWeight: 900, fontSize: '16px' }}>{formatarPrecoNativoCatalogo(prod, clienteSelecionadoPDV)}</div>
                     </div>
                   );
                 }) : <div style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>{tx('Nenhum produto localizado', 'Ningún producto', 'No products found')}</div>}
@@ -2006,8 +2052,8 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
             </div>
             <div style={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', padding: '16px 20px', marginBottom: '18px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: '12px', alignItems: 'start', marginBottom: '12px' }}>
-                <div><label style={{ minHeight:28, display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Custo','Costo','Cost')} ({formProdutoPDV.moedaCusto||moeda})</label><input type="text" value={formProdutoPDV.custoBRL} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, custoBRL: e.target.value })} style={{ width: '100%', height:40, backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontWeight: 800, fontSize: '14px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
-                <div><label style={{ minHeight:28, display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Preço Venda','Precio Venta','Sale Price')} ({formProdutoPDV.moedaPreco||moeda})</label><input type="text" value={formProdutoPDV.precoBRL} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, precoBRL: e.target.value })} style={{ width: '100%', height:40, backgroundColor: '#0b1120', border: '1px solid #34d399', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
+                <div><label style={{ minHeight:28, display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Custo','Costo','Cost')} ({formProdutoPDV.moedaCusto||moedaPadrao})</label><input type="text" value={formProdutoPDV.custoBRL} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, custoBRL: e.target.value })} style={{ width: '100%', height:40, backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#cbd5e1', fontWeight: 800, fontSize: '14px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
+                <div><label style={{ minHeight:28, display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>{tx('Preço Venda','Precio Venta','Sale Price')} ({formProdutoPDV.moedaPreco||moedaPadrao})</label><input type="text" value={formProdutoPDV.precoBRL} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, precoBRL: e.target.value })} style={{ width: '100%', height:40, backgroundColor: '#0b1120', border: '1px solid #34d399', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
                 <div><label style={{ minHeight:28, display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#38bdf8', fontWeight: 700 }}>{tx('Vitrine / Loja','Exhibición / Tienda','Display / Store')}</label><input type="number" disabled={Boolean(produtoEmEdicaoPDV)} value={formProdutoPDV.estoqueVitrine ?? 0} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, estoqueVitrine: e.target.value })} style={{ width: '100%', height:40, backgroundColor: '#0b1120', border: '1px solid #0369a1', borderRadius: '8px', color: '#38bdf8', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '10px', outline: 'none', boxSizing: 'border-box', opacity: produtoEmEdicaoPDV ? .65 : 1 }} /></div>
                 <div><label style={{ minHeight:28, display:'flex', alignItems:'flex-end', fontSize: '11px', color: '#a855f7', fontWeight: 700 }}>{tx('Galpão / Depósito','Depósito / Almacén','Warehouse / Storage')}</label><input type="number" disabled={Boolean(produtoEmEdicaoPDV)} value={formProdutoPDV.estoqueGalpao ?? 0} onChange={(e) => setFormProdutoPDV({ ...formProdutoPDV, estoqueGalpao: e.target.value })} style={{ width: '100%', height:40, backgroundColor: '#0b1120', border: '1px solid #7e22ce', borderRadius: '8px', color: '#a855f7', fontWeight: 900, fontSize: '14px', textAlign: 'center', padding: '10px', outline: 'none', boxSizing: 'border-box', opacity: produtoEmEdicaoPDV ? .65 : 1 }} /></div>
               </div>

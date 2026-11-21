@@ -21,7 +21,7 @@ import ZenModal from './ZenModal';
 import { calcularPrecoPorCustoEMargem, calcularMargemPorCustoEPreco, validarMargemPrecoVenda, MAX_MARGEM_PRECO_PCT } from '../core/pricing';
 import { validarCredencialGerencial } from '../core/accessControl';
 
-export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos, moeda, converterDeBRL = v=>v, converterParaBRL = v=>v, fmt, t, tx, fornecedoresGlobais = [], userId, operadorAtivo, planoLoja = 'basico', historicoVendas = [], historicoCompras = [], patenteUsuario, regrasDesconto, vendedores = [] }) {
+export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos, moeda, moedaPadrao='BRL', converterDeBRL = v=>v, converterParaBRL = v=>v, fmt, t, tx, fornecedoresGlobais = [], userId, operadorAtivo, planoLoja = 'basico', historicoVendas = [], historicoCompras = [], patenteUsuario, regrasDesconto, vendedores = [] }) {
   const [gruposCadastrados, setGruposCadastrados] = useState(['Tintas Acrílicas', 'Colorimetria & Pigmentos', 'Massas e Complementos', 'Serviços Especializados', 'Acessórios & Ferramentas']);
   const [filtroGrupo, setFiltroGrupo] = useState('todos');
   const [buscaProdutoTexto, setBuscaProdutoTexto] = useState('');
@@ -328,7 +328,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
     setSecaoFiscalExpandida(false);
     setCriandoNovoGrupo(false);
     setNovoGrupoTexto('');
-    setPaisRegulamentoFiscal(moeda === 'PYG' ? 'PY' : 'BR');
+    setPaisRegulamentoFiscal(moedaPadrao === 'PYG' ? 'PY' : 'BR');
     setHistoricoExpandido(false);
     setHistoricoMovimentos([]);
     // ID único por cadastro novo: evita colidir com um produto antigo/inativo de mesmo SKU+nome+grupo.
@@ -340,7 +340,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       estoqueVitrine: '0',
       estoqueGalpao: '0',
       localizacao: '',
-      moedaCusto:moeda,moedaPreco:moeda,
+      moedaCusto:moedaPadrao,moedaPreco:moedaPadrao,
       margemDesejada: '40'
     }));
     setModalProdutoAberto(true);
@@ -446,7 +446,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       if (!gruposCadastrados.includes(grupoFinal)) setGruposCadastrados([...gruposCadastrados, grupoFinal]);
     }
     let dinheiro;
-    try { dinheiro=registrarValoresProduto(formProduto,moeda,converterParaBRL,produtoEmEdicao,converterDeBRL); }
+    try { dinheiro=registrarValoresProduto(formProduto,moedaPadrao,converterParaBRL,produtoEmEdicao,converterDeBRL); }
     catch(error){return mostrarZen('warning',tx('Valor inválido','Importe inválido','Invalid amount'),error.message);}
     const {custoBRL:custo,precoBRL:preco}=dinheiro;
     const preco2=dinheiro.preco2BRL;

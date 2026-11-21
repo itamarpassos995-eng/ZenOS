@@ -89,6 +89,7 @@ import { calcularConciliacaoFisicaMultimoeda } from './core/cashReconciliation';
 import { obterComposicaoHistoricaCaixa, formatarDinheiroNativo } from './core/cashHistoryDisplay';
 import { apresentarMovimentoNaMoedaPadrao } from './core/defaultCurrencyPresentation.js';
 import { apurarFiadoMoedaPadrao } from './core/defaultCurrencyCreditCard.js';
+import { apurarCarteiraNativa } from './core/nativeReceivables.js';
 import { resolverMoedaExibidaAoCarregarConfiguracao } from './core/storeDefaultCurrency.js';
 import { normalizarRegrasComissao, REGRAS_COMISSAO_PADRAO } from './core/commissionEngine';
 import { normalizarRegrasMargem } from './core/profitability';
@@ -1228,7 +1229,14 @@ export default function App() {
   const despesasPagasBRL = useMemo(() => despesas.filter(d => withinFinancialPeriod(d,intervaloFinanceiro,{payment:true}) && (d.status === 'paga' || (d.status === 'excluida' && d.financeiroMantido === true)) && d.afetaResultado !== false && d.naturezaContabil !== 'estoque_ativo' && d.categoria !== 'Mercadoria para Revenda').reduce((acc,d)=>acc+(Number(d.valorBRL)||0),0), [despesas,intervaloFinanceiro]);
   const lucroLiquidoRealBRL = lucroBrutoBRL - despesasPagasBRL;
   const totalFiadoAbertoBRL = useMemo(() => clientes.reduce((acc, c) => acc + (parseFloat(c.saldoDevedorBRL) || 0), 0), [clientes]);
-  const fiadoPainelMoedaPadrao = useMemo(() => apurarFiadoMoedaPadrao(clientes,moedaPadrao,historicoVendas,livroFinanceiro),[clientes,moedaPadrao,historicoVendas,livroFinanceiro]);
+  const fiadoPainelMoedaPadrao = useMemo(() => {
+    const carteiras=clientes.map(c=>apurarCarteiraNativa(c,moedaPadrao));
+    if(carteiras.every(c=>c.status==='confirmado'))return {
+      status:'confirmado',moeda:moedaPadrao,
+      totalNativo:carteiras.reduce((acc,c)=>acc+c.totalNativo,0),
+    };
+    return apurarFiadoMoedaPadrao(clientes,moedaPadrao,historicoVendas,livroFinanceiro);
+  },[clientes,moedaPadrao,historicoVendas,livroFinanceiro]);
   const clientesComFiadoAberto = useMemo(() => clientes.filter(c => Number(c?.saldoDevedorBRL)>0).length,[clientes]);
 
   const gerarCurvaABC = () => {
@@ -1262,6 +1270,10 @@ export default function App() {
   const movsSessao = useMemo(() => sessaoAtiva ? caixaMovimentos.filter(m => m.sessaoId === sessaoAtiva.id) : [],
     [sessaoAtiva, caixaMovimentos]);
   const saldoSessaoFisicoBRL = resumoSessaoAtiva?.saldoEsperado || 0;
+  const caixaFisicoNativo = useMemo(() => sessaoAtiva
+    ? calcularConciliacaoFisicaMultimoeda({sessao:sessaoAtiva,historicoVendas,caixaMovimentos,
+        contagem:{},taxas:taxasCambio})
+    : null,[sessaoAtiva,historicoVendas,caixaMovimentos,taxasCambio]);
   // Compatibilidade dos relatórios/fecho: aliases derivados do resumo canônico da sessão.
   const suprimentosSessaoBRL = Number(resumoSessaoAtiva?.suprimentos || 0);
   const sangriasSessaoBRL = Number(resumoSessaoAtiva?.sangrias || 0);
@@ -2200,6 +2212,15 @@ export default function App() {
                       <p>{tx('Você pode usar o PDV e gerar Pré-Pedidos mesmo sem turno aberto. Abra o turno somente quando for receber ou movimentar a gaveta.','Puede usar el TPV y generar Pre-Pedidos incluso sin turno abierto. Abra el turno solamente cuando vaya a cobrar o mover la caja.','You can use the POS and create Pre-Orders even without an open shift. Open the shift only when receiving payment or moving cash.')}</p>
                       <button className="zen-primary-cash" onClick={() => { setTipoMovCaixa('abertura'); setModalCaixaAberto(true); }}>🔓 {tx('Abrir Turno de Caixa','Abrir Turno de Caja','Open Cash Shift')}</button>
                     </> : <>
+                      <div style={{border:'1px solid #164e63',borderRadius:10,padding:'10px 12px',marginBottom:12}}>
+                        <div style={{color:'#94a3b8',fontSize:11,fontWeight:800}}>{tx('Caixa físico • moeda padrão','Caja física • moneda predeterminada','Physical cash • default currency')} ({moedaPadrao})</div>
+                        <div style={{color:'#34d399',fontWeight:900,fontSize:20}}>
+                          {caixaFisicoNativo?.confiavel ? formatarValorNativo(caixaFisicoNativo.esperado?.[moedaPadrao]||0,moedaPadrao)
+                            : tx('Saldo nativo em conferência','Saldo nativo en conciliación','Native balance under reconciliation')}
+                        </div>
+                        {caixaFisicoNativo?.confiavel && ['BRL','PYG','USD','EUR'].filter(m=>m!==moedaPadrao && (caixaFisicoNativo.esperado?.[m]||0)!==0)
+                          .map(m=><div key={m} style={{fontSize:11,color:'#94a3b8'}}>{tx('Outras moedas','Otras monedas','Other currencies')}: {formatarValorNativo(caixaFisicoNativo.esperado[m],m)}</div>)}
+                      </div>
                       <div className="zen-cash-actions">
                         <button onClick={() => { setTipoMovCaixa('suprimento'); setModalCaixaAberto(true); }}>+ {tx('Entrada (Reforço)','Entrada (Refuerzo)','Cash In (Float)')}</button>
                         <button onClick={() => { setTipoMovCaixa('sangria'); setModalCaixaAberto(true); }}>− {tx('Saída (Sangria)','Salida (Retiro)','Cash Out (Withdrawal)')}</button>
@@ -2292,11 +2313,11 @@ export default function App() {
         {ecraAtual === 'compras' && <PDVCompras commitOperacaoNegocio={commitVendaCritica} registrarFinanceiro={registrarFinanceiro} saldoSessaoFisicoBRL={saldoSessaoFisicoBRL} userId={userId} produtos={produtos} setProdutos={setProdutos} fornecedores={fornecedores} setFornecedores={setFornecedores} despesas={despesas} setDespesas={setDespesas} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} historicoCompras={historicoCompras} setHistoricoCompras={setHistoricoCompras} operadorAtivo={operadorAtivo} />}
         {ecraAtual === 'fornecedores' && <Fornecedores commitOperacaoNegocio={commitVendaCritica} fornecedores={fornecedores} setFornecedores={setFornecedores} moeda={moeda} tx={tx} />}
         {ecraAtual === 'mesas' && <Mesas converterParaBRL={converterParaBRL} commitOperacaoNegocio={commitVendaCritica} userId={userId} produtos={produtos} fmt={fmt} tx={tx} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} moeda={moeda} idioma={idioma} operadorAtivo={operadorAtivo} />}
-        {ecraAtual === 'produtos' && <Produtos commitOperacaoNegocio={commitVendaCritica} historicoVendas={historicoVendas} historicoCompras={historicoCompras} patenteUsuario={patenteUsuario} regrasDesconto={regrasDesconto} vendedores={vendedores} userId={userId} operadorAtivo={operadorAtivo} planoLoja={planoLoja} produtos={produtos} setProdutos={setProdutos} fornecedoresGlobais={fornecedores} moeda={moeda} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} fmt={fmt} t={t} tx={tx} />}
+        {ecraAtual === 'produtos' && <Produtos moedaPadrao={moedaPadrao} commitOperacaoNegocio={commitVendaCritica} historicoVendas={historicoVendas} historicoCompras={historicoCompras} patenteUsuario={patenteUsuario} regrasDesconto={regrasDesconto} vendedores={vendedores} userId={userId} operadorAtivo={operadorAtivo} planoLoja={planoLoja} produtos={produtos} setProdutos={setProdutos} fornecedoresGlobais={fornecedores} moeda={moeda} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} fmt={fmt} t={t} tx={tx} />}
         {ecraAtual === 'inteligencia' && <EstoqueInteligente converterParaBRL={converterParaBRL} produtos={produtos} fmt={fmt} tx={tx} />}
         {ecraAtual === 'comissoes' && <Comissoes commitOperacaoNegocio={commitVendaCritica} historicoVendas={historicoVisivelParaOperador} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} operadorAtivo={operadorAtivo} regrasDesconto={regrasDesconto} regrasComissao={regrasComissao} setRegrasComissao={setRegrasComissao} />}
         {ecraAtual === 'dashboardMobile' && <DashboardMobile historicoVendas={historicoVendas} despesas={despesas} clientes={clientes} produtos={produtos} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} regrasDesconto={regrasDesconto} />}
-        {ecraAtual === 'clientes' && (livroFinanceiroConfirmado && livroFinanceiroAtivadoParaLoja === String(userId) ? <Clientes perfilLoja={perfilLoja} commitOperacaoNegocio={commitVendaCritica} livroFinanceiro={livroFinanceiro} historicoVendas={historicoVendas} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} operadorAtivo={operadorAtivo} clientes={clientes} setClientes={setClientes} moeda={moeda} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} /> : <div role="status" style={{padding:24,color:'#cbd5e1'}}>{tx("Conferindo histórico financeiro completo no servidor antes de liberar contas e fiado…","Verificando el historial financiero completo en el servidor antes de habilitar cuentas y créditos…")}</div>)}
+        {ecraAtual === 'clientes' && (livroFinanceiroConfirmado && livroFinanceiroAtivadoParaLoja === String(userId) ? <Clientes perfilLoja={perfilLoja} commitOperacaoNegocio={commitVendaCritica} livroFinanceiro={livroFinanceiro} historicoVendas={historicoVendas} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} operadorAtivo={operadorAtivo} clientes={clientes} setClientes={setClientes} moeda={moeda} moedaPadrao={moedaPadrao} taxasCambio={taxasCambio} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} /> : <div role="status" style={{padding:24,color:'#cbd5e1'}}>{tx("Conferindo histórico financeiro completo no servidor antes de liberar contas e fiado…","Verificando el historial financiero completo en el servidor antes de habilitar cuentas y créditos…")}</div>)}
         {ecraAtual === 'vendas' && <Vendas commitOperacaoNegocio={commitVendaCritica} taxasCambio={taxasCambio} sessoesCaixa={sessoesCaixa} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} saldoSessaoFisicoBRL={saldoSessaoFisicoBRL} perfilLoja={perfilLoja} vouchers={vouchers} setVouchers={setVouchers} userId={userId} operadorAtivo={operadorAtivo} historicoVendas={historicoVisivelParaOperador} historicoVendasCompleto={historicoVendas} setHistoricoVendas={setHistoricoVendas} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} fmt={fmt} t={t} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterDeBRL={converterDeBRL} />}
         {ecraAtual === 'commerce-solicitar' && temPermissao('admin') && <React.Suspense fallback={<div role="status" style={{padding:20,color:'#bdd5df'}}>{tx('Preparando Minha Loja Online…','Preparando Mi Tienda Online…','Preparing My Online Store…')}</div>}><CommerceSolicitacao converterParaBRL={converterParaBRL} moedaPadrao={moedaPadrao} taxasCambio={taxasCambio} key={String(userId)+':'+String(operadorAtivo?.id)} lojaId={userId} perfilLoja={perfilLoja} tx={tx} produtos={produtos} /></React.Suspense>}
         {ecraAtual === 'fiscal' && <FiscalErrorBoundary resetKey={`${userId || ''}:${perfilLoja?.pais || ''}:${resultadoFilaFiscal.erro || ''}`} onVoltar={() => navegarPara('hub')} tx={tx}><Fiscal lojaId={userId} perfilLoja={perfilLoja} filaFiscal={resultadoFilaFiscal.fila} erroFila={resultadoFilaFiscal.erro} clientes={clientes} ambiente="homologacao" onVerVenda={() => navegarPara('vendas')} tx={tx} idioma={idioma} /></FiscalErrorBoundary>}

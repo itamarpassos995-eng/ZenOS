@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {registrarValoresProduto,produtoParaFormularioMonetario,quantiaOriginalProduto,valorProdutoBRL,projetarProdutoMonetario,custoFornecedorProdutoBRL,atualizarCotacaoPrecoItemPDV,atualizarQuantiaProduto,recuperarPrecoVisivelRascunhoPDV} from '../src/core/productMoney.js';
+import {registrarValoresProduto,produtoParaFormularioMonetario,quantiaOriginalProduto,valorProdutoBRL,projetarProdutoMonetario,custoFornecedorProdutoBRL,atualizarCotacaoPrecoItemPDV,atualizarQuantiaProduto,recuperarPrecoVisivelRascunhoPDV,precoExibicaoProduto,textoPrecoExibicaoProduto,reprecificarItemPDVPorPerfil} from '../src/core/productMoney.js';
 import {mergeArrayThreeWay} from '../src/core/syncMerge.js';
 import {validarComposicaoPagamento} from '../src/core/paymentValidation.js';
 import {criarSnapshotCommercePublico,conferirCarrinhoContraSnapshot,minorCommerceParaBRL} from '../src/core/commercePublicCatalog.js';
@@ -187,4 +187,56 @@ test('escopo VIPE da recuperação exige loja, moeda padrão, moeda atual e rasc
  assert.match(pdv,/userId === 'QNtFleq9ajNNmU6iwiFSi5w1alu2'/);
  assert.match(pdv,/moedaPadrao === 'PYG' && moeda === 'PYG' && avisoRascunhoRecuperado/);
  assert.match(pdv,/if \(pagamentosLancados\.length > 0\) return/);
+});
+
+test('regressão: pesquisa PYG preserva exatamente os preços de cada produto em mudanças consecutivas de câmbio',()=>{
+ const a={id:'a',...registrarValoresProduto(form('PYG',30000),'PYG',to)};
+ const b={id:'b',...registrarValoresProduto(form('PYG',75000),'PYG',to)};
+ const original=JSON.stringify([a,b]);
+ for(const cotacaoPYG of [1500,1200,950,1600,1100,1500]){
+   const ratesNovas={...rates,PYG:cotacaoPYG};
+   const novoTo=(v,m)=>v/ratesNovas[m];
+   const novoFrom=(v,m)=>v*ratesNovas[m];
+   assert.equal(precoExibicaoProduto(a,'precoBRL','PYG',novoTo,novoFrom),30000);
+   assert.equal(precoExibicaoProduto(b,'precoBRL','PYG',novoTo,novoFrom),75000);
+   assert.equal(textoPrecoExibicaoProduto(a,'precoBRL','PYG',novoTo,novoFrom),'30000');
+   assert.equal(textoPrecoExibicaoProduto(b,'precoBRL','PYG',novoTo,novoFrom),'75000');
+   assert.equal(atualizarCotacaoPrecoItemPDV({
+     precoOrigemPDV:{valor:30000,moeda:'PYG'},precoTexto:'30000',precoPraticadoBRL:30000/1150
+   },'PYG',novoTo,novoFrom).precoTexto,'30000');
+ }
+ assert.equal(JSON.stringify([a,b]),original);
+});
+test('preço com origem USD converte para PYG sob demanda sem alterar USD contratual',()=>{
+ const p={id:'u',...registrarValoresProduto(form('USD',20),'USD',to)};
+ assert.equal(precoExibicaoProduto(p,'precoBRL','USD',to,from),20);
+ assert.equal(precoExibicaoProduto(p,'precoBRL','PYG',to,from),20/0.2*1150);
+ assert.equal(quantiaOriginalProduto(p,'precoBRL').valor,20);
+});
+test('produto legado BRL não é reclassificado automaticamente como PYG',()=>{
+ const legado={id:'legacy',precoBRL:25};
+ assert.equal(quantiaOriginalProduto(legado,'precoBRL'),null);
+ assert.equal(precoExibicaoProduto(legado,'precoBRL','PYG',to,from),28750);
+});
+
+test('PDV: alterar perfil comercial 1-2-1 não restaura origem antiga após FX',()=>{
+ const produto={...registrarValoresProduto({...form('PYG',30000),preco2BRL:50000},'PYG',to)};
+ const item={id:'cart',precoDigitadoOriginal:{valor:99999,moeda:'PYG'},precoOrigemPDV:{valor:10,moeda:'BRL'}};
+ const toNew=(v,m)=>v/({...rates,PYG:1200}[m]);
+ const fromNew=(v,m)=>v*({...rates,PYG:1200}[m]);
+ const tier2=reprecificarItemPDVPorPerfil(item,produto,'preco2BRL','PYG',toNew,fromNew);
+ assert.equal(tier2.precoTexto,'50000');
+ assert.deepEqual(tier2.precoOrigemPDV,{valor:50000,moeda:'PYG'});
+ assert.equal(tier2.precoDigitadoOriginal,null);
+ assert.equal(atualizarCotacaoPrecoItemPDV(tier2,'PYG',toNew,fromNew).precoTexto,'50000');
+ const tier1=reprecificarItemPDVPorPerfil(tier2,produto,'precoBRL','PYG',toNew,fromNew);
+ assert.equal(tier1.precoTexto,'30000');
+ assert.deepEqual(tier1.precoOrigemPDV,{valor:30000,moeda:'PYG'});
+ assert.equal(atualizarCotacaoPrecoItemPDV(tier1,'PYG',toNew,fromNew).precoTexto,'30000');
+ assert.equal(quantiaOriginalProduto(produto,'preco2BRL').valor,50000);
+});
+test('PDV: troca de perfil legado BRL não inventa origem PYG',()=>{
+ const item=reprecificarItemPDVPorPerfil({}, {precoBRL:20}, 'precoBRL', 'PYG',to,from);
+ assert.equal(item.precoOrigemPDV,null);
+ assert.equal(item.precoTexto,'23000');
 });
