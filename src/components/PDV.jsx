@@ -20,6 +20,7 @@ import { validarComposicaoPagamento } from '../core/paymentValidation';
 import { parseMoney,formatMoneyMinor,convertMinorDirect } from '../core/nativeMoneyKernel.js';
 import { calcularCarrinhoNativoPDV,registrarPagamentoNativoPDV,validarQuitacaoNativa,registrarBridgeContabilBRL,valorPendenteNaMoedaRecebida,formatarNativo } from '../core/nativePdvAccounting.js';
 import { adicionarTituloNativo,apurarCarteiraNativa } from '../core/nativeReceivables.js';
+import {formatNativeMinor,formatVerifiedOrPending,nativeCreditLimitMinor} from '../core/nativeMoneyDisplay.js';
 import { interpretarValorMonetario } from '../core/cashMoneyInput';
 import { lerRascunhoPDV, salvarRascunhoPDV, apagarRascunhoPDVProtegido, salvarRascunhoPDVProtegido, lerRascunhoPDVRecuperavel } from '../core/pdvDraft';
 import { getOperationalSnapshot } from '../core/operationalRepository';
@@ -556,8 +557,19 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
 
   const salvarClientePDV = async () => {
     if (!formClientePDV.nome.trim()) return mostrarZen('warning', tx("Nome obrigatório","Nombre obligatorio"), tx('Informe o nome do cliente.', 'Informe el nombre del cliente.', 'Enter customer name.'));
-    const limiteNum = parseFloat(String(formClientePDV.limiteCreditoBRL).replace(',', '.')) || 0;
-    const novoCli = normalizarCliente({ ...formClientePDV, limiteCreditoBRL: limiteNum });
+    let limiteMinor,limiteCompatBRL;
+    try{
+      const entered=String(formClientePDV.limiteCreditoBRL||'0').trim().replace(',','.');
+      limiteMinor=parseMoney(entered,moedaPadrao);
+      if(BigInt(limiteMinor)<0n)throw Error('Limite de crédito negativo');
+      limiteCompatBRL=Number(formatMoneyMinor(convertMinorDirect(limiteMinor,moedaPadrao,'BRL',taxasCambio),'BRL'));
+    }catch(error){
+      return mostrarZen('danger',tx('Limite nativo inválido','Límite nativo inválido','Invalid native credit limit'),error.message);
+    }
+    const novoCli = normalizarCliente({
+      ...formClientePDV,limiteCreditoBRL:limiteCompatBRL,
+      limiteCreditoNativo:{moeda:moedaPadrao,valorMinor:limiteMinor}
+    });
     const listaProposta = [novoCli, ...(clientes || [])];
     try {
       let clientesConfirmados = listaProposta;
@@ -879,7 +891,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   }
 
   const catalogoFormas = [
-    { id: 'dinheiro_brl', rotulo: tx('Dinheiro (R$)', 'Efectivo (R$)', 'Cash (R$)'), moedaOrigem: 'BRL', icone: '💵' },
+    { id: 'dinheiro_brl', rotulo: tx('Dinheiro (BRL)', 'Efectivo (BRL)', 'Cash (BRL)'), moedaOrigem: 'BRL', icone: '💵' },
     { id: 'dinheiro_usd', rotulo: tx('Dólar ($)', 'Dólar ($)', 'Dollar ($)'), moedaOrigem: 'USD', icone: '💵' },
     { id: 'dinheiro_pyg', rotulo: tx('Guarani (₲)', 'Guaraní (₲)', 'Guarani (₲)'), moedaOrigem: 'PYG', icone: '💵' },
     { id: 'dinheiro_eur', rotulo: tx('Euro (€)', 'Euro (€)', 'Euro (€)'), moedaOrigem: 'EUR', icone: '💶' },
@@ -1641,7 +1653,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
                       const formaPagtoRotulo = {
                         pix: '💠 PIX',
                         cartao: '💳 Cartão',
-                        dinheiro: `💵 Dinheiro${ped.trocoPara ? ' (Troco p/ R$ ' + ped.trocoPara + ')' : ''}`
+                        dinheiro: `💵 Dinheiro${ped.trocoPara ? ' (Troco BRL: ' + ped.trocoPara + ')' : ''}`
                       }[ped.formaPagamento] || '';
 
                       return (
@@ -1893,7 +1905,10 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
             />
             {clienteSelecionadoPDV && (
               <div style={{ position: 'absolute', top: '16px', right: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '11px', color: '#cbd5e1' }} className="hide-mobile">{tx('Fiado:', 'Deuda:', 'Debt:')} <strong style={{ color: clienteSelecionadoPDV.saldoDevedorBRL > 0 ? '#fb7185' : '#34d399' }}>{fmt(clienteSelecionadoPDV.saldoDevedorBRL, 'BRL')}</strong></span>
+                <span style={{ fontSize: '11px', color: '#cbd5e1' }} className="hide-mobile">{tx('Fiado:', 'Deuda:', 'Debt:')} <strong style={{ color: clienteSelecionadoPDV.saldoDevedorBRL > 0 ? '#fb7185' : '#34d399' }}>{(() => {const r=apurarCarteiraNativa(clienteSelecionadoPDV,moedaPadrao);
+  return r.status==='confirmado'
+    ?formatNativeMinor(parseMoney(String(r.totalNativo),moedaPadrao),moedaPadrao)
+    :tx('Fiado em conciliação','Crédito por conciliar','Debt requires reconciliation');})()}</strong></span>
                 <button onClick={removerClienteDoPDV} style={{ backgroundColor: '#020617', border: 'none', color: '#f43f5e', fontSize: '14px', cursor: 'pointer', fontWeight: 900 }}>✕</button>
               </div>
             )}
@@ -2077,7 +2092,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '20px' }}>
               <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Documento (CPF/RUC)', 'Documento (CI/RUC)', 'ID (TAX/SSN)')}</label><input type="text" value={formClientePDV.documento} onChange={(e) => setFormClientePDV({ ...formClientePDV, documento: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#ffffff', fontWeight: 700, fontSize: '13px', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
               <div><label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 800 }}>{tx('Telefone / WhatsApp', 'Teléfono / WhatsApp', 'Phone / WhatsApp')}</label><input type="text" value={formClientePDV.telefone} onChange={(e) => setFormClientePDV({ ...formClientePDV, telefone: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#34d399', fontWeight: 800, fontSize: '13px', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
-              <div><label style={{ fontSize: '11px', color: '#fbbf24', fontWeight: 800 }}>{tx('Limite Fiado (R$)', 'Límite Fiado ($)', 'Credit Limit ($)')}</label><input type="text" value={formClientePDV.limiteCreditoBRL} onChange={(e) => setFormClientePDV({ ...formClientePDV, limiteCreditoBRL: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #d97706', borderRadius: '8px', color: '#fbbf24', fontWeight: 900, fontSize: '14px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
+              <div><label style={{ fontSize: '11px', color: '#fbbf24', fontWeight: 800 }}>{tx('Limite de fiado','Límite de crédito','Credit limit')} ({moedaPadrao})</label><input type="text" value={formClientePDV.limiteCreditoBRL} onChange={(e) => setFormClientePDV({ ...formClientePDV, limiteCreditoBRL: e.target.value })} style={{ width: '100%', backgroundColor: '#020617', border: '1px solid #d97706', borderRadius: '8px', color: '#fbbf24', fontWeight: 900, fontSize: '14px', textAlign: 'right', padding: '10px', outline: 'none', boxSizing: 'border-box' }} /></div>
             </div>
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
               <button onClick={() => setModalClientePDVAberto(false)} style={{ flex: 1, backgroundColor: '#020617', border: '1px solid #1e293b', color: '#94a3b8', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}>{tx('Cancelar', 'Cancelar', 'Cancel')}</button>

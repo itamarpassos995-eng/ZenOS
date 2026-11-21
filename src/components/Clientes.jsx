@@ -7,6 +7,7 @@ import { interpretarValorMonetario } from '../core/cashMoneyInput';
 import { auditarVinculosFiado, encontrarConflitosIdsRecebimento } from '../core/clientCreditLinkAudit';
 import { apurarCarteiraNativa, receberTituloNativo } from '../core/nativeReceivables.js';
 import { parseMoney,formatMoneyMinor,convertMinorDirect } from '../core/nativeMoneyKernel.js';
+import {formatNativeMinor,formatVerifiedOrPending,nativeCreditLimitMinor} from '../core/nativeMoneyDisplay.js';
 
 export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, historicoVendas = [], setClientes, moeda, moedaPadrao='BRL', taxasCambio={}, fmt, t, tx = (pt) => pt, converterDeBRL, converterParaBRL }) {
   const [filtroPaisCliente, setFiltroPaisCliente] = useState('todos');
@@ -26,7 +27,7 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
   const [modalZen, setModalZen] = useState(null);
 
   const catalogoFormas = [
-    { id: 'dinheiro_brl', rotulo: tx("Dinheiro (R$)","Efectivo (R$)"), moedaOrigem: 'BRL', icone: '💵' },
+    { id: 'dinheiro_brl', rotulo: tx("Dinheiro (BRL)","Efectivo (BRL)"), moedaOrigem: 'BRL', icone: '💵' },
     { id: 'dinheiro_usd', rotulo: tx("Dólar ($)","Dólar ($)"), moedaOrigem: 'USD', icone: '💵' },
     { id: 'dinheiro_pyg', rotulo: tx("Guarani (₲)","Guaraní (₲)"), moedaOrigem: 'PYG', icone: '💵' },
     { id: 'dinheiro_eur', rotulo: 'Euro (€)', moedaOrigem: 'EUR', icone: '💶' },
@@ -41,30 +42,34 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
 
   const [formCliente, setFormCliente] = useState(normalizarCliente({}));
   const [limiteCreditoNativoTexto,setLimiteCreditoNativoTexto]=useState('0');
-  const limiteNativoCliente = cli => cli?.limiteCreditoNativo?.moeda===moedaPadrao &&
-    cli?.limiteCreditoNativo?.valorMinor!=null ? cli.limiteCreditoNativo.valorMinor
-    : moedaPadrao==='BRL' && Number.isFinite(Number(cli?.limiteCreditoBRL))
-      ? parseMoney(Number(cli.limiteCreditoBRL).toFixed(2),'BRL'):null;
-  const textoLimiteCliente = cli => {
-    const minor=limiteNativoCliente(cli);
-    return minor!=null?formatarFiadoNativo(Number(formatMoneyMinor(minor,moedaPadrao))):
-      tx('Limite em conciliação','Límite por conciliar','Credit limit reconciliation');
-  };
+  const limiteNativoCliente = cli => nativeCreditLimitMinor(cli,moedaPadrao);
+  const textoLimiteCliente = cli => formatVerifiedOrPending(
+    limiteNativoCliente(cli),moedaPadrao,
+    tx('Limite em conciliação','Límite por conciliar','Credit limit reconciliation'));
   const inputValorAmortizacaoRef = useRef(null);
 
-  const totalEmFiadoAbertoBRL = clientes.reduce((acc, c) => acc + (Number(c.saldoDevedorBRL) || 0), 0);
+  // Legacy BRL bookkeeping is NOT the credit balance displayed to a PYG shop.
+  // It is used only to detect unresolved historical credit and protect deletion.
   const carteirasNativas = useMemo(()=>new Map(clientes.map(c=>[String(c.id),apurarCarteiraNativa(c,moedaPadrao)])),[clientes,moedaPadrao]);
   const saldoFiadoNativoConfirmado = Array.from(carteirasNativas.values()).every(c=>c.status==='confirmado');
-  const totalFiadoNativo = saldoFiadoNativoConfirmado
-    ? Array.from(carteirasNativas.values()).reduce((a,c)=>a+c.totalNativo,0):null;
-  const formatarFiadoNativo = valor => new Intl.NumberFormat(moedaPadrao==='PYG'?'es-PY':'pt-BR',{
-    style:'currency',currency:moedaPadrao,minimumFractionDigits:moedaPadrao==='PYG'?0:2,
-    maximumFractionDigits:moedaPadrao==='PYG'?0:2,
-  }).format(valor);
+  const totalFiadoNativoMinor = saldoFiadoNativoConfirmado
+    ? Array.from(carteirasNativas.values()).reduce((a,c)=>
+        a+BigInt(parseMoney(String(c.totalNativo),moedaPadrao)),0n).toString():null;
+  const formatarFiadoNativo = valor => formatNativeMinor(parseMoney(String(valor),moedaPadrao),moedaPadrao);
+  const formatarLinhaExtrato = (l,campo) => {
+    const d=l?.detalhes||{};
+    if(campo==='valor' && d.moedaContrato===moedaPadrao && d.valorContratoMinor!=null)
+      return formatNativeMinor(d.valorContratoMinor,moedaPadrao);
+    if(campo==='valor' && d.moedaObrigacao===moedaPadrao && d.valorAplicadoContratoOriginal!=null)
+      return formatarFiadoNativo(d.valorAplicadoContratoOriginal);
+    // No documented native value: DO NOT pretend a BRL ledger amount is PYG.
+    return tx('Registro legado BRL','Registro histórico BRL','Legacy BRL record');
+  };
   const textoFiadoCliente = cli => {
     const r=carteirasNativas.get(String(cli.id));
-    return r?.status==='confirmado'?formatarFiadoNativo(r.totalNativo)
-      : tx('Saldo original em conciliação','Saldo original en conciliación','Native balance awaiting reconciliation');
+    return r?.status==='confirmado'
+      ?formatNativeMinor(parseMoney(String(r.totalNativo),moedaPadrao),moedaPadrao)
+      :tx('Saldo original em conciliação','Saldo original en conciliación','Native balance awaiting reconciliation');
   };
   // Apenas leitura: nenhum ajuste de saldo, histórico ou identificação.
   const inconsistenciasVinculoFiado = useMemo(() => auditarVinculosFiado({
@@ -125,18 +130,28 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
     const diasNum = Math.max(0, parseInt(formCliente.diasAtraso) || 0);
     let limiteContrato=null,limiteCompatBRL;
     try{
+      // Do not silently reset or re-denominate a legacy limit when editing
+      // unrelated customer details.
+      const historicoSemOrigem=Boolean(clienteEmEdicao) &&
+        !clienteEmEdicao?.limiteCreditoNativo &&
+        String(limiteCreditoNativoTexto||'').trim()==='';
+      if(historicoSemOrigem){
+        limiteContrato=null;
+        limiteCompatBRL=Number(clienteEmEdicao.limiteCreditoBRL||0);
+      } else {
       const minor=parseMoney(String(limiteCreditoNativoTexto||'0').replace(',','.'),moedaPadrao);
       if(BigInt(minor)<0n)throw Error('Limite negativo');
       limiteContrato={moeda:moedaPadrao,valorMinor:minor};
       const equivalenteBRL=convertMinorDirect(minor,moedaPadrao,'BRL',taxasCambio);
       limiteCompatBRL=Number(formatMoneyMinor(equivalenteBRL,'BRL'));
+      }
     }catch(error){return setModalZen({variante:'warning',titulo:tx('Limite nativo inválido','Límite nativo inválido','Invalid native credit limit'),
       mensagem:error.message,apenasConfirmar:true});}
     const originalComMesmoLimite=clienteEmEdicao?.limiteCreditoNativo?.moeda===moedaPadrao
       && clienteEmEdicao?.limiteCreditoNativo?.valorMinor===limiteContrato.valorMinor;
     const dadosFinais = normalizarCliente({ ...formCliente,
       limiteCreditoBRL:originalComMesmoLimite?clienteEmEdicao.limiteCreditoBRL:limiteCompatBRL,
-      limiteCreditoNativo:limiteContrato,diasAtraso: diasNum });
+      ...(limiteContrato?{limiteCreditoNativo:limiteContrato}:{}),diasAtraso: diasNum });
     const listaProposta = clienteEmEdicao
       ? clientes.map(c => c.id === clienteEmEdicao.id ? dadosFinais : c)
       : [dadosFinais, ...clientes];
@@ -370,7 +385,7 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px' }}>
         <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', padding: '20px' }}>
           <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>{t('totalFiado')}</span>
-          <div style={{ fontSize: '26px', fontWeight: 900, color: totalEmFiadoAbertoBRL > 0 ? '#fb7185' : '#34d399', marginTop: '6px' }}>{saldoFiadoNativoConfirmado?formatarFiadoNativo(totalFiadoNativo):tx('Em conciliação','En conciliación','Under reconciliation')}</div>
+          <div style={{ fontSize: '26px', fontWeight: 900, color:totalFiadoNativoMinor!=null&&BigInt(totalFiadoNativoMinor)>0n?'#fb7185':'#34d399', marginTop: '6px' }}>{formatVerifiedOrPending(totalFiadoNativoMinor,moedaPadrao,tx('Em conciliação','En conciliación','Under reconciliation'))}</div>
         </div>
         <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', padding: '20px' }}>
           <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>{t('clientesCadastrados')}</span>
@@ -378,13 +393,13 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
         </div>
         <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', padding: '20px' }}>
           <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>{t('contasAbertas')}</span>
-          <div style={{ fontSize: '26px', fontWeight: 900, color: '#fbbf24', marginTop: '6px' }}>{clientes.filter(c => (c.saldoDevedorBRL || 0) > 0).length}</div>
+          <div style={{ fontSize: '26px', fontWeight: 900, color: '#fbbf24', marginTop: '6px' }}>{clientes.filter(c => {const r=carteirasNativas.get(String(c.id));return r?.status==='confirmado'
+  ?BigInt(parseMoney(String(r.totalNativo),moedaPadrao))>0n:Number(c.saldoDevedorBRL||0)>0;}).length}</div>
         </div>
         <div style={{ backgroundColor: '#0b1120', border: '1px solid rgba(217, 119, 6, 0.3)', borderRadius: '16px', padding: '20px' }}>
           <span style={{ fontSize: '11px', color: '#fbbf24', fontWeight: 800, textTransform: 'uppercase' }}>{t('limiteTotal')}</span>
           <div style={{ fontSize: '26px', fontWeight: 900, color: '#ffffff', marginTop: '6px' }}>{clientes.every(c=>limiteNativoCliente(c)!=null)
-      ?formatarFiadoNativo(Number(formatMoneyMinor(
-        clientes.reduce((sum,c)=>sum+BigInt(limiteNativoCliente(c)),0n).toString(),moedaPadrao)))
+      ?formatNativeMinor(clientes.reduce((sum,c)=>sum+BigInt(limiteNativoCliente(c)),0n).toString(),moedaPadrao)
       :tx('Limites em conciliação','Límites por conciliar','Credit limits need reconciliation')}</div>
         </div>
       </div>
@@ -399,7 +414,7 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
           </div>
           {inconsistenciasVinculoFiado.slice(0,8).map(item => (
             <div key={item.vendaId} style={{borderTop:'1px solid #6b4e1d',padding:'10px 0',marginTop:8,color:'#fff',fontSize:12,overflowWrap:'anywhere'}}>
-              <div><strong>{tx("Venda:","Venta:")}</strong> {item.vendaId} · <strong>{tx("Fiado:","Crédito:")}</strong> {fmt(item.valorFiadoBRL,'BRL')}</div>
+              <div><strong>{tx("Venda:","Venta:")}</strong> {item.vendaId} · <strong>{tx("Fiado:","Crédito:")}</strong> {tx('Lançamento legado BRL (não convertido)','Asiento histórico BRL (sin conversión)','Legacy BRL entry (not converted)')}: {new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(item.valorFiadoBRL||0))}</div>
               <div><strong>{tx("Nome na venda:","Nombre en la venta:")}</strong> {item.vendaNome} · <strong>{tx("Cliente vinculado atualmente:","Cliente vinculado actualmente:")}</strong> {item.clienteAtualNome}</div>
               <div><strong>{tx("ID da venda:","ID de la venta:")}</strong> {item.clienteIdVenda || tx("Ausente","Ausente")} · <strong>{tx("ID no Livro Financeiro:","ID en el libro financiero:")}</strong> {item.clienteIdFinanceiro}</div>
               <div><strong>{tx("Nome no Livro Financeiro:","Nombre en el libro financiero:")}</strong> {item.clienteNomeFinanceiro}</div>
@@ -439,9 +454,10 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
                 <tr><td colSpan="8" style={{ padding: '50px 20px', textAlign: 'center', color: '#64748b' }}>{t('nenhumCli')}</td></tr>
               ) : (
                 clientesListaFiltrada.map((cli) => {
-                  const saldoDevedor = cli.saldoDevedorBRL || 0; const limiteCredito = cli.limiteCreditoBRL || 0;
-                  const temDivida = saldoDevedor > 0;
-                   const carteira=carteirasNativas.get(String(cli.id));
+                  const saldoDevedor=Number(cli.saldoDevedorBRL||0); // legacy verification only
+                  const carteira=carteirasNativas.get(String(cli.id));
+                  const temDivida=carteira?.status==='confirmado'
+                    ?BigInt(parseMoney(String(carteira.totalNativo),moedaPadrao))>0n:saldoDevedor>0;
                    const limiteMinor=limiteNativoCliente(cli);
                    const estourouLimite=carteira?.status==='confirmado' && limiteMinor!=null &&
                      BigInt(parseMoney(String(carteira.totalNativo),moedaPadrao))>BigInt(limiteMinor);
@@ -596,11 +612,11 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
               <div><div style={{ color:'#38bdf8', fontSize:11, fontWeight:900, letterSpacing:1 }}>{tx('CONTA CORRENTE DO CLIENTE','CUENTA CORRIENTE DEL CLIENTE','CUSTOMER ACCOUNT')}</div><h3 style={{ margin:'4px 0 0', fontSize:20 }}>{clienteAtual.nome}</h3><div style={{ color:'#94a3b8', fontSize:12, marginTop:4 }}>{tx('Saldo atual cadastrado:','Saldo actual registrado:','Current registered balance:')} <strong style={{color:'#fb7185'}}>{textoFiadoCliente(clienteAtual)}</strong></div></div>
               <button onClick={()=>setClienteExtrato(null)} style={{width:36,height:36,borderRadius:9,border:'1px solid #334155',background:'#020617',color:'#94a3b8',cursor:'pointer'}}>✕</button>
             </div>
-            {saldoDivergente && <div role="alert" style={{padding:'12px 16px',background:'#451a03',borderBottom:'1px solid #f59e0b',color:'#fde68a',fontSize:12,fontWeight:800}}>{tx("⚠ Divergência no fiado: cadastro","⚠ Diferencia en el crédito: registro")} {fmt(saldoCadastrado,'BRL')} {tx("e último saldo auditado","y último saldo auditado")} {fmt(saldoAuditado,'BRL')}{tx(". Confira os lançamentos antes de receber; nenhum saldo foi alterado automaticamente.",". Revise los movimientos antes de cobrar; no se modificó ningún saldo automáticamente.")}</div>}
+            {saldoDivergente && <div role="alert" style={{padding:'12px 16px',background:'#451a03',borderBottom:'1px solid #f59e0b',color:'#fde68a',fontSize:12,fontWeight:800}}>{tx("⚠ Divergência no fiado: cadastro","⚠ Diferencia en el crédito: registro")} {new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(saldoCadastrado)} {tx("e último saldo auditado (livro histórico BRL)","y último saldo auditado (libro histórico BRL)")} {new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(saldoAuditado)}{tx(". Confira os lançamentos antes de receber; nenhum saldo foi alterado automaticamente.",". Revise los movimientos antes de cobrar; no se modificó ningún saldo automáticamente.")}</div>}
             <div style={{ padding:14, color:'#94a3b8', fontSize:11, borderBottom:'1px solid #1e293b' }}>{tx('O extrato auditável começa com os novos lançamentos da ATT 07. O histórico anterior não é reconstruído por inferência.','El extracto auditable comienza con los nuevos movimientos de ATT 07. El historial anterior no se reconstruye por inferencia.','The auditable statement starts with new ATT 07 entries. Previous history is not reconstructed by inference.')}</div>
             <div style={{ overflow:'auto', maxHeight:'58vh' }}>
               <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,minWidth:760}}><thead><tr style={{color:'#64748b',textTransform:'uppercase',fontSize:10,borderBottom:'1px solid #1e293b'}}><th style={{padding:12,textAlign:'left'}}>{tx('Data','Fecha','Date')}</th><th style={{textAlign:'left'}}>{tx('Tipo','Tipo','Type')}</th><th style={{textAlign:'left'}}>{tx('Descrição','Descripción','Description')}</th><th style={{textAlign:'right'}}>{tx('Débito','Débito','Debit')}</th><th style={{textAlign:'right'}}>{tx('Crédito','Crédito','Credit')}</th><th style={{textAlign:'right'}}>{tx('Saldo','Saldo','Balance')}</th><th style={{textAlign:'left',paddingLeft:14}}>{tx('Forma / Operador','Forma / Operador','Method / Operator')}</th></tr></thead><tbody>
-              {linhas.length===0 ? <tr><td colSpan="7" style={{padding:30,textAlign:'center',color:'#475569'}}>{tx('Nenhum lançamento ATT 07 para este cliente.','Ningún movimiento ATT 07 para este cliente.','No ATT 07 entries for this customer.')}</td></tr> : linhas.map(l=>{ const aumenta=l.tipo==='venda_fiada'; const reduz=l.tipo==='recebimento_fiado'||(l.tipo==='devolucao'&&l.formaPagamento==='credito_fiado'); return <tr key={l.id} style={{borderBottom:'1px solid rgba(255,255,255,.05)'}}><td style={{padding:12,color:'#94a3b8'}}>{l.createdAt?new Date(l.createdAt).toLocaleString('pt-BR'):'—'}</td><td style={{fontWeight:800,color:aumenta?'#fb7185':'#34d399'}}>{l.tipo}</td><td>{l.observacao||l.referenciaId}</td><td style={{textAlign:'right',color:'#fb7185'}}>{aumenta?fmt(l.valor,'BRL'):'—'}</td><td style={{textAlign:'right',color:'#34d399'}}>{reduz?fmt(l.valor,'BRL'):'—'}</td><td style={{textAlign:'right',fontWeight:900}}>{l.saldoClienteDepois==null?'—':fmt(l.saldoClienteDepois,'BRL')}</td><td style={{paddingLeft:14,color:'#94a3b8'}}>{l.formaPagamento}<br/><span style={{fontSize:10}}>{l.operadorNome}</span></td></tr>})}
+              {linhas.length===0 ? <tr><td colSpan="7" style={{padding:30,textAlign:'center',color:'#475569'}}>{tx('Nenhum lançamento ATT 07 para este cliente.','Ningún movimiento ATT 07 para este cliente.','No ATT 07 entries for this customer.')}</td></tr> : linhas.map(l=>{ const aumenta=l.tipo==='venda_fiada'; const reduz=l.tipo==='recebimento_fiado'||(l.tipo==='devolucao'&&l.formaPagamento==='credito_fiado'); return <tr key={l.id} style={{borderBottom:'1px solid rgba(255,255,255,.05)'}}><td style={{padding:12,color:'#94a3b8'}}>{l.createdAt?new Date(l.createdAt).toLocaleString('pt-BR'):'—'}</td><td style={{fontWeight:800,color:aumenta?'#fb7185':'#34d399'}}>{l.tipo}</td><td>{l.observacao||l.referenciaId}</td><td style={{textAlign:'right',color:'#fb7185'}}>{aumenta?formatarLinhaExtrato(l,'valor'):'—'}</td><td style={{textAlign:'right',color:'#34d399'}}>{reduz?formatarLinhaExtrato(l,'valor'):'—'}</td><td style={{textAlign:'right',fontWeight:900}}>{formatarLinhaExtrato(l,'saldoClienteDepois')}</td><td style={{paddingLeft:14,color:'#94a3b8'}}>{l.formaPagamento}<br/><span style={{fontSize:10}}>{l.operadorNome}</span></td></tr>})}
               </tbody></table>
             </div>
           </div>

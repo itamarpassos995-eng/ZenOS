@@ -91,6 +91,7 @@ import { apresentarMovimentoNaMoedaPadrao } from './core/defaultCurrencyPresenta
 import { apurarFiadoMoedaPadrao } from './core/defaultCurrencyCreditCard.js';
 import { apurarCarteiraNativa } from './core/nativeReceivables.js';
 import { parseMoney,formatMoneyMinor,convertMinorDirect } from './core/nativeMoneyKernel.js';
+import {formatNativeMinor,formatNativeDecimal,nativeCurrencySymbol} from './core/nativeMoneyDisplay.js';
 import { resolverMoedaExibidaAoCarregarConfiguracao } from './core/storeDefaultCurrency.js';
 import { normalizarRegrasComissao, REGRAS_COMISSAO_PADRAO } from './core/commissionEngine';
 import { normalizarRegrasMargem } from './core/profitability';
@@ -1118,13 +1119,9 @@ export default function App() {
   // CONTRACTUAL currency. No intermediate BRL amount is calculated.
   const converterMoedaDiretoMinor = (valorMinor, origem, destino) =>
     convertMinorDirect(valorMinor,origem,destino,taxasCambio);
-  const fmtNativoMinor = (valorMinor,codigo=moedaPadrao) => {
-    const conf=moedasConfig[codigo]||moedasConfig.BRL;
-    const dec=Number(formatMoneyMinor(valorMinor,codigo));
-    return new Intl.NumberFormat(conf.locale,{style:'currency',currency:codigo,
-      minimumFractionDigits:codigo==='PYG'?0:2,maximumFractionDigits:codigo==='PYG'?0:2}).format(dec);
-  };
-  const fmtNativo = (valor,codigo=moedaPadrao) => fmtNativoMinor(parseMoney(String(valor),codigo),codigo);
+  // One formatter for sovereign store money. No exchange conversion.
+  const fmtNativoMinor = (minor,codigo=moedaPadrao) => formatNativeMinor(minor,codigo);
+  const fmtNativo = (valor,codigo=moedaPadrao) => formatNativeDecimal(valor,codigo);
   // LEGACY ADAPTERS: these signatures are consumed by unmigrated modules.
   // BRL-equivalent data may be read/written only as compatibility values, not
   // as native contractual prices, debt, settlements, or checkout totals.
@@ -2055,7 +2052,7 @@ export default function App() {
                   <h4 style={{ margin: '0 0 4px 0', color: '#e2e8f0', fontSize: '18px', fontWeight: 800 }}>{tx('Básico','Básico','Basic')}</h4>
                   <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: '#64748b' }}>{tx('Para pequenos lojistas.','Para pequeños comercios.','For small retailers.')}</p>
                   <div style={{ marginBottom: '20px' }}>
-                    <span style={{ fontSize: '14px', color: '#94a3b8', fontWeight: 700 }}>R$</span>
+                    <span style={{ fontSize: '14px', color: '#94a3b8', fontWeight: 700 }}>{nativeCurrencySymbol('BRL')}</span>
                     <span style={{ fontSize: '32px', color: '#fff', fontWeight: 900 }}>
                       {cicloPlano === 'mensal' ? '35,00' : cicloPlano === 'semestral' ? '31,50' : '28,48'}
                     </span>
@@ -2076,7 +2073,7 @@ export default function App() {
                   <h4 style={{ margin: '0 0 4px 0', color: '#2dd4bf', fontSize: '18px', fontWeight: 800 }}>{tx('Essencial','Esencial','Essential')}</h4>
                   <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: '#94a3b8' }}>{tx('A operação completa.','La operación completa.','The complete operation.')}</p>
                   <div style={{ marginBottom: '20px' }}>
-                    <span style={{ fontSize: '14px', color: '#2dd4bf', fontWeight: 700 }}>R$</span>
+                    <span style={{ fontSize: '14px', color: '#2dd4bf', fontWeight: 700 }}>{nativeCurrencySymbol('BRL')}</span>
                     <span style={{ fontSize: '32px', color: '#fff', fontWeight: 900 }}>
                       {cicloPlano === 'mensal' ? '44,90' : cicloPlano === 'semestral' ? '40,41' : '33,57'}
                     </span>
@@ -2096,7 +2093,7 @@ export default function App() {
                   <h4 style={{ margin: '0 0 4px 0', color: '#e2e8f0', fontSize: '18px', fontWeight: 800 }}>{tx('Pro Avançado','Pro Avanzado','Advanced Pro')}</h4>
                   <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: '#64748b' }}>{tx('Comissão e alta gestão.','Comisiones y alta gestión.','Commissions and advanced management.')}</p>
                   <div style={{ marginBottom: '20px' }}>
-                    <span style={{ fontSize: '14px', color: '#94a3b8', fontWeight: 700 }}>R$</span>
+                    <span style={{ fontSize: '14px', color: '#94a3b8', fontWeight: 700 }}>{nativeCurrencySymbol('BRL')}</span>
                     <span style={{ fontSize: '32px', color: '#fff', fontWeight: 900 }}>
                       {cicloPlano === 'mensal' ? '59,90' : cicloPlano === 'semestral' ? '53,91' : '43,75'}
                     </span>
@@ -2367,8 +2364,8 @@ export default function App() {
               <button onClick={() => setModalCambioAberto(false)} style={{ backgroundColor: '#020617', border: '1px solid #1e293b', color: '#64748b', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>✕</button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '24px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#020617', padding: '12px 16px', borderRadius: '12px', border: '1px solid #1e293b' }}><span style={{ fontSize: '13px', fontWeight: 700, color: '#cbd5e1' }}>{tx('1 Dólar (USD) =','1 Dólar (USD) =','1 Dollar (USD) =')}</span><div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ color: '#64748b', fontSize: '12px' }}>R$</span><input type="text" value={taxasInput.USD} onChange={(e) => setTaxasInput({ ...taxasInput, USD: e.target.value })} onFocus={e=>e.target.select()} style={{ backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', width: '90px', padding: '6px', outline: 'none' }} /></div></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#020617', padding: '12px 16px', borderRadius: '12px', border: '1px solid #1e293b' }}><span style={{ fontSize: '13px', fontWeight: 700, color: '#cbd5e1' }}>{tx('1 Euro (EUR) =','1 Euro (EUR) =','1 Euro (EUR) =')}</span><div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ color: '#64748b', fontSize: '12px' }}>R$</span><input type="text" value={taxasInput.EUR} onChange={(e) => setTaxasInput({ ...taxasInput, EUR: e.target.value })} onFocus={e=>e.target.select()} style={{ backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', width: '90px', padding: '6px', outline: 'none' }} /></div></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#020617', padding: '12px 16px', borderRadius: '12px', border: '1px solid #1e293b' }}><span style={{ fontSize: '13px', fontWeight: 700, color: '#cbd5e1' }}>{tx('1 Dólar (USD) =','1 Dólar (USD) =','1 Dollar (USD) =')}</span><div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ color: '#64748b', fontSize: '12px' }}>{nativeCurrencySymbol('BRL')}</span><input type="text" value={taxasInput.USD} onChange={(e) => setTaxasInput({ ...taxasInput, USD: e.target.value })} onFocus={e=>e.target.select()} style={{ backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', width: '90px', padding: '6px', outline: 'none' }} /></div></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#020617', padding: '12px 16px', borderRadius: '12px', border: '1px solid #1e293b' }}><span style={{ fontSize: '13px', fontWeight: 700, color: '#cbd5e1' }}>{tx('1 Euro (EUR) =','1 Euro (EUR) =','1 Euro (EUR) =')}</span><div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ color: '#64748b', fontSize: '12px' }}>{nativeCurrencySymbol('BRL')}</span><input type="text" value={taxasInput.EUR} onChange={(e) => setTaxasInput({ ...taxasInput, EUR: e.target.value })} onFocus={e=>e.target.select()} style={{ backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#34d399', fontWeight: 900, fontSize: '15px', textAlign: 'right', width: '90px', padding: '6px', outline: 'none' }} /></div></div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#020617', padding: '12px 16px', borderRadius: '12px', border: '1px solid #1e293b' }}><span style={{ fontSize: '13px', fontWeight: 700, color: '#cbd5e1' }}>{tx('1 Real (BRL) =','1 Real (BRL) =','1 Real (BRL) =')}</span><div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><input type="text" value={taxasInput.PYG} onChange={(e) => setTaxasInput({ ...taxasInput, PYG: e.target.value })} onFocus={e=>e.target.select()} style={{ backgroundColor: '#0b1120', border: '1px solid #334155', borderRadius: '8px', color: '#38bdf8', fontWeight: 900, fontSize: '15px', textAlign: 'right', width: '90px', padding: '6px', outline: 'none' }} /><span style={{ color: '#64748b', fontSize: '12px' }}>₲</span></div></div>
             </div>
             <button onClick={salvarTaxasCambio} style={{ width: '100%', background: 'linear-gradient(135deg, #4f46e5, #4338ca)', border: 'none', color: '#ffffff', padding: '14px', borderRadius: '12px', fontSize: '14px', fontWeight: 900, cursor: 'pointer' }}>{tx('Salvar Câmbio', 'Guardar Cambio', 'Save Exchange')}</button>
