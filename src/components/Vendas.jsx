@@ -50,7 +50,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
     .filter(s => s?.status === 'aberta')
     .map(sessao => ({ sessao, resumo: calcularResumoSessao({ sessao, historicoVendas, caixaMovimentos }) }))
     .filter(x => x.resumo)
-    .sort((a,b) => Number(b.resumo.saldoEsperado || 0) - Number(a.resumo.saldoEsperado || 0)),
+    .sort((a,b) => String(a.sessao?.id||'').localeCompare(String(b.sessao?.id||''))),
     [sessoesCaixa, historicoVendas, caixaMovimentos]);
   const caixaReembolsoSelecionado = caixasAbertos.find(x => String(x.sessao.id) === String(sessaoReembolsoId)) || null;
   const cotacoesReimpressao = cupomParaImprimir?.taxasCambio || taxasCambio || {};
@@ -160,7 +160,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
       return avisarZen({
         variante:'danger',
         titulo:tx('Saldo insuficiente no caixa selecionado','Saldo insuficiente en la caja seleccionada','Insufficient balance in selected register'),
-        mensagem:`Disponível: ${fmt(caixaReembolsoSelecionado?.resumo?.saldoEsperado || 0, 'BRL')}`,
+        mensagem:tx('O caixa selecionado não possui dinheiro suficiente. O saldo esperado é reservado à gerência.','El cajón seleccionado no tiene efectivo suficiente. El saldo esperado queda reservado a gerencia.','The selected drawer has insufficient funds. Expected balance is management-only.'),
         detalhes:[
           `Caixa: ${caixaReembolsoSelecionado?.sessao?.operadorNome || '—'}`,
           `Devolução solicitada: ${fmt(totalEstornoBRL, 'BRL')}`,
@@ -681,7 +681,7 @@ export default function Vendas({ commitOperacaoNegocio, taxasCambio = {}, sessoe
                       <label style={{display:'block',fontSize:10,fontWeight:900,color:'#94a3b8',marginBottom:6}}>{tx('CAIXA DE ORIGEM DO DINHEIRO','CAJA DE ORIGEN DEL DINERO','SOURCE CASH REGISTER')}</label>
                       <select value={sessaoReembolsoId} onChange={e=>setSessaoReembolsoId(e.target.value)} style={{width:'100%',padding:10,borderRadius:8,border:'1px solid #6366f1',background:'#020617',color:'#fff',fontWeight:800}}>
                         <option value="">{tx('Selecione um caixa aberto','Seleccione una caja abierta','Select an open register')}</option>
-                        {caixasAbertos.map(({sessao,resumo}) => <option key={sessao.id} value={sessao.id}>{sessao.operadorNome} {tx("• disponível","• disponible")} {fmt(resumo.saldoEsperado || 0,'BRL')}</option>)}
+                        {caixasAbertos.map(({sessao}) => <option key={sessao.id} value={sessao.id}>{sessao.operadorNome} · {tx('Caixa aberto','Caja abierta','Open register')}</option>)}
                       </select>
                       {caixasAbertos.length === 0 && <div style={{fontSize:10,color:'#fb7185',marginTop:6}}>{tx('Nenhum turno de caixa está aberto. Use Pix/Banco ou Voucher.','Ningún turno de caja está abierto. Use Pix/Banco o Voucher.','No cash shift is open. Use Pix/Bank or Voucher.')}</div>}
                     </div>

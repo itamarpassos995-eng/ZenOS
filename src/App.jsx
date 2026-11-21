@@ -2478,7 +2478,7 @@ export default function App() {
         moeda={moeda}
         fmt={fmt}
         tx={tx}
-        saldoSessaoFisicoBRL={saldoSessaoFisicoBRL}
+        
       />
 
       <ZenModal aberto={!!modalAppZen} variante={modalAppZen?.variante} titulo={modalAppZen?.titulo} mensagem={modalAppZen?.mensagem} detalhes={modalAppZen?.detalhes} confirmarTexto={modalAppZen?.confirmarTexto || 'OK'} cancelarTexto={modalAppZen?.cancelarTexto || 'Cancelar'} apenasConfirmar={!!modalAppZen?.apenasConfirmar} onConfirmar={()=>{ const resolver=modalAppZen?.resolver; setModalAppZen(null); if(resolver) resolver(true); }} onCancelar={()=>{ const resolver=modalAppZen?.resolver; setModalAppZen(null); if(resolver) resolver(false); }} />

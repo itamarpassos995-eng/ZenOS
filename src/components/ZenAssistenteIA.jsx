@@ -1147,9 +1147,9 @@ export default function ZenAssistenteIA({
 ` +
           `• Abertura: **${sessaoAtiva.abertura || "Hoje"}**
 ` +
-          `• Saldo inicial informado: **${fmt(sessaoAtiva.saldoInicial || 0)}**
+          `• Fundo de abertura: **informação protegida no caixa cego**
 ` +
-          `• Saldo estimado na gaveta: **${fmt(saldoSessaoFisicoBRL)}**`,
+          `• Saldo esperado: **oculto (caixa cego)**`,
           [
             { label: "🛒 Ir para o PDV Balcão", comando: "abrir pdv" },
             { label: "💰 Vendas de hoje", comando: "quanto vendemos hoje" }
@@ -1431,7 +1431,7 @@ export default function ZenAssistenteIA({
 ` +
           `• Quantidade de Vendas: **${qtdDinheiro} pedido(s)**
 ` +
-          `• Saldo atual estimado da gaveta: **${fmt(saldoSessaoFisicoBRL)}**`,
+          `• Saldo esperado da gaveta: **oculto (caixa cego)**`,
           [
             { label: "💳 Ver todas as formas", comando: `formas de pagamento ${periodo}` },
             { label: "💵 Saldo da Gaveta", comando: "saldo da gaveta" }
@@ -1828,7 +1828,7 @@ export default function ZenAssistenteIA({
 ` +
         `• Turno Atual: **${sessaoAtiva ? "Turno Aberto ✅" : "Turno Fechado ⚠️"}**
 ` +
-        `• Saldo Físico Calculado na Gaveta: **${fmt(saldoSessaoFisicoBRL)}**
+        `• Saldo físico esperado: **oculto (caixa cego)**
 ` +
         `• Operador Responsável: **${nomeOperador}**`,
         [
