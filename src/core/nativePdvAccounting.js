@@ -1,5 +1,6 @@
 import {parseMoney,formatMoneyMinor,convertMinorDirect,prepareIncomingPayment} from './nativeMoneyKernel.js';
 import {calculateNativeCart} from './nativeOperationalAccounting.js';
+import {legacyPYGMinor} from './vipeLegacyNative.js';
 
 const CURRENCIES=new Set(['BRL','PYG','USD','EUR']);
 const requireCurrency=m=>{if(!CURRENCIES.has(m))throw Error('Moeda inválida: '+String(m));return m;};
@@ -21,7 +22,7 @@ export function formatarNativo(minor,currency,language='pt') {
   style:'currency',currency,minimumFractionDigits:currency==='PYG'?0:2,maximumFractionDigits:currency==='PYG'?0:2
  }).format(amount);
 }
-export function fontePrecoNativa(item,storeCurrency) {
+export function fontePrecoNativa(item,storeCurrency,storeId=null) {
  requireCurrency(storeCurrency);
  const direct=item?.precoDigitadoOriginal||item?.precoOrigemPDV||item?.precoNaVenda;
  if(direct && direct.moeda && direct.valor!=null)return {currency:direct.moeda,amountMinor:amountDecimal(direct.valor,direct.moeda),verified:true};
@@ -29,16 +30,18 @@ export function fontePrecoNativa(item,storeCurrency) {
  const snapshot=item?.snapshotMoedasProduto?.campos?.[campo]||item?.valoresMonetarios?.campos?.[campo];
  if(snapshot?.moeda && snapshot.valor!=null)
   return {currency:snapshot.moeda,amountMinor:amountDecimal(snapshot.valor,snapshot.moeda),verified:true};
+ const vipe=legacyPYGMinor(item?.precoPraticadoBRL??item?.precoBRL,storeId,storeCurrency);
+ if(vipe!==null)return {currency:'PYG',amountMinor:vipe,verified:false,legacyVipe:true};
  if(storeCurrency==='BRL' && Number.isFinite(Number(item?.precoPraticadoBRL??item?.precoBRL))){
   const legacy=Number(item?.precoPraticadoBRL??item?.precoBRL);
   if(legacy>=0)return {currency:'BRL',amountMinor:amountDecimal(legacy.toFixed(2),'BRL'),verified:false,legacyBRL:true};
  }
  throw Object.assign(new Error('Preço sem moeda original comprovada. É necessária conciliação do cadastro antes da venda.'),{code:'NATIVE_PRICE_ORIGIN_REQUIRED'});
 }
-export function calcularCarrinhoNativoPDV({itens,desconto,moedaDesconto,moedaLoja,taxas}){
+export function calcularCarrinhoNativoPDV({itens,desconto,moedaDesconto,moedaLoja,taxas,storeId=null}){
  requireCurrency(moedaLoja);
  const precos=(itens||[]).map(item=>{
-  const src=fontePrecoNativa(item,moedaLoja);
+  const src=fontePrecoNativa(item,moedaLoja,storeId);
   // A product whose only proven price is in another currency does NOT have
   // a fixed contractual store price. Do not create one using today's FX.
   if(src.currency!==moedaLoja)throw Error('Preço sem valor contratual fixo em '+moedaLoja+': concilie o produto.');

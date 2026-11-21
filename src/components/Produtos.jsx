@@ -23,7 +23,7 @@ import { validarCredencialGerencial } from '../core/accessControl';
 
 export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos, moeda, moedaPadrao='BRL', taxasCambio={}, converterDeBRL = v=>v, converterParaBRL = v=>v, fmt, t, tx, fornecedoresGlobais = [], userId, operadorAtivo, planoLoja = 'basico', historicoVendas = [], historicoCompras = [], patenteUsuario, regrasDesconto, vendedores = [] }) {
   const rotuloNativoProduto=(prod,campo) => formatarPrecoProdutoNativo(
-    prod,campo,moedaPadrao,taxasCambio,moedaPadrao==='PYG'?'es-PY':'pt-BR') ||
+    prod,campo,moedaPadrao,taxasCambio,moedaPadrao==='PYG'?'es-PY':'pt-BR',userId) ||
     tx('A conciliar','A conciliar','Reconciliation required');
   const [gruposCadastrados, setGruposCadastrados] = useState(['Tintas Acrílicas', 'Colorimetria & Pigmentos', 'Massas e Complementos', 'Serviços Especializados', 'Acessórios & Ferramentas']);
   const [filtroGrupo, setFiltroGrupo] = useState('todos');
@@ -775,8 +775,8 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
                 <tr><td colSpan="10" style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>{tx('Nenhum produto encontrado.','Ningún producto encontrado.','No products found.')}</td></tr>
               ) : (
                 produtosListaFiltrada.map((prod) => {
-                  const custoStatus=apurarPrecoProdutoNativo(prod,'custoBRL',moedaPadrao,taxasCambio);
-                  const precoStatus=apurarPrecoProdutoNativo(prod,'precoBRL',moedaPadrao,taxasCambio);
+                  const custoStatus=apurarPrecoProdutoNativo(prod,'custoBRL',moedaPadrao,taxasCambio,userId);
+                  const precoStatus=apurarPrecoProdutoNativo(prod,'precoBRL',moedaPadrao,taxasCambio,userId);
                   const custo=custoStatus.valorMinor==null?null:Number(custoStatus.valorMinor);
                   const preco=precoStatus.valorMinor==null?null:Number(precoStatus.valorMinor);
                   const margem=custo!=null&&preco>0?(((preco-custo)/preco)*100).toFixed(1):'—';

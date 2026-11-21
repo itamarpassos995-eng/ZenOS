@@ -33,7 +33,7 @@ export default function GestaoCaixas({userId,sessoesCaixa=[],historicoVendas=[],
   return()=>{if(root)root.inert=antes;focoAnterior.current?.focus?.();};
  },[detalhe]);
  const nativo=(v,m)=>registrado(v)?formatarDinheiroNativo(v,m,idioma):'—';
- const equivalente=v=>registrado(v)?fmt(Number(v),'BRL'):'—';
+ const equivalente=v=>moedaPadrao==='BRL'&&registrado(v)?fmt(Number(v),'BRL'):'—';
  const caixaNativoFormatado = (sessao,contado=false) => {
    const m=sessao?.moedaContratoCaixa||moedaPadrao;
    const minor=contado

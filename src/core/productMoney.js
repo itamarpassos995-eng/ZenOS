@@ -1,5 +1,6 @@
 import { interpretarValorMonetario } from './cashMoneyInput.js';
 import { parseMoney,formatMoneyMinor,convertMinorDirect } from './nativeMoneyKernel.js';
+import {legacyPYGMinor} from './vipeLegacyNative.js';
 const fields=['custoBRL','precoBRL','preco2BRL','preco3BRL'];
 export function produtoParaFormularioMonetario(produto, moeda, converterDeBRL) {
   const moedaCusto=quantiaOriginalProduto(produto,'custoBRL')?.moeda||moeda;
@@ -76,9 +77,11 @@ export function reprecificarItemPDVPorPerfil(item,produto,campo,moedaExibida,con
 }
 
 /** Sovereign product reading. Legacy BRL cannot silently become PYG. */
-export function apurarPrecoProdutoNativo(produto,field,moedaLoja,taxasCambio){
+export function apurarPrecoProdutoNativo(produto,field,moedaLoja,taxasCambio,storeId=null){
  const original=quantiaOriginalProduto(produto,field);
  if(!original){
+   const vipe=legacyPYGMinor(produto?.[field],storeId,moedaLoja);
+   if(vipe!==null)return {status:'vipe_legado_nativo',moeda:'PYG',valorMinor:vipe,origem:'cadastro_legado_sem_cambio'};
    if(moedaLoja==='BRL'&&Number.isFinite(Number(produto?.[field]))&&Number(produto[field])>=0)
      return {status:'confirmado_compatibilidade_brl',moeda:'BRL',
        valorMinor:parseMoney(Number(produto[field]).toFixed(2),'BRL')};
@@ -91,8 +94,8 @@ export function apurarPrecoProdutoNativo(produto,field,moedaLoja,taxasCambio){
  return {status:'confirmado',moeda:moedaLoja,valorMinor:amountMinor,
    moedaOrigem:original.moeda,valorOriginalMinor:amountMinor};
 }
-export function formatarPrecoProdutoNativo(produto,field,moedaLoja,taxasCambio,locale='es-PY'){
- const r=apurarPrecoProdutoNativo(produto,field,moedaLoja,taxasCambio);
+export function formatarPrecoProdutoNativo(produto,field,moedaLoja,taxasCambio,locale='es-PY',storeId=null){
+ const r=apurarPrecoProdutoNativo(produto,field,moedaLoja,taxasCambio,storeId);
  if(!r.valorMinor)return null;
  return new Intl.NumberFormat(locale,{style:'currency',currency:moedaLoja,
    minimumFractionDigits:moedaLoja==='PYG'?0:2,maximumFractionDigits:moedaLoja==='PYG'?0:2})

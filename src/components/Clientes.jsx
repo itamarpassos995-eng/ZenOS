@@ -8,8 +8,9 @@ import { auditarVinculosFiado, encontrarConflitosIdsRecebimento } from '../core/
 import { apurarCarteiraNativa, receberTituloNativo } from '../core/nativeReceivables.js';
 import { parseMoney,formatMoneyMinor,convertMinorDirect } from '../core/nativeMoneyKernel.js';
 import {formatNativeMinor,formatVerifiedOrPending,nativeCreditLimitMinor} from '../core/nativeMoneyDisplay.js';
+import {legacyPYGMinor} from '../core/vipeLegacyNative.js';
 
-export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, historicoVendas = [], setClientes, moeda, moedaPadrao='BRL', taxasCambio={}, fmt, t, tx = (pt) => pt, converterDeBRL, converterParaBRL }) {
+export default function Clientes({ userId, perfilLoja = {}, commitOperacaoNegocio, livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, historicoVendas = [], setClientes, moeda, moedaPadrao='BRL', taxasCambio={}, fmt, t, tx = (pt) => pt, converterDeBRL, converterParaBRL }) {
   const [filtroPaisCliente, setFiltroPaisCliente] = useState('todos');
   const [buscaClienteTexto, setBuscaClienteTexto] = useState('');
   
@@ -42,7 +43,8 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
 
   const [formCliente, setFormCliente] = useState(normalizarCliente({}));
   const [limiteCreditoNativoTexto,setLimiteCreditoNativoTexto]=useState('0');
-  const limiteNativoCliente = cli => nativeCreditLimitMinor(cli,moedaPadrao);
+  const limiteNativoCliente = cli => nativeCreditLimitMinor(cli,moedaPadrao)
+    ?? legacyPYGMinor(cli?.limiteCreditoBRL,userId,moedaPadrao);
   const textoLimiteCliente = cli => formatVerifiedOrPending(
     limiteNativoCliente(cli),moedaPadrao,
     tx('Limite em conciliação','Límite por conciliar','Credit limit reconciliation'));
@@ -51,10 +53,17 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
   // Legacy BRL bookkeeping is NOT the credit balance displayed to a PYG shop.
   // It is used only to detect unresolved historical credit and protect deletion.
   const carteirasNativas = useMemo(()=>new Map(clientes.map(c=>[String(c.id),apurarCarteiraNativa(c,moedaPadrao)])),[clientes,moedaPadrao]);
-  const saldoFiadoNativoConfirmado = Array.from(carteirasNativas.values()).every(c=>c.status==='confirmado');
-  const totalFiadoNativoMinor = saldoFiadoNativoConfirmado
-    ? Array.from(carteirasNativas.values()).reduce((a,c)=>
-        a+BigInt(parseMoney(String(c.totalNativo),moedaPadrao)),0n).toString():null;
+  // Store-specific historical raw-number policy: read-only, no mutation or FX.
+  // A verified native title is always preferred to the legacy numeric field.
+  const saldoNativoClienteMinor = cli => {
+    const r=carteirasNativas.get(String(cli.id));
+    return r?.status==='confirmado'
+      ?parseMoney(String(r.totalNativo),moedaPadrao)
+      :legacyPYGMinor(cli?.saldoDevedorBRL,userId,moedaPadrao);
+  };
+  const saldosVisiveis=clientes.map(saldoNativoClienteMinor);
+  const totalFiadoNativoMinor=saldosVisiveis.every(v=>v!==null)
+    ?saldosVisiveis.reduce((s,v)=>s+BigInt(v),0n).toString():null;
   const formatarFiadoNativo = valor => formatNativeMinor(parseMoney(String(valor),moedaPadrao),moedaPadrao);
   const formatarLinhaExtrato = (l,campo) => {
     const d=l?.detalhes||{};
@@ -65,12 +74,9 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
     // No documented native value: DO NOT pretend a BRL ledger amount is PYG.
     return tx('Registro legado BRL','Registro histórico BRL','Legacy BRL record');
   };
-  const textoFiadoCliente = cli => {
-    const r=carteirasNativas.get(String(cli.id));
-    return r?.status==='confirmado'
-      ?formatNativeMinor(parseMoney(String(r.totalNativo),moedaPadrao),moedaPadrao)
-      :tx('Saldo original em conciliação','Saldo original en conciliación','Native balance awaiting reconciliation');
-  };
+  const textoFiadoCliente = cli => formatVerifiedOrPending(
+    saldoNativoClienteMinor(cli),moedaPadrao,
+    tx('Saldo original indisponível','Saldo original no disponible','Original balance unavailable'));
   // Apenas leitura: nenhum ajuste de saldo, histórico ou identificação.
   const inconsistenciasVinculoFiado = useMemo(() => auditarVinculosFiado({
     clientes,historicoVendas,livroFinanceiro,
@@ -96,9 +102,8 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
 
   const abrirEdicaoCliente = (cli) => {
     setClienteEmEdicao(cli);
-    setLimiteCreditoNativoTexto(cli.limiteCreditoNativo?.moeda===moedaPadrao
-      ? formatMoneyMinor(cli.limiteCreditoNativo.valorMinor,moedaPadrao)
-      : moedaPadrao==='BRL'?Number(cli.limiteCreditoBRL||0).toFixed(2):'');
+    const limiteLegado=limiteNativoCliente(cli);
+    setLimiteCreditoNativoTexto(limiteLegado!==null?formatMoneyMinor(limiteLegado,moedaPadrao):'');
     setFormCliente({ 
       ...normalizarCliente(cli), 
       limiteCreditoBRL: (cli.limiteCreditoBRL ?? 1000).toString(), 
@@ -126,6 +131,7 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
 
   const salvarCliente = async () => {
     if (!formCliente.nome || !formCliente.nome.trim()) return setModalZen({ variante:'warning', titulo:tx('Nome obrigatório','Nombre obligatorio','Name required'), mensagem:tx('Informe o nome do cliente antes de salvar.','Informe el nombre del cliente antes de guardar.','Enter the customer name before saving.'), apenasConfirmar:true });
+    // Keep existing numeric field untouched unless operator edits the native limit.
     const limiteNum = Math.max(0, parseFloat(String(formCliente.limiteCreditoBRL).replace(',', '.')) || 0);
     const diasNum = Math.max(0, parseInt(formCliente.diasAtraso) || 0);
     let limiteContrato=null,limiteCompatBRL;
@@ -147,8 +153,13 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
       }
     }catch(error){return setModalZen({variante:'warning',titulo:tx('Limite nativo inválido','Límite nativo inválido','Invalid native credit limit'),
       mensagem:error.message,apenasConfirmar:true});}
-    const originalComMesmoLimite=clienteEmEdicao?.limiteCreditoNativo?.moeda===moedaPadrao
-      && clienteEmEdicao?.limiteCreditoNativo?.valorMinor===limiteContrato.valorMinor;
+    const textoLimiteLegadoAntes=clienteEmEdicao?limiteNativoCliente(clienteEmEdicao):null;
+    const mantendoLimiteLegado=Boolean(clienteEmEdicao && !clienteEmEdicao.limiteCreditoNativo &&
+      textoLimiteLegadoAntes!==null && limiteContrato?.valorMinor===textoLimiteLegadoAntes);
+    if(mantendoLimiteLegado){limiteContrato=null;limiteCompatBRL=clienteEmEdicao.limiteCreditoBRL;}
+    const originalComMesmoLimite=Boolean(limiteContrato) &&
+      clienteEmEdicao?.limiteCreditoNativo?.moeda===moedaPadrao &&
+      clienteEmEdicao?.limiteCreditoNativo?.valorMinor===limiteContrato.valorMinor;
     const dadosFinais = normalizarCliente({ ...formCliente,
       limiteCreditoBRL:originalComMesmoLimite?clienteEmEdicao.limiteCreditoBRL:limiteCompatBRL,
       ...(limiteContrato?{limiteCreditoNativo:limiteContrato}:{}),diasAtraso: diasNum });
@@ -393,8 +404,7 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
         </div>
         <div style={{ backgroundColor: '#0b1120', border: '1px solid #1e293b', borderRadius: '16px', padding: '20px' }}>
           <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>{t('contasAbertas')}</span>
-          <div style={{ fontSize: '26px', fontWeight: 900, color: '#fbbf24', marginTop: '6px' }}>{clientes.filter(c => {const r=carteirasNativas.get(String(c.id));return r?.status==='confirmado'
-  ?BigInt(parseMoney(String(r.totalNativo),moedaPadrao))>0n:Number(c.saldoDevedorBRL||0)>0;}).length}</div>
+          <div style={{ fontSize: '26px', fontWeight: 900, color: '#fbbf24', marginTop: '6px' }}>{clientes.filter(c=>{const v=saldoNativoClienteMinor(c);return v!==null&&BigInt(v)>0n;}).length}</div>
         </div>
         <div style={{ backgroundColor: '#0b1120', border: '1px solid rgba(217, 119, 6, 0.3)', borderRadius: '16px', padding: '20px' }}>
           <span style={{ fontSize: '11px', color: '#fbbf24', fontWeight: 800, textTransform: 'uppercase' }}>{t('limiteTotal')}</span>
@@ -456,11 +466,11 @@ export default function Clientes({ perfilLoja = {}, commitOperacaoNegocio, livro
                 clientesListaFiltrada.map((cli) => {
                   const saldoDevedor=Number(cli.saldoDevedorBRL||0); // legacy verification only
                   const carteira=carteirasNativas.get(String(cli.id));
-                  const temDivida=carteira?.status==='confirmado'
-                    ?BigInt(parseMoney(String(carteira.totalNativo),moedaPadrao))>0n:saldoDevedor>0;
+                  const saldoContratoMinor=saldoNativoClienteMinor(cli);
+                  const temDivida=saldoContratoMinor!==null?BigInt(saldoContratoMinor)>0n:saldoDevedor>0;
                    const limiteMinor=limiteNativoCliente(cli);
-                   const estourouLimite=carteira?.status==='confirmado' && limiteMinor!=null &&
-                     BigInt(parseMoney(String(carteira.totalNativo),moedaPadrao))>BigInt(limiteMinor);
+                   const estourouLimite=saldoContratoMinor!==null && limiteMinor!==null &&
+                     BigInt(saldoContratoMinor)>BigInt(limiteMinor);
                    const dias = cli.diasAtraso || 0;
 
                   return (

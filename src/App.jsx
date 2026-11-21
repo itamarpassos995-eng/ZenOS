@@ -90,6 +90,7 @@ import { obterComposicaoHistoricaCaixa, formatarDinheiroNativo } from './core/ca
 import { apresentarMovimentoNaMoedaPadrao } from './core/defaultCurrencyPresentation.js';
 import { apurarFiadoMoedaPadrao } from './core/defaultCurrencyCreditCard.js';
 import { apurarCarteiraNativa } from './core/nativeReceivables.js';
+import {legacyPYGMinor} from './core/vipeLegacyNative.js';
 import { parseMoney,formatMoneyMinor,convertMinorDirect } from './core/nativeMoneyKernel.js';
 import {formatNativeMinor,formatNativeDecimal,nativeCurrencySymbol} from './core/nativeMoneyDisplay.js';
 import { resolverMoedaExibidaAoCarregarConfiguracao } from './core/storeDefaultCurrency.js';
@@ -1257,8 +1258,14 @@ export default function App() {
       status:'confirmado',moeda:moedaPadrao,
       totalNativo:carteiras.reduce((acc,c)=>acc+c.totalNativo,0)
     };
+    const valores=clientes.map((c,i)=>carteiras[i].status==='confirmado'
+      ?parseMoney(String(carteiras[i].totalNativo),moedaPadrao)
+      :legacyPYGMinor(c.saldoDevedorBRL,userId,moedaPadrao));
+    if(valores.every(v=>v!==null))return {status:'confirmado',moeda:moedaPadrao,
+      totalNativo:Number(formatMoneyMinor(valores.reduce((a,v)=>a+BigInt(v),0n).toString(),moedaPadrao)),
+      origem:'vipe_numerico_legado_sem_cambio'};
     return apurarFiadoMoedaPadrao(clientes,moedaPadrao,historicoVendas,livroFinanceiro);
-  },[clientes,moedaPadrao,historicoVendas,livroFinanceiro]);
+  },[clientes,moedaPadrao,historicoVendas,livroFinanceiro,userId]);
   const clientesComFiadoAberto = useMemo(() => clientes.filter(c => Number(c?.saldoDevedorBRL)>0).length,[clientes]);
 
   const gerarCurvaABC = () => {
@@ -1639,7 +1646,7 @@ export default function App() {
       return `<div style="padding:5px 0;page-break-inside:avoid"><b>${m}</b><div>Esperado: ${n(conciliacaoFisica.esperado?.[m])}</div><div>Contado: ${n(conciliacaoFisica.contado?.[m])}</div><div>Dif.: ${conciliacaoFisica.confiavel?n(conciliacaoFisica.diferencas?.[m]):'NO CONCLUYENTE'}</div></div>`;
     }).join('');
 
-    const reciboFechoHTML = `
+    const reciboGerencialHTML = `
       <div style="font-family:monospace;font-size:12px;width:100%;text-align:left;">
         <div style="text-align:center;margin-bottom:10px;">
           <h2 style="margin:0;font-size:14px;">${tx('FECHAMENTO CEGO DE TURNO','CIERRE CIEGO DE TURNO','BLIND SHIFT CLOSE')}</h2>
@@ -1704,6 +1711,18 @@ export default function App() {
       </div>
     `;
 
+    // Blind operator receipt contains only the physical amounts they entered.
+    // Expected balance, difference, FX bookkeeping and audit status belong
+    // exclusively to the management audit, never the operator printout.
+    const reciboFechoHTML = `
+      <div style="font-family:monospace;font-size:12px;padding:12px">
+        <h3>${tx('COMPROVANTE DE CONTAGEM CEGA','COMPROBANTE DE CONTEO CIEGO','BLIND CASH COUNT RECEIPT')}</h3>
+        <p>${tx('Operador','Operador','Operator')}: ${escaparHTML(sessaoAtiva.operadorNome)}</p>
+        <p>${tx('Fechamento','Cierre','Closing')}: ${escaparHTML(dataFechoLocal)}</p>
+        <p><b>${tx('Valores contados','Importes contados','Counted amounts')}</b></p>
+        ${moedasContadasHTML}
+        <p>${tx('Valores esperados e diferenças ficam exclusivamente na auditoria da gerência.','Saldo esperado y diferencias solo en auditoría gerencial.','Expected balances and differences are management-only.')}</p>
+      </div>`;
     const fechamentoConfirmado = await commitOperacaoCritica(
       [{ field:'sessoesCaixa', value:sessoesAtualizadas, storageSuffix:'sessoes_caixa' }],
       {
@@ -1738,25 +1757,15 @@ export default function App() {
     setDescMovCaixa('');
 
     avisarAppZen({
-      variante: temQuebra ? 'warning' : 'success',
-      titulo: !conciliacaoFisica.confiavel ? tx("Fechamento registrado — auditoria pendente","Cierre registrado — auditoría pendiente")
-        : temQuebra ? tx("Fechamento registrado — diferença por moeda","Cierre registrado — diferencia por moneda") : tx("Caixa fechado e conciliado","Caja cerrada y conciliada"),
-      mensagem: !conciliacaoFisica.confiavel
-        ? tx("A documentação de algumas operações não permite concluir a falta ou sobra. Não atribua responsabilidade financeira ao operador sem auditoria.","La documentación de algunas operaciones no permite determinar el faltante o sobrante. No atribuya responsabilidad financiera al operador sin una auditoría.")
-        : temQuebra ? tx("As quantidades físicas por moeda não conferem. Confira o demonstrativo individual no comprovante.","Las cantidades físicas por moneda no coinciden. Revise el detalle individual del comprobante.")
-          : tx("A contagem física confere com os valores esperados em cada moeda.","El conteo físico coincide con los importes esperados en cada moneda."),
-      detalhes: [
-        `${tx('Saldo esperado','Saldo esperado','Expected balance')}: ${fmtEquivalenteCaixa(saldoEsperadoBRL)} (${moedaTotalCaixa}, ${tx('equivalente','equivalente','equivalent')})`,
-        `${tx('Total contado','Total contado','Counted total')}: ${fmtEquivalenteCaixa(valInformadoBRL)} (${moedaTotalCaixa}, ${tx('equivalente','equivalente','equivalent')})`,
-        `${tx('Diferença','Diferencia','Difference')}: ${conciliacaoFisica.confiavel ? fmtEquivalenteCaixa(diferenca) : 'INDETERMINADA'}`,
-        ...['BRL','PYG','USD','EUR'].map(codigo => {
-          const f = valor => formatarValorNativoCaixa(Number(valor || 0), codigo, moedasConfig[codigo]);
-          return `${codigo}: ${tx('esperado','esperado','expected')} ${f(conciliacaoFisica.esperado?.[codigo])} · ${tx('contado','contado','counted')} ${f(conciliacaoFisica.contado?.[codigo])}${conciliacaoFisica.confiavel ? ` · ${tx('diferença','diferencia','difference')} ${f(conciliacaoFisica.diferencas?.[codigo])}` : ''}`;
-        }),
-        ...conciliacaoFisica.pendencias.slice(0, 4),
-        janelaImpressao ? tx("Comprovante aberto para impressão.","Comprobante abierto para imprimir.") : tx("A impressão foi bloqueada pelo navegador; o fechamento ficou registrado.","El navegador bloqueó la impresión; el cierre quedó registrado."),
+      variante:'success',
+      titulo:tx('Contagem registrada','Conteo registrado','Cash count recorded'),
+      mensagem:tx('O turno foi encerrado. A contagem física está salva; o resultado da conferência permanece exclusivo da gerência.','El turno fue cerrado. El conteo está registrado; el resultado queda reservado a gerencia.','Shift closed. Physical counts recorded; reconciliation is management-only.'),
+      detalhes:[
+        ...Object.entries(contagemValidada.valoresNativos).map(([m,v]) =>
+          `${m}: ${formatarValorNativoCaixa(Number(v||0),m,moedasConfig[m])}`),
+        tx('Sem saldo esperado ou diferença no comprovante do operador.','Sin saldo esperado ni diferencias en el comprobante del operador.','No expected balance or variance on the operator receipt.'),
       ],
-      apenasConfirmar: true,
+      apenasConfirmar:true,
     });
   };
 
@@ -2223,8 +2232,10 @@ export default function App() {
                   : `${clientesComFiadoAberto} ${tx('clientes com dívida','clientes con deuda','customers owing')}`}
                 detalhe={!valoresTopoVisiveis ? tx('Valores ocultos','Valores ocultos','Hidden values')
                   : fiadoPainelMoedaPadrao.status==='confirmado'
-                  ? tx('Saldo comprovado na moeda padrão','Saldo comprobado en la moneda predeterminada','Verified default currency balance')
-                  : `${tx('Dívida existente; total nativo em conferência','Deuda existente; total nativo pendiente de conciliación','Debt exists; native total pending reconciliation')} · ${tx('Base registrada','Base registrada','Recorded accounting base')}: ${fmt(totalFiadoAbertoBRL,'BRL')}`}
+                  ? (fiadoPainelMoedaPadrao.origem==='vipe_numerico_legado_sem_cambio'
+                    ? tx('Saldo cadastrado em PYG • sem conversão','Saldo registrado en PYG • sin conversión','Registered PYG balance • no conversion')
+                    : tx('Saldo comprovado na moeda padrão','Saldo comprobado en la moneda predeterminada','Verified default currency balance'))
+                  : `tx('Histórico sem origem nativa confirmada','Histórico sin moneda nativa confirmada','Historical currency unverified')`}
                 tone="purple" trailing="▥" />
               <ZenKpiCard icon="↻" titulo={tx('SINCRONIZAÇÃO','SINCRONIZACIÓN','SYNC')} valor={statusSincronizacao === 'SINCRONIZADO' ? 'Online' : statusSincronizacao === 'SALVANDO' ? tx('Salvando...','Guardando...','Saving...') : statusSincronizacao === 'ERRO' ? tx('Erro','Error','Error') : statusSincronizacao === 'OFFLINE' ? 'Offline' : tx('Pendente','Pendiente','Pending')} detalhe={tx('Dados atualizados em tempo real','Datos actualizados en tiempo real','Realtime data status')} tone="cyan" trailing="◯" />
             </div>
@@ -2240,15 +2251,12 @@ export default function App() {
                       <button className="zen-primary-cash" onClick={() => { setTipoMovCaixa('abertura'); setModalCaixaAberto(true); }}>🔓 {tx('Abrir Turno de Caixa','Abrir Turno de Caja','Open Cash Shift')}</button>
                     </> : <>
                       <div style={{border:'1px solid #164e63',borderRadius:10,padding:'10px 12px',marginBottom:12}}>
-                        <div style={{color:'#94a3b8',fontSize:11,fontWeight:800}}>{tx('Saldo físico • moeda da loja','Saldo físico • moneda de tienda','Physical cash • store currency')} ({moedaPadrao})</div>
-                        <div style={{color:'#34d399',fontWeight:900,fontSize:20}}>
-                          {caixaFisicoNativo?.confiavel
-                            ? fmtNativo(caixaFisicoNativo.esperado?.[moedaPadrao]||0,moedaPadrao)
-                            : tx('Saldo aguardando conciliação','Saldo pendiente de conciliación','Balance awaiting reconciliation')}
+                        <div style={{color:'#94a3b8',fontSize:11,fontWeight:800}}>
+                          {tx('CAIXA CEGO • valores esperados ocultos','CAJA CIEGA • saldo esperado oculto','BLIND CASH • expected balances hidden')}
                         </div>
-                        {caixaFisicoNativo?.confiavel && ['BRL','PYG','USD','EUR']
-                          .filter(m=>m!==moedaPadrao&&(caixaFisicoNativo.esperado?.[m]||0)!==0)
-                          .map(m=><div key={m} style={{fontSize:11,color:'#94a3b8'}}>{fmtNativo(caixaFisicoNativo.esperado[m],m)}</div>)}
+                        <div style={{color:'#34d399',fontWeight:900,fontSize:15,marginTop:4}}>
+                          {tx('Turno em andamento','Turno en curso','Shift in progress')}
+                        </div>
                       </div>
                       <div className="zen-cash-actions">
                         <button onClick={() => { setTipoMovCaixa('suprimento'); setModalCaixaAberto(true); }}>+ {tx('Entrada (Reforço)','Entrada (Refuerzo)','Cash In (Float)')}</button>
@@ -2273,7 +2281,7 @@ export default function App() {
                               : apresentacao.pendente
                                 ? tx('Moeda não comprovada','Moneda no comprobada','Currency unverified')
                                 : tx('Movimento multimoeda','Movimiento multimoneda','Multi-currency movement')}</strong>
-                            <div style={{fontSize:10,color:'#94a3b8'}}>{tx('Equivalente contábil registrado:','Equivalente contable registrado:','Recorded accounting equivalent:')} {Number.isFinite(Number(m.valorBRL)) ? fmt(Number(m.valorBRL),'BRL') : '—'}</div>
+
                           </div>
                         </div>;
                       })}</div>
@@ -2303,14 +2311,14 @@ export default function App() {
                     </div>
                   </div>
                   <div className="zen-exec-grid">
-                    <div className="zen-exec-stat"><span>{tx('Faturamento Real · BRL contábil','Facturación real · BRL contable','Revenue · accounting BRL')}</span><strong>{auditoriaPainelFinanceiro.confiavel ? fmt(faturamentoTotalBRL,'BRL') : tx('Em auditoria','En auditoría','Under audit')}</strong></div>
+                    <div className="zen-exec-stat"><span>{tx('Faturamento Real · Histórico','Facturación real · Histórico','Revenue · historical')}</span><strong>{auditoriaPainelFinanceiro.confiavel ? (moedaPadrao==='BRL'?fmt(faturamentoTotalBRL,'BRL'):tx('Histórico em auditoria','Histórico en auditoría','Historical audit required')) : tx('Em auditoria','En auditoría','Under audit')}</strong></div>
                     <div className="zen-exec-stat"><span>{tx('CMV · BRL contábil','CMV · BRL contable','COGS · accounting BRL')}</span><strong>{auditoriaPainelFinanceiro.confiavel ? fmt(cmvTotalBRL,'BRL') : tx('Em auditoria','En auditoría','Under audit')}</strong></div>
                     <div className="zen-exec-stat"><span>{tx('Lucro Bruto · BRL contábil','Ganancia bruta · BRL contable','Gross profit · accounting BRL')}</span><strong style={{color:'#38bdf8'}}>{auditoriaPainelFinanceiro.confiavel ? fmt(lucroBrutoBRL,'BRL') : tx('Em auditoria','En auditoría','Under audit')}</strong></div>
                     <div className="zen-exec-stat"><span>{tx('Despesas Pagas · BRL contábil','Gastos pagados · BRL contable','Paid expenses · accounting BRL')}</span><strong style={{color:'#fbbf24'}}>{fmt(despesasPagasBRL,'BRL')}</strong></div>
                     <div className="zen-exec-stat"><span>{tx('Lucro Líquido · BRL contábil','Ganancia neta · BRL contable','Net profit · accounting BRL')}</span><strong style={{color:'#34d399'}}>{auditoriaPainelFinanceiro.confiavel ? fmt(lucroLiquidoRealBRL,'BRL') : tx('Em auditoria','En auditoría','Under audit')}</strong></div>
                     <div className="zen-exec-stat"><span>{tx('Fiado em aberto · BRL contábil','Crédito pendiente · BRL contable','Outstanding credit · accounting BRL')}</span><strong style={{color:'#fb7185'}}>{fmt(totalFiadoAbertoBRL,'BRL')}</strong></div>
                   </div>
-                  <div className="zen-abc-list">{curvaABC.slice(0,5).map((item,index)=><div className="zen-abc-row" key={`${item.sku}-${index}`}><b>{index+1}</b><span>{item.nome}</span><strong>{fmt(item.faturamentoBRL,'BRL')}</strong></div>)}</div>
+                  <div className="zen-abc-list">{curvaABC.slice(0,5).map((item,index)=><div className="zen-abc-row" key={`${item.sku}-${index}`}><b>{index+1}</b><span>{item.nome}</span><strong>{moedaPadrao==='BRL'?fmt(item.faturamentoBRL,'BRL'):tx('Histórico','Histórico','Historical')}</strong></div>)}</div>
                 </div>}
               </section> : <div className="zen-dashboard-card"><div className="zen-dashboard-card-head"><strong>ZenOS • {tx('Operação do Dia','Operación del Día','Daily Operations')}</strong></div><div className="zen-cash-card-body"><p>{tx('Acessos operacionais organizados conforme as permissões deste operador.','Accesos operativos organizados según los permisos de este operador.','Operational access organized according to this operator’s permissions.')}</p></div></div>}
             </div>
@@ -2346,13 +2354,13 @@ export default function App() {
         {ecraAtual === 'inteligencia' && <EstoqueInteligente converterParaBRL={converterParaBRL} produtos={produtos} fmt={fmt} tx={tx} />}
         {ecraAtual === 'comissoes' && <Comissoes commitOperacaoNegocio={commitVendaCritica} historicoVendas={historicoVisivelParaOperador} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} operadorAtivo={operadorAtivo} regrasDesconto={regrasDesconto} regrasComissao={regrasComissao} setRegrasComissao={setRegrasComissao} />}
         {ecraAtual === 'dashboardMobile' && <DashboardMobile historicoVendas={historicoVendas} despesas={despesas} clientes={clientes} produtos={produtos} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} regrasDesconto={regrasDesconto} />}
-        {ecraAtual === 'clientes' && (livroFinanceiroConfirmado && livroFinanceiroAtivadoParaLoja === String(userId) ? <Clientes perfilLoja={perfilLoja} commitOperacaoNegocio={commitVendaCritica} livroFinanceiro={livroFinanceiro} historicoVendas={historicoVendas} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} operadorAtivo={operadorAtivo} clientes={clientes} setClientes={setClientes} moeda={moeda} moedaPadrao={moedaPadrao} taxasCambio={taxasCambio} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} /> : <div role="status" style={{padding:24,color:'#cbd5e1'}}>{tx("Conferindo histórico financeiro completo no servidor antes de liberar contas e fiado…","Verificando el historial financiero completo en el servidor antes de habilitar cuentas y créditos…")}</div>)}
+        {ecraAtual === 'clientes' && (livroFinanceiroConfirmado && livroFinanceiroAtivadoParaLoja === String(userId) ? <Clientes userId={userId} perfilLoja={perfilLoja} commitOperacaoNegocio={commitVendaCritica} livroFinanceiro={livroFinanceiro} historicoVendas={historicoVendas} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} operadorAtivo={operadorAtivo} clientes={clientes} setClientes={setClientes} moeda={moeda} moedaPadrao={moedaPadrao} taxasCambio={taxasCambio} fmt={fmt} t={t} tx={tx} converterDeBRL={converterDeBRL} converterParaBRL={converterParaBRL} /> : <div role="status" style={{padding:24,color:'#cbd5e1'}}>{tx("Conferindo histórico financeiro completo no servidor antes de liberar contas e fiado…","Verificando el historial financiero completo en el servidor antes de habilitar cuentas y créditos…")}</div>)}
         {ecraAtual === 'vendas' && <Vendas commitOperacaoNegocio={commitVendaCritica} taxasCambio={taxasCambio} sessoesCaixa={sessoesCaixa} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} saldoSessaoFisicoBRL={saldoSessaoFisicoBRL} perfilLoja={perfilLoja} vouchers={vouchers} setVouchers={setVouchers} userId={userId} operadorAtivo={operadorAtivo} historicoVendas={historicoVisivelParaOperador} historicoVendasCompleto={historicoVendas} setHistoricoVendas={setHistoricoVendas} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} fmt={fmt} t={t} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterDeBRL={converterDeBRL} />}
         {ecraAtual === 'commerce-solicitar' && temPermissao('admin') && <React.Suspense fallback={<div role="status" style={{padding:20,color:'#bdd5df'}}>{tx('Preparando Minha Loja Online…','Preparando Mi Tienda Online…','Preparing My Online Store…')}</div>}><CommerceSolicitacao converterParaBRL={converterParaBRL} moedaPadrao={moedaPadrao} taxasCambio={taxasCambio} key={String(userId)+':'+String(operadorAtivo?.id)} lojaId={userId} perfilLoja={perfilLoja} tx={tx} produtos={produtos} /></React.Suspense>}
         {ecraAtual === 'fiscal' && <FiscalErrorBoundary resetKey={`${userId || ''}:${perfilLoja?.pais || ''}:${resultadoFilaFiscal.erro || ''}`} onVoltar={() => navegarPara('hub')} tx={tx}><Fiscal lojaId={userId} perfilLoja={perfilLoja} filaFiscal={resultadoFilaFiscal.fila} erroFila={resultadoFilaFiscal.erro} clientes={clientes} ambiente="homologacao" onVerVenda={() => navegarPara('vendas')} tx={tx} idioma={idioma} /></FiscalErrorBoundary>}
         {ecraAtual === 'migracao' && <Migracao moeda={moeda} converterParaBRL={converterParaBRL} commitOperacaoNegocio={commitVendaCritica} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} fornecedores={fornecedores} setFornecedores={setFornecedores} userId={userId} operadorAtivo={operadorAtivo} patenteUsuario={patenteUsuario} taxaPYG={taxasCambio?.PYG} t={t} tx={tx} />}
         {ecraAtual === 'configuracoes' && <Configuracoes commitOperacaoNegocio={commitVendaCritica} userId={userId} operadorAtivo={operadorAtivo} perfilLojaGlobal={perfilLoja} setPerfilLojaGlobal={setPerfilLoja} produtos={produtos} setProdutos={setProdutos} clientes={clientes} setClientes={setClientes} historicoVendas={historicoVendas} setHistoricoVendas={setHistoricoVendas} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} despesas={despesas} setDespesas={setDespesas} moeda={moeda} fmt={fmt} tx={tx} regrasDesconto={regrasDesconto} setRegrasDesconto={setRegrasDesconto} vendedores={vendedores} setVendedores={(novosVendedores) => { setVendedores(novosVendedores); persistirCampoSeguro({ field: 'vendedores', value:novosVendedores, setter:setVendedores, localStorageKey:`zenos_${userId}_vendedores` }); }} />}
-        {ecraAtual === 'auditoria_caixas' && <GestaoCaixas moedaPadrao={moedaPadrao} taxasCambio={taxasCambio} userId={userId} operadores={vendedores} perfilLoja={perfilLoja} tema={temaUi} idioma={idioma} sessoesCaixa={sessoesCaixa} historicoVendas={historicoVendas} caixaMovimentos={caixaMovimentos} livroFinanceiro={livroFinanceiro} fmt={fmt} tx={tx} />}
+        {ecraAtual === 'auditoria_caixas' && (temPermissao('admin') || patenteUsuario==='gerencia') && <GestaoCaixas moedaPadrao={moedaPadrao} taxasCambio={taxasCambio} userId={userId} operadores={vendedores} perfilLoja={perfilLoja} tema={temaUi} idioma={idioma} sessoesCaixa={sessoesCaixa} historicoVendas={historicoVendas} caixaMovimentos={caixaMovimentos} livroFinanceiro={livroFinanceiro} fmt={fmt} tx={tx} />}
         {ecraAtual === 'despesas' && <Despesas userId={userId} commitOperacaoNegocio={commitVendaCritica} registrarFinanceiro={registrarFinanceiro} caixaMovimentos={caixaMovimentos} setCaixaMovimentos={setCaixaMovimentos} sessaoAtiva={sessaoAtiva} saldoSessaoFisicoBRL={saldoSessaoFisicoBRL} operadorAtivo={operadorAtivo} despesas={despesas} setDespesas={setDespesas} fmt={fmt} tx={tx} patenteUsuario={patenteUsuario} moeda={moeda} converterParaBRL={converterParaBRL} converterDeBRL={converterDeBRL} />}
       </main>
 
@@ -2388,7 +2396,7 @@ export default function App() {
               <div style={{ marginBottom: '20px' }}>
                 <p style={{ fontSize: '13px', color: '#94a3b8', lineHeight: 1.5, marginBottom: '16px' }}>
                   {tipoMovCaixa === 'fechamento'
-                    ? tx('FECHAMENTO CEGO: conte todo o dinheiro físico da gaveta sem consultar o saldo do sistema. Informe abaixo quanto encontrou em cada moeda. O ZenOS só revelará o saldo esperado e a diferença depois de concluir a auditoria. Se não houver uma moeda, digite 0.', 'CIERRE CIEGO: cuente todo el efectivo físico sin consultar el saldo del sistema. Informe cuánto encontró en cada moneda. ZenOS solo revelará el saldo esperado y la diferencia después de concluir la auditoría. Si no hay una moneda, ingrese 0.', 'BLIND CLOSE: count all physical cash without checking the system balance. Enter what you found in each currency. ZenOS will reveal the expected balance and difference only after the audit. Enter 0 for currencies not present.')
+                    ? tx('FECHAMENTO CEGO: conte todo o dinheiro físico da gaveta sem consultar o saldo do sistema. Informe abaixo quanto encontrou em cada moeda. O O saldo esperado e as diferenças ficam disponíveis exclusivamente na auditoria da gerência. Se não houver uma moeda, digite 0.', 'CIERRE CIEGO: cuente todo el efectivo físico sin consultar el saldo del sistema. Informe cuánto encontró en cada moneda. El saldo esperado y las diferencias solo estarán disponibles en la auditoría de gerencia. Si no hay una moneda, ingrese 0.', 'BLIND CLOSE: count all physical cash without checking the system balance. Enter what you found in each currency. Expected balance and differences are available only in the management audit. Enter 0 for currencies not present.')
                     : tx('Informe o fundo físico que está sendo colocado na gaveta para iniciar o turno.', 'Informe el efectivo inicial colocado en la gaveta.', 'Enter the physical opening float placed in the drawer.')}
                 </p>
                 
@@ -2403,7 +2411,7 @@ export default function App() {
                 {tipoMovCaixa === 'fechamento' && (
                   <div style={{ marginTop:'14px', padding:'12px 14px', borderRadius:'12px', background:'#020617', border:'1px solid #1e293b' }}>
                     <div style={{fontSize:'10px',fontWeight:900,letterSpacing:'1px',color:'#64748b',marginBottom:'5px'}}>{tx('TOTAL FÍSICO INFORMADO • MOEDA SELECIONADA','TOTAL FÍSICO INFORMADO • MONEDA SELECCIONADA','PHYSICAL TOTAL ENTERED • SELECTED CURRENCY') + ' (' + moedaTotalCaixa + ')'}</div>
-                    <div style={{fontSize:'20px',fontWeight:950,color:'#f8fafc'}}>{Number.isFinite(calcularTotalMovBRL()) ? fmtEquivalenteCaixa(calcularTotalMovBRL()) : tx('Corrija os valores digitados', 'Corrija los importes', 'Correct the entered amounts')}</div>
+                    <div style={{fontSize:'16px',fontWeight:800,color:'#f8fafc'}}>{tx('Confirme a contagem física informada acima','Confirme el conteo físico ingresado arriba','Confirm the entered physical count')}</div>
                     <div style={{fontSize:'10px',color:'#64748b',marginTop:'5px'}}>{tx('O saldo esperado pelo ZenOS permanece oculto até a auditoria ser concluída.','El saldo esperado por ZenOS permanece oculto hasta finalizar la auditoría.','The balance expected by ZenOS remains hidden until the audit is completed.')}</div>
                   </div>
                 )}
