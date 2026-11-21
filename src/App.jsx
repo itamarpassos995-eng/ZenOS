@@ -89,6 +89,7 @@ import { formatarValorNativoCaixa } from './core/cashHistoryDisplay.js';
 import { calcularConciliacaoFisicaMultimoeda } from './core/cashReconciliation';
 import { obterComposicaoHistoricaCaixa, formatarDinheiroNativo } from './core/cashHistoryDisplay';
 import { apresentarMovimentoNaMoedaPadrao } from './core/defaultCurrencyPresentation.js';
+import { apurarFiadoMoedaPadrao } from './core/defaultCurrencyCreditCard.js';
 import { normalizarRegrasComissao, REGRAS_COMISSAO_PADRAO } from './core/commissionEngine';
 import { normalizarRegrasMargem } from './core/profitability';
 import { patenteEfetivaOperador } from './core/accessControl';
@@ -1211,6 +1212,8 @@ export default function App() {
   // nunca pela cotação atual ou alteração retroativa do preço da venda.
   const lucroLiquidoRealBRL = lucroBrutoBRL - despesasPagasBRL - apuracaoCambioDevolucoes.variacaoCambialBRL;
   const totalFiadoAbertoBRL = useMemo(() => clientes.reduce((acc, c) => acc + (parseFloat(c.saldoDevedorBRL) || 0), 0), [clientes]);
+  const fiadoPainelMoedaPadrao = useMemo(() => apurarFiadoMoedaPadrao(clientes,moedaPadrao,historicoVendas,livroFinanceiro),[clientes,moedaPadrao,historicoVendas,livroFinanceiro]);
+  const clientesComFiadoAberto = useMemo(() => clientes.filter(c => Number(c?.saldoDevedorBRL)>0).length,[clientes]);
 
   const gerarCurvaABC = () => {
     const mapa = {};
@@ -2155,7 +2158,15 @@ export default function App() {
 
             <div className="zen-kpi-grid">
               <ZenKpiCard icon="🛒" titulo={tx('Vendido Hoje','Vendido Hoy','Sold Today')} valor={valoresTopoVisiveis ? (vendidoHojeNativo.ok ? formatarValorNativo(vendidoHojeNativo.total,moedaPadrao) : (vendidoHojeNativo.confirmadas > 0 ? `${formatarValorNativo(vendidoHojeNativo.subtotalConfirmado,moedaPadrao)} ${tx('(parcial)','(parcial)','(partial)')}` : tx('Total pendente de conferência','Total pendiente de verificación','Total awaiting verification'))) : '*****'} detalhe={vendidoHojeNativo.pendentes > 0 ? `${vendidoHojeNativo.confirmadas} ${tx('vendas confirmadas','ventas confirmadas','verified sales')} · ${vendidoHojeNativo.pendentes} ${tx('sem moeda/valor original comprovado','sin moneda/valor original comprobado','without verified native price')}` : vendidoHojeNativo.outrasMoedas > 0 ? `${vendasHoje.length - vendidoHojeNativo.outrasMoedas} ${tx('vendas na moeda padrão','ventas en moneda predeterminada','sales in default currency')} · ${vendidoHojeNativo.outrasMoedas} ${tx('em outras moedas (separadas)','en otras monedas (separadas)','in other currencies (separate)')}` : `${vendasHoje.length} ${tx('vendas realizadas','ventas realizadas','sales completed')}`} tone="teal" trailing={<button onClick={() => setValoresTopoVisiveis(!valoresTopoVisiveis)} style={{border:0,background:'transparent',color:'inherit',cursor:'pointer',fontSize:18}}>{valoresTopoVisiveis ? '◉' : '○'}</button>} />
-              <ZenKpiCard icon="👥" titulo={tx('FIADO NA PRAÇA','FIADO A COBRAR','PENDING CREDIT')} valor={valoresTopoVisiveis ? fmt(totalFiadoAbertoBRL,'BRL') : '*****'} detalhe={totalFiadoAbertoBRL > 0 ? tx('Equivalente contábil BRL · valor nativo a conferir','Equivalente contable BRL · importe nativo por verificar','Accounting BRL · native amount unverified') : tx('Nenhum valor pendente','Sin valores pendientes','No pending balance')} tone="purple" trailing="▥" />
+              <ZenKpiCard icon="👥" titulo={tx('FIADO NA PRAÇA','FIADO A COBRAR','PENDING CREDIT')}
+                valor={!valoresTopoVisiveis ? '*****' : fiadoPainelMoedaPadrao.status==='confirmado'
+                  ? formatarValorNativo(fiadoPainelMoedaPadrao.totalNativo,moedaPadrao)
+                  : `${clientesComFiadoAberto} ${tx('clientes com dívida','clientes con deuda','customers owing')}`}
+                detalhe={!valoresTopoVisiveis ? tx('Valores ocultos','Valores ocultos','Hidden values')
+                  : fiadoPainelMoedaPadrao.status==='confirmado'
+                  ? tx('Saldo comprovado na moeda padrão','Saldo comprobado en la moneda predeterminada','Verified default currency balance')
+                  : `${tx('Dívida existente; total nativo em conferência','Deuda existente; total nativo pendiente de conciliación','Debt exists; native total pending reconciliation')} · ${tx('Base registrada','Base registrada','Recorded accounting base')}: ${fmt(totalFiadoAbertoBRL,'BRL')}`}
+                tone="purple" trailing="▥" />
               <ZenKpiCard icon="↻" titulo={tx('SINCRONIZAÇÃO','SINCRONIZACIÓN','SYNC')} valor={statusSincronizacao === 'SINCRONIZADO' ? 'Online' : statusSincronizacao === 'SALVANDO' ? tx('Salvando...','Guardando...','Saving...') : statusSincronizacao === 'ERRO' ? tx('Erro','Error','Error') : statusSincronizacao === 'OFFLINE' ? 'Offline' : tx('Pendente','Pendiente','Pending')} detalhe={tx('Dados atualizados em tempo real','Datos actualizados en tiempo real','Realtime data status')} tone="cyan" trailing="◯" />
             </div>
 
