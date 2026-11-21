@@ -449,7 +449,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
       if (!gruposCadastrados.includes(grupoFinal)) setGruposCadastrados([...gruposCadastrados, grupoFinal]);
     }
     let dinheiro;
-    try { dinheiro=registrarValoresProduto(formProduto,moedaPadrao,converterParaBRL,produtoEmEdicao,converterDeBRL); }
+    try { dinheiro=registrarValoresProduto(formProduto,moedaPadrao,converterParaBRL,produtoEmEdicao,converterDeBRL,userId); }
     catch(error){return mostrarZen('warning',tx('Valor inválido','Importe inválido','Invalid amount'),error.message);}
     const {custoBRL:custo,precoBRL:preco}=dinheiro;
     const preco2=dinheiro.preco2BRL;

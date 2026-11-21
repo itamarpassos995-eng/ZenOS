@@ -621,7 +621,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     }
     if (!formProdutoPDV.nome.trim()) return mostrarZen('warning', tx("Nome obrigatório","Nombre obligatorio"), tx('Informe o nome do produto.', 'Informe el nombre del producto.', 'Enter product name.'));
     let dinheiroProduto;
-    try { dinheiroProduto=registrarValoresProduto(formProdutoPDV,moedaPadrao,converterParaBRL,produtoEmEdicaoPDV,converterDeBRL); }
+    try { dinheiroProduto=registrarValoresProduto(formProdutoPDV,moedaPadrao,converterParaBRL,produtoEmEdicaoPDV,converterDeBRL,userId); }
     catch(error){return mostrarZen('warning',tx('Valor inválido','Importe inválido','Invalid amount'),error.message);}
     const {custoBRL:custo,precoBRL:preco,preco2BRL:preco2,preco3BRL:preco3}=dinheiroProduto;
     // Os saldos do formulário são os valores reais digitados no cadastro rápido.

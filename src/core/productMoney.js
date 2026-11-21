@@ -140,8 +140,8 @@ export function formatarPrecoProdutoNativo(produto,field,moedaLoja,taxasCambio,l
 export function projetarProdutoMonetario(produto,converterParaBRL){
  return {...produto,...Object.fromEntries(CAMPOS_MONETARIOS_PRODUTO.map(field=>[field,valorProdutoBRL(produto,field,converterParaBRL)]))};
 }
-export function registrarValoresProduto(form,padrao,converterParaBRL,original=null,converterDeBRL=v=>v){
- const anteriores=original?produtoParaFormularioMonetario(original,padrao,converterDeBRL):null;
+export function registrarValoresProduto(form,padrao,converterParaBRL,original=null,converterDeBRL=v=>v,storeId=null){
+ const anteriores=original?produtoParaFormularioMonetario(original,padrao,converterDeBRL,storeId,padrao):null;
  const campos={...original?.valoresMonetarios?.campos};
  const equivalentes=valoresProdutoParaBRL(form,padrao,converterParaBRL);
  for(const field of CAMPOS_MONETARIOS_PRODUTO){

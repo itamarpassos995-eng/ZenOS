@@ -47,3 +47,13 @@ test('VIPE editor shows recovered native price without changing input product ob
  assert.equal(form.custoBRL,'27667');
  assert.equal(p.precoBRL,35);
 });
+
+test('editing an unrelated field never silently rewrites damaged legacy price',async()=>{
+ const {registrarValoresProduto}=await import('../src/core/productMoney.js');
+ const p={nome:'Old name',precoBRL:35,custoBRL:27667,preco2BRL:0,preco3BRL:0};
+ const form=produtoParaFormularioMonetario(p,'PYG',(v)=>v*1150,vipe,'PYG');
+ const saved=registrarValoresProduto({...form},'PYG',(v)=>v/1150,p,(v)=>v*1150,vipe);
+ assert.equal(saved.precoBRL,35);
+ assert.equal(saved.custoBRL,27667);
+ assert.equal(saved.valoresMonetarios.campos.precoBRL,undefined);
+});
