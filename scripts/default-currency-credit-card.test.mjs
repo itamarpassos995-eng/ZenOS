@@ -50,7 +50,7 @@ test('painel PYG com dívidas sem comprovação não mostra zero nem traço como
  const fim=app.indexOf('/>',inicio);
  const painel=app.slice(inicio,fim);
  assert.match(painel,/clientesComFiadoAberto/);
- assert.match(painel,/Dívida existente; total nativo em conferência/);
- assert.match(painel,/fmt\(totalFiadoAbertoBRL,'BRL'\)/);
+ assert.match(painel,/Histórico sem origem nativa confirmada/);
+ assert.doesNotMatch(painel,/fmt\(totalFiadoAbertoBRL,'BRL'\)/);
  assert.doesNotMatch(painel,/moedaPadrao==='PYG'\?'Gs\.'/);
 });

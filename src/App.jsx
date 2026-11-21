@@ -2235,7 +2235,7 @@ export default function App() {
                   ? (fiadoPainelMoedaPadrao.origem==='vipe_numerico_legado_sem_cambio'
                     ? tx('Saldo cadastrado em PYG • sem conversão','Saldo registrado en PYG • sin conversión','Registered PYG balance • no conversion')
                     : tx('Saldo comprovado na moeda padrão','Saldo comprobado en la moneda predeterminada','Verified default currency balance'))
-                  : `tx('Histórico sem origem nativa confirmada','Histórico sin moneda nativa confirmada','Historical currency unverified')`}
+                  : tx('Histórico sem origem nativa confirmada','Histórico sin moneda nativa confirmada','Historical currency unverified')}
                 tone="purple" trailing="▥" />
               <ZenKpiCard icon="↻" titulo={tx('SINCRONIZAÇÃO','SINCRONIZACIÓN','SYNC')} valor={statusSincronizacao === 'SINCRONIZADO' ? 'Online' : statusSincronizacao === 'SALVANDO' ? tx('Salvando...','Guardando...','Saving...') : statusSincronizacao === 'ERRO' ? tx('Erro','Error','Error') : statusSincronizacao === 'OFFLINE' ? 'Offline' : tx('Pendente','Pendiente','Pending')} detalhe={tx('Dados atualizados em tempo real','Datos actualizados en tiempo real','Realtime data status')} tone="cyan" trailing="◯" />
             </div>
