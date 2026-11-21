@@ -1,4 +1,9 @@
 {
+  "git": {
+    "deploymentEnabled": {
+      "fix/vipe-historical-fx1150-blind-cash-20261121": false
+    }
+  },
   "rewrites": [
     {
       "source": "/loja/previa",

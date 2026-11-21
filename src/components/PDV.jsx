@@ -441,17 +441,17 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   const campoTabelaPDV=(prod,cliente) =>
     cliente?.perfilPreco==='preco2' && prod?.habilitarPreco2 && Number(prod?.preco2BRL)>0
       ? 'preco2BRL':'precoBRL';
-  const precoNativoVisualProduto=(prod,cliente) => {
-    const status=apurarPrecoProdutoNativo(prod,campoTabelaPDV(prod,cliente),moedaPadrao,taxasCambio,userId);
-    if(status.valorMinor==null)return null;
-    return convertMinorDirect(status.valorMinor,moedaPadrao,moeda,taxasCambio);
-  };
   // Explicit native quote wins in the cart over BRL compatibility fields.
   const precoOrigemNativaProduto=(prod,cliente) => {
     const field=campoTabelaPDV(prod,cliente);
     const status=apurarPrecoProdutoNativo(prod,field,moedaPadrao,taxasCambio,userId);
     return status.valorMinor==null?quantiaOriginalProduto(prod,field)
       :{valor:Number(formatMoneyMinor(status.valorMinor,moedaPadrao)),moeda:moedaPadrao};
+  };
+  const precoNativoVisualProduto=(prod,cliente) => {
+    const original=precoOrigemNativaProduto(prod,cliente);
+    if(!original)return null;
+    return convertMinorDirect(parseMoney(String(original.valor),original.moeda),original.moeda,moeda,taxasCambio);
   };
   const precoTextoProdutoPDV=(prod,cliente) => {
     const valor=precoNativoVisualProduto(prod,cliente);

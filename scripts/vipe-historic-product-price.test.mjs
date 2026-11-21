@@ -10,17 +10,16 @@ const migrated=(id,over={})=>({id:'VIPE-PROD-'+id,sku:official.rows[id][0],
   origemMigracao:'VIPE-FPX',idOrigemMigracao:id,precoBRL:35,custoBRL:27667,
   ...over});
 const get=(p,f='precoBRL',id=vipe,r=rates)=>apurarPrecoProdutoNativo(p,f,'PYG',r,id);
-test('migrated VIPE products recover exact original prices, not 1150 heuristics',()=>{
- for(const [id,want] of [['195',10000],['103',40000],['320',50000],['186',40000],['84',60000],['370',520000]]){
-  const p=migrated(id);
-  assert.equal(get(p).valorMinor,String(want));
-  assert.equal(get(p,'precoBRL',vipe,{...rates,PYG:2500}).valorMinor,String(want));
-  assert.equal(p.precoBRL,35);
- }
+test('imported VIPE products keep their current stored PYG price without a snapshot',()=>{
+ const p=migrated('103',{precoBRL:47000});
+ assert.equal(get(p).valorMinor,'47000');
+ assert.equal(get(p,'precoBRL',vipe,{...rates,PYG:2500}).valorMinor,'47000');
+ assert.equal(p.precoBRL,47000);
 });
-test('original migration snapshot corrupted at 35 never overrides CSV value',()=>{
- const p=migrated('103',{valoresMonetarios:{versao:1,campos:{custoBRL:{valor:27667,moeda:'PYG'},precoBRL:{valor:35,moeda:'PYG'}}}});
- assert.equal(get(p).valorMinor,'40000');
+test('a recataloged native PYG snapshot takes precedence over the old catalog',()=>{
+ const p=migrated('103',{valoresMonetarios:{versao:1,campos:{custoBRL:{valor:27667,moeda:'PYG'},precoBRL:{valor:47000,moeda:'PYG'}}}});
+ assert.equal(get(p).valorMinor,'47000');
+ assert.equal(get(p,'precoBRL',vipe,{...rates,PYG:2500}).valorMinor,'47000');
  assert.equal(get(p,'custoBRL').valorMinor,'27667');
 });
 test('only exact imported ID AND SKU AND tenant/default currency match',()=>{
@@ -46,13 +45,33 @@ test('a different store never reclassifies its own BRL records as VIPE prices',(
  assert.equal(get(p,'precoBRL','OTHER').valorMinor,null);
  assert.equal(apurarPrecoProdutoNativo(p,'precoBRL','BRL',rates,'OTHER').valorMinor,'3500');
 });
-test('imported VIPE editor shows source price and preserves unrelated edits',()=>{
- const p=migrated('103',{preco2BRL:0,preco3BRL:0});
+test('imported VIPE editor shows the current registered price and preserves unrelated edits',()=>{
+ const p=migrated('103',{precoBRL:47000,preco2BRL:0,preco3BRL:0});
  const original=JSON.stringify(p);
  const form=produtoParaFormularioMonetario(p,'PYG',v=>v*1150,vipe,'PYG');
- assert.equal(form.precoBRL,'40000');
+ assert.equal(form.precoBRL,'47000');
  const saved=registrarValoresProduto(form,'PYG',(v,m)=>m==='PYG'?v/1150:v,p,(v,m)=>m==='PYG'?v*1150:v,vipe);
- assert.equal(saved.precoBRL,35);
+ assert.equal(saved.precoBRL,47000);
  assert.equal(JSON.stringify(p),original);
- assert.throws(()=>registrarValoresProduto({...form,precoBRL:'50000'},'PYG',(v,m)=>v/1150,p,v=>v*1150,vipe),/preço oficial/);
+});
+
+test('VIPE can edit an imported price and choose its currency on subsequent saves',()=>{
+ const toBRL=(value,currency)=>currency==='PYG'?value/1150:value;
+ const fromBRL=(value,currency)=>currency==='PYG'?value*1150:value;
+ const imported=migrated('103',{precoBRL:40000,preco2BRL:0,preco3BRL:0});
+ const open=product=>produtoParaFormularioMonetario(product,'PYG',fromBRL,vipe,'PYG');
+ const save=(product,changes)=>({...product,...registrarValoresProduto(
+   {...open(product),...changes},'PYG',toBRL,product,fromBRL,vipe
+ )});
+
+ assert.equal(open(imported).precoBRL,'40000');
+ const updated=save(imported,{precoBRL:'47000'});
+ assert.equal(open(updated).precoBRL,'47000');
+ assert.equal(get(updated,'precoBRL',vipe,{...rates,PYG:2500}).valorMinor,'47000');
+
+ const inBRL=save(updated,{precoBRL:'42.50',preco2BRL:'0.00',preco3BRL:'0.00',moedaPreco:'BRL'});
+ assert.equal(open(inBRL).moedaPreco,'BRL');
+ assert.equal(open(inBRL).precoBRL,'42.50');
+ assert.equal(get(inBRL,'precoBRL',vipe,{...rates,PYG:2500}).valorOriginalMinor,'4250');
+ assert.equal(get(save(inBRL,{precoBRL:'48500',preco2BRL:'0',preco3BRL:'0',moedaPreco:'PYG'})).valorMinor,'48500');
 });

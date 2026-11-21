@@ -58,7 +58,9 @@ test('Conflito V2 mantém 30 itens, não duplica venda e reusa ID/data ao tentar
   salvarRascunhoPDV(loja,operador.id, {
     ...rascunho, modalFechamentoAberto:true,
     pagamentosLancados:[{ id:7, formaId:'dinheiro_brl', rotulo:'Dinheiro (R$)', icone:'💵',
-      moedaOrigem:'BRL', valorOriginal:300, valorConvertidoBRL:300, taxaCambioAplicada:1 }],
+      moedaOrigem:'BRL', valorOriginal:300, valorConvertidoBRL:300, taxaCambioAplicada:1,
+      moedaContrato:'BRL', valorOriginalMinor:'30000', valorConvertidoMinorNativo:'30000',
+      valorConvertidoNativo:300, moedaVisualCheckout:'BRL' }],
   });
   const chamadas = [], atualizar = vi.fn(async()=>{});
   const commit = vi.fn(async args => {

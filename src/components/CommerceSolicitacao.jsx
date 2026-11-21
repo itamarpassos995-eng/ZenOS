@@ -1,5 +1,5 @@
 import { projetarProdutoMonetario, quantiaOriginalProduto } from '../core/productMoney.js';
-import {precoOficialVipePYG} from '../core/vipeOfficialCatalog.js';
+import { legacyPYGMinor } from '../core/vipeLegacyNative.js';
 import React, { useEffect, useRef, useState } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { doc, getDoc, setDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
@@ -44,10 +44,12 @@ const CORES_TEMA = [
 export default function CommerceSolicitacao({ lojaId, perfilLoja = null, produtos:produtosOriginais = [], converterParaBRL, moedaPadrao = 'BRL', taxasCambio = {}, tx = (pt) => pt }) {
   const produtos=React.useMemo(()=>produtosOriginais.map(p=>{
     const projected=projetarProdutoMonetario(p,converterParaBRL);
-    const official=precoOficialVipePYG(p,'precoBRL',lojaId,moedaPadrao);
-    if(official===null)return projected;
-    return {...projected,precoBRL:converterParaBRL(official,'PYG'),
-      precoOriginal:{valor:official,moeda:'PYG'}};
+    if (quantiaOriginalProduto(p, 'precoBRL')) return projected;
+    const legacyAmount = legacyPYGMinor(p.precoBRL, lojaId, moedaPadrao);
+    if (legacyAmount === null) return projected;
+    const valor = Number(legacyAmount);
+    return {...projected, precoBRL: converterParaBRL(valor, 'PYG'),
+      precoOriginal: {valor, moeda: 'PYG'}};
   }),[produtosOriginais,converterParaBRL,lojaId,moedaPadrao]);
   const [configCommerce, setConfigCommerce] = useState(() => lerCommerceConfigLocal(lojaId, perfilLoja));
   const [salvandoConfig, setSalvandoConfig] = useState(false);

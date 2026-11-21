@@ -1,12 +1,11 @@
 import { interpretarValorMonetario } from './cashMoneyInput.js';
 import { parseMoney,formatMoneyMinor,convertMinorDirect } from './nativeMoneyKernel.js';
 import {legacyPYGMinor,vipeLegacyPYG} from './vipeLegacyNative.js';
-import {precoOficialVipePYG} from './vipeOfficialCatalog.js';
 const fields=['custoBRL','precoBRL','preco2BRL','preco3BRL'];
 export function produtoParaFormularioMonetario(produto, moeda, converterDeBRL,storeId=null,moedaPadrao=moeda) {
   const vipe=vipeLegacyPYG(storeId,moedaPadrao);
   const moedaCusto=quantiaOriginalProduto(produto,'custoBRL')?.moeda||(vipe?'PYG':moeda);
-  const moedaPreco=precoOficialVipePYG(produto,'precoBRL',storeId,moedaPadrao)!=null?'PYG':(quantiaOriginalProduto(produto,'precoBRL')?.moeda||(vipe?'PYG':moeda));
+  const moedaPreco=quantiaOriginalProduto(produto,'precoBRL')?.moeda||(vipe?'PYG':moeda);
   return {...Object.fromEntries(fields.map(field=>{
     const original=quantiaOriginalProduto(produto,field);
     const codigo=field==='custoBRL'?moedaCusto:moedaPreco;
@@ -82,17 +81,8 @@ export function reprecificarItemPDVPorPerfil(item,produto,campo,moedaExibida,con
    snapshotMoedasProduto:produto?.valoresMonetarios||null};
 }
 
-/**
- * VIPE compatibility for a damaged legacy price projection.
- * Native PYG snapshots are authoritative and are NEVER revalued.
- * Only an untagged small sale-price number is interpreted as a BRL-
- * scaled historical projection. Costs and other tenants are untouched.
- * This is a read-time reconstruction; it does not mutate catalog records.
- */
+/** Resolve the registered native amount without consulting historical catalogs. */
 export function precoNativoCatalogoProduto(produto,field,moedaLoja,taxasCambio,storeId=null){
- const price=precoOficialVipePYG(produto,field,storeId,moedaLoja);
- if(price!=null)return {status:'vipe_preco_oficial_importacao',moeda:'PYG',
-   valorMinor:String(price),origem:'produtos_estoque_tratado.csv'};
  const original=quantiaOriginalProduto(produto,field);
  if(original){
    const amountMinor=parseMoney(String(original.valor),original.moeda);
@@ -127,10 +117,6 @@ export function projetarProdutoMonetario(produto,converterParaBRL){
  return {...produto,...Object.fromEntries(CAMPOS_MONETARIOS_PRODUTO.map(field=>[field,valorProdutoBRL(produto,field,converterParaBRL)]))};
 }
 export function registrarValoresProduto(form,padrao,converterParaBRL,original=null,converterDeBRL=v=>v,storeId=null){
- const precoOriginalProtegido=precoOficialVipePYG(original,'precoBRL',storeId,padrao);
- if(precoOriginalProtegido!==null &&
-   Number(String(form.precoBRL??'').replace(',','.'))!==precoOriginalProtegido)
-   throw Error('Este produto VIPE utiliza o preço oficial do catálogo original em PYG. A alteração de preço exige revisão comercial específica; nenhum valor foi alterado.');
  const anteriores=original?produtoParaFormularioMonetario(original,padrao,converterDeBRL,storeId,padrao):null;
  const campos={...original?.valoresMonetarios?.campos};
  const equivalentes=valoresProdutoParaBRL(form,padrao,converterParaBRL);

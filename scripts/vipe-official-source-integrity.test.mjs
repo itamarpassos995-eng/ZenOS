@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import official from '../src/data/vipeOfficialPrices20261031.js';
 import {precoOficialVipePYG} from '../src/core/vipeOfficialCatalog.js';
+import {apurarPrecoProdutoNativo} from '../src/core/productMoney.js';
 import {VIPE_STORE_ID} from '../src/core/vipeLegacyNative.js';
 import {calcularCarrinhoNativoPDV} from '../src/core/nativePdvAccounting.js';
 import {criarSnapshotCommercePublico,conferirCarrinhoContraSnapshot} from '../src/core/commercePublicCatalog.js';
@@ -26,13 +27,13 @@ test('all 450 imported records map to their exact contractual source prices',()=
   assert.equal(precoOficialVipePYG(p,'precoBRL',VIPE_STORE_ID,'PYG'),price);
  }
 });
-test('PDV line item is based on exact original PYG source and not todays conversion',()=>{
- const p={id:'VIPE-PROD-103',sku:'7891344018126',precoBRL:35};
- const price=precoOficialVipePYG(p,'precoBRL',VIPE_STORE_ID,'PYG');
+test('PDV line item uses the current stored price across exchange rates',()=>{
+ const p={id:'VIPE-PROD-103',sku:'7891344018126',precoBRL:47000};
+ const price=Number(apurarPrecoProdutoNativo(p,'precoBRL','PYG',{},VIPE_STORE_ID).valorMinor);
  assert.equal(calcularCarrinhoNativoPDV({itens:[{id:p.id,qtd:'2',precoOrigemPDV:{valor:price,moeda:'PYG'}}],
-  moedaLoja:'PYG',taxas:{PYG:1200},desconto:'0',storeId:VIPE_STORE_ID}).totalMinor,'80000');
+  moedaLoja:'PYG',taxas:{PYG:1200},desconto:'0',storeId:VIPE_STORE_ID}).totalMinor,'94000');
  assert.equal(calcularCarrinhoNativoPDV({itens:[{id:p.id,qtd:'2',precoOrigemPDV:{valor:price,moeda:'PYG'}}],
-  moedaLoja:'PYG',taxas:{PYG:2000},desconto:'0',storeId:VIPE_STORE_ID}).totalMinor,'80000');
+  moedaLoja:'PYG',taxas:{PYG:2000},desconto:'0',storeId:VIPE_STORE_ID}).totalMinor,'94000');
 });
 test('public commerce price also stays native to PYG when publishing VIPE source',()=>{
  const price=40000;
@@ -42,11 +43,11 @@ test('public commerce price also stays native to PYG when publishing VIPE source
  assert.equal(catalog.produtos[0].precoOriginal.valor,price);
  assert.equal(conferirCarrinhoContraSnapshot(catalog,[{id:'VIPE-PROD-103',quantidade:1}]).totalCentavos,40000);
 });
-test('stock, POS and public commerce use original catalog lookup instead of guessing by price scale',()=>{
+test('stock, POS and public commerce use registered prices without a historical catalog dependency',()=>{
  const stock=read('src/components/Produtos.jsx'),pos=read('src/components/PDV.jsx'),shop=read('src/components/CommerceSolicitacao.jsx');
  assert.match(stock,/apurarPrecoProdutoNativo\(prod,'precoBRL',moedaPadrao,taxasCambio,userId\)/);
  assert.match(pos,/precoOrigemNativaProduto\(itemParaAdicionar,clienteSelecionadoPDV\)/);
- assert.match(shop,/precoOficialVipePYG\(p,'precoBRL',lojaId,moedaPadrao\)/);
+ assert.doesNotMatch(shop + read('src/core/productMoney.js'),/vipeOfficialCatalog/);
  assert.match(shop,/precoOriginal: p\.precoOriginal\|\|quantiaOriginalProduto/);
  assert.match(pos,/produtoParaFormularioMonetario\(prod,moeda,converterDeBRL,userId,moedaPadrao\)/);
 });
