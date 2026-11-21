@@ -56,7 +56,7 @@ export function receberFiadoLegadoVipe(cliente,carteira,{
     fiadoLegadoCotacaoHistoricaPYGPorBRL:1150},
   moedaObrigacao:'PYG',valorAplicadoNativo:Number(applied),
   saldoNativo:Number(BigInt(oldTotal)-applied),
-  moedaPagamento,valorPago,recebidoBRL,
+  moedaPagamento,valorPago,recebidoBRL:receivedBRL,
   abatimentoContabilBRL:aplicadoBRL,
   variacaoCambialRealizadaBRL:Math.round((receivedBRL-aplicadoBRL)*100)/100,
   conversaoHistorica:'VIPE_1150_FROZEN',
