@@ -1258,6 +1258,13 @@ export default function App() {
       status:'confirmado',moeda:moedaPadrao,
       totalNativo:carteiras.reduce((acc,c)=>acc+c.totalNativo,0)
     };
+    // Original sale/receipt PYG evidence takes precedence over reconstructing BRL.
+    // Once a legacy debt has been partially received, keep its frozen nominal
+    // snapshot instead of replaying historical sales.
+    if(!clientes.some(c=>c.fiadoLegadoSaldoOriginalMinor!=null)){
+      const origemComprovada=apurarFiadoMoedaPadrao(clientes,moedaPadrao,historicoVendas,livroFinanceiro);
+      if(origemComprovada.status==='confirmado')return {...origemComprovada,origem:'vendas_nativas_verificadas'};
+    }
     const valores=clientes.map((c,i)=>vipeReceivableMinor(c,carteiras[i],userId,moedaPadrao)
       ?? (carteiras[i].status==='confirmado'
         ?parseMoney(String(carteiras[i].totalNativo),moedaPadrao):null));

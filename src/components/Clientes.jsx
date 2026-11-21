@@ -10,6 +10,7 @@ import { parseMoney,formatMoneyMinor,convertMinorDirect } from '../core/nativeMo
 import {formatNativeMinor,formatVerifiedOrPending,nativeCreditLimitMinor} from '../core/nativeMoneyDisplay.js';
 import {legacyCreditPYGMinor,vipeReceivableMinor,vipeLegacyPYG} from '../core/vipeLegacyNative.js';
 import {receberFiadoLegadoVipe} from '../core/vipeCreditSettlement.js';
+import {apurarFiadoMoedaPadrao} from '../core/defaultCurrencyCreditCard.js';
 
 export default function Clientes({ userId, perfilLoja = {}, commitOperacaoNegocio, livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, historicoVendas = [], setClientes, moeda, moedaPadrao='BRL', taxasCambio={}, fmt, t, tx = (pt) => pt, converterDeBRL, converterParaBRL }) {
   const [filtroPaisCliente, setFiltroPaisCliente] = useState('todos');
@@ -54,12 +55,28 @@ export default function Clientes({ userId, perfilLoja = {}, commitOperacaoNegoci
   // Legacy BRL bookkeeping is NOT the credit balance displayed to a PYG shop.
   // It is used only to detect unresolved historical credit and protect deletion.
   const carteirasNativas = useMemo(()=>new Map(clientes.map(c=>[String(c.id),apurarCarteiraNativa(c,moedaPadrao)])),[clientes,moedaPadrao]);
+  // Only customers with outstanding undocumented credit are audited against
+  // original sales/receipts; the VIPE presently has few such customers.
+  const saldoDeVendasNativas=useMemo(()=>{
+    const verificacoes=new Map();
+    for(const c of clientes){
+      if(!(Number(c.saldoDevedorBRL)>0)||c.fiadoLegadoSaldoOriginalMinor!=null)continue;
+      const carteira=apurarCarteiraNativa(c,moedaPadrao);
+      if(carteira.status==='confirmado')continue;
+      const audit=apurarFiadoMoedaPadrao([c],moedaPadrao,historicoVendas,livroFinanceiro);
+      if(audit.status==='confirmado')
+        verificacoes.set(String(c.id),parseMoney(String(audit.totalNativo),moedaPadrao));
+    }
+    return verificacoes;
+  },[clientes,moedaPadrao,historicoVendas,livroFinanceiro]);
   // Store-specific historical raw-number policy: read-only, no mutation or FX.
   // A verified native title is always preferred to the legacy numeric field.
   const saldoNativoClienteMinor = cli => {
     const r=carteirasNativas.get(String(cli.id));
-    return vipeReceivableMinor(cli,r,userId,moedaPadrao)
-      ?? (r?.status==='confirmado'?parseMoney(String(r.totalNativo),moedaPadrao):null);
+    if(r?.status==='confirmado')return parseMoney(String(r.totalNativo),moedaPadrao);
+    const comprovado=saldoDeVendasNativas.get(String(cli.id));
+    if(comprovado!=null)return comprovado;
+    return vipeReceivableMinor(cli,r,userId,moedaPadrao);
   };
   const saldosVisiveis=clientes.map(saldoNativoClienteMinor);
   const totalFiadoNativoMinor=saldosVisiveis.every(v=>v!==null)
