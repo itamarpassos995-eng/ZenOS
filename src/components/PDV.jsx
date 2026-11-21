@@ -604,7 +604,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   const abrirEdicaoProdutoPDV = (prod) => {
     setProdutoEmEdicaoPDV(prod);
     setFormProdutoPDV({
-      ...normalizarProduto(prod), ...produtoParaFormularioMonetario(prod,moeda,converterDeBRL), estoque: (prod.estoque || 0).toString(),
+      ...normalizarProduto(prod), ...produtoParaFormularioMonetario(prod,moeda,converterDeBRL,userId,moedaPadrao), estoque: (prod.estoque || 0).toString(),
       usoUnicoEncomendado: ehEncomendaUsoUnico(prod)
     });
     setModalProdutoPDVAberto(true);
