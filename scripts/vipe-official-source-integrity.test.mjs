@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import official from '../src/data/vipeOfficialPrices20261031.json' with {type:'json'};
+import official from '../src/data/vipeOfficialPrices20261031.js';
 import {precoOficialVipePYG} from '../src/core/vipeOfficialCatalog.js';
 import {VIPE_STORE_ID} from '../src/core/vipeLegacyNative.js';
 import {calcularCarrinhoNativoPDV} from '../src/core/nativePdvAccounting.js';

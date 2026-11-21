@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {apurarPrecoProdutoNativo,produtoParaFormularioMonetario,registrarValoresProduto} from '../src/core/productMoney.js';
 import {VIPE_STORE_ID} from '../src/core/vipeLegacyNative.js';
 import {vipeOfficialProduct,precoOficialVipePYG} from '../src/core/vipeOfficialCatalog.js';
-import official from '../src/data/vipeOfficialPrices20261031.json' with {type:'json'};
+import official from '../src/data/vipeOfficialPrices20261031.js';
 const vipe=VIPE_STORE_ID;
 const rates={PYG:1150,USD:0.2,EUR:0.18};
 const migrated=(id,over={})=>({id:'VIPE-PROD-'+id,sku:official.rows[id][0],

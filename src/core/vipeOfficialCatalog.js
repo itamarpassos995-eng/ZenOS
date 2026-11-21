@@ -1,4 +1,4 @@
-import official from '../data/vipeOfficialPrices20261031.json' with {type:'json'};
+import official from '../data/vipeOfficialPrices20261031.js';
 import {vipeLegacyPYG} from './vipeLegacyNative.js';
 /**
  * Read-only authoritative migration catalog. Match by imported product ID,
