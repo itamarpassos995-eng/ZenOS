@@ -1,4 +1,4 @@
-import { produtoParaFormularioMonetario, registrarValoresProduto, valorProdutoBRL, projetarProdutoMonetario, quantiaOriginalProduto, atualizarCotacaoPrecoItemPDV, recuperarPrecoVisivelRascunhoPDV } from '../core/productMoney.js';
+import { produtoParaFormularioMonetario, registrarValoresProduto, valorProdutoBRL, projetarProdutoMonetario, quantiaOriginalProduto, apurarPrecoProdutoNativo, atualizarCotacaoPrecoItemPDV, recuperarPrecoVisivelRascunhoPDV } from '../core/productMoney.js';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { normalizarProduto, normalizarCliente } from '../data';
 import { aplicarVendaAoEstoque, obterEstoqueProduto, preverBaixaEstoqueProduto } from '../core/inventory';
@@ -442,17 +442,16 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     cliente?.perfilPreco==='preco2' && prod?.habilitarPreco2 && Number(prod?.preco2BRL)>0
       ? 'preco2BRL':'precoBRL';
   const precoNativoVisualProduto=(prod,cliente) => {
-    const origem=quantiaOriginalProduto(prod,campoTabelaPDV(prod,cliente));
-    if(!origem){
-      const legacy=legacyPYGMinor(prod[campoTabelaPDV(prod,cliente)],userId,moedaPadrao);
-      if(legacy!==null)return convertMinorDirect(legacy,'PYG',moeda,taxasCambio);
-      if(moedaPadrao!=='BRL')return null;
-      const valor=Number(prod[campoTabelaPDV(prod,cliente)]||0);
-      if(!Number.isFinite(valor)||valor<0)return null;
-      return convertMinorDirect(parseMoney(valor.toFixed(2),'BRL'),'BRL',moeda,taxasCambio);
-    }
-    if(origem.moeda!==moedaPadrao)return null;
-    return convertMinorDirect(parseMoney(String(origem.valor),moedaPadrao),moedaPadrao,moeda,taxasCambio);
+    const status=apurarPrecoProdutoNativo(prod,campoTabelaPDV(prod,cliente),moedaPadrao,taxasCambio,userId);
+    if(status.valorMinor==null)return null;
+    return convertMinorDirect(status.valorMinor,moedaPadrao,moeda,taxasCambio);
+  };
+  // Explicit native quote wins in the cart over BRL compatibility fields.
+  const precoOrigemNativaProduto=(prod,cliente) => {
+    const field=campoTabelaPDV(prod,cliente);
+    const status=apurarPrecoProdutoNativo(prod,field,moedaPadrao,taxasCambio,userId);
+    return status.valorMinor==null?quantiaOriginalProduto(prod,field)
+      :{valor:Number(formatMoneyMinor(status.valorMinor,moedaPadrao)),moeda:moedaPadrao};
   };
   const precoTextoProdutoPDV=(prod,cliente) => {
     const valor=precoNativoVisualProduto(prod,cliente);
@@ -464,9 +463,12 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       :formatarNativo(valor,moeda,idioma);
   };
   const aplicarPrecoPorPerfilCliente = (prod, cliente) => {
-    if (!prod) return 0;
-    if (cliente && cliente.perfilPreco === 'preco2' && prod.habilitarPreco2 && prod.preco2BRL > 0) return valorProdutoBRL(prod,'preco2BRL',converterParaBRL);
-    return valorProdutoBRL(prod,'precoBRL',converterParaBRL);
+    if(!prod)return 0;
+    const field=campoTabelaPDV(prod,cliente);
+    const status=apurarPrecoProdutoNativo(prod,field,moedaPadrao,taxasCambio,userId);
+    if(status.valorMinor!=null)
+      return converterParaBRL(Number(formatMoneyMinor(status.valorMinor,moedaPadrao)),moedaPadrao);
+    return valorProdutoBRL(prod,field,converterParaBRL);
   };
 
   const obterProdutoCatalogoSeguro = (item, contexto = 'consulta do PDV') => {
@@ -492,7 +494,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
         const prodOriginal = obterProdutoCatalogoSeguro(item, 'reprecificação por cliente');
         const novoPrecoBRL = aplicarPrecoPorPerfilCliente(prodOriginal, cli);
         return {...item,precoPraticadoBRL:novoPrecoBRL,
-          precoOrigemPDV:quantiaOriginalProduto(prodOriginal,campoTabelaPDV(prodOriginal,cli)) || (()=>{const v=legacyPYGMinor(prodOriginal[campoTabelaPDV(prodOriginal,cli)],userId,moedaPadrao);return v===null?null:{valor:Number(v),moeda:'PYG'};})(),
+          precoOrigemPDV:precoOrigemNativaProduto(prodOriginal,cli),
           precoDigitadoOriginal:null,precoTexto:precoTextoProdutoPDV(prodOriginal,cli)};
       });
       setClienteSelecionadoPDV(cli); setNomeClienteVulso(cli.nome); setFocoInputCliente(false);
@@ -504,8 +506,8 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
     try {
       const novosItens = itensVenda.map(item => {
         const prodOriginal = obterProdutoCatalogoSeguro(item, 'retorno ao preço de balcão');
-        return {...item,precoPraticadoBRL:valorProdutoBRL(prodOriginal,'precoBRL',converterParaBRL),
-          precoOrigemPDV:quantiaOriginalProduto(prodOriginal,'precoBRL') || (()=>{const v=legacyPYGMinor(prodOriginal.precoBRL,userId,moedaPadrao);return v===null?null:{valor:Number(v),moeda:'PYG'};})(),
+        return {...item,precoPraticadoBRL:aplicarPrecoPorPerfilCliente(prodOriginal,null),
+          precoOrigemPDV:precoOrigemNativaProduto(prodOriginal,null),
           precoDigitadoOriginal:null,precoTexto:precoTextoProdutoPDV(prodOriginal,null)};
       });
       setClienteSelecionadoPDV(null); setNomeClienteVulso('');
@@ -536,7 +538,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
           return [...prev, {
             ...projetarProdutoMonetario(prodOriginal,converterParaBRL),
             snapshotMoedasProduto: prodOriginal.valoresMonetarios || null,
-            precoOrigemPDV: quantiaOriginalProduto(prodOriginal, clienteSelecionadoPDV?.perfilPreco === 'preco2' && prodOriginal.habilitarPreco2 && prodOriginal.preco2BRL > 0 ? 'preco2BRL' : 'precoBRL') || (()=>{const v=legacyPYGMinor(prodOriginal[campoTabelaPDV(prodOriginal,clienteSelecionadoPDV)],userId,moedaPadrao);return v===null?null:{valor:Number(v),moeda:'PYG'};})(),
+            precoOrigemPDV: precoOrigemNativaProduto(prodOriginal,clienteSelecionadoPDV),
             taxasCambioItem: {...taxasCambio},
             id: `${prodOriginal.id}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
             produtoOriginalId: prodOriginal.id,
@@ -780,7 +782,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       setItensVenda([ ...itensVenda, {
         ...projetarProdutoMonetario(itemParaAdicionar,converterParaBRL),
         snapshotMoedasProduto:itemParaAdicionar.valoresMonetarios||null,
-        precoOrigemPDV: quantiaOriginalProduto(itemParaAdicionar, clienteSelecionadoPDV?.perfilPreco === 'preco2' && itemParaAdicionar.habilitarPreco2 && itemParaAdicionar.preco2BRL > 0 ? 'preco2BRL' : 'precoBRL') || (()=>{const v=legacyPYGMinor(itemParaAdicionar[campoTabelaPDV(itemParaAdicionar,clienteSelecionadoPDV)],userId,moedaPadrao);return v===null?null:{valor:Number(v),moeda:'PYG'};})(),
+        precoOrigemPDV: precoOrigemNativaProduto(itemParaAdicionar,clienteSelecionadoPDV),
         taxasCambioItem:{...taxasCambio},
         id: `${itemParaAdicionar.id}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         produtoOriginalId: itemParaAdicionar.id,

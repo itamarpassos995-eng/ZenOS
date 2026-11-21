@@ -9,7 +9,11 @@ export function produtoParaFormularioMonetario(produto, moeda, converterDeBRL,st
   return {...Object.fromEntries(fields.map(field=>{
     const original=quantiaOriginalProduto(produto,field);
     const codigo=field==='custoBRL'?moedaCusto:moedaPreco;
-    const valor=original?(original.moeda===codigo?original.valor:original.valor*converterDeBRL(1,codigo)/converterDeBRL(1,original.moeda)):vipe?Number(produto[field]||0):converterDeBRL(Number(produto[field]||0),codigo);
+    const resolved=vipe?precoNativoCatalogoProduto(produto,field,moedaPadrao,null,storeId):null;
+    const valor=vipe&&resolved?.valorMinor!=null&&codigo==='PYG'
+      ?Number(formatMoneyMinor(resolved.valorMinor,'PYG'))
+      :original?(original.moeda===codigo?original.valor:original.valor*converterDeBRL(1,codigo)/converterDeBRL(1,original.moeda))
+      :vipe?Number(produto[field]||0):converterDeBRL(Number(produto[field]||0),codigo);
     return [field,Number(valor).toFixed(codigo==='PYG'?0:2)];
   })),moedaCusto,moedaPreco};
 }
@@ -77,23 +81,53 @@ export function reprecificarItemPDVPorPerfil(item,produto,campo,moedaExibida,con
    snapshotMoedasProduto:produto?.valoresMonetarios||null};
 }
 
-/** Sovereign product reading. Legacy BRL cannot silently become PYG. */
-export function apurarPrecoProdutoNativo(produto,field,moedaLoja,taxasCambio,storeId=null){
+/**
+ * VIPE compatibility for a damaged legacy price projection.
+ * Native PYG snapshots are authoritative and are NEVER revalued.
+ * Only an untagged small sale-price number is interpreted as a BRL-
+ * scaled historical projection. Costs and other tenants are untouched.
+ * This is a read-time reconstruction; it does not mutate catalog records.
+ */
+export function precoNativoCatalogoProduto(produto,field,moedaLoja,taxasCambio,storeId=null){
  const original=quantiaOriginalProduto(produto,field);
- if(!original){
-   const vipe=legacyPYGMinor(produto?.[field],storeId,moedaLoja);
-   if(vipe!==null)return {status:'vipe_legado_nativo',moeda:'PYG',valorMinor:vipe,origem:'cadastro_legado_sem_cambio'};
-   if(moedaLoja==='BRL'&&Number.isFinite(Number(produto?.[field]))&&Number(produto[field])>=0)
-     return {status:'confirmado_compatibilidade_brl',moeda:'BRL',
-       valorMinor:parseMoney(Number(produto[field]).toFixed(2),'BRL')};
-   return {status:'pendente_origem',moeda:moedaLoja,valorMinor:null};
+ // Some VIPE records were erroneously stored as tiny PYG sale snapshots.
+ // Only correct such a snapshot when its separately stored PYG cost proves
+ // it is below cost by at least one order of magnitude. Do not touch normal
+ // PYG snapshots or any other tenant.
+ if(vipeLegacyPYG(storeId,moedaLoja) && ['precoBRL','preco2BRL','preco3BRL'].includes(field)
+   && original?.moeda==='PYG' && original.valor>0 && original.valor<1000){
+   const costOriginal=quantiaOriginalProduto(produto,'custoBRL');
+   const costPYG=costOriginal?.moeda==='PYG'?costOriginal.valor:null;
+   if(costPYG!=null && costPYG>=1000 && original.valor*10<costPYG){
+     const cents=BigInt(Math.round(original.valor*100));
+     return {status:'vipe_preco_snapshot_escala_brl',moeda:'PYG',
+       valorMinor:((cents*1150n+50n)/100n).toString(),
+       origem:'anomalia_preco_abaixo_custo_nativo'};
+   }
  }
- const amountMinor=parseMoney(String(original.valor),original.moeda);
- if(original.moeda!==moedaLoja)
-   return {status:'pendente_moeda_contratual',moeda:moedaLoja,valorMinor:null,
-     moedaOrigem:original.moeda,valorOriginalMinor:amountMinor};
- return {status:'confirmado',moeda:moedaLoja,valorMinor:amountMinor,
-   moedaOrigem:original.moeda,valorOriginalMinor:amountMinor};
+ if(original){
+   if(original.moeda!==moedaLoja)return {status:'pendente_moeda_contratual',moeda:moedaLoja,valorMinor:null,
+     moedaOrigem:original.moeda,valorOriginalMinor:parseMoney(String(original.valor),original.moeda)};
+   return {status:'confirmado',moeda:moedaLoja,valorMinor:parseMoney(String(original.valor),moedaLoja),
+     moedaOrigem:original.moeda,valorOriginalMinor:parseMoney(String(original.valor),original.moeda)};
+ }
+ const base=Number(produto?.[field]);
+ const isPrice=['precoBRL','preco2BRL','preco3BRL'].includes(field);
+ const vipe=vipeLegacyPYG(storeId,moedaLoja);
+ if(vipe&&isPrice&&Number.isFinite(base)&&base>0&&base<1000){
+   const amountMinor=BigInt(Math.round(base*100));
+   return {status:'vipe_preco_brl_historico',moeda:'PYG',
+     valorMinor:((amountMinor*1150n+50n)/100n).toString(),origem:'projecao_brl_sem_snapshot'};
+ }
+ if(vipe&&Number.isFinite(base)&&base>=0)
+   return {status:'vipe_legado_nativo',moeda:'PYG',valorMinor:String(Math.round(base)),origem:'cadastro_legado_sem_cambio'};
+ if(moedaLoja==='BRL'&&Number.isFinite(base)&&base>=0)
+   return {status:'confirmado_compatibilidade_brl',moeda:'BRL',valorMinor:parseMoney(base.toFixed(2),'BRL')};
+ return {status:'pendente_origem',moeda:moedaLoja,valorMinor:null};
+}
+
+export function apurarPrecoProdutoNativo(produto,field,moedaLoja,taxasCambio,storeId=null){
+ return precoNativoCatalogoProduto(produto,field,moedaLoja,taxasCambio,storeId);
 }
 export function formatarPrecoProdutoNativo(produto,field,moedaLoja,taxasCambio,locale='es-PY',storeId=null){
  const r=apurarPrecoProdutoNativo(produto,field,moedaLoja,taxasCambio,storeId);

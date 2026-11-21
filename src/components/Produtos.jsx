@@ -364,7 +364,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
     const margem = preco > 0 ? (((preco - custo) / preco) * 100).toFixed(1) : '40';
     setFormProduto({
       ...normalizarProduto(prod),
-      ...produtoParaFormularioMonetario(prod,moeda,converterDeBRL),
+      ...produtoParaFormularioMonetario(prod,moeda,converterDeBRL,userId,moedaPadrao),
       margemDesejada: margem,
       estoqueVitrine: (prod.estoqueVitrine ?? prod.estoque ?? 0).toString(),
       estoqueGalpao: (prod.estoqueGalpao ?? 0).toString(),
@@ -817,7 +817,7 @@ export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos,
                       <td style={{ padding: '16px 12px', textAlign: 'right', fontWeight: 700 }}>
                         <div style={{ display: 'grid', gridTemplateColumns: 'auto auto', justifyContent: 'end', alignItems: 'center', gap: '4px 6px', fontSize: '12px', lineHeight: '16px', whiteSpace: 'nowrap' }}>
                           <span title={tx('Último custo do fornecedor','Último costo del proveedor','Last supplier cost')} style={{ backgroundColor: 'rgba(168, 85, 247, 0.08)', border: '1px solid rgba(168, 85, 247, 0.2)', borderRadius: '4px', padding: '0 4px', fontSize: '9px', fontWeight: 800, color: '#c4b5fd', textAlign: 'center' }}>CF</span>
-                          <span style={{ color: '#c4b5fd' }}>{prod.ultimoCustoFornecedorOriginal?.moeda&&prod.ultimoCustoFornecedorOriginal?.valor!=null ? new Intl.NumberFormat(moedaPadrao==='PYG'?'es-PY':'pt-BR',{style:'currency',currency:prod.ultimoCustoFornecedorOriginal.moeda,minimumFractionDigits:prod.ultimoCustoFornecedorOriginal.moeda==='PYG'?0:2,maximumFractionDigits:prod.ultimoCustoFornecedorOriginal.moeda==='PYG'?0:2}).format(Number(prod.ultimoCustoFornecedorOriginal.valor)) : tx('A conciliar','A conciliar','Reconcile')}</span>
+                          <span style={{ color: '#c4b5fd' }}>{prod.ultimoCustoFornecedorOriginal?.moeda&&prod.ultimoCustoFornecedorOriginal?.valor!=null ? new Intl.NumberFormat(moedaPadrao==='PYG'?'es-PY':'pt-BR',{style:'currency',currency:prod.ultimoCustoFornecedorOriginal.moeda,minimumFractionDigits:prod.ultimoCustoFornecedorOriginal.moeda==='PYG'?0:2,maximumFractionDigits:prod.ultimoCustoFornecedorOriginal.moeda==='PYG'?0:2}).format(Number(prod.ultimoCustoFornecedorOriginal.valor)) : tx('Sem custo de fornecedor','Sin costo de proveedor','No supplier cost')}</span>
                           <span title={tx('Custo médio/efetivo atual','Costo medio/efectivo actual','Current average/effective cost')} style={{ backgroundColor: 'rgba(34, 211, 238, 0.08)', border: '1px solid rgba(34, 211, 238, 0.2)', borderRadius: '4px', padding: '0 4px', fontSize: '9px', fontWeight: 800, color: '#67e8f9', textAlign: 'center' }}>CMV</span>
                           <span style={{ color: '#67e8f9' }}>{rotuloNativoProduto(prod,'custoBRL')}</span>
                         </div>

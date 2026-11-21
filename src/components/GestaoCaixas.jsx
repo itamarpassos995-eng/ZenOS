@@ -93,8 +93,24 @@ export default function GestaoCaixas({userId,sessoesCaixa=[],historicoVendas=[],
    else if(!e.shiftKey&&document.activeElement===itens.at(-1)){e.preventDefault();itens[0]?.focus();}
   }
  };
+ // Management history deliberately includes EVERY recorded movement for the
+ // selected shift. Sales are also listed independently rather than relying
+ // on their existence as a cash movement (some historical sales lack one).
  const movimentos=detalhe?caixaMovimentos.filter(m=>String(m.sessaoId)===String(detalhe.id)):[];
  const vendas=detalhe?vendasDaSessao({sessao:detalhe,historicoVendas}):[];
+ const historicoDoTurno=[
+   ...movimentos.map(m=>({id:'mov:'+String(m.id),data:m.createdAt||m.dataHora,
+     descricao:m.descricao||String(m.tipo||'Movimentação'),ref:String(m.id||'—'),
+     valores:m.detalhesMoedasNativas?moedas.filter(c=>registrado(m.detalhesMoedasNativas[c])&&Number(m.detalhesMoedasNativas[c])!==0)
+       .map(c=>nativo(m.detalhesMoedasNativas[c],c)).join(' · ')
+       :registrado(m.valorBRL)?nativo(m.valorBRL,'BRL'):tx('Valor não informado','Importe no informado','Amount unavailable')})),
+   ...vendas.map(v=>({id:'venda:'+String(v.id),data:v.createdAt||v.dataHora,
+     descricao:tx('Venda registrada','Venta registrada','Recorded sale')+' · '+String(v.clienteNome||v.nomeCliente||''),
+     ref:String(v.id||'—'),
+     valores:v.moedaDocumento&&registrado(v.totalOriginal)?nativo(v.totalOriginal,v.moedaDocumento)
+       :registrado(v.totalBRL)?nativo(v.totalBRL,'BRL')
+       :tx('Total histórico não informado','Total histórico no informado','Historical total unavailable')})),
+ ].sort((a,b)=>(Date.parse(b.data||'')||0)-(Date.parse(a.data||'')||0));
  const canais=[['pixEntradas',tx('PIX recebido','PIX recibido','PIX received')],['pixSaidas',tx('PIX estornado','PIX revertido','PIX reversed')],['pixLiquido',tx('PIX líquido','PIX neto','Net PIX')],['cartaoCreditoLiquido',tx('Cartão de crédito líquido','Tarjeta de crédito neta','Net credit card')],['cartaoDebitoLiquido',tx('Cartão de débito líquido','Tarjeta de débito neta','Net debit card')]];
  const rotuloTipo=tipo=>({suprimento:tx('Suprimento','Refuerzo','Cash in'),sangria:tx('Sangria','Retiro','Cash out'),recebimento_fiado:tx('Recebimento de cliente','Cobro de cliente','Customer receipt'),saida_despesa:tx('Pagamento de despesa','Pago de gasto','Expense payment'),saida_compra:tx('Pagamento de compra','Pago de compra','Purchase payment'),saida_devolucao:tx('Devolução','Devolución','Refund'),pagamento_despesa:tx('Pagamento de despesa','Pago de gasto','Expense payment'),venda:tx('Venda','Venta','Sale')}[tipo]||tx('Movimentação financeira','Movimiento financiero','Financial entry'));
  return <div className="cash-audit">
@@ -138,7 +154,11 @@ export default function GestaoCaixas({userId,sessoesCaixa=[],historicoVendas=[],
     <div className="cash-audit__notice"><strong>{diferencaHistoricaCaixa(detalhe).pendente?tx('Auditoria pendente — diferença indeterminada','Auditoría pendiente — diferencia indeterminada','Audit pending — undetermined difference'):tx('Diferença registrada','Diferencia registrada','Recorded difference')+': '+diferencaNativa(detalhe)}</strong><p>{tx('Os valores desta via correspondem ao registro original. Campos sem informação aparecem como “—”. A emissão da cópia não altera o fechamento.','Los valores corresponden al registro original. Los campos sin información aparecen como “—”. Emitir una copia no modifica el cierre.','Amounts come from the original record. Missing fields show “—”. Printing a copy does not modify the closing record.')}</p>{(detalhe.pendenciasConciliacao||[]).map((p,i)=><p key={i}>{p}</p>)}</div>
     <section><h3>{tx('Meios eletrônicos registrados','Medios electrónicos registrados','Recorded electronic payments')}</h3><div className="zen-cash-report__channels">{canais.map(([key,label])=><div key={key}><span>{label}</span><strong>{moedaPadrao==='BRL'?equivalente(detalhe.conciliacaoEletronica?.[key]):tx('Consultar composição por moeda','Consultar composición por moneda','See currency breakdown')}</strong></div>)}</div></section>
     <section><h3>{tx('Cotações do fechamento','Cotizaciones del cierre','Closing exchange rates')}</h3>{detalhe.taxasCambioFechamento?<div className="zen-cash-report__channels">{moedas.filter(m=>m!=='BRL').map(m=><div key={m}><span>{m}</span><strong>{Number(detalhe.taxasCambioFechamento[m])>0?`1 BRL = ${Number(detalhe.taxasCambioFechamento[m]).toLocaleString(idioma==='es'?'es-PY':'pt-BR',{maximumFractionDigits:8})} ${m}`:'—'}</strong></div>)}</div>:<p>{tx('Cotação histórica não registrada. Nenhum câmbio atual foi aplicado.','Cotización histórica no registrada. No se aplicó un cambio actual.','Historical rate not recorded. No current exchange rate was applied.')}</p>}</section>
-    <section><h3>{tx('Movimentações do turno','Movimientos del turno','Shift movements')} · {movimentos.length}</h3>{movimentos.length?<table><thead><tr><th>{tx('Data','Fecha','Date')}</th><th>{tx('Descrição','Descripción','Description')}</th><th>{tx('Valor registrado','Importe registrado','Recorded amount')}</th></tr></thead><tbody>{movimentos.map(m=><tr key={m.id}><td>{data(m.createdAt||m.dataHora)}</td><td>{m.descricao||rotuloTipo(m.tipo)}<small>{m.id}</small></td><td>{m.detalhesMoedasNativas?moedas.filter(c=>registrado(m.detalhesMoedasNativas[c])&&Number(m.detalhesMoedasNativas[c])!==0).map(c=><span key={c}>{nativo(m.detalhesMoedasNativas[c],c)} </span>):equivalente(m.valorBRL)}</td></tr>)}</tbody></table>:<p>{tx('Não há movimentações operacionais vinculadas a este turno no histórico disponível.','No hay movimientos operativos vinculados a este turno en el historial disponible.','No linked operational movements in the available history.')}</p>}</section>
+    <section><h3>{tx('Movimentações e vendas do turno','Movimientos y ventas del turno','Shift movements and sales')} · {historicoDoTurno.length}</h3>
+     {historicoDoTurno.length?<table><thead><tr><th>{tx('Data','Fecha','Date')}</th><th>{tx('Descrição','Descripción','Description')}</th><th>{tx('Valor registrado','Importe registrado','Recorded amount')}</th></tr></thead><tbody>
+       {historicoDoTurno.map(h=><tr key={h.id}><td>{data(h.data)}</td><td>{h.descricao}<small>{h.ref}</small></td><td>{h.valores}</td></tr>)}
+      </tbody></table>:<p>{tx('Não há movimentos nem vendas vinculados ao turno no histórico disponível.','No hay movimientos ni ventas vinculadas al turno en el historial disponible.','No linked movements or sales in available history.')}</p>}
+    </section>
     <footer><span>{vendas.length} {tx('vendas vinculadas','ventas vinculadas','linked sales')}</span><span>{tx('Responsável pelo fechamento','Responsable del cierre','Closed by')}: {detalhe.auditadoPor||operador(detalhe)}</span><strong>ZenOS</strong></footer>
    </article>
   </div>,document.body)}
