@@ -1,6 +1,7 @@
 import { interpretarValorMonetario } from './cashMoneyInput.js';
 import { parseMoney,formatMoneyMinor,convertMinorDirect } from './nativeMoneyKernel.js';
 import {legacyPYGMinor,vipeLegacyPYG} from './vipeLegacyNative.js';
+import {precoOficialVipePYG} from './vipeOfficialCatalog.js';
 const fields=['custoBRL','precoBRL','preco2BRL','preco3BRL'];
 export function produtoParaFormularioMonetario(produto, moeda, converterDeBRL,storeId=null,moedaPadrao=moeda) {
   const vipe=vipeLegacyPYG(storeId,moedaPadrao);
@@ -89,43 +90,28 @@ export function reprecificarItemPDVPorPerfil(item,produto,campo,moedaExibida,con
  * This is a read-time reconstruction; it does not mutate catalog records.
  */
 export function precoNativoCatalogoProduto(produto,field,moedaLoja,taxasCambio,storeId=null){
+ const price=precoOficialVipePYG(produto,field,storeId,moedaLoja);
+ if(price!=null)return {status:'vipe_preco_oficial_importacao',moeda:'PYG',
+   valorMinor:String(price),origem:'produtos_estoque_tratado.csv'};
  const original=quantiaOriginalProduto(produto,field);
- // Some VIPE records were erroneously stored as tiny PYG sale snapshots.
- // Only correct such a snapshot when its separately stored PYG cost proves
- // it is below cost by at least one order of magnitude. Do not touch normal
- // PYG snapshots or any other tenant.
- if(vipeLegacyPYG(storeId,moedaLoja) && ['precoBRL','preco2BRL','preco3BRL'].includes(field)
-   && original?.moeda==='PYG' && original.valor>0 && original.valor<1000){
-   const costOriginal=quantiaOriginalProduto(produto,'custoBRL');
-   const costPYG=costOriginal?.moeda==='PYG'?costOriginal.valor:null;
-   if(costPYG!=null && costPYG>=1000 && original.valor*10<costPYG){
-     const cents=BigInt(Math.round(original.valor*100));
-     return {status:'vipe_preco_snapshot_escala_brl',moeda:'PYG',
-       valorMinor:((cents*1150n+50n)/100n).toString(),
-       origem:'anomalia_preco_abaixo_custo_nativo'};
-   }
- }
  if(original){
-   if(original.moeda!==moedaLoja)return {status:'pendente_moeda_contratual',moeda:moedaLoja,valorMinor:null,
-     moedaOrigem:original.moeda,valorOriginalMinor:parseMoney(String(original.valor),original.moeda)};
-   return {status:'confirmado',moeda:moedaLoja,valorMinor:parseMoney(String(original.valor),moedaLoja),
-     moedaOrigem:original.moeda,valorOriginalMinor:parseMoney(String(original.valor),original.moeda)};
+   const amountMinor=parseMoney(String(original.valor),original.moeda);
+   if(original.moeda!==moedaLoja)
+     return {status:'pendente_moeda_contratual',moeda:moedaLoja,valorMinor:null,
+       moedaOrigem:original.moeda,valorOriginalMinor:amountMinor};
+   return {status:'confirmado',moeda:moedaLoja,valorMinor:amountMinor,
+     moedaOrigem:original.moeda,valorOriginalMinor:amountMinor};
  }
  const base=Number(produto?.[field]);
- const isPrice=['precoBRL','preco2BRL','preco3BRL'].includes(field);
- const vipe=vipeLegacyPYG(storeId,moedaLoja);
- if(vipe&&isPrice&&Number.isFinite(base)&&base>0&&base<1000){
-   const amountMinor=BigInt(Math.round(base*100));
-   return {status:'vipe_preco_brl_historico',moeda:'PYG',
-     valorMinor:((amountMinor*1150n+50n)/100n).toString(),origem:'projecao_brl_sem_snapshot'};
- }
- if(vipe&&Number.isFinite(base)&&base>=0)
-   return {status:'vipe_legado_nativo',moeda:'PYG',valorMinor:String(Math.round(base)),origem:'cadastro_legado_sem_cambio'};
+ // Products added after migration never inherit a historical FX multiplier.
+ const native=legacyPYGMinor(produto?.[field],storeId,moedaLoja);
+ if(native!=null)return {status:'vipe_legado_nativo',moeda:'PYG',valorMinor:native,
+   origem:'cadastro_sem_snapshot'};
  if(moedaLoja==='BRL'&&Number.isFinite(base)&&base>=0)
-   return {status:'confirmado_compatibilidade_brl',moeda:'BRL',valorMinor:parseMoney(base.toFixed(2),'BRL')};
+   return {status:'confirmado_compatibilidade_brl',moeda:'BRL',
+     valorMinor:parseMoney(base.toFixed(2),'BRL')};
  return {status:'pendente_origem',moeda:moedaLoja,valorMinor:null};
 }
-
 export function apurarPrecoProdutoNativo(produto,field,moedaLoja,taxasCambio,storeId=null){
  return precoNativoCatalogoProduto(produto,field,moedaLoja,taxasCambio,storeId);
 }
