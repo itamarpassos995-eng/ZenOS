@@ -107,11 +107,13 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
         const recuperado = vipeRascunhoLegado
           ? recuperarPrecoVisivelRascunhoPDV(item, moeda, converterParaBRL, converterDeBRL)
           : item;
-        return atualizarCotacaoPrecoItemPDV(recuperado, moeda, converterParaBRL, converterDeBRL);
+        // Do not overwrite item prices when FX rates change. Recovered
+        // historic counter drafts are handled separately, never re-priced.
+        return recuperado;
       });
       return atualizados.every((item, i) => item === anteriores[i]) ? anteriores : atualizados;
     });
-  }, [taxasCambio, moeda, moedaPadrao, rascunhoHidratado, pagamentosLancados.length, userId, avisoRascunhoRecuperado]);
+  }, [moeda, moedaPadrao, rascunhoHidratado, pagamentosLancados.length, userId, avisoRascunhoRecuperado]);
 
   const [formaSelecionada, setFormaSelecionada] = useState('dinheiro_brl');
   const [valorLancamentoInput, setValorLancamentoInput] = useState('');
@@ -446,7 +448,8 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       if(!Number.isFinite(valor)||valor<0)return null;
       return convertMinorDirect(parseMoney(valor.toFixed(2),'BRL'),'BRL',moeda,taxasCambio);
     }
-    return convertMinorDirect(parseMoney(String(origem.valor),origem.moeda),origem.moeda,moeda,taxasCambio);
+    if(origem.moeda!==moedaPadrao)return null;
+    return convertMinorDirect(parseMoney(String(origem.valor),moedaPadrao),moedaPadrao,moeda,taxasCambio);
   };
   const precoTextoProdutoPDV=(prod,cliente) => {
     const valor=precoNativoVisualProduto(prod,cliente);

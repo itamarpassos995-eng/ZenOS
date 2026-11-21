@@ -85,10 +85,11 @@ export function apurarPrecoProdutoNativo(produto,field,moedaLoja,taxasCambio){
    return {status:'pendente_origem',moeda:moedaLoja,valorMinor:null};
  }
  const amountMinor=parseMoney(String(original.valor),original.moeda);
- const convertedMinor=convertMinorDirect(amountMinor,original.moeda,moedaLoja,taxasCambio);
- return {status:original.moeda===moedaLoja?'confirmado':'convertido_informativo',
-   moeda:moedaLoja,valorMinor:convertedMinor,moedaOrigem:original.moeda,
-   valorOriginalMinor:amountMinor};
+ if(original.moeda!==moedaLoja)
+   return {status:'pendente_moeda_contratual',moeda:moedaLoja,valorMinor:null,
+     moedaOrigem:original.moeda,valorOriginalMinor:amountMinor};
+ return {status:'confirmado',moeda:moedaLoja,valorMinor:amountMinor,
+   moedaOrigem:original.moeda,valorOriginalMinor:amountMinor};
 }
 export function formatarPrecoProdutoNativo(produto,field,moedaLoja,taxasCambio,locale='es-PY'){
  const r=apurarPrecoProdutoNativo(produto,field,moedaLoja,taxasCambio);

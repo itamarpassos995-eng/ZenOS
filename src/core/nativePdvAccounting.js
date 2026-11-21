@@ -39,7 +39,10 @@ export function calcularCarrinhoNativoPDV({itens,desconto,moedaDesconto,moedaLoj
  requireCurrency(moedaLoja);
  const precos=(itens||[]).map(item=>{
   const src=fontePrecoNativa(item,moedaLoja);
-  const unitMinor=convertMinorDirect(src.amountMinor,src.currency,moedaLoja,taxas);
+  // A product whose only proven price is in another currency does NOT have
+  // a fixed contractual store price. Do not create one using today's FX.
+  if(src.currency!==moedaLoja)throw Error('Preço sem valor contratual fixo em '+moedaLoja+': concilie o produto.');
+  const unitMinor=src.amountMinor;
   const quantity=Number(item.qtd);
   if(!Number.isSafeInteger(quantity)||quantity<=0)throw Error('Quantidade do item inválida');
   return {id:item.id,currency:moedaLoja,priceMinor:unitMinor,quantity,
