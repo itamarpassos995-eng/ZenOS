@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --mode homologacao",
     "dev:mobile": "vite --mode homologacao --host 0.0.0.0",
-    "build": "node --test scripts/native-money-kernel.test.mjs scripts/native-operational-accounting.test.mjs scripts/native-pdv-accounting.test.mjs scripts/native-receivables.test.mjs scripts/native-credit-guard.test.mjs scripts/native-product-money.test.mjs scripts/default-currency-credit-card.test.mjs scripts/native-money-display.test.mjs scripts/native-client-display-integration.test.mjs scripts/native-store-price-origin.test.mjs scripts/vipe-legacy-unblock.test.mjs scripts/blind-cash-privacy.test.mjs scripts/blind-cash-extra-leaks.test.mjs && vite build",
+    "build": "node --test scripts/native-money-kernel.test.mjs scripts/native-operational-accounting.test.mjs scripts/native-pdv-accounting.test.mjs scripts/native-receivables.test.mjs scripts/native-credit-guard.test.mjs scripts/native-product-money.test.mjs scripts/default-currency-credit-card.test.mjs scripts/native-money-display.test.mjs scripts/native-client-display-integration.test.mjs scripts/native-store-price-origin.test.mjs scripts/vipe-legacy-unblock.test.mjs scripts/blind-cash-privacy.test.mjs scripts/blind-cash-extra-leaks.test.mjs scripts/vipe-historical-currency.test.mjs scripts/vipe-historic-operational.test.mjs && vite build",
     "preview": "vite preview",
     "test:att01": "node scripts/att01-static-check.mjs",
     "dev:test": "npx --yes firebase-tools@15.30.2 emulators:exec --only auth,firestore --project demo-zenos-local \"npm run dev\"",

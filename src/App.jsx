@@ -90,7 +90,7 @@ import { obterComposicaoHistoricaCaixa, formatarDinheiroNativo } from './core/ca
 import { apresentarMovimentoNaMoedaPadrao } from './core/defaultCurrencyPresentation.js';
 import { apurarFiadoMoedaPadrao } from './core/defaultCurrencyCreditCard.js';
 import { apurarCarteiraNativa } from './core/nativeReceivables.js';
-import {legacyPYGMinor} from './core/vipeLegacyNative.js';
+import {vipeReceivableMinor} from './core/vipeLegacyNative.js';
 import { parseMoney,formatMoneyMinor,convertMinorDirect } from './core/nativeMoneyKernel.js';
 import {formatNativeMinor,formatNativeDecimal,nativeCurrencySymbol} from './core/nativeMoneyDisplay.js';
 import { resolverMoedaExibidaAoCarregarConfiguracao } from './core/storeDefaultCurrency.js';
@@ -1258,12 +1258,12 @@ export default function App() {
       status:'confirmado',moeda:moedaPadrao,
       totalNativo:carteiras.reduce((acc,c)=>acc+c.totalNativo,0)
     };
-    const valores=clientes.map((c,i)=>carteiras[i].status==='confirmado'
-      ?parseMoney(String(carteiras[i].totalNativo),moedaPadrao)
-      :legacyPYGMinor(c.saldoDevedorBRL,userId,moedaPadrao));
+    const valores=clientes.map((c,i)=>vipeReceivableMinor(c,carteiras[i],userId,moedaPadrao)
+      ?? (carteiras[i].status==='confirmado'
+        ?parseMoney(String(carteiras[i].totalNativo),moedaPadrao):null));
     if(valores.every(v=>v!==null))return {status:'confirmado',moeda:moedaPadrao,
       totalNativo:Number(formatMoneyMinor(valores.reduce((a,v)=>a+BigInt(v),0n).toString(),moedaPadrao)),
-      origem:'vipe_numerico_legado_sem_cambio'};
+      origem:'vipe_credito_historico_1150'};
     return apurarFiadoMoedaPadrao(clientes,moedaPadrao,historicoVendas,livroFinanceiro);
   },[clientes,moedaPadrao,historicoVendas,livroFinanceiro,userId]);
   const clientesComFiadoAberto = useMemo(() => clientes.filter(c => Number(c?.saldoDevedorBRL)>0).length,[clientes]);
@@ -2232,8 +2232,8 @@ export default function App() {
                   : `${clientesComFiadoAberto} ${tx('clientes com dívida','clientes con deuda','customers owing')}`}
                 detalhe={!valoresTopoVisiveis ? tx('Valores ocultos','Valores ocultos','Hidden values')
                   : fiadoPainelMoedaPadrao.status==='confirmado'
-                  ? (fiadoPainelMoedaPadrao.origem==='vipe_numerico_legado_sem_cambio'
-                    ? tx('Saldo cadastrado em PYG • sem conversão','Saldo registrado en PYG • sin conversión','Registered PYG balance • no conversion')
+                  ? (fiadoPainelMoedaPadrao.origem==='vipe_credito_historico_1150'
+                    ? tx('Saldo histórico reconstruído • cotação base 1.150','Saldo histórico reconstruido • cambio base 1.150','Historical balance reconstructed • base rate 1150')
                     : tx('Saldo comprovado na moeda padrão','Saldo comprobado en la moneda predeterminada','Verified default currency balance'))
                   : tx('Histórico sem origem nativa confirmada','Histórico sin moneda nativa confirmada','Historical currency unverified')}
                 tone="purple" trailing="▥" />
@@ -2263,28 +2263,6 @@ export default function App() {
                         <button onClick={() => { setTipoMovCaixa('sangria'); setModalCaixaAberto(true); }}>− {tx('Saída (Sangria)','Salida (Retiro)','Cash Out (Withdrawal)')}</button>
                         <button onClick={() => { setTipoMovCaixa('fechamento'); setModalCaixaAberto(true); }}>🔒 {tx('Encerrar Turno','Cerrar Turno','Close Shift')}</button>
                       </div>
-                      <div className="zen-movements">{movsSessao.length === 0 ? <div className="zen-movement"><span>{tx('Nenhuma movimentação neste turno.','Ningún movimiento en este turno.','No movements in this shift.')}</span></div> : movsSessao.slice(0,6).map(m => {
-                        const apresentacao = apresentarMovimentoNaMoedaPadrao(m,moedaPadrao);
-                        const composicao = apresentacao.composicao;
-                        return <div className="zen-movement" key={m.id}>
-                          <div style={{display:'flex',flexDirection:'column',gap:4,minWidth:0}}>
-                            <span>{m.tipo === 'suprimento' ? tx('Entrada','Entrada','Cash In') : tx('Saída','Salida','Cash Out')} • {m.descricao}</span>
-                            {composicao.comprovada
-                              ? <div style={{fontSize:11,color:'#94a3b8',display:'flex',flexWrap:'wrap',columnGap:9,rowGap:3}}>
-                                  {composicao.moedas.map(({moeda,valor})=><span key={moeda}>{formatarDinheiroNativo(valor,moeda,idioma)}</span>)}
-                                </div>
-                              : <small style={{color:'#fbbf24'}}>{tx('Movimentação histórica — composição monetária não disponível.','Movimiento histórico — composición monetaria no disponible.','Historical movement — currency breakdown unavailable.')}</small>}
-                          </div>
-                          <div style={{textAlign:'right',minWidth:95}}>
-                            <strong>{apresentacao.moedaPrincipal
-                              ? `${m.tipo === 'suprimento' ? '+' : '-'}${formatarDinheiroNativo(apresentacao.valorPrincipal,apresentacao.moedaPrincipal,idioma)}`
-                              : apresentacao.pendente
-                                ? tx('Moeda não comprovada','Moneda no comprobada','Currency unverified')
-                                : tx('Movimento multimoeda','Movimiento multimoneda','Multi-currency movement')}</strong>
-
-                          </div>
-                        </div>;
-                      })}</div>
                     </>}
                   </div>
                 </section>

@@ -79,7 +79,7 @@ export async function persistV2BusinessOperationSafe({db,userId,changes=[],finan
      const fx=guards.find(g=>g?.type==='cash_close_exchange_rates_match');
      if(fx){const config=await tx.get(doc(db,'lojas',String(userId),'dados','configuracoes'));
       if(config.data()?.taxasCambio&&!exchangeRateSnapshotsEqual(config.data().taxasCambio,fx.taxas))throw v2Error('ZENOS_CASH_FX_CHANGED','Cotação mudou; refaça o fechamento.');}
-     checks.assertBusinessGuards(remote,guards);checks.assertStockEventsAgainstRemote(remote,stockEvents);
+     checks.assertBusinessGuards(remote,guards,userId);checks.assertStockEventsAgainstRemote(remote,stockEvents);
      const next=sequence+1,revisions={...baseRevisions},fieldCounts={...(head.data().fieldCounts||Object.fromEntries(Object.entries(head.data().fieldManifest).filter(([,m])=>m.kind==='array').map(([f,m])=>[f,m.count])))},patches=[],writes=[],confirmedValues={},pendingEntityChecks=[];
      for(const c of valid){
       let merged=mergeV1FieldThreeWay({field:c.field,baseValue:c.baseValue,localValue:c.value,remoteValue:remote[c.field]});

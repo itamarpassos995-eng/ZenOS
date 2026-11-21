@@ -24,7 +24,7 @@ import { validarCredencialGerencial } from '../core/accessControl';
 export default function Produtos({ commitOperacaoNegocio, produtos, setProdutos, moeda, moedaPadrao='BRL', taxasCambio={}, converterDeBRL = v=>v, converterParaBRL = v=>v, fmt, t, tx, fornecedoresGlobais = [], userId, operadorAtivo, planoLoja = 'basico', historicoVendas = [], historicoCompras = [], patenteUsuario, regrasDesconto, vendedores = [] }) {
   const rotuloNativoProduto=(prod,campo) => formatarPrecoProdutoNativo(
     prod,campo,moedaPadrao,taxasCambio,moedaPadrao==='PYG'?'es-PY':'pt-BR',userId) ||
-    tx('A conciliar','A conciliar','Reconciliation required');
+    tx('Preço não informado','Precio no informado','Price not provided');
   const [gruposCadastrados, setGruposCadastrados] = useState(['Tintas Acrílicas', 'Colorimetria & Pigmentos', 'Massas e Complementos', 'Serviços Especializados', 'Acessórios & Ferramentas']);
   const [filtroGrupo, setFiltroGrupo] = useState('todos');
   const [buscaProdutoTexto, setBuscaProdutoTexto] = useState('');

@@ -134,7 +134,7 @@ const applyGuardedEntityRemovals = ({ field, mergedValue, removeEntityIds, guard
   return mergedValue.filter(entity => !idsToRemove.has(String(entity?.id)));
 };
 
-const assertBusinessGuards = (data, guards = []) => {
+const assertBusinessGuards = (data, guards = [], storeId = null) => {
   for (const guard of guards || []) {
     if (!guard?.type) continue;
     if (guard.type === 'entity_field_equals') {
@@ -237,7 +237,7 @@ const assertBusinessGuards = (data, guards = []) => {
       }
     } else if (guard.type === 'client_credit_capacity_native') {
       const cliente=findEntity(data?.clientes,guard.clientId,'id');
-      const resultado=validarCapacidadeCreditoNativa(cliente,guard.moeda,guard.amountMinor);
+      const resultado=validarCapacidadeCreditoNativa(cliente,guard.moeda,guard.amountMinor,storeId);
       if(!resultado.ok)failGuard(
         guard.message||'Saldo ou limite de crédito nativo não conciliado ou excedido.',
         resultado.codigo||'ZENOS_NATIVE_CREDIT_CONFLICT'
@@ -507,7 +507,7 @@ export const persistV1BusinessOperationSafe = async ({
         };
       }
 
-      assertBusinessGuards(data, guards);
+      assertBusinessGuards(data, guards, userId);
       assertStockEventsAgainstRemote(data, stockEvents);
 
       const payload = {};

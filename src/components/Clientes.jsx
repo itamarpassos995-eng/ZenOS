@@ -8,7 +8,8 @@ import { auditarVinculosFiado, encontrarConflitosIdsRecebimento } from '../core/
 import { apurarCarteiraNativa, receberTituloNativo } from '../core/nativeReceivables.js';
 import { parseMoney,formatMoneyMinor,convertMinorDirect } from '../core/nativeMoneyKernel.js';
 import {formatNativeMinor,formatVerifiedOrPending,nativeCreditLimitMinor} from '../core/nativeMoneyDisplay.js';
-import {legacyPYGMinor} from '../core/vipeLegacyNative.js';
+import {legacyCreditPYGMinor,vipeReceivableMinor,vipeLegacyPYG} from '../core/vipeLegacyNative.js';
+import {receberFiadoLegadoVipe} from '../core/vipeCreditSettlement.js';
 
 export default function Clientes({ userId, perfilLoja = {}, commitOperacaoNegocio, livroFinanceiro = [], registrarFinanceiro, caixaMovimentos = [], setCaixaMovimentos, sessaoAtiva, operadorAtivo, clientes, historicoVendas = [], setClientes, moeda, moedaPadrao='BRL', taxasCambio={}, fmt, t, tx = (pt) => pt, converterDeBRL, converterParaBRL }) {
   const [filtroPaisCliente, setFiltroPaisCliente] = useState('todos');
@@ -44,7 +45,7 @@ export default function Clientes({ userId, perfilLoja = {}, commitOperacaoNegoci
   const [formCliente, setFormCliente] = useState(normalizarCliente({}));
   const [limiteCreditoNativoTexto,setLimiteCreditoNativoTexto]=useState('0');
   const limiteNativoCliente = cli => nativeCreditLimitMinor(cli,moedaPadrao)
-    ?? legacyPYGMinor(cli?.limiteCreditoBRL,userId,moedaPadrao);
+    ?? legacyCreditPYGMinor(cli?.limiteCreditoBRL,userId,moedaPadrao);
   const textoLimiteCliente = cli => formatVerifiedOrPending(
     limiteNativoCliente(cli),moedaPadrao,
     tx('Limite em conciliação','Límite por conciliar','Credit limit reconciliation'));
@@ -57,9 +58,8 @@ export default function Clientes({ userId, perfilLoja = {}, commitOperacaoNegoci
   // A verified native title is always preferred to the legacy numeric field.
   const saldoNativoClienteMinor = cli => {
     const r=carteirasNativas.get(String(cli.id));
-    return r?.status==='confirmado'
-      ?parseMoney(String(r.totalNativo),moedaPadrao)
-      :legacyPYGMinor(cli?.saldoDevedorBRL,userId,moedaPadrao);
+    return vipeReceivableMinor(cli,r,userId,moedaPadrao)
+      ?? (r?.status==='confirmado'?parseMoney(String(r.totalNativo),moedaPadrao):null);
   };
   const saldosVisiveis=clientes.map(saldoNativoClienteMinor);
   const totalFiadoNativoMinor=saldosVisiveis.every(v=>v!==null)
@@ -263,9 +263,15 @@ export default function Clientes({ userId, perfilLoja = {}, commitOperacaoNegoci
     let pagamentoNativo=null;
     if(moedaPadrao!=='BRL'||temTitulosNativos){
       try{
-        pagamentoNativo=receberTituloNativo(clienteAtual,{
-          moedaPadrao,moedaPagamento:formaCfg.moedaOrigem,valorPago:valorOriginal,taxasCambio,
-        });
+        const carteiraAtual=apurarCarteiraNativa(clienteAtual,moedaPadrao);
+        pagamentoNativo=carteiraAtual.status==='legado_pendente' && vipeLegacyPYG(userId,moedaPadrao)
+          ?receberFiadoLegadoVipe(clienteAtual,carteiraAtual,{
+            storeId:userId,moedaPadrao,moedaPagamento:formaCfg.moedaOrigem,
+            valorPago:valorOriginal,taxasCambio,
+          })
+          :receberTituloNativo(clienteAtual,{
+            moedaPadrao,moedaPagamento:formaCfg.moedaOrigem,valorPago:valorOriginal,taxasCambio,
+          });
       }catch(error){
         return setModalZen({variante:'danger',titulo:tx('Recebimento protegido','Cobro protegido','Protected receipt'),
           mensagem:tx('A moeda e a dívida original desta conta precisam estar conciliadas para receber. Nenhum saldo foi alterado.','La moneda y la deuda original deben conciliarse antes del cobro. No se modificó ningún saldo.','Original debt and currency must reconcile before payment. No balance changed.'),
@@ -346,6 +352,12 @@ export default function Clientes({ userId, perfilLoja = {}, commitOperacaoNegoci
           changes, financialEntries:[financeiro],
           guards: [
             { type:'client_receipt_snapshot', clientId:clienteAtual.id, clientName:clienteAtual.nome, balanceBRL:saldoAntes },
+            { type:'entity_field_equals',field:'clientes',entityId:clienteAtual.id,entityKey:'id',
+              property:'titulosFiadoNativos',expected:clienteAtual.titulosFiadoNativos,
+              message:'Os títulos do cliente foram alterados. Atualize o cadastro.' },
+            { type:'entity_field_equals',field:'clientes',entityId:clienteAtual.id,entityKey:'id',
+              property:'fiadoLegadoSaldoOriginalMinor',expected:clienteAtual.fiadoLegadoSaldoOriginalMinor,
+              message:'O saldo original foi alterado. Atualize o cadastro.' },
             ...(dinheiroFisico ? [{ type:'cash_session_open', sessionId:sessaoAtiva.id }] : []),
           ],
           operationKey: 'recebimento-fiado:' + recebimentoId,

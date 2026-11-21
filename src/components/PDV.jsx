@@ -20,7 +20,7 @@ import { validarComposicaoPagamento } from '../core/paymentValidation';
 import { parseMoney,formatMoneyMinor,convertMinorDirect } from '../core/nativeMoneyKernel.js';
 import { calcularCarrinhoNativoPDV,registrarPagamentoNativoPDV,validarQuitacaoNativa,registrarBridgeContabilBRL,valorPendenteNaMoedaRecebida,formatarNativo } from '../core/nativePdvAccounting.js';
 import { adicionarTituloNativo,apurarCarteiraNativa } from '../core/nativeReceivables.js';
-import {legacyPYGMinor} from '../core/vipeLegacyNative.js';
+import {legacyPYGMinor,legacyCreditPYGMinor,vipeReceivableMinor} from '../core/vipeLegacyNative.js';
 import {formatNativeMinor,formatVerifiedOrPending,nativeCreditLimitMinor} from '../core/nativeMoneyDisplay.js';
 import { interpretarValorMonetario } from '../core/cashMoneyInput';
 import { lerRascunhoPDV, salvarRascunhoPDV, apagarRascunhoPDVProtegido, salvarRascunhoPDVProtegido, lerRascunhoPDVRecuperavel } from '../core/pdvDraft';
@@ -460,7 +460,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
   };
   const formatarPrecoProdutoPDV=(prod,cliente) => {
     const valor=precoNativoVisualProduto(prod,cliente);
-    return valor==null?tx('Preço a conciliar','Precio por conciliar','Price needs reconciliation')
+    return valor==null?tx('Preço não cadastrado','Precio no registrado','Price not registered')
       :formatarNativo(valor,moeda,idioma);
   };
   const aplicarPrecoPorPerfilCliente = (prod, cliente) => {
@@ -858,7 +858,7 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
       itens:itensVenda,storeId:userId,desconto:String(descontoTexto||'0').replace(',','.'),
       moedaDesconto:moedaVisualCheckout,moedaLoja:moedaPadrao,taxas:taxasCheckout,
     })};}
-    catch(error){return {ok:false,erro:error?.message||'Preço nativo não conciliado'};}
+    catch(error){return {ok:false,erro:error?.message||'Preço nativo indisponível'};}
   },[itensVenda,descontoTexto,moedaVisualCheckout,moedaPadrao,taxasCheckout]);
   const subtotalNativeMinor=apuracaoNativa.ok?apuracaoNativa.cart.subtotalMinor:'0';
   const descontoNativeMinor=apuracaoNativa.ok?apuracaoNativa.cart.discountMinor:'0';
@@ -1912,10 +1912,9 @@ export default function PDV({ abrirFilaOnlineToken = 0, onPedidosOnlineAtualizad
             {clienteSelecionadoPDV && (
               <div style={{ position: 'absolute', top: '16px', right: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ fontSize: '11px', color: '#cbd5e1' }} className="hide-mobile">{tx('Fiado:', 'Deuda:', 'Debt:')} <strong style={{ color: clienteSelecionadoPDV.saldoDevedorBRL > 0 ? '#fb7185' : '#34d399' }}>{(() => {const r=apurarCarteiraNativa(clienteSelecionadoPDV,moedaPadrao);
-  const legacy=legacyPYGMinor(clienteSelecionadoPDV.saldoDevedorBRL,userId,moedaPadrao);
-  return r.status==='confirmado'
-    ?formatNativeMinor(parseMoney(String(r.totalNativo),moedaPadrao),moedaPadrao)
-    :legacy!==null?formatNativeMinor(legacy,moedaPadrao)
+  const legacy=vipeReceivableMinor(clienteSelecionadoPDV,r,userId,moedaPadrao);
+  return legacy!==null?formatNativeMinor(legacy,moedaPadrao)
+    :r.status==='confirmado'?formatNativeMinor(parseMoney(String(r.totalNativo),moedaPadrao),moedaPadrao)
     :tx('Valor original indisponível','Valor original no disponible','Original balance unavailable');})()}</strong></span>
                 <button onClick={removerClienteDoPDV} style={{ backgroundColor: '#020617', border: 'none', color: '#f43f5e', fontSize: '14px', cursor: 'pointer', fontWeight: 900 }}>✕</button>
               </div>

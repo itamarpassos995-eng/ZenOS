@@ -1,14 +1,15 @@
 import { interpretarValorMonetario } from './cashMoneyInput.js';
 import { parseMoney,formatMoneyMinor,convertMinorDirect } from './nativeMoneyKernel.js';
-import {legacyPYGMinor} from './vipeLegacyNative.js';
+import {legacyPYGMinor,vipeLegacyPYG} from './vipeLegacyNative.js';
 const fields=['custoBRL','precoBRL','preco2BRL','preco3BRL'];
-export function produtoParaFormularioMonetario(produto, moeda, converterDeBRL) {
-  const moedaCusto=quantiaOriginalProduto(produto,'custoBRL')?.moeda||moeda;
-  const moedaPreco=quantiaOriginalProduto(produto,'precoBRL')?.moeda||moeda;
+export function produtoParaFormularioMonetario(produto, moeda, converterDeBRL,storeId=null,moedaPadrao=moeda) {
+  const vipe=vipeLegacyPYG(storeId,moedaPadrao);
+  const moedaCusto=quantiaOriginalProduto(produto,'custoBRL')?.moeda||(vipe?'PYG':moeda);
+  const moedaPreco=quantiaOriginalProduto(produto,'precoBRL')?.moeda||(vipe?'PYG':moeda);
   return {...Object.fromEntries(fields.map(field=>{
     const original=quantiaOriginalProduto(produto,field);
     const codigo=field==='custoBRL'?moedaCusto:moedaPreco;
-    const valor=original?(original.moeda===codigo?original.valor:original.valor*converterDeBRL(1,codigo)/converterDeBRL(1,original.moeda)):converterDeBRL(Number(produto[field]||0),codigo);
+    const valor=original?(original.moeda===codigo?original.valor:original.valor*converterDeBRL(1,codigo)/converterDeBRL(1,original.moeda)):vipe?Number(produto[field]||0):converterDeBRL(Number(produto[field]||0),codigo);
     return [field,Number(valor).toFixed(codigo==='PYG'?0:2)];
   })),moedaCusto,moedaPreco};
 }
