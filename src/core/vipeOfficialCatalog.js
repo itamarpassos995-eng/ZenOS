@@ -14,11 +14,11 @@ export function vipeOfficialProduct(prod,storeId,defaultCurrency){
  const entry=official.rows[match[1]];
  if(!entry)return null;
  const [originalSku,custoPYG,precoPYG]=entry;
- if(String(prod.sku||'').trim()!==originalSku)return null;
+ if(String(prod.sku||'').trim()!==String(originalSku).trim())return null;
  if(!Number.isSafeInteger(precoPYG)||precoPYG<=0||!Number.isSafeInteger(custoPYG)||custoPYG<0)
   throw Error('Catálogo histórico VIPE contém valor inválido: '+match[1]);
  return Object.freeze({source:official.source,sourceDate:official.createdAt,
-   idOrigem:match[1],sku:originalSku,custoPYG,precoPYG});
+   idOrigem:match[1],sku:String(originalSku).trim(),custoPYG,precoPYG});
 }
 export function precoOficialVipePYG(prod,field,storeId,defaultCurrency){
  if(field!=='precoBRL')return null;
